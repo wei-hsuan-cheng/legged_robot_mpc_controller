@@ -60,6 +60,11 @@ def generate_launch_description():
             default_value="true",
             description="Load, configure, and activate the MPC controller before MuJoCo physics starts.",
         ),
+        DeclareLaunchArgument(
+            "velocityCommandGui",
+            default_value="true",
+            description="Launch the pelvis velocity/height command GUI.",
+        ),
         DeclareLaunchArgument("mujocoModelFile", default_value="scene.xml"),
     ]
 
@@ -215,6 +220,14 @@ def generate_launch_description():
         parameters=[display_description, {"use_sim_time": use_sim_time}],
     )
 
+    velocity_command_gui_node = Node(
+        package="legged_robot_mpc_controller",
+        executable="base_velocity_controller_gui.py",
+        name="base_velocity_controller_gui",
+        output="screen",
+        condition=IfCondition(LaunchConfiguration("velocityCommandGui")),
+    )
+
     rviz_node = Node(
         package="rviz2",
         executable="rviz2",
@@ -232,6 +245,7 @@ def generate_launch_description():
             controller_sequence,
             controller_sequence_mujoco,
             robot_state_publisher_node,
+            velocity_command_gui_node,
             rviz_node,
         ]
     )

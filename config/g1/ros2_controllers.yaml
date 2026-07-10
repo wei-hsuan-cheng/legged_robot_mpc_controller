@@ -57,6 +57,9 @@ humanoid_wb_mpc_controller:
                    10.0, 10.0, 10.0,
                    10.0, 10.0, 10.0, 10.0,
                    10.0, 10.0, 10.0, 10.0]
+      # Legacy WB controller behavior for the six joints excluded from the MPC model.
+      fixedJointKp: [100.0, 100.0, 100.0, 100.0, 100.0, 100.0]
+      fixedJointKd: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
       # Symmetric software clamp, index-aligned with robot.jointNames.
       torqueLimit: [88.0, 88.0, 88.0, 139.0, 50.0, 50.0,
                     88.0, 88.0, 88.0, 139.0, 50.0, 50.0,

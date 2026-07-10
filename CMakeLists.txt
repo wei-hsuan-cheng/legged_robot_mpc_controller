@@ -143,6 +143,7 @@ target_compile_definitions(legged_robot_humanoid_centroidal_core PUBLIC BOOST_MP
 add_library(${PROJECT_NAME} SHARED
   src/humanoid_wb_mpc_controller.cpp
   src/config/wb_mpc_config_builder.cpp
+  src/ros2_procedural_mpc_motion_manager.cpp
 )
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_20)
 target_include_directories(${PROJECT_NAME}
@@ -171,6 +172,10 @@ install(DIRECTORY include/
 )
 install(DIRECTORY launch/
   DESTINATION share/${PROJECT_NAME}/launch
+)
+install(PROGRAMS
+  launch/base_velocity_controller_gui.py
+  DESTINATION lib/${PROJECT_NAME}
 )
 install(DIRECTORY config/
   DESTINATION share/${PROJECT_NAME}/config

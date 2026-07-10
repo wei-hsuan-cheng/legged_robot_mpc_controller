@@ -24,9 +24,11 @@
 #include <rclcpp_lifecycle/state.hpp>
 
 #include <humanoid_wb_mpc/WBMpcInterface.h>
+#include <humanoid_wb_mpc/command/WBMpcTargetTrajectoriesCalculator.h>
 #include <humanoid_wb_mpc/common/WBAccelMpcRobotModel.h>
 
 #include "legged_robot_mpc_controller/humanoid_wb_mpc_controller_parameters.hpp"
+#include "legged_robot_mpc_controller/ros2_procedural_mpc_motion_manager.hpp"
 
 namespace legged_robot_mpc_controller
 {
@@ -85,6 +87,8 @@ private:
 
   std::unique_ptr<ocs2::humanoid::WBMpcInterface> mpc_interface_;
   std::unique_ptr<ocs2::humanoid::WBAccelMpcRobotModel<ocs2::scalar_t>> control_model_;
+  std::unique_ptr<ocs2::humanoid::WBMpcTargetTrajectoriesCalculator> target_trajectories_calculator_;
+  std::shared_ptr<Ros2ProceduralMpcMotionManager> motion_manager_;
   std::unique_ptr<ocs2::MPC_BASE> mpc_solver_;
   std::unique_ptr<ocs2::MPC_MRT_Interface> mrt_interface_;
   std::jthread solver_thread_;
@@ -97,6 +101,8 @@ private:
   vector_t initial_observation_state_;
   vector_t mpc_joint_kp_;
   vector_t mpc_joint_kd_;
+  vector_t fixed_joint_kp_;
+  vector_t fixed_joint_kd_;
   vector_t torque_limit_;
 };
 

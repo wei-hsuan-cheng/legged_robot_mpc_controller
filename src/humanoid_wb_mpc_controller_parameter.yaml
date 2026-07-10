@@ -56,6 +56,18 @@ humanoid_wb_mpc_controller:
       description: "Joint-space feedback damping added to MPC feedforward torques. Empty means 10 for all MPC joints."
     }
 
+    fixedJointKp: {
+      type: double_array,
+      default_value: [],
+      description: "Position feedback stiffness for joints excluded from the MPC model. Empty means 100 for all fixed joints."
+    }
+
+    fixedJointKd: {
+      type: double_array,
+      default_value: [],
+      description: "Velocity feedback damping for joints excluded from the MPC model. Empty means 1 for all fixed joints."
+    }
+
     torqueLimit: {
       type: double_array,
       default_value: [],

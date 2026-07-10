@@ -6,6 +6,7 @@
 #include <limits>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <controller_interface/helpers.hpp>
@@ -120,7 +121,41 @@ controller_interface::CallbackReturn HumanoidWbMpcController::on_configure(
     const auto joint_dim = static_cast<Eigen::Index>(control_model_->getJointDim());
     mpc_joint_kp_ = make_vector(parameters_.control.mpcJointKp, joint_dim, 1200.0, "control.mpcJointKp");
     mpc_joint_kd_ = make_vector(parameters_.control.mpcJointKd, joint_dim, 10.0, "control.mpcJointKd");
+    const auto fixed_joint_dim = static_cast<Eigen::Index>(parameters_.ocs2.model.fixedJointNames.size());
+    fixed_joint_kp_ = make_vector(parameters_.control.fixedJointKp, fixed_joint_dim, 100.0, "control.fixedJointKp");
+    fixed_joint_kd_ = make_vector(parameters_.control.fixedJointKd, fixed_joint_dim, 1.0, "control.fixedJointKd");
     torque_limit_ = make_vector(parameters_.control.torqueLimit, joint_dim, 0.0, "control.torqueLimit");
+
+    const auto reference_config = buildReferenceConfig(parameters_);
+    if (parameters_.ocs2.gait.gaitFile.empty()) {
+      throw std::invalid_argument("[HumanoidWbMpcController] ocs2.gait.gaitFile is empty.");
+    }
+    target_trajectories_calculator_ =
+      std::make_unique<ocs2::humanoid::WBMpcTargetTrajectoriesCalculator>(
+      reference_config,
+      mpc_interface_->getMpcRobotModel(),
+      mpc_interface_->mpcSettings().timeHorizon_);
+    auto velocity_target_to_target_trajectories =
+      [this](
+      const ocs2::vector4_t& velocity_target,
+      ocs2::scalar_t init_time,
+      ocs2::scalar_t /* final_time */,
+      const ocs2::vector_t& init_state) {
+        return target_trajectories_calculator_->commandedVelocityToTargetTrajectories(
+          velocity_target,
+          init_time,
+          init_state);
+      };
+    auto motion_manager = std::make_shared<Ros2ProceduralMpcMotionManager>(
+      loadGaitMap(parameters_.ocs2.gait.gaitFile),
+      reference_config,
+      mpc_interface_->getSwitchedModelReferenceManagerPtr(),
+      mpc_interface_->getMpcRobotModel(),
+      std::move(velocity_target_to_target_trajectories));
+    motion_manager_ = std::move(motion_manager);
+    rclcpp::QoS command_qos(1);
+    command_qos.best_effort();
+    motion_manager_->subscribe(get_node(), command_qos);
   } catch (const std::exception& e) {
     RCLCPP_ERROR(
       get_node()->get_logger(), "[HumanoidWbMpcController] Failed to build WBMpcInterface: %s",
@@ -204,13 +239,28 @@ controller_interface::CallbackReturn HumanoidWbMpcController::on_deactivate(
 controller_interface::InterfaceConfiguration HumanoidWbMpcController::command_interface_configuration()
   const
 {
-  return make_joint_interface_configuration({parameters_.robot.commandInterface});
+  auto config = make_joint_interface_configuration({parameters_.robot.commandInterface});
+  for (const auto& joint_name : parameters_.ocs2.model.fixedJointNames) {
+    config.names.emplace_back(joint_name + "/" + parameters_.robot.commandInterface);
+  }
+  if (!config.names.empty()) {
+    config.type = controller_interface::interface_configuration_type::INDIVIDUAL;
+  }
+  return config;
 }
 
 controller_interface::InterfaceConfiguration HumanoidWbMpcController::state_interface_configuration()
   const
 {
   auto config = make_joint_interface_configuration(parameters_.robot.stateInterfaces);
+
+  for (const auto& joint_name : parameters_.ocs2.model.fixedJointNames) {
+    for (const auto& interface_name : parameters_.robot.stateInterfaces) {
+      if (!interface_name.empty()) {
+        config.names.emplace_back(joint_name + "/" + interface_name);
+      }
+    }
+  }
 
   if (parameters_.floatingBase.source == "state_interfaces") {
     if (config.type == controller_interface::interface_configuration_type::NONE) {
@@ -533,6 +583,7 @@ void HumanoidWbMpcController::start_solver_thread(
   mrt_interface_->initRollout(&mpc_interface_->getRollout());
   mrt_interface_->setCurrentObservation(initial_observation);
   mrt_interface_->resetMpcNode(current_observation_to_reset_trajectory(initial_observation));
+  mpc_solver_->getSolverPtr()->addSynchronizedModule(motion_manager_);
 
   terminate_solver_thread_.store(false);
   solver_thread_ = std::jthread([this] { solver_worker(); });
@@ -629,7 +680,8 @@ HumanoidWbMpcController::vector_t HumanoidWbMpcController::compute_mpc_torque_co
 
 void HumanoidWbMpcController::write_torque_command(const vector_t& torque)
 {
-  const size_t n = std::min(command_interfaces_.size(), static_cast<size_t>(torque.size()));
+  const size_t mpc_joint_count = parameters_.robot.jointNames.size();
+  const size_t n = std::min(mpc_joint_count, static_cast<size_t>(torque.size()));
   for (size_t i = 0; i < n; ++i) {
     double value = torque[static_cast<Eigen::Index>(i)];
     if (i < static_cast<size_t>(torque_limit_.size()) && torque_limit_[static_cast<Eigen::Index>(i)] > 0.0) {
@@ -640,6 +692,33 @@ void HumanoidWbMpcController::write_torque_command(const vector_t& torque)
       value = 0.0;
     }
     command_interfaces_[i].set_value(value);
+  }
+
+  // The legacy controller kept joints excluded from the MPC model at zero with a
+  // small joint-space impedance action. Keep the same behavior for the six wrist joints.
+  const auto position_offset = interface_offset(
+    parameters_.robot.stateInterfaces,
+    hardware_interface::HW_IF_POSITION);
+  const auto velocity_offset = interface_offset(
+    parameters_.robot.stateInterfaces,
+    hardware_interface::HW_IF_VELOCITY);
+  const size_t state_stride = parameters_.robot.stateInterfaces.size();
+  const size_t fixed_joint_count = parameters_.ocs2.model.fixedJointNames.size();
+  if (!position_offset || !velocity_offset ||
+    state_interfaces_.size() < (mpc_joint_count + fixed_joint_count) * state_stride ||
+    command_interfaces_.size() < mpc_joint_count + fixed_joint_count)
+  {
+    return;
+  }
+
+  for (size_t i = 0; i < fixed_joint_count; ++i) {
+    const size_t state_index = (mpc_joint_count + i) * state_stride;
+    const double q = state_interfaces_[state_index + *position_offset].get_value();
+    const double v = state_interfaces_[state_index + *velocity_offset].get_value();
+    const double fixed_torque =
+      fixed_joint_kp_[static_cast<Eigen::Index>(i)] * (0.0 - q) +
+      fixed_joint_kd_[static_cast<Eigen::Index>(i)] * (0.0 - v);
+    command_interfaces_[mpc_joint_count + i].set_value(std::isfinite(fixed_torque) ? fixed_torque : 0.0);
   }
 }
 
