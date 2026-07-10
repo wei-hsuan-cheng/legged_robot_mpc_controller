@@ -23,7 +23,7 @@ def response_error_string(result):
     return getattr(result, 'error_string', '')
 
 class ControllerSequencer(Node):
-    def __init__(self, controller_manager, robot_description_topic, controller_name, timeout_sec, use_sim_time):
+    def __init__(self, controller_manager, robot_description_topic, controller_name, timeout_sec, use_sim_time, configure_timeout_sec=3600.0):
         super().__init__(
             'controller_sequencer',
             parameter_overrides=[Parameter('use_sim_time', value=use_sim_time)],
@@ -33,6 +33,7 @@ class ControllerSequencer(Node):
         self.robot_description_topic = robot_description_topic
         self.controller_name = controller_name
         self.timeout_sec = timeout_sec
+        self.configure_timeout_sec = configure_timeout_sec
         self.robot_description_msg = None
 
         qos = QoSProfile(depth=1, durability=QoSDurabilityPolicy.TRANSIENT_LOCAL)
@@ -86,8 +87,17 @@ class ControllerSequencer(Node):
             req = ConfigureController.Request()
             req.name = name
             future = self.config_cli.call_async(req)
-            rclpy.spin_until_future_complete(self, future, timeout_sec=self.timeout_sec)
-            result = future.result()
+            # Configuring the MPC controller runs CppAD code generation, which can take
+            # many minutes on the first run (and on every run with recompileLibraries=true).
+            # Wait patiently with heartbeat logs instead of the short service timeout.
+            deadline = time.time() + self.configure_timeout_sec
+            while rclpy.ok() and not future.done() and time.time() < deadline:
+                rclpy.spin_until_future_complete(self, future, timeout_sec=30.0)
+                if not future.done():
+                    elapsed = int(self.configure_timeout_sec - (deadline - time.time()))
+                    self.get_logger().info(
+                        f'Still configuring {name} ({elapsed}s elapsed; CppAD codegen may be running)...')
+            result = future.result() if future.done() else None
             if result is None or not result.ok:
                 err = response_error_string(result)
                 self.get_logger().error(f'Failed to configure {name}: {err}')
@@ -217,6 +227,9 @@ def main():
     parser.add_argument('--controller-name', default='humanoid_wb_mpc_controller')
     parser.add_argument('--timeout', type=float, default=120.0)
     parser.add_argument(
+        '--configure-timeout', type=float, default=3600.0,
+        help='Timeout for controller configure calls; the MPC controller runs CppAD codegen here.')
+    parser.add_argument(
         '--use-mujoco-sim',
         action='store_true',
         help='Adjust startup sequencing for MuJoCo-backed ros2_control.',
@@ -235,6 +248,7 @@ def main():
         controller_name=args.controller_name,
         timeout_sec=args.timeout,
         use_sim_time=args.use_sim_time,
+        configure_timeout_sec=args.configure_timeout,
     )
 
     if not wait_for_controller_manager(node, args.controller_manager):
