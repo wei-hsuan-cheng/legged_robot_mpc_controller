@@ -758,6 +758,7 @@ HumanoidWbMpcController::TorqueCommand HumanoidWbMpcController::compute_mpc_torq
     if (!policy.stateTrajectory_.empty()) {
       command.plan_final_base_pose = control_model_->getBasePose(policy.stateTrajectory_.back());
       command.plan_final_time = policy.timeTrajectory_.back();
+      command.policy_age = observation.time - policy.timeTrajectory_.front();
     }
     command.left_contact_wrench = control_model_->getContactWrench(policy_input, 0);
     command.right_contact_wrench = control_model_->getContactWrench(policy_input, 1);
@@ -853,7 +854,7 @@ void HumanoidWbMpcController::log_runtime_diagnostics(
     *get_node()->get_clock(),
     diagnostics_period_ms_,
     "[HumanoidWbMpcController][WALK] t=%.3f obsBase=%s targetFinal=%s @%.3f planFinal=%s @%.3f "
-    "wrenchL=%s wrenchR=%s",
+    "wrenchL=%s wrenchR=%s policyAge=%.3f",
     observation.time,
     format_vector(base_pose).c_str(),
     format_vector(command.target_final_base_pose).c_str(),
@@ -861,7 +862,8 @@ void HumanoidWbMpcController::log_runtime_diagnostics(
     format_vector(command.plan_final_base_pose).c_str(),
     command.plan_final_time,
     format_vector(command.left_contact_wrench).c_str(),
-    format_vector(command.right_contact_wrench).c_str());
+    format_vector(command.right_contact_wrench).c_str(),
+    command.policy_age);
 }
 
 void HumanoidWbMpcController::write_joint_action_command(

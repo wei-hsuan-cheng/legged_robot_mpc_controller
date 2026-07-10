@@ -82,6 +82,8 @@ private:
     // Planned contact wrenches at the evaluated policy time (left, right).
     vector_t left_contact_wrench;
     vector_t right_contact_wrench;
+    // Age of the active policy: observation time minus the policy start time.
+    double policy_age{0.0};
   };
 
   controller_interface::InterfaceConfiguration make_joint_interface_configuration(
