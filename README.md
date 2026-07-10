@@ -76,7 +76,7 @@ mujoco_publish_rate:=100.0               # double
 gt_enabled:=true | false                 # floating-base ground-truth odometry for visualization / ROS consumers
 gt_body_frame:=pelvis                    # MuJoCo body published as ground truth
 mpcFreq:=50                              # integer
-mrtFreq:=500                             # integer; matches the legacy G1 MuJoCo loop
+mrtFreq:=1000                            # integer
 libFolder:=auto_generated/g1             # CppAD codegen output
 mujocoModelFile:=scene.xml               # swap scene: boxes / stairs / slope in description/g1/mujoco
 ```
