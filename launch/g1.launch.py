@@ -21,7 +21,7 @@ def generate_launch_description():
     mpc_share = FindPackageShare("legged_robot_mpc_controller")
     mpc_share_dir = get_package_share_directory("legged_robot_mpc_controller")
 
-    rviz_default = os.path.join(mpc_share_dir, "description", "g1", "rviz", "urdf_config.rviz")
+    rviz_default = os.path.join(mpc_share_dir, "description", "g1", "rviz", "humanoid.rviz")
     initial_pose_default = os.path.join(mpc_share_dir, "config", "g1", "initial_pose.yaml")
     lib_folder_default = os.path.join("auto_generated", "g1")
 
@@ -39,7 +39,10 @@ def generate_launch_description():
         DeclareLaunchArgument("mujoco_real_time_factor", default_value="1.0"),
         DeclareLaunchArgument("mujoco_publish_rate", default_value="100.0"),
         DeclareLaunchArgument("gt_enabled", default_value="true"),
-        DeclareLaunchArgument("gt_body_frame", default_value="torso_link"),
+        # pelvis is the URDF root and the MuJoCo free-joint body: world->pelvis from ground
+        # truth composes with robot_state_publisher's pelvis-rooted tree without TF conflicts
+        # (any other body would get two TF parents).
+        DeclareLaunchArgument("gt_body_frame", default_value="pelvis"),
         DeclareLaunchArgument("urdfFile", default_value=urdf_default),
         DeclareLaunchArgument(
             "libFolder",

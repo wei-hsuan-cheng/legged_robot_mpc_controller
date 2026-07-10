@@ -59,8 +59,8 @@ humanoid_wb_mpc_controller:
 
     baseFrame: {
       type: string,
-      default_value: "torso_link",
-      description: "Floating-base body frame used as the MPC base"
+      default_value: "pelvis",
+      description: "Floating-base body frame used as the MPC base (URDF root / MuJoCo free-joint body)"
     }
 
   ocs2:

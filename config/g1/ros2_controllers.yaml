@@ -54,7 +54,7 @@ humanoid_wb_mpc_controller:
       # ros2_control joint state interfaces.
       source: mujoco_ground_truth_odom
       odometryTopic: /mujoco/ground_truth/odom
-      baseFrame: torso_link
+      baseFrame: pelvis
 
     ocs2:
       interface:
@@ -66,7 +66,7 @@ humanoid_wb_mpc_controller:
         robotName: g1
         phaseTransitionStanceTime: 0.0
         verboseCppAd: true
-        recompileLibrariesCppAd: true
+        recompileLibrariesCppAd: false
         fixedJointNames:
           - left_wrist_roll_joint
           - left_wrist_pitch_joint

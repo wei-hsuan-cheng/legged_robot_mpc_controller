@@ -123,8 +123,8 @@ maps these parameters onto the vendored MPC core (`WBMpcInterface::Config`).
 
 `mujoco_ros2_control` publishes floating-base ground truth as
 `nav_msgs/Odometry` on `/mujoco/ground_truth/odom` (plus TF) when
-`gt_enabled:=true` and `gt_body_frames` contains the torso body
-(`torso_link`). It is not exposed as `ros2_control` state interfaces, so the
+`gt_enabled:=true` and `gt_body_frames` contains the floating-base body
+(`pelvis`, the URDF root). It is not exposed as `ros2_control` state interfaces, so the
 MPC controller reads the floating base from the odometry topic and the
 actuated joints from the normal state interfaces.
 
