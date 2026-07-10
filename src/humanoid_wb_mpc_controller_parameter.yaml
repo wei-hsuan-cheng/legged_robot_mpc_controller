@@ -65,11 +65,17 @@ humanoid_wb_mpc_controller:
   floatingBase:
     source: {
       type: string,
-      default_value: "mujoco_ground_truth_odom",
-      description: "Floating-base state source. Initial migration supports mujoco_ros2_control ground-truth odometry.",
+      default_value: "state_interfaces",
+      description: "Floating-base state source. Prefer state_interfaces for control; mujoco_ground_truth_odom is a topic fallback.",
       validation: {
         one_of<>: [["mujoco_ground_truth_odom", "state_interfaces"]]
       }
+    }
+
+    stateInterfaceName: {
+      type: string,
+      default_value: "pelvis",
+      description: "ros2_control sensor/state-interface prefix for the floating-base body state"
     }
 
     odometryTopic: {

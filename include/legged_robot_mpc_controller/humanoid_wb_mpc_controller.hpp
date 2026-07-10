@@ -63,7 +63,12 @@ private:
 
   controller_interface::InterfaceConfiguration make_joint_interface_configuration(
     const std::vector<std::string>& interface_names) const;
+  std::vector<std::string> floating_base_state_interface_names() const;
   bool read_joint_state(vector_t& q, vector_t& v);
+  bool read_floating_base_state(ocs2::SystemObservation& observation);
+  std::optional<double> get_state_interface_value(
+    const std::string& prefix_name,
+    const std::string& interface_name) const;
   ocs2::SystemObservation build_observation(const rclcpp::Time& time);
   ocs2::TargetTrajectories current_observation_to_reset_trajectory(
     const ocs2::SystemObservation& observation);

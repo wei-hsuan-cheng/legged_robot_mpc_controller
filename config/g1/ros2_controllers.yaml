@@ -65,9 +65,11 @@ humanoid_wb_mpc_controller:
                     25.0, 25.0, 25.0, 25.0]
 
     floatingBase:
-      # mujoco_ros2_control publishes this from MuJoCo body state, not through
-      # ros2_control joint state interfaces.
-      source: mujoco_ground_truth_odom
+      # Direct MuJoCo body state exposed through ros2_control state interfaces.
+      # The odometry topic/TF publisher remains enabled for visualization and
+      # other ROS nodes.
+      source: state_interfaces # state_interfaces (from state interface) | mujoco_ground_truth_odom (from topic)
+      stateInterfaceName: pelvis
       odometryTopic: /mujoco/ground_truth/odom
       baseFrame: pelvis
 

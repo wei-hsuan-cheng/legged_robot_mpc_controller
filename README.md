@@ -76,8 +76,8 @@ mujoco_headless:=true | false
 mujoco_wait_to_start:=true | false       # paused start + /mujoco_ros2_control/start service
 mujoco_real_time_factor:=1.0             # double
 mujoco_publish_rate:=100.0               # double
-gt_enabled:=true | false                 # floating-base ground-truth odometry
-gt_body_frame:=torso_link                # MuJoCo body used as floating base
+gt_enabled:=true | false                 # floating-base ground-truth odometry for visualization / ROS consumers
+gt_body_frame:=pelvis                    # MuJoCo body published as ground truth
 mpcFreq:=50                              # integer
 mrtFreq:=1000                            # integer
 libFolder:=auto_generated/g1             # CppAD codegen output
@@ -87,7 +87,8 @@ mujocoModelFile:=scene.xml               # swap scene: boxes / stairs / slope in
 Useful topics:
 
 ```bash
-# Floating-base ground truth from mujoco_ros2_control (nav_msgs/Odometry)
+# Floating-base ground truth from mujoco_ros2_control (nav_msgs/Odometry).
+# MPC reads the same pelvis body directly through ros2_control state interfaces.
 ros2 topic echo /mujoco/ground_truth/odom
 
 # Actuated joint states
@@ -118,12 +119,21 @@ maps these parameters onto the vendored MPC core (`WBMpcInterface::Config`).
 
 ## Floating-Base State
 
-`mujoco_ros2_control` publishes floating-base ground truth as
-`nav_msgs/Odometry` on `/mujoco/ground_truth/odom` (plus TF) when
-`gt_enabled:=true` and `gt_body_frames` contains the floating-base body
-(`pelvis`, the URDF root). It is not exposed as `ros2_control` state interfaces, so the
-MPC controller reads the floating base from the odometry topic and the
-actuated joints from the normal state interfaces.
+`mujoco_ros2_control` exposes the MuJoCo floating-base body (`pelvis`) through
+read-only `ros2_control` state interfaces under the sensor prefix `pelvis`.
+The MPC controller reads these state interfaces directly for its observation,
+so floating-base feedback does not depend on a ROS topic subscription.
+
+The ground-truth odometry topic and TF are still published when
+`gt_enabled:=true`, but they are for RViz and other ROS consumers:
+
+```bash
+ros2 topic echo /mujoco/ground_truth/odom
+```
+
+The exported pelvis pose is represented in the world frame. The exported
+pelvis twist is represented in the pelvis/body-local frame and converted in
+the MPC controller before writing the OCS2 observation.
 
 ## Contact
 

@@ -138,10 +138,11 @@ controller_interface::CallbackReturn HumanoidWbMpcController::on_configure(
   RCLCPP_INFO(
     get_node()->get_logger(),
     "[HumanoidWbMpcController] configured whole-body MPC controller | joints=%zu solver=%s "
-    "floatingBase.source=%s odom=%s baseFrame=%s",
+    "floatingBase.source=%s stateInterfaceName=%s odom=%s baseFrame=%s",
     parameters_.robot.jointNames.size(),
     parameters_.ocs2.mpc.solverType.c_str(),
     parameters_.floatingBase.source.c_str(),
+    parameters_.floatingBase.stateInterfaceName.c_str(),
     parameters_.floatingBase.odometryTopic.c_str(),
     parameters_.floatingBase.baseFrame.c_str());
   return controller_interface::CallbackReturn::SUCCESS;
@@ -209,7 +210,20 @@ controller_interface::InterfaceConfiguration HumanoidWbMpcController::command_in
 controller_interface::InterfaceConfiguration HumanoidWbMpcController::state_interface_configuration()
   const
 {
-  return make_joint_interface_configuration(parameters_.robot.stateInterfaces);
+  auto config = make_joint_interface_configuration(parameters_.robot.stateInterfaces);
+
+  if (parameters_.floatingBase.source == "state_interfaces") {
+    if (config.type == controller_interface::interface_configuration_type::NONE) {
+      config.type = controller_interface::interface_configuration_type::INDIVIDUAL;
+    }
+    const auto floating_base_interfaces = floating_base_state_interface_names();
+    config.names.insert(
+      config.names.end(),
+      floating_base_interfaces.begin(),
+      floating_base_interfaces.end());
+  }
+
+  return config;
 }
 
 controller_interface::return_type HumanoidWbMpcController::update_reference_from_subscribers()
@@ -271,6 +285,43 @@ HumanoidWbMpcController::make_joint_interface_configuration(
   return config;
 }
 
+std::vector<std::string> HumanoidWbMpcController::floating_base_state_interface_names() const
+{
+  const std::string& name = parameters_.floatingBase.stateInterfaceName;
+  return {
+    name + "/position.x",
+    name + "/position.y",
+    name + "/position.z",
+    name + "/orientation.w",
+    name + "/orientation.x",
+    name + "/orientation.y",
+    name + "/orientation.z",
+    name + "/linear_velocity.x",
+    name + "/linear_velocity.y",
+    name + "/linear_velocity.z",
+    name + "/angular_velocity.x",
+    name + "/angular_velocity.y",
+    name + "/angular_velocity.z",
+  };
+}
+
+std::optional<double> HumanoidWbMpcController::get_state_interface_value(
+  const std::string& prefix_name,
+  const std::string& interface_name) const
+{
+  const auto state_handle = std::find_if(
+    state_interfaces_.begin(),
+    state_interfaces_.end(),
+    [&prefix_name, &interface_name](const auto& interface) {
+      return interface.get_prefix_name() == prefix_name &&
+             interface.get_interface_name() == interface_name;
+    });
+  if (state_handle == state_interfaces_.end()) {
+    return std::nullopt;
+  }
+  return state_handle->get_value();
+}
+
 bool HumanoidWbMpcController::read_joint_state(vector_t& q, vector_t& v)
 {
   const size_t n = parameters_.robot.jointNames.size();
@@ -312,6 +363,59 @@ bool HumanoidWbMpcController::read_joint_state(vector_t& q, vector_t& v)
   return true;
 }
 
+bool HumanoidWbMpcController::read_floating_base_state(ocs2::SystemObservation& observation)
+{
+  const std::string& name = parameters_.floatingBase.stateInterfaceName;
+  const auto px = get_state_interface_value(name, "position.x");
+  const auto py = get_state_interface_value(name, "position.y");
+  const auto pz = get_state_interface_value(name, "position.z");
+  const auto qw = get_state_interface_value(name, "orientation.w");
+  const auto qx = get_state_interface_value(name, "orientation.x");
+  const auto qy = get_state_interface_value(name, "orientation.y");
+  const auto qz = get_state_interface_value(name, "orientation.z");
+  const auto lvx = get_state_interface_value(name, "linear_velocity.x");
+  const auto lvy = get_state_interface_value(name, "linear_velocity.y");
+  const auto lvz = get_state_interface_value(name, "linear_velocity.z");
+  const auto avx = get_state_interface_value(name, "angular_velocity.x");
+  const auto avy = get_state_interface_value(name, "angular_velocity.y");
+  const auto avz = get_state_interface_value(name, "angular_velocity.z");
+
+  if (!px || !py || !pz || !qw || !qx || !qy || !qz || !lvx || !lvy || !lvz || !avx || !avy || !avz) {
+    RCLCPP_ERROR_THROTTLE(
+      get_node()->get_logger(),
+      *get_node()->get_clock(),
+      2000,
+      "[HumanoidWbMpcController] missing floating-base state interfaces for '%s'.",
+      name.c_str());
+    return false;
+  }
+
+  auto& model = *control_model_;
+  model.setBasePosition(
+    observation.state,
+    (ocs2::vector3_t() << *px, *py, *pz).finished());
+
+  Eigen::Quaterniond q(*qw, *qx, *qy, *qz);
+  if (q.norm() < 1e-12) {
+    q = Eigen::Quaterniond::Identity();
+  } else {
+    q.normalize();
+  }
+
+  const ocs2::vector3_t euler_zyx = ocs2::humanoid::quaternionToEulerZYX(q);
+  model.setBaseOrientationEulerZYX(observation.state, euler_zyx);
+
+  const ocs2::vector3_t linear_velocity_local(*lvx, *lvy, *lvz);
+  const ocs2::vector3_t angular_velocity_local(*avx, *avy, *avz);
+  model.setBaseLinearVelocity(observation.state, q * linear_velocity_local);
+  model.setBaseOrientationEulerZYXDerivatives(
+    observation.state,
+    ocs2::getEulerAnglesZyxDerivativesFromLocalAngularVelocity<ocs2::scalar_t>(
+      euler_zyx,
+      angular_velocity_local));
+  return true;
+}
+
 ocs2::SystemObservation HumanoidWbMpcController::build_observation(const rclcpp::Time& time)
 {
   const auto& model = *control_model_;
@@ -333,7 +437,9 @@ ocs2::SystemObservation HumanoidWbMpcController::build_observation(const rclcpp:
     }
   }
 
-  if (has_odometry) {
+  if (parameters_.floatingBase.source == "state_interfaces") {
+    read_floating_base_state(observation);
+  } else if (has_odometry) {
     model.setBasePosition(
       observation.state,
       (ocs2::vector3_t() <<
