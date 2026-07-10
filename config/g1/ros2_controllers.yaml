@@ -69,7 +69,8 @@ humanoid_wb_mpc_controller:
 
     diagnostics:
       activate: true
-      period: 1.0
+      # 5 Hz to resolve the first walking step; restore 1.0 once walking is stable.
+      period: 0.2
 
     floatingBase:
       # Direct MuJoCo body state exposed through ros2_control state interfaces.

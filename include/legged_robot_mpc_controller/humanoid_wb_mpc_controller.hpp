@@ -78,6 +78,9 @@ private:
     double target_final_time{0.0};
     vector_t plan_final_base_pose;
     double plan_final_time{0.0};
+    // Planned contact wrenches at the evaluated policy time (left, right).
+    vector_t left_contact_wrench;
+    vector_t right_contact_wrench;
   };
 
   controller_interface::InterfaceConfiguration make_joint_interface_configuration(

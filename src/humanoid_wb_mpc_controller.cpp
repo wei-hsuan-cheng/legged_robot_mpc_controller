@@ -741,6 +741,8 @@ HumanoidWbMpcController::TorqueCommand HumanoidWbMpcController::compute_mpc_torq
       command.plan_final_base_pose = control_model_->getBasePose(policy.stateTrajectory_.back());
       command.plan_final_time = policy.timeTrajectory_.back();
     }
+    command.left_contact_wrench = control_model_->getContactWrench(policy_input, 0);
+    command.right_contact_wrench = control_model_->getContactWrench(policy_input, 1);
   }
   return command;
 }
@@ -832,13 +834,16 @@ void HumanoidWbMpcController::log_runtime_diagnostics(
     get_node()->get_logger(),
     *get_node()->get_clock(),
     diagnostics_period_ms_,
-    "[HumanoidWbMpcController][WALK] t=%.3f obsBase=%s targetFinal=%s @%.3f planFinal=%s @%.3f",
+    "[HumanoidWbMpcController][WALK] t=%.3f obsBase=%s targetFinal=%s @%.3f planFinal=%s @%.3f "
+    "wrenchL=%s wrenchR=%s",
     observation.time,
     format_vector(base_pose).c_str(),
     format_vector(command.target_final_base_pose).c_str(),
     command.target_final_time,
     format_vector(command.plan_final_base_pose).c_str(),
-    command.plan_final_time);
+    command.plan_final_time,
+    format_vector(command.left_contact_wrench).c_str(),
+    format_vector(command.right_contact_wrench).c_str());
 }
 
 void HumanoidWbMpcController::write_joint_action_command(
