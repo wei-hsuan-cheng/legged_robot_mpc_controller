@@ -98,8 +98,8 @@ controller_interface::CallbackReturn HumanoidWbMpcController::on_activate(
 
   RCLCPP_WARN(
     get_node()->get_logger(),
-    "[HumanoidWbMpcController] placeholder activation enabled. No MPC torque adapter is "
-    "running yet.");
+    "[HumanoidWbMpcController] placeholder activation: commanding zero torque on all claimed "
+    "interfaces until the MPC observation/torque adapters are wired.");
   return controller_interface::CallbackReturn::SUCCESS;
 }
 
@@ -130,6 +130,11 @@ controller_interface::return_type HumanoidWbMpcController::update_and_write_comm
   const rclcpp::Time&,
   const rclcpp::Duration&)
 {
+  // Placeholder control law: command zero effort so the claimed interfaces never hold
+  // uninitialized (NaN) values. Replaced by the MPC torque adapter in the next milestone.
+  for (auto& command_interface : command_interfaces_) {
+    command_interface.set_value(0.0);
+  }
   return controller_interface::return_type::OK;
 }
 

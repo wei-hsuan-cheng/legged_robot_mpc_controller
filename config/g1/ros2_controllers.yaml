@@ -13,9 +13,9 @@ humanoid_wb_mpc_controller:
     update_rate: $(var mrtFreq)
 
     development:
-      # Keep false until the floating-base observation adapter and torque
-      # command path are completed.
-      allowPlaceholderActivation: false
+      # Placeholder activation commands zero torque on all joints (robot ragdolls in simulation).
+      # The MPC observation/torque adapters replace this next.
+      allowPlaceholderActivation: true
 
     paths:
       urdfFile: "$(var urdfFile)"
