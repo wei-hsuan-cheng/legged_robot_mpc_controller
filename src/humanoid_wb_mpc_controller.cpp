@@ -208,7 +208,13 @@ controller_interface::CallbackReturn HumanoidWbMpcController::on_activate(
 
   initial_observation_state_ = mpc_interface_->getInitialState();
   const auto initial_observation = build_observation(get_node()->now());
-  write_torque_command(compute_weight_compensating_torque(initial_observation));
+  if (parameters_.robot.commandInterface == "effort_pd") {
+    const vector_t q_hold = control_model_->getJointAngles(initial_observation.state);
+    write_joint_action_command(
+      q_hold, vector_t::Zero(q_hold.size()), compute_weight_compensating_torque(initial_observation));
+  } else {
+    write_torque_command(compute_weight_compensating_torque(initial_observation));
+  }
   try {
     start_solver_thread(initial_observation);
   } catch (const std::exception& e) {
@@ -253,9 +259,15 @@ controller_interface::CallbackReturn HumanoidWbMpcController::on_deactivate(
 controller_interface::InterfaceConfiguration HumanoidWbMpcController::command_interface_configuration()
   const
 {
-  auto config = make_joint_interface_configuration({parameters_.robot.commandInterface});
+  const bool effort_pd = parameters_.robot.commandInterface == "effort_pd";
+  const std::vector<std::string> command_ifaces = effort_pd ?
+    std::vector<std::string>{"position", "velocity", "effort"} :
+    std::vector<std::string>{parameters_.robot.commandInterface};
+  auto config = make_joint_interface_configuration(command_ifaces);
   for (const auto& joint_name : parameters_.ocs2.model.fixedJointNames) {
-    config.names.emplace_back(joint_name + "/" + parameters_.robot.commandInterface);
+    for (const auto& iface : command_ifaces) {
+      config.names.emplace_back(joint_name + "/" + iface);
+    }
   }
   if (!config.names.empty()) {
     config.type = controller_interface::interface_configuration_type::INDIVIDUAL;
@@ -304,14 +316,28 @@ controller_interface::return_type HumanoidWbMpcController::update_and_write_comm
   }
 
   const auto observation = build_observation(time);
-  vector_t torque;
+  const bool effort_pd = parameters_.robot.commandInterface == "effort_pd";
+  TorqueCommand command;
   if (mrt_interface_ && mrt_interface_->initialPolicyReceived()) {
-    torque = compute_mpc_torque_command(observation);
+    command = compute_mpc_torque_command(observation);
   } else {
-    torque = compute_weight_compensating_torque(observation);
+    command.feedforward = compute_weight_compensating_torque(observation);
+    command.requested = command.feedforward;
+    // Hold the measured posture while waiting for the first policy.
+    command.policy_position = control_model_->getJointAngles(observation.state);
+    command.policy_velocity = vector_t::Zero(command.policy_position.size());
   }
-  write_torque_command(torque);
-  log_runtime_diagnostics(observation, torque);
+
+  vector_t applied_torque;
+  if (effort_pd) {
+    // Joint-action mode: hardware runs the PD at the physics rate (legacy architecture);
+    // we only forward the desired state and the MPC feedforward torque.
+    write_joint_action_command(command.policy_position, command.policy_velocity, command.feedforward);
+    applied_torque = command.feedforward;
+  } else {
+    applied_torque = write_torque_command(command.requested);
+  }
+  log_runtime_diagnostics(observation, command, applied_torque);
   return controller_interface::return_type::OK;
 }
 
@@ -663,22 +689,23 @@ HumanoidWbMpcController::vector_t HumanoidWbMpcController::compute_weight_compen
     *control_model_);
 }
 
-HumanoidWbMpcController::vector_t HumanoidWbMpcController::compute_mpc_torque_command(
+HumanoidWbMpcController::TorqueCommand HumanoidWbMpcController::compute_mpc_torque_command(
   const ocs2::SystemObservation& observation)
 {
   mrt_interface_->setCurrentObservation(observation);
 
+  TorqueCommand command;
   vector_t policy_state;
   vector_t policy_input;
-  size_t policy_mode = ocs2::humanoid::STANCE;
+  command.policy_mode = ocs2::humanoid::STANCE;
   mrt_interface_->evaluatePolicy(
     observation.time + parameters_.control.policyTimeOffset,
     observation.state,
     policy_state,
     policy_input,
-    policy_mode);
+    command.policy_mode);
 
-  vector_t tau = ocs2::humanoid::computeJointTorques<ocs2::scalar_t>(
+  command.feedforward = ocs2::humanoid::computeJointTorques<ocs2::scalar_t>(
     policy_state,
     policy_input,
     mpc_interface_->getPinocchioInterface(),
@@ -686,11 +713,14 @@ HumanoidWbMpcController::vector_t HumanoidWbMpcController::compute_mpc_torque_co
 
   const vector_t q = control_model_->getJointAngles(observation.state);
   const vector_t v = control_model_->getJointVelocities(observation.state, observation.input);
-  const vector_t q_policy = control_model_->getJointAngles(policy_state);
-  const vector_t v_policy = control_model_->getJointVelocities(policy_state, policy_input);
+  command.policy_position = control_model_->getJointAngles(policy_state);
+  command.policy_velocity = control_model_->getJointVelocities(policy_state, policy_input);
 
-  tau += mpc_joint_kp_.cwiseProduct(q_policy - q) + mpc_joint_kd_.cwiseProduct(v_policy - v);
-  return tau;
+  command.feedback =
+    mpc_joint_kp_.cwiseProduct(command.policy_position - q) +
+    mpc_joint_kd_.cwiseProduct(command.policy_velocity - v);
+  command.requested = command.feedforward + command.feedback;
+  return command;
 }
 
 void HumanoidWbMpcController::log_interface_order() const
@@ -725,7 +755,8 @@ void HumanoidWbMpcController::log_interface_order() const
 
 void HumanoidWbMpcController::log_runtime_diagnostics(
   const ocs2::SystemObservation& observation,
-  const vector_t& torque) const
+  const TorqueCommand& command,
+  const vector_t& applied_torque) const
 {
   if (!diagnostics_active_) {
     return;
@@ -756,20 +787,58 @@ void HumanoidWbMpcController::log_runtime_diagnostics(
     *get_node()->get_clock(),
     diagnostics_period_ms_,
     "[HumanoidWbMpcController][DIAGNOSTICS] t=%.3f basePose=%s baseVelocity=%s "
-    "q=%s qd=%s tauCommand=%s effortState=%s",
+    "q=%s qd=%s policyMode=%zu policyQ=%s policyQd=%s "
+    "tauFeedforward=%s tauFeedback=%s tauRequested=%s tauCommandClamped=%s "
+    "effortStatePreviousStep=%s",
     observation.time,
     format_vector(base_pose).c_str(),
     format_vector(base_velocity).c_str(),
     format_vector(q).c_str(),
     format_vector(v).c_str(),
-    format_vector(torque).c_str(),
+    command.policy_mode,
+    format_vector(command.policy_position).c_str(),
+    format_vector(command.policy_velocity).c_str(),
+    format_vector(command.feedforward).c_str(),
+    format_vector(command.feedback).c_str(),
+    format_vector(command.requested).c_str(),
+    format_vector(applied_torque).c_str(),
     format_vector(effort_state).c_str());
 }
 
-void HumanoidWbMpcController::write_torque_command(const vector_t& torque)
+void HumanoidWbMpcController::write_joint_action_command(
+  const vector_t& q_des, const vector_t& qd_des, const vector_t& tau_ff)
+{
+  // effort_pd mode: hardware evaluates kp*(q_des-q)+kd*(qd_des-qd)+tau_ff every physics
+  // step (legacy WBMpcMrtJointController actuator servo). 3 command interfaces per joint.
+  const size_t mpc_joint_count = parameters_.robot.jointNames.size();
+  const size_t fixed_joint_count = parameters_.ocs2.model.fixedJointNames.size();
+  if (command_interfaces_.size() < (mpc_joint_count + fixed_joint_count) * 3) {
+    return;
+  }
+  auto safe = [](double v) { return std::isfinite(v) ? v : 0.0; };
+  for (size_t i = 0; i < mpc_joint_count; ++i) {
+    const auto idx = static_cast<Eigen::Index>(i);
+    command_interfaces_[3 * i + 0].set_value(safe(i < static_cast<size_t>(q_des.size()) ? q_des[idx] : 0.0));
+    command_interfaces_[3 * i + 1].set_value(safe(i < static_cast<size_t>(qd_des.size()) ? qd_des[idx] : 0.0));
+    command_interfaces_[3 * i + 2].set_value(safe(i < static_cast<size_t>(tau_ff.size()) ? tau_ff[idx] : 0.0));
+  }
+  // Joints excluded from the MPC model (wrists): hold zero, soft hardware gains.
+  for (size_t i = 0; i < fixed_joint_count; ++i) {
+    const size_t base = 3 * (mpc_joint_count + i);
+    command_interfaces_[base + 0].set_value(0.0);
+    command_interfaces_[base + 1].set_value(0.0);
+    command_interfaces_[base + 2].set_value(0.0);
+  }
+}
+
+HumanoidWbMpcController::vector_t HumanoidWbMpcController::write_torque_command(
+  const vector_t& torque)
 {
   const size_t mpc_joint_count = parameters_.robot.jointNames.size();
   const size_t n = std::min(mpc_joint_count, static_cast<size_t>(torque.size()));
+  const size_t fixed_joint_count = parameters_.ocs2.model.fixedJointNames.size();
+  vector_t applied_torque = vector_t::Zero(
+    static_cast<Eigen::Index>(mpc_joint_count + fixed_joint_count));
   for (size_t i = 0; i < n; ++i) {
     double value = torque[static_cast<Eigen::Index>(i)];
     if (i < static_cast<size_t>(torque_limit_.size()) && torque_limit_[static_cast<Eigen::Index>(i)] > 0.0) {
@@ -780,6 +849,7 @@ void HumanoidWbMpcController::write_torque_command(const vector_t& torque)
       value = 0.0;
     }
     command_interfaces_[i].set_value(value);
+    applied_torque[static_cast<Eigen::Index>(i)] = value;
   }
 
   // The legacy controller kept joints excluded from the MPC model at zero with a
@@ -791,12 +861,11 @@ void HumanoidWbMpcController::write_torque_command(const vector_t& torque)
     parameters_.robot.stateInterfaces,
     hardware_interface::HW_IF_VELOCITY);
   const size_t state_stride = parameters_.robot.stateInterfaces.size();
-  const size_t fixed_joint_count = parameters_.ocs2.model.fixedJointNames.size();
   if (!position_offset || !velocity_offset ||
     state_interfaces_.size() < (mpc_joint_count + fixed_joint_count) * state_stride ||
     command_interfaces_.size() < mpc_joint_count + fixed_joint_count)
   {
-    return;
+    return applied_torque;
   }
 
   for (size_t i = 0; i < fixed_joint_count; ++i) {
@@ -806,8 +875,11 @@ void HumanoidWbMpcController::write_torque_command(const vector_t& torque)
     const double fixed_torque =
       fixed_joint_kp_[static_cast<Eigen::Index>(i)] * (0.0 - q) +
       fixed_joint_kd_[static_cast<Eigen::Index>(i)] * (0.0 - v);
-    command_interfaces_[mpc_joint_count + i].set_value(std::isfinite(fixed_torque) ? fixed_torque : 0.0);
+    const double applied_fixed_torque = std::isfinite(fixed_torque) ? fixed_torque : 0.0;
+    command_interfaces_[mpc_joint_count + i].set_value(applied_fixed_torque);
+    applied_torque[static_cast<Eigen::Index>(mpc_joint_count + i)] = applied_fixed_torque;
   }
+  return applied_torque;
 }
 
 }  // namespace legged_robot_mpc_controller

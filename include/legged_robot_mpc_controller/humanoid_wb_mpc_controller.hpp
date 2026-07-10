@@ -2,6 +2,7 @@
 #define LEGGED_ROBOT_MPC_CONTROLLER__HUMANOID_WB_MPC_CONTROLLER_HPP_
 
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <mutex>
@@ -64,6 +65,16 @@ protected:
 private:
   using vector_t = ocs2::vector_t;
 
+  struct TorqueCommand
+  {
+    vector_t feedforward;
+    vector_t feedback;
+    vector_t requested;
+    vector_t policy_position;
+    vector_t policy_velocity;
+    std::size_t policy_mode{0};
+  };
+
   controller_interface::InterfaceConfiguration make_joint_interface_configuration(
     const std::vector<std::string>& interface_names) const;
   std::vector<std::string> floating_base_state_interface_names() const;
@@ -80,12 +91,14 @@ private:
   void stop_solver_thread();
   void solver_worker();
   vector_t compute_weight_compensating_torque(const ocs2::SystemObservation& observation);
-  vector_t compute_mpc_torque_command(const ocs2::SystemObservation& observation);
+  TorqueCommand compute_mpc_torque_command(const ocs2::SystemObservation& observation);
   void log_interface_order() const;
   void log_runtime_diagnostics(
     const ocs2::SystemObservation& observation,
-    const vector_t& torque) const;
-  void write_torque_command(const vector_t& torque);
+    const TorqueCommand& command,
+    const vector_t& applied_torque) const;
+  void write_joint_action_command(const vector_t& q_des, const vector_t& qd_des, const vector_t& tau_ff);
+  vector_t write_torque_command(const vector_t& torque);
 
   std::shared_ptr<ParamListener> param_listener_;
   Params parameters_;

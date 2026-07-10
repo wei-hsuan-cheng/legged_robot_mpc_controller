@@ -17,7 +17,7 @@ humanoid_wb_mpc_controller:
       libFolder: "$(var libFolder)"
 
     robot:
-      commandInterface: effort
+      commandInterface: effort_pd
       stateInterfaces: [position, velocity, effort]
       jointNames:
         - left_hip_pitch_joint

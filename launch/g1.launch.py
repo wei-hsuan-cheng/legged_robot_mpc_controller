@@ -53,7 +53,7 @@ def generate_launch_description():
         DeclareLaunchArgument("mrtFreq", default_value="500", description="MRT update frequency (should be integer)"),
         DeclareLaunchArgument("controllersFile", default_value=controllers_default),
         DeclareLaunchArgument("mpcControllerName", default_value="humanoid_wb_mpc_controller"),
-        DeclareLaunchArgument("ros2ControlCommandInterface", default_value="effort"),
+        DeclareLaunchArgument("ros2ControlCommandInterface", default_value="effort_pd"),
         DeclareLaunchArgument("initialPoseFile", default_value=initial_pose_default),
         DeclareLaunchArgument(
             "spawnMpcController",

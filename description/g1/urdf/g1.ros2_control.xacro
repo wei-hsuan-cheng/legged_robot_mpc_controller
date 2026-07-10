@@ -4,7 +4,7 @@
   <xacro:arg name="use_fake_hardware" default="false"/>
   <xacro:arg name="use_mujoco_sim" default="true"/>
   <xacro:arg name="initial_pose_file" default=""/>
-  <xacro:arg name="ros2_control_command_interface" default="effort"/>
+  <xacro:arg name="ros2_control_command_interface" default="effort_pd"/>
   <xacro:arg name="mujoco_position_kp" default="10000"/>
   <xacro:arg name="mujoco_position_ki" default="50"/>
   <xacro:arg name="mujoco_position_kd" default="500"/>

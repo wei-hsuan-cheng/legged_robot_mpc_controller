@@ -9,19 +9,32 @@
       joint_init
       command_interface:=effort
       effort_limit:=100.0
+      effort_pd_kp:=1200.0
+      effort_pd_kd:=10.0
       mujoco_position_kp:=10000
       mujoco_position_ki:=50
       mujoco_position_kd:=500
       mujoco_position_i_max:=10000
       mujoco_position_i_min:=-10000">
     <joint name="${joint_name}">
+      <xacro:if value="${command_interface == 'effort_pd'}">
+        <param name="effort_pd">true</param>
+        <param name="effort_pd_kp">${effort_pd_kp}</param>
+        <param name="effort_pd_kd">${effort_pd_kd}</param>
+        <command_interface name="position"/>
+        <command_interface name="velocity"/>
+        <command_interface name="effort">
+          <param name="min">${-effort_limit}</param>
+          <param name="max">${effort_limit}</param>
+        </command_interface>
+      </xacro:if>
       <xacro:if value="${command_interface == 'effort'}">
         <command_interface name="effort">
           <param name="min">${-effort_limit}</param>
           <param name="max">${effort_limit}</param>
         </command_interface>
       </xacro:if>
-      <xacro:unless value="${command_interface == 'effort'}">
+      <xacro:unless value="${command_interface == 'effort' or command_interface == 'effort_pd'}">
         <xacro:if value="${use_mujoco_sim}">
           <param name="position_kp">${mujoco_position_kp}</param>
           <param name="position_ki">${mujoco_position_ki}</param>
@@ -52,6 +65,8 @@
       joint_init
       system_name:=G1System
       command_interface:=effort
+      effort_pd_kp:=1200.0
+      effort_pd_kd:=10.0
       mujoco_position_kp:=10000
       mujoco_position_ki:=50
       mujoco_position_kd:=500
@@ -61,6 +76,8 @@
       <hardware>
         <xacro:if value="${use_mujoco_sim}">
           <plugin>mujoco_ros2_control/MujocoSystem</plugin>
+          <!-- Match the legacy WB simulator: effort commands drive MuJoCo motors through ctrl. -->
+          <param name="mujoco_effort_command_mode">actuator</param>
         </xacro:if>
         <xacro:unless value="${use_mujoco_sim}">
           <xacro:if value="${use_fake_hardware}">
@@ -96,6 +113,8 @@
         use_mujoco_sim="${use_mujoco_sim}"
         joint_init="${joint_init}"
         command_interface="${command_interface}"
+        effort_pd_kp="${effort_pd_kp}"
+        effort_pd_kd="${effort_pd_kd}"
         effort_limit="88"
         mujoco_position_kp="${mujoco_position_kp}"
         mujoco_position_ki="${mujoco_position_ki}"
@@ -107,6 +126,8 @@
         use_mujoco_sim="${use_mujoco_sim}"
         joint_init="${joint_init}"
         command_interface="${command_interface}"
+        effort_pd_kp="${effort_pd_kp}"
+        effort_pd_kd="${effort_pd_kd}"
         effort_limit="88"
         mujoco_position_kp="${mujoco_position_kp}"
         mujoco_position_ki="${mujoco_position_ki}"
@@ -118,6 +139,8 @@
         use_mujoco_sim="${use_mujoco_sim}"
         joint_init="${joint_init}"
         command_interface="${command_interface}"
+        effort_pd_kp="${effort_pd_kp}"
+        effort_pd_kd="${effort_pd_kd}"
         effort_limit="88"
         mujoco_position_kp="${mujoco_position_kp}"
         mujoco_position_ki="${mujoco_position_ki}"
@@ -129,6 +152,8 @@
         use_mujoco_sim="${use_mujoco_sim}"
         joint_init="${joint_init}"
         command_interface="${command_interface}"
+        effort_pd_kp="${effort_pd_kp}"
+        effort_pd_kd="${effort_pd_kd}"
         effort_limit="139"
         mujoco_position_kp="${mujoco_position_kp}"
         mujoco_position_ki="${mujoco_position_ki}"
@@ -140,6 +165,8 @@
         use_mujoco_sim="${use_mujoco_sim}"
         joint_init="${joint_init}"
         command_interface="${command_interface}"
+        effort_pd_kp="${effort_pd_kp}"
+        effort_pd_kd="${effort_pd_kd}"
         effort_limit="50"
         mujoco_position_kp="${mujoco_position_kp}"
         mujoco_position_ki="${mujoco_position_ki}"
@@ -151,6 +178,8 @@
         use_mujoco_sim="${use_mujoco_sim}"
         joint_init="${joint_init}"
         command_interface="${command_interface}"
+        effort_pd_kp="${effort_pd_kp}"
+        effort_pd_kd="${effort_pd_kd}"
         effort_limit="50"
         mujoco_position_kp="${mujoco_position_kp}"
         mujoco_position_ki="${mujoco_position_ki}"
@@ -162,6 +191,8 @@
         use_mujoco_sim="${use_mujoco_sim}"
         joint_init="${joint_init}"
         command_interface="${command_interface}"
+        effort_pd_kp="${effort_pd_kp}"
+        effort_pd_kd="${effort_pd_kd}"
         effort_limit="88"
         mujoco_position_kp="${mujoco_position_kp}"
         mujoco_position_ki="${mujoco_position_ki}"
@@ -173,6 +204,8 @@
         use_mujoco_sim="${use_mujoco_sim}"
         joint_init="${joint_init}"
         command_interface="${command_interface}"
+        effort_pd_kp="${effort_pd_kp}"
+        effort_pd_kd="${effort_pd_kd}"
         effort_limit="88"
         mujoco_position_kp="${mujoco_position_kp}"
         mujoco_position_ki="${mujoco_position_ki}"
@@ -184,6 +217,8 @@
         use_mujoco_sim="${use_mujoco_sim}"
         joint_init="${joint_init}"
         command_interface="${command_interface}"
+        effort_pd_kp="${effort_pd_kp}"
+        effort_pd_kd="${effort_pd_kd}"
         effort_limit="88"
         mujoco_position_kp="${mujoco_position_kp}"
         mujoco_position_ki="${mujoco_position_ki}"
@@ -195,6 +230,8 @@
         use_mujoco_sim="${use_mujoco_sim}"
         joint_init="${joint_init}"
         command_interface="${command_interface}"
+        effort_pd_kp="${effort_pd_kp}"
+        effort_pd_kd="${effort_pd_kd}"
         effort_limit="139"
         mujoco_position_kp="${mujoco_position_kp}"
         mujoco_position_ki="${mujoco_position_ki}"
@@ -206,6 +243,8 @@
         use_mujoco_sim="${use_mujoco_sim}"
         joint_init="${joint_init}"
         command_interface="${command_interface}"
+        effort_pd_kp="${effort_pd_kp}"
+        effort_pd_kd="${effort_pd_kd}"
         effort_limit="50"
         mujoco_position_kp="${mujoco_position_kp}"
         mujoco_position_ki="${mujoco_position_ki}"
@@ -217,6 +256,8 @@
         use_mujoco_sim="${use_mujoco_sim}"
         joint_init="${joint_init}"
         command_interface="${command_interface}"
+        effort_pd_kp="${effort_pd_kp}"
+        effort_pd_kd="${effort_pd_kd}"
         effort_limit="50"
         mujoco_position_kp="${mujoco_position_kp}"
         mujoco_position_ki="${mujoco_position_ki}"
@@ -228,6 +269,8 @@
         use_mujoco_sim="${use_mujoco_sim}"
         joint_init="${joint_init}"
         command_interface="${command_interface}"
+        effort_pd_kp="${effort_pd_kp}"
+        effort_pd_kd="${effort_pd_kd}"
         effort_limit="88"
         mujoco_position_kp="${mujoco_position_kp}"
         mujoco_position_ki="${mujoco_position_ki}"
@@ -239,6 +282,8 @@
         use_mujoco_sim="${use_mujoco_sim}"
         joint_init="${joint_init}"
         command_interface="${command_interface}"
+        effort_pd_kp="${effort_pd_kp}"
+        effort_pd_kd="${effort_pd_kd}"
         effort_limit="50"
         mujoco_position_kp="${mujoco_position_kp}"
         mujoco_position_ki="${mujoco_position_ki}"
@@ -250,6 +295,8 @@
         use_mujoco_sim="${use_mujoco_sim}"
         joint_init="${joint_init}"
         command_interface="${command_interface}"
+        effort_pd_kp="${effort_pd_kp}"
+        effort_pd_kd="${effort_pd_kd}"
         effort_limit="50"
         mujoco_position_kp="${mujoco_position_kp}"
         mujoco_position_ki="${mujoco_position_ki}"
@@ -261,6 +308,8 @@
         use_mujoco_sim="${use_mujoco_sim}"
         joint_init="${joint_init}"
         command_interface="${command_interface}"
+        effort_pd_kp="${effort_pd_kp}"
+        effort_pd_kd="${effort_pd_kd}"
         effort_limit="25"
         mujoco_position_kp="${mujoco_position_kp}"
         mujoco_position_ki="${mujoco_position_ki}"
@@ -272,6 +321,8 @@
         use_mujoco_sim="${use_mujoco_sim}"
         joint_init="${joint_init}"
         command_interface="${command_interface}"
+        effort_pd_kp="${effort_pd_kp}"
+        effort_pd_kd="${effort_pd_kd}"
         effort_limit="25"
         mujoco_position_kp="${mujoco_position_kp}"
         mujoco_position_ki="${mujoco_position_ki}"
@@ -283,6 +334,8 @@
         use_mujoco_sim="${use_mujoco_sim}"
         joint_init="${joint_init}"
         command_interface="${command_interface}"
+        effort_pd_kp="${effort_pd_kp}"
+        effort_pd_kd="${effort_pd_kd}"
         effort_limit="25"
         mujoco_position_kp="${mujoco_position_kp}"
         mujoco_position_ki="${mujoco_position_ki}"
@@ -294,6 +347,8 @@
         use_mujoco_sim="${use_mujoco_sim}"
         joint_init="${joint_init}"
         command_interface="${command_interface}"
+        effort_pd_kp="${effort_pd_kp}"
+        effort_pd_kd="${effort_pd_kd}"
         effort_limit="25"
         mujoco_position_kp="${mujoco_position_kp}"
         mujoco_position_ki="${mujoco_position_ki}"
@@ -305,6 +360,8 @@
         use_mujoco_sim="${use_mujoco_sim}"
         joint_init="${joint_init}"
         command_interface="${command_interface}"
+        effort_pd_kp="100.0"
+        effort_pd_kd="1.0"
         effort_limit="25"
         mujoco_position_kp="${mujoco_position_kp}"
         mujoco_position_ki="${mujoco_position_ki}"
@@ -316,6 +373,8 @@
         use_mujoco_sim="${use_mujoco_sim}"
         joint_init="${joint_init}"
         command_interface="${command_interface}"
+        effort_pd_kp="100.0"
+        effort_pd_kd="1.0"
         effort_limit="5"
         mujoco_position_kp="${mujoco_position_kp}"
         mujoco_position_ki="${mujoco_position_ki}"
@@ -327,6 +386,8 @@
         use_mujoco_sim="${use_mujoco_sim}"
         joint_init="${joint_init}"
         command_interface="${command_interface}"
+        effort_pd_kp="100.0"
+        effort_pd_kd="1.0"
         effort_limit="5"
         mujoco_position_kp="${mujoco_position_kp}"
         mujoco_position_ki="${mujoco_position_ki}"
@@ -338,6 +399,8 @@
         use_mujoco_sim="${use_mujoco_sim}"
         joint_init="${joint_init}"
         command_interface="${command_interface}"
+        effort_pd_kp="${effort_pd_kp}"
+        effort_pd_kd="${effort_pd_kd}"
         effort_limit="25"
         mujoco_position_kp="${mujoco_position_kp}"
         mujoco_position_ki="${mujoco_position_ki}"
@@ -349,6 +412,8 @@
         use_mujoco_sim="${use_mujoco_sim}"
         joint_init="${joint_init}"
         command_interface="${command_interface}"
+        effort_pd_kp="${effort_pd_kp}"
+        effort_pd_kd="${effort_pd_kd}"
         effort_limit="25"
         mujoco_position_kp="${mujoco_position_kp}"
         mujoco_position_ki="${mujoco_position_ki}"
@@ -360,6 +425,8 @@
         use_mujoco_sim="${use_mujoco_sim}"
         joint_init="${joint_init}"
         command_interface="${command_interface}"
+        effort_pd_kp="${effort_pd_kp}"
+        effort_pd_kd="${effort_pd_kd}"
         effort_limit="25"
         mujoco_position_kp="${mujoco_position_kp}"
         mujoco_position_ki="${mujoco_position_ki}"
@@ -371,6 +438,8 @@
         use_mujoco_sim="${use_mujoco_sim}"
         joint_init="${joint_init}"
         command_interface="${command_interface}"
+        effort_pd_kp="${effort_pd_kp}"
+        effort_pd_kd="${effort_pd_kd}"
         effort_limit="25"
         mujoco_position_kp="${mujoco_position_kp}"
         mujoco_position_ki="${mujoco_position_ki}"
@@ -382,6 +451,8 @@
         use_mujoco_sim="${use_mujoco_sim}"
         joint_init="${joint_init}"
         command_interface="${command_interface}"
+        effort_pd_kp="100.0"
+        effort_pd_kd="1.0"
         effort_limit="25"
         mujoco_position_kp="${mujoco_position_kp}"
         mujoco_position_ki="${mujoco_position_ki}"
@@ -393,6 +464,8 @@
         use_mujoco_sim="${use_mujoco_sim}"
         joint_init="${joint_init}"
         command_interface="${command_interface}"
+        effort_pd_kp="100.0"
+        effort_pd_kd="1.0"
         effort_limit="5"
         mujoco_position_kp="${mujoco_position_kp}"
         mujoco_position_ki="${mujoco_position_ki}"
@@ -404,6 +477,8 @@
         use_mujoco_sim="${use_mujoco_sim}"
         joint_init="${joint_init}"
         command_interface="${command_interface}"
+        effort_pd_kp="100.0"
+        effort_pd_kd="1.0"
         effort_limit="5"
         mujoco_position_kp="${mujoco_position_kp}"
         mujoco_position_ki="${mujoco_position_ki}"
