@@ -67,6 +67,10 @@ humanoid_wb_mpc_controller:
                     25.0, 25.0, 25.0, 25.0,
                     25.0, 25.0, 25.0, 25.0]
 
+    diagnostics:
+      activate: true
+      period: 1.0
+
     floatingBase:
       # Direct MuJoCo body state exposed through ros2_control state interfaces.
       # The odometry topic/TF publisher remains enabled for visualization and

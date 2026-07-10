@@ -74,6 +74,22 @@ humanoid_wb_mpc_controller:
       description: "Symmetric command torque limits for robot.jointNames. Empty means no software clamp."
     }
 
+  diagnostics:
+    activate: {
+      type: bool,
+      default_value: true,
+      description: "Enable throttled observation and torque diagnostics"
+    }
+
+    period: {
+      type: double,
+      default_value: 1.0,
+      description: "Diagnostic log period [s]",
+      validation: {
+        gt: [0.0]
+      }
+    }
+
   floatingBase:
     source: {
       type: string,

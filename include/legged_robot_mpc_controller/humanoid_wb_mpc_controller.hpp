@@ -2,6 +2,7 @@
 #define LEGGED_ROBOT_MPC_CONTROLLER__HUMANOID_WB_MPC_CONTROLLER_HPP_
 
 #include <atomic>
+#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -80,6 +81,10 @@ private:
   void solver_worker();
   vector_t compute_weight_compensating_torque(const ocs2::SystemObservation& observation);
   vector_t compute_mpc_torque_command(const ocs2::SystemObservation& observation);
+  void log_interface_order() const;
+  void log_runtime_diagnostics(
+    const ocs2::SystemObservation& observation,
+    const vector_t& torque) const;
   void write_torque_command(const vector_t& torque);
 
   std::shared_ptr<ParamListener> param_listener_;
@@ -104,6 +109,8 @@ private:
   vector_t fixed_joint_kp_;
   vector_t fixed_joint_kd_;
   vector_t torque_limit_;
+  bool diagnostics_active_{true};
+  std::uint64_t diagnostics_period_ms_{1000};
 };
 
 }  // namespace legged_robot_mpc_controller

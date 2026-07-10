@@ -4,6 +4,7 @@
 #include <chrono>
 #include <cmath>
 #include <limits>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -56,6 +57,14 @@ std::optional<size_t> interface_offset(
   return static_cast<size_t>(std::distance(interface_names.begin(), it));
 }
 
+template<typename Derived>
+std::string format_vector(const Eigen::MatrixBase<Derived>& value)
+{
+  std::ostringstream stream;
+  stream << "[" << value.transpose() << "]";
+  return stream.str();
+}
+
 }  // namespace
 
 HumanoidWbMpcController::~HumanoidWbMpcController()
@@ -86,6 +95,10 @@ controller_interface::CallbackReturn HumanoidWbMpcController::on_configure(
   if (param_listener_->is_old(parameters_)) {
     parameters_ = param_listener_->get_params();
   }
+
+  diagnostics_active_ = parameters_.diagnostics.activate;
+  diagnostics_period_ms_ = static_cast<std::uint64_t>(std::max(
+    1.0, std::round(parameters_.diagnostics.period * 1000.0)));
 
   if (parameters_.paths.urdfFile.empty() || parameters_.paths.libFolder.empty()) {
     RCLCPP_ERROR(
@@ -223,6 +236,7 @@ controller_interface::CallbackReturn HumanoidWbMpcController::on_activate(
     "[HumanoidWbMpcController] activated with initial MPC policy | solver=%s, joints=%zu",
     parameters_.ocs2.mpc.solverType.c_str(),
     parameters_.robot.jointNames.size());
+  log_interface_order();
   return controller_interface::CallbackReturn::SUCCESS;
 }
 
@@ -297,6 +311,7 @@ controller_interface::return_type HumanoidWbMpcController::update_and_write_comm
     torque = compute_weight_compensating_torque(observation);
   }
   write_torque_command(torque);
+  log_runtime_diagnostics(observation, torque);
   return controller_interface::return_type::OK;
 }
 
@@ -676,6 +691,79 @@ HumanoidWbMpcController::vector_t HumanoidWbMpcController::compute_mpc_torque_co
 
   tau += mpc_joint_kp_.cwiseProduct(q_policy - q) + mpc_joint_kd_.cwiseProduct(v_policy - v);
   return tau;
+}
+
+void HumanoidWbMpcController::log_interface_order() const
+{
+  if (!diagnostics_active_) {
+    return;
+  }
+
+  std::ostringstream command_names;
+  for (size_t i = 0; i < command_interfaces_.size(); ++i) {
+    if (i > 0) {
+      command_names << ", ";
+    }
+    command_names << command_interfaces_[i].get_prefix_name() << "/" <<
+      command_interfaces_[i].get_interface_name();
+  }
+
+  std::ostringstream state_names;
+  for (size_t i = 0; i < state_interfaces_.size(); ++i) {
+    if (i > 0) {
+      state_names << ", ";
+    }
+    state_names << state_interfaces_[i].get_prefix_name() << "/" <<
+      state_interfaces_[i].get_interface_name();
+  }
+
+  RCLCPP_INFO(
+    get_node()->get_logger(),
+    "[HumanoidWbMpcController][INTERFACES] command_order=[%s] state_order=[%s]",
+    command_names.str().c_str(), state_names.str().c_str());
+}
+
+void HumanoidWbMpcController::log_runtime_diagnostics(
+  const ocs2::SystemObservation& observation,
+  const vector_t& torque) const
+{
+  if (!diagnostics_active_) {
+    return;
+  }
+
+  const vector_t q = control_model_->getJointAngles(observation.state);
+  const vector_t v = control_model_->getJointVelocities(observation.state, observation.input);
+  const auto base_pose = control_model_->getBasePose(observation.state);
+  const auto base_velocity = control_model_->getBaseComVelocity(observation.state);
+
+  const size_t total_joint_count =
+    parameters_.robot.jointNames.size() + parameters_.ocs2.model.fixedJointNames.size();
+  vector_t effort_state = vector_t::Constant(
+    static_cast<Eigen::Index>(total_joint_count),
+    std::numeric_limits<double>::quiet_NaN());
+  for (size_t i = 0; i < total_joint_count; ++i) {
+    const std::string& joint_name = i < parameters_.robot.jointNames.size() ?
+      parameters_.robot.jointNames[i] :
+      parameters_.ocs2.model.fixedJointNames[i - parameters_.robot.jointNames.size()];
+    const auto effort = get_state_interface_value(joint_name, hardware_interface::HW_IF_EFFORT);
+    if (effort) {
+      effort_state[static_cast<Eigen::Index>(i)] = *effort;
+    }
+  }
+
+  RCLCPP_INFO_THROTTLE(
+    get_node()->get_logger(),
+    *get_node()->get_clock(),
+    diagnostics_period_ms_,
+    "[HumanoidWbMpcController][DIAGNOSTICS] t=%.3f basePose=%s baseVelocity=%s "
+    "q=%s qd=%s tauCommand=%s effortState=%s",
+    observation.time,
+    format_vector(base_pose).c_str(),
+    format_vector(base_velocity).c_str(),
+    format_vector(q).c_str(),
+    format_vector(v).c_str(),
+    format_vector(torque).c_str(),
+    format_vector(effort_state).c_str());
 }
 
 void HumanoidWbMpcController::write_torque_command(const vector_t& torque)
