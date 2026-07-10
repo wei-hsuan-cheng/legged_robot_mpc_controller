@@ -31,6 +31,7 @@
 
 #include "legged_robot_mpc_controller/humanoid_wb_mpc_controller_parameters.hpp"
 #include "legged_robot_mpc_controller/ros2_procedural_mpc_motion_manager.hpp"
+#include "legged_robot_mpc_controller/visualization/performance_visualization.hpp"
 
 namespace legged_robot_mpc_controller
 {
@@ -117,6 +118,7 @@ private:
   std::shared_ptr<Ros2ProceduralMpcMotionManager> motion_manager_;
   std::unique_ptr<ocs2::MPC_BASE> mpc_solver_;
   std::unique_ptr<ocs2::MPC_MRT_Interface> mrt_interface_;
+  std::unique_ptr<visualization::PerformanceVisualization> performance_visualization_;
   std::jthread solver_thread_;
   std::atomic_bool terminate_solver_thread_{false};
 

@@ -32,6 +32,7 @@ set(THIS_PACKAGE_INCLUDE_DEPENDS
   realtime_tools
   tf2_ros
   urdf
+  visualization_msgs
 )
 
 find_package(ament_cmake REQUIRED)
@@ -144,6 +145,8 @@ add_library(${PROJECT_NAME} SHARED
   src/humanoid_wb_mpc_controller.cpp
   src/config/wb_mpc_config_builder.cpp
   src/ros2_procedural_mpc_motion_manager.cpp
+  src/visualization/optimized_state_trajectory_visualization.cpp
+  src/visualization/performance_visualization.cpp
 )
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_20)
 target_include_directories(${PROJECT_NAME}

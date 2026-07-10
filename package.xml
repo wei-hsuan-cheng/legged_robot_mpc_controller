@@ -31,6 +31,7 @@
   <depend>realtime_tools</depend>
   <depend>tf2_ros</depend>
   <depend>urdf</depend>
+  <depend>visualization_msgs</depend>
   <depend>yaml-cpp</depend>
 
   <exec_depend>ament_index_python</exec_depend>

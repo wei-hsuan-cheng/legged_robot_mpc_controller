@@ -725,3 +725,43 @@ humanoid_wb_mpc_controller:
         gt_eq: [0.0]
       }
     }
+
+    trajectory:
+      activate: {
+        type: bool,
+        default_value: true,
+        description: "Enable optimized trajectory visualization"
+      }
+
+      markerTopic: {
+        type: string,
+        default_value: "/performance_visualization/optimizedStateTrajectory",
+        description: "Topic for optimized trajectory visualization markers"
+      }
+
+      frame_names: {
+        type: string_array,
+        default_value: [],
+        description: "Frame names to visualize along the optimized MPC trajectory",
+        validation: {
+          unique<>: null
+        }
+      }
+
+      lineWidth: {
+        type: double,
+        default_value: 0.005,
+        description: "Line width of the optimized trajectory marker",
+        validation: {
+          gt_eq: [0.0]
+        }
+      }
+
+      pointScale: {
+        type: double,
+        default_value: 0.01,
+        description: "Point scale of the optimized trajectory samples",
+        validation: {
+          gt_eq: [0.0]
+        }
+      }

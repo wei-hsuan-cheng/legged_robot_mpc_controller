@@ -183,6 +183,20 @@ controller_interface::CallbackReturn HumanoidWbMpcController::on_configure(
       [this](const nav_msgs::msg::Odometry::SharedPtr msg) { odometry_callback(msg); });
   }
 
+  try {
+    performance_visualization_ = std::make_unique<visualization::PerformanceVisualization>(
+      get_node(),
+      mpc_interface_->getPinocchioInterface(),
+      mpc_interface_->getMpcRobotModel(),
+      visualization::makePerformanceVisualizationSettings(parameters_));
+  } catch (const std::exception& e) {
+    RCLCPP_ERROR(
+      get_node()->get_logger(),
+      "[HumanoidWbMpcController] Failed to configure performance visualization: %s",
+      e.what());
+    return controller_interface::CallbackReturn::ERROR;
+  }
+
   RCLCPP_INFO(
     get_node()->get_logger(),
     "[HumanoidWbMpcController] configured whole-body MPC controller | joints=%zu solver=%s "
@@ -729,6 +743,10 @@ HumanoidWbMpcController::TorqueCommand HumanoidWbMpcController::compute_mpc_torq
     mpc_joint_kp_.cwiseProduct(command.policy_position - q) +
     mpc_joint_kd_.cwiseProduct(command.policy_velocity - v);
   command.requested = command.feedforward + command.feedback;
+
+  if (performance_visualization_) {
+    performance_visualization_->update_visualization(mrt_interface_->getPolicy().stateTrajectory_);
+  }
 
   if (diagnostics_active_) {
     const auto& target = mrt_interface_->getCommand().mpcTargetTrajectories_;

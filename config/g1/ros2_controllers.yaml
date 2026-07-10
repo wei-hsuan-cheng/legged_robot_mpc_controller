@@ -271,4 +271,16 @@ humanoid_wb_mpc_controller:
 
     visualization:
       frameId: world
-      update_rate: 30.0
+      update_rate: 50.0
+      trajectory:
+        activate: true
+        markerTopic: /performance_visualization/optimizedStateTrajectory
+        frame_names:
+          - pelvis
+          - mid360_link
+          - left_wrist_yaw_link
+          - right_wrist_yaw_link
+          - foot_l_contact
+          - foot_r_contact
+        lineWidth: 0.005
+        pointScale: 0.01

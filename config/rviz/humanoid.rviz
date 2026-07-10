@@ -285,17 +285,17 @@ Visualization Manager:
         Value: /cartesian_markers
       Value: true
     - Class: rviz_default_plugins/MarkerArray
-      Enabled: false
+      Enabled: true
       Name: OptimizedStateTrajectory
       Namespaces:
         {}
       Topic:
         Depth: 5
-        Durability Policy: Volatile
+        Durability Policy: Transient Local
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /optimized_state_markers
-      Value: false
+        Value: /performance_visualization/optimizedStateTrajectory
+      Value: true
     - Alpha: 0.4000000059604645
       Class: rviz_default_plugins/RobotModel
       Collision Enabled: false
