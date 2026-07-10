@@ -1,5 +1,6 @@
 #include "legged_robot_mpc_controller/humanoid_wb_mpc_controller.hpp"
 
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -135,7 +136,15 @@ controller_interface::return_type HumanoidWbMpcController::update_and_write_comm
 std::vector<hardware_interface::CommandInterface>
 HumanoidWbMpcController::on_export_reference_interfaces()
 {
-  return {};
+  // controller_manager rejects chainable controllers with zero reference interfaces,
+  // so export a single dummy one (same pattern as dynamics_mpc_controller).
+  reference_interfaces_.resize(1, std::numeric_limits<double>::quiet_NaN());
+  std::vector<hardware_interface::CommandInterface> reference_interfaces;
+  reference_interfaces.emplace_back(
+    std::string(get_node()->get_name()),
+    std::string("dummy_humanoid_wb_mpc/") + hardware_interface::HW_IF_EFFORT,
+    reference_interfaces_.data());
+  return reference_interfaces;
 }
 
 controller_interface::InterfaceConfiguration
