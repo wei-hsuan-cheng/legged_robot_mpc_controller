@@ -20,6 +20,8 @@
 #include <humanoid_common_mpc/gait/MotionPhaseDefinition.h>
 #include <humanoid_common_mpc/pinocchio_model/DynamicsHelperFunctions.h>
 #include <humanoid_wb_mpc/dynamics/DynamicsHelperFunctions.h>
+#include <pinocchio/algorithm/frames.hpp>
+#include <pinocchio/algorithm/kinematics.hpp>
 
 #include "legged_robot_mpc_controller/config/wb_mpc_config_builder.hpp"
 
@@ -154,10 +156,12 @@ controller_interface::CallbackReturn HumanoidWbMpcController::on_configure(
       ocs2::scalar_t init_time,
       ocs2::scalar_t /* final_time */,
       const ocs2::vector_t& init_state) {
-        return target_trajectories_calculator_->commandedVelocityToTargetTrajectories(
+        auto target_trajectories = target_trajectories_calculator_->commandedVelocityToTargetTrajectories(
           velocity_target,
           init_time,
           init_state);
+        apply_heading_reference(velocity_target(3), init_time, init_state, target_trajectories);
+        return target_trajectories;
       };
     auto motion_manager = std::make_shared<Ros2ProceduralMpcMotionManager>(
       loadGaitMap(parameters_.ocs2.gait.gaitFile),
@@ -182,6 +186,8 @@ controller_interface::CallbackReturn HumanoidWbMpcController::on_configure(
       rclcpp::SystemDefaultsQoS(),
       [this](const nav_msgs::msg::Odometry::SharedPtr msg) { odometry_callback(msg); });
   }
+
+  diag_pinocchio_ = std::make_unique<ocs2::PinocchioInterface>(mpc_interface_->getPinocchioInterface());
 
   try {
     performance_visualization_ = std::make_unique<visualization::PerformanceVisualization>(
@@ -220,6 +226,7 @@ controller_interface::CallbackReturn HumanoidWbMpcController::on_activate(
     return controller_interface::CallbackReturn::ERROR;
   }
 
+  heading_reference_initialized_ = false;
   initial_observation_state_ = mpc_interface_->getInitialState();
   const auto initial_observation = build_observation(get_node()->now());
   if (parameters_.robot.commandInterface == "effort_pd") {
@@ -712,10 +719,48 @@ HumanoidWbMpcController::vector_t HumanoidWbMpcController::compute_weight_compen
     *control_model_);
 }
 
+void HumanoidWbMpcController::apply_heading_reference(
+  double yaw_rate_command,
+  double init_time,
+  const vector_t& init_state,
+  ocs2::TargetTrajectories& target_trajectories)
+{
+  const double measured_yaw = control_model_->getBasePose(init_state)[3];
+  if (!heading_reference_initialized_) {
+    heading_reference_ = measured_yaw;
+    heading_reference_time_ = init_time;
+    heading_reference_initialized_ = true;
+  }
+
+  heading_reference_ += yaw_rate_command * (init_time - heading_reference_time_);
+  heading_reference_time_ = init_time;
+
+  // Anti-windup: never demand more than kMaxHeadingError of correction at once, and
+  // keep the reference continuous with the measured yaw (no +-pi jumps).
+  constexpr double kMaxHeadingError = 0.3;
+  double error = std::remainder(heading_reference_ - measured_yaw, 2.0 * M_PI);
+  error = std::clamp(error, -kMaxHeadingError, kMaxHeadingError);
+  heading_reference_ = measured_yaw + error;
+
+  for (std::size_t i = 0; i < target_trajectories.stateTrajectory.size(); ++i) {
+    const double target_yaw =
+      heading_reference_ + yaw_rate_command * (target_trajectories.timeTrajectory[i] - init_time);
+    target_trajectories.stateTrajectory[i][3] = target_yaw;
+  }
+}
+
 HumanoidWbMpcController::TorqueCommand HumanoidWbMpcController::compute_mpc_torque_command(
   const ocs2::SystemObservation& observation)
 {
   mrt_interface_->setCurrentObservation(observation);
+
+  const double diagnostics_period_s = static_cast<double>(diagnostics_period_ms_) / 1000.0;
+  diagnostics_due_ = diagnostics_active_ &&
+    (last_diagnostics_time_ < 0.0 ||
+     observation.time - last_diagnostics_time_ >= diagnostics_period_s);
+  if (diagnostics_due_) {
+    last_diagnostics_time_ = observation.time;
+  }
 
   TorqueCommand command;
   vector_t policy_state;
@@ -744,11 +789,14 @@ HumanoidWbMpcController::TorqueCommand HumanoidWbMpcController::compute_mpc_torq
     mpc_joint_kd_.cwiseProduct(command.policy_velocity - v);
   command.requested = command.feedforward + command.feedback;
 
-  if (performance_visualization_) {
+  // 10 Hz hand-off: copying the policy trajectory every RT update starves the solver.
+  if (performance_visualization_ &&
+      (last_visualization_time_ < 0.0 || observation.time - last_visualization_time_ >= 0.1)) {
+    last_visualization_time_ = observation.time;
     performance_visualization_->update_visualization(mrt_interface_->getPolicy().stateTrajectory_);
   }
 
-  if (diagnostics_active_) {
+  if (diagnostics_due_) {
     const auto& target = mrt_interface_->getCommand().mpcTargetTrajectories_;
     if (!target.stateTrajectory.empty()) {
       command.target_final_base_pose = control_model_->getBasePose(target.stateTrajectory.back());
@@ -762,6 +810,8 @@ HumanoidWbMpcController::TorqueCommand HumanoidWbMpcController::compute_mpc_torq
     }
     command.left_contact_wrench = control_model_->getContactWrench(policy_input, 0);
     command.right_contact_wrench = control_model_->getContactWrench(policy_input, 1);
+    command.policy_base_pose = control_model_->getBasePose(policy_state);
+    command.policy_base_velocity = control_model_->getBaseComVelocity(policy_state);
   }
   return command;
 }
@@ -801,7 +851,8 @@ void HumanoidWbMpcController::log_runtime_diagnostics(
   const TorqueCommand& command,
   const vector_t& applied_torque) const
 {
-  if (!diagnostics_active_) {
+  // All formatting/FK below only runs when the diagnostics gate fired this update.
+  if (!diagnostics_active_ || !diagnostics_due_) {
     return;
   }
 
@@ -825,10 +876,8 @@ void HumanoidWbMpcController::log_runtime_diagnostics(
     }
   }
 
-  RCLCPP_INFO_THROTTLE(
+  RCLCPP_INFO(
     get_node()->get_logger(),
-    *get_node()->get_clock(),
-    diagnostics_period_ms_,
     "[HumanoidWbMpcController][DIAGNOSTICS] t=%.3f basePose=%s baseVelocity=%s "
     "q=%s qd=%s policyMode=%zu policyQ=%s policyQd=%s "
     "tauFeedforward=%s tauFeedback=%s tauRequested=%s tauCommandClamped=%s "
@@ -847,23 +896,59 @@ void HumanoidWbMpcController::log_runtime_diagnostics(
     format_vector(applied_torque).c_str(),
     format_vector(effort_state).c_str());
 
+  // Measured foot contact-frame poses from FK: discriminates a stance foot pivoting
+  // on the ground from the pelvis yawing through the hip joints.
+  std::string foot_info;
+  if (diag_pinocchio_) {
+    const auto& pin_model = diag_pinocchio_->getModel();
+    auto& pin_data = diag_pinocchio_->getData();
+    const auto log_feet = [&](const vector_t& state, const char* tag, std::ostringstream& os) {
+        pinocchio::forwardKinematics(
+          pin_model, pin_data, control_model_->getGeneralizedCoordinates(state));
+        pinocchio::updateFramePlacements(pin_model, pin_data);
+        for (const auto& contact_name : control_model_->modelSettings.contactNames) {
+          if (!pin_model.existFrame(contact_name)) {
+            continue;
+          }
+          const auto& placement = pin_data.oMf[pin_model.getFrameId(contact_name)];
+          os << " " << tag << (contact_name.find("_l_") != std::string::npos ? "L" : "R")
+             << "=[" << placement.translation().x() << " " << placement.translation().y() << " "
+             << placement.translation().z() << " yaw "
+             << std::atan2(placement.rotation()(1, 0), placement.rotation()(0, 0)) << "]";
+        }
+      };
+    std::ostringstream os;
+    log_feet(observation.state, "meas", os);
+    // Planned feet at the end of the active policy: shows where the solver wants to step.
+    if (mrt_interface_ && mrt_interface_->initialPolicyReceived()) {
+      const auto& policy = mrt_interface_->getPolicy();
+      if (!policy.stateTrajectory_.empty()) {
+        log_feet(policy.stateTrajectory_.back(), "plan", os);
+      }
+    }
+    foot_info = os.str();
+  }
+
   // Reference vs plan vs actual base motion: distinguishes a non-advancing reference,
   // a non-advancing optimized plan, and a tracking failure.
-  RCLCPP_INFO_THROTTLE(
+  RCLCPP_INFO(
     get_node()->get_logger(),
-    *get_node()->get_clock(),
-    diagnostics_period_ms_,
-    "[HumanoidWbMpcController][WALK] t=%.3f obsBase=%s targetFinal=%s @%.3f planFinal=%s @%.3f "
-    "wrenchL=%s wrenchR=%s policyAge=%.3f",
+    "[HumanoidWbMpcController][WALK] t=%.3f obsBase=%s obsBaseVel=%s policyBaseNow=%s "
+    "policyBaseVelNow=%s targetFinal=%s @%.3f planFinal=%s @%.3f "
+    "wrenchL=%s wrenchR=%s policyAge=%.3f feet:%s",
     observation.time,
     format_vector(base_pose).c_str(),
+    format_vector(base_velocity).c_str(),
+    format_vector(command.policy_base_pose).c_str(),
+    format_vector(command.policy_base_velocity).c_str(),
     format_vector(command.target_final_base_pose).c_str(),
     command.target_final_time,
     format_vector(command.plan_final_base_pose).c_str(),
     command.plan_final_time,
     format_vector(command.left_contact_wrench).c_str(),
     format_vector(command.right_contact_wrench).c_str(),
-    command.policy_age);
+    command.policy_age,
+    foot_info.c_str());
 }
 
 void HumanoidWbMpcController::write_joint_action_command(

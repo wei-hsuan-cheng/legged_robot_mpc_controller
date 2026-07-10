@@ -84,6 +84,9 @@ private:
     vector_t right_contact_wrench;
     // Age of the active policy: observation time minus the policy start time.
     double policy_age{0.0};
+    // Policy base pose/velocity at the evaluated time (t + policyTimeOffset).
+    vector_t policy_base_pose;
+    vector_t policy_base_velocity;
   };
 
   controller_interface::InterfaceConfiguration make_joint_interface_configuration(
@@ -121,6 +124,28 @@ private:
   std::unique_ptr<ocs2::MPC_BASE> mpc_solver_;
   std::unique_ptr<ocs2::MPC_MRT_Interface> mrt_interface_;
   std::unique_ptr<visualization::PerformanceVisualization> performance_visualization_;
+  // Private pinocchio copy for diagnostics FK (solver owns its own instances).
+  std::unique_ptr<ocs2::PinocchioInterface> diag_pinocchio_;
+
+  // Persistent heading reference: the legacy calculator anchors the yaw target to the
+  // measured yaw every solve, so slow yaw drift is never corrected. We overwrite the
+  // yaw targets with an integrated heading reference (commanded yaw rate) instead.
+  // Only touched from the solver thread (preSolverRun).
+  void apply_heading_reference(
+    double yaw_rate_command,
+    double init_time,
+    const vector_t& init_state,
+    ocs2::TargetTrajectories& target_trajectories);
+  bool heading_reference_initialized_{false};
+  double heading_reference_{0.0};
+  double heading_reference_time_{0.0};
+
+  // Diagnostics and visualization are time-gated so their cost (string formatting,
+  // FK, trajectory copies) is not paid every real-time update. Legacy has no such
+  // per-tick load competing with the solver.
+  bool diagnostics_due_{false};
+  double last_diagnostics_time_{-1.0};
+  double last_visualization_time_{-1.0};
   std::jthread solver_thread_;
   std::atomic_bool terminate_solver_thread_{false};
 
