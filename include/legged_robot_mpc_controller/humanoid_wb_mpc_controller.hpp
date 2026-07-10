@@ -73,6 +73,11 @@ private:
     vector_t policy_position;
     vector_t policy_velocity;
     std::size_t policy_mode{0};
+    // Walking diagnostics: reference vs optimized plan at the end of the policy horizon.
+    vector_t target_final_base_pose;
+    double target_final_time{0.0};
+    vector_t plan_final_base_pose;
+    double plan_final_time{0.0};
   };
 
   controller_interface::InterfaceConfiguration make_joint_interface_configuration(

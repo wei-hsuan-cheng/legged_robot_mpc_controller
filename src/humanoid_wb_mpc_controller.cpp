@@ -516,7 +516,16 @@ ocs2::SystemObservation HumanoidWbMpcController::build_observation(const rclcpp:
     initial_observation_state_ :
     mpc_interface_->getInitialState();
   observation.input = vector_t::Zero(static_cast<Eigen::Index>(model.getInputDim()));
+  // Observed contact mode: track the planned gait phase (legacy fed measured contact
+  // flags; the planned mode is the flat-ground equivalent and keeps the MRT policy
+  // evaluation synchronized with single/double-support phases while walking).
   observation.mode = ocs2::humanoid::STANCE;
+  if (mpc_interface_) {
+    const auto reference_manager = mpc_interface_->getSwitchedModelReferenceManagerPtr();
+    if (reference_manager) {
+      observation.mode = reference_manager->getModeSchedule().modeAtTime(observation.time);
+    }
+  }
 
   nav_msgs::msg::Odometry odometry;
   bool has_odometry = false;
@@ -720,6 +729,19 @@ HumanoidWbMpcController::TorqueCommand HumanoidWbMpcController::compute_mpc_torq
     mpc_joint_kp_.cwiseProduct(command.policy_position - q) +
     mpc_joint_kd_.cwiseProduct(command.policy_velocity - v);
   command.requested = command.feedforward + command.feedback;
+
+  if (diagnostics_active_) {
+    const auto& target = mrt_interface_->getCommand().mpcTargetTrajectories_;
+    if (!target.stateTrajectory.empty()) {
+      command.target_final_base_pose = control_model_->getBasePose(target.stateTrajectory.back());
+      command.target_final_time = target.timeTrajectory.back();
+    }
+    const auto& policy = mrt_interface_->getPolicy();
+    if (!policy.stateTrajectory_.empty()) {
+      command.plan_final_base_pose = control_model_->getBasePose(policy.stateTrajectory_.back());
+      command.plan_final_time = policy.timeTrajectory_.back();
+    }
+  }
   return command;
 }
 
@@ -803,6 +825,20 @@ void HumanoidWbMpcController::log_runtime_diagnostics(
     format_vector(command.requested).c_str(),
     format_vector(applied_torque).c_str(),
     format_vector(effort_state).c_str());
+
+  // Reference vs plan vs actual base motion: distinguishes a non-advancing reference,
+  // a non-advancing optimized plan, and a tracking failure.
+  RCLCPP_INFO_THROTTLE(
+    get_node()->get_logger(),
+    *get_node()->get_clock(),
+    diagnostics_period_ms_,
+    "[HumanoidWbMpcController][WALK] t=%.3f obsBase=%s targetFinal=%s @%.3f planFinal=%s @%.3f",
+    observation.time,
+    format_vector(base_pose).c_str(),
+    format_vector(command.target_final_base_pose).c_str(),
+    command.target_final_time,
+    format_vector(command.plan_final_base_pose).c_str(),
+    command.plan_final_time);
 }
 
 void HumanoidWbMpcController::write_joint_action_command(
