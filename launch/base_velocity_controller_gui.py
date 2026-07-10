@@ -128,7 +128,9 @@ class VelocityCommandGui(tk.Tk):
         self._height.set(0.7925)
 
     def _publish_periodically(self):
-        self._publish(self._linear.x, self._linear.y, self._height.get(), self._yaw.y)
+        # Joystick vertical axis = forward (vx); horizontal = lateral (ROS +y is left,
+        # so a right-drag must command negative vy).
+        self._publish(self._linear.y, -self._linear.x, self._height.get(), self._yaw.y)
         self.after(40, self._publish_periodically)
 
     def _close(self):
