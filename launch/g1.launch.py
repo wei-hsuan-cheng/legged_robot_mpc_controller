@@ -21,7 +21,7 @@ def generate_launch_description():
     mpc_share = FindPackageShare("legged_robot_mpc_controller")
     mpc_share_dir = get_package_share_directory("legged_robot_mpc_controller")
 
-    rviz_default = os.path.join(mpc_share_dir, "description", "g1", "rviz", "humanoid.rviz")
+    rviz_default = os.path.join(mpc_share_dir, "config", "rviz", "humanoid.rviz")
     initial_pose_default = os.path.join(mpc_share_dir, "config", "g1", "initial_pose.yaml")
     lib_folder_default = os.path.join("auto_generated", "g1")
 
