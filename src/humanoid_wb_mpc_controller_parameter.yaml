@@ -1,0 +1,673 @@
+humanoid_wb_mpc_controller:
+  development:
+    allowPlaceholderActivation: {
+      type: bool,
+      default_value: false,
+      description: "Allow this migration-stage controller wrapper to activate before the floating-base observation and torque adapter are implemented"
+    }
+
+  paths:
+    urdfFile: {
+      type: string,
+      default_value: "",
+      description: "Robot URDF used by Pinocchio and robot_state_publisher"
+    }
+
+    libFolder: {
+      type: string,
+      default_value: "/tmp/legged_robot_mpc_cppad",
+      description: "CppAD code generation output folder"
+    }
+
+  robot:
+    jointNames: {
+      type: string_array,
+      default_value: [],
+      description: "Actuated joint names controlled by the whole-body MPC",
+      validation: {
+        unique<>: null
+      }
+    }
+
+    commandInterface: {
+      type: string,
+      default_value: "effort",
+      description: "Command interface used for actuator torques"
+    }
+
+    stateInterfaces: {
+      type: string_array,
+      default_value: ["position", "velocity", "effort"],
+      description: "Per-joint state interfaces required from ros2_control"
+    }
+
+  floatingBase:
+    source: {
+      type: string,
+      default_value: "mujoco_ground_truth_odom",
+      description: "Floating-base state source. Initial migration supports mujoco_ros2_control ground-truth odometry.",
+      validation: {
+        one_of<>: [["mujoco_ground_truth_odom", "state_interfaces"]]
+      }
+    }
+
+    odometryTopic: {
+      type: string,
+      default_value: "/mujoco/ground_truth/odom",
+      description: "nav_msgs/Odometry topic published by mujoco_ros2_control for the floating-base torso body"
+    }
+
+    baseFrame: {
+      type: string,
+      default_value: "torso_link",
+      description: "Floating-base body frame used as the MPC base"
+    }
+
+  ocs2:
+    interface:
+      verbose: {
+        type: bool,
+        default_value: false,
+        description: "Print the loaded MPC interface parameters"
+      }
+      useAnalyticalGradientsDynamics: {
+        type: bool,
+        default_value: true,
+        description: "Use analytical gradients for the dynamics"
+      }
+      useAnalyticalGradientsConstraints: {
+        type: bool,
+        default_value: true,
+        description: "Use analytical gradients for the constraints"
+      }
+
+    model:
+      robotName: {
+        type: string,
+        default_value: "g1",
+        description: "Robot name used by the MPC model and CppAD codegen"
+      }
+      phaseTransitionStanceTime: {
+        type: double,
+        default_value: 0.0,
+        description: "Minimum stance time inserted at phase transitions [s]"
+      }
+      verboseCppAd: {
+        type: bool,
+        default_value: true,
+        description: "Verbose output during CppAD model generation"
+      }
+      recompileLibrariesCppAd: {
+        type: bool,
+        default_value: false,
+        description: "Force recompilation of the CppAD generated libraries"
+      }
+      fixedJointNames: {
+        type: string_array,
+        default_value: [],
+        description: "Joints excluded (locked) from the MPC model, e.g. wrists"
+      }
+      contactNames6DoF: {
+        type: string_array,
+        default_value: [],
+        description: "Pinocchio frame names of the 6-DoF contact frames"
+      }
+      contactParentJointNames: {
+        type: string_array,
+        default_value: [],
+        description: "Parent joints the contact frames are attached to"
+      }
+      armJointNames: {
+        type: string_array,
+        default_value: [],
+        description: "Arm swing reference joints in order [left_shoulder_y, right_shoulder_y, left_elbow_y, right_elbow_y]"
+      }
+
+      footConstraint:
+        positionErrorGain_z: {
+          type: double,
+          default_value: 100.0,
+          description: "Stance foot vertical position error feedback gain"
+        }
+        orientationErrorGain: {
+          type: double,
+          default_value: 80.0,
+          description: "Stance foot orientation error feedback gain"
+        }
+        linearVelocityErrorGain_z: {
+          type: double,
+          default_value: 10.0,
+          description: "Stance foot vertical linear velocity error feedback gain"
+        }
+        linearVelocityErrorGain_xy: {
+          type: double,
+          default_value: 20.0,
+          description: "Stance foot horizontal linear velocity error feedback gain"
+        }
+        angularVelocityErrorGain: {
+          type: double,
+          default_value: 20.0,
+          description: "Stance foot angular velocity error feedback gain"
+        }
+        linearAccelerationErrorGain_z: {
+          type: double,
+          default_value: 1.0,
+          description: "Stance foot vertical linear acceleration error feedback gain"
+        }
+        linearAccelerationErrorGain_xy: {
+          type: double,
+          default_value: 1.0,
+          description: "Stance foot horizontal linear acceleration error feedback gain"
+        }
+        angularAccelerationErrorGain: {
+          type: double,
+          default_value: 1.0,
+          description: "Stance foot angular acceleration error feedback gain"
+        }
+
+    swingTrajectory:
+      liftOffVelocity: {
+        type: double,
+        default_value: 0.05,
+        description: "Swing foot lift-off vertical velocity [m/s]"
+      }
+      touchDownVelocity: {
+        type: double,
+        default_value: -0.0,
+        description: "Swing foot touch-down vertical velocity [m/s]"
+      }
+      swingHeight: {
+        type: double,
+        default_value: 0.08,
+        description: "Swing apex height [m]"
+      }
+      touchDownHeightOffset: {
+        type: double,
+        default_value: -0.001,
+        description: "Touch-down height offset [m]"
+      }
+      swingTimeScale: {
+        type: double,
+        default_value: 0.4,
+        description: "Swing durations shorter than this are scaled down [s]"
+      }
+      impactProximityFactorLiftOffVelocity: {
+        type: double,
+        default_value: -0.15,
+        description: "Impact proximity factor at lift-off velocity"
+      }
+      impactProximityFactorTouchDownVelocity: {
+        type: double,
+        default_value: 0.3,
+        description: "Impact proximity factor at touch-down velocity"
+      }
+      impactProximityFactorMidPointValue: {
+        type: double,
+        default_value: 0.005,
+        description: "Impact proximity factor mid-point value"
+      }
+
+    sqp:
+      nThreads: {
+        type: int,
+        default_value: 4,
+        description: "Number of solver threads",
+        validation: { gt: [0] }
+      }
+      dt: {
+        type: double,
+        default_value: 0.035,
+        description: "Multiple-shooting discretization step [s]",
+        validation: { gt: [0.0] }
+      }
+      sqpIteration: {
+        type: int,
+        default_value: 1,
+        description: "SQP iterations per MPC solve",
+        validation: { gt: [0] }
+      }
+      deltaTol: {
+        type: double,
+        default_value: 0.0001,
+        description: "Convergence tolerance on the primal step"
+      }
+      g_max: {
+        type: double,
+        default_value: 0.01,
+        description: "Maximum constraint violation for linesearch acceptance"
+      }
+      g_min: {
+        type: double,
+        default_value: 0.000001,
+        description: "Constraint violation treated as converged"
+      }
+      inequalityConstraintMu: {
+        type: double,
+        default_value: 0.1,
+        description: "Relaxed barrier mu for inequality constraints"
+      }
+      inequalityConstraintDelta: {
+        type: double,
+        default_value: 5.0,
+        description: "Relaxed barrier delta for inequality constraints"
+      }
+      projectStateInputEqualityConstraints: {
+        type: bool,
+        default_value: true,
+        description: "Project state-input equality constraints"
+      }
+      printSolverStatistics: {
+        type: bool,
+        default_value: true,
+        description: "Print solver statistics"
+      }
+      printSolverStatus: {
+        type: bool,
+        default_value: false,
+        description: "Print solver status"
+      }
+      printLinesearch: {
+        type: bool,
+        default_value: false,
+        description: "Print linesearch information"
+      }
+      useFeedbackPolicy: {
+        type: bool,
+        default_value: false,
+        description: "Use the linear feedback policy instead of feedforward"
+      }
+      integratorType: {
+        type: string,
+        default_value: "RK4",
+        description: "Sensitivity integrator type"
+      }
+      threadPriority: {
+        type: int,
+        default_value: 90,
+        description: "Solver thread priority"
+      }
+
+    rollout:
+      AbsTolODE: {
+        type: double,
+        default_value: 0.00001,
+        description: "Absolute tolerance of the ODE integrator"
+      }
+      RelTolODE: {
+        type: double,
+        default_value: 0.001,
+        description: "Relative tolerance of the ODE integrator"
+      }
+      timeStep: {
+        type: double,
+        default_value: 0.015,
+        description: "Rollout time step, should be <= sqp.dt [s]",
+        validation: { gt: [0.0] }
+      }
+      integratorType: {
+        type: string,
+        default_value: "ODE45",
+        description: "Rollout integrator type"
+      }
+      maxNumStepsPerSecond: {
+        type: int,
+        default_value: 10000,
+        description: "Maximum integrator steps per second"
+      }
+      checkNumericalStability: {
+        type: bool,
+        default_value: false,
+        description: "Check numerical stability during rollout"
+      }
+
+    mpc:
+      solverType: {
+        type: string,
+        default_value: "sqp",
+        description: "Optimization backend used by the whole-body MPC",
+        validation: {
+          one_of<>: [["ddp", "sqp"]]
+        }
+      }
+
+      mpcDesiredFrequency: {
+        type: int,
+        default_value: 50,
+        description: "Desired MPC update frequency in Hz",
+        validation: {
+          gt: [0]
+        }
+      }
+
+      mrtDesiredFrequency: {
+        type: int,
+        default_value: 1000,
+        description: "Desired controller update frequency in Hz",
+        validation: {
+          gt: [0]
+        }
+      }
+
+      timeHorizon: {
+        type: double,
+        default_value: 1.4,
+        description: "MPC planning horizon in seconds",
+        validation: {
+          gt: [0.0]
+        }
+      }
+
+      solutionTimeWindow: {
+        type: double,
+        default_value: -1.0,
+        description: "MPC policy calculation time window",
+        validation: {
+          gt_eq: [-1.0]
+        }
+      }
+
+      coldStart: {
+        type: bool,
+        default_value: false,
+        description: "Reset the solver before every MPC solve"
+      }
+
+      debugPrint: {
+        type: bool,
+        default_value: false,
+        description: "Print MPC debug information"
+      }
+
+    initialState:
+      basePose: {
+        type: double_array,
+        default_value: [0.0, 0.0, 0.7925, 0.0, 0.0, 0.0],
+        description: "Initial base pose [x, y, z, yaw, pitch, roll]",
+        validation: { fixed_size<>: [6] }
+      }
+      jointPositions: {
+        type: double_array,
+        default_value: [],
+        description: "Initial joint positions, index-aligned with robot.jointNames"
+      }
+      baseVelocity: {
+        type: double_array,
+        default_value: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        description: "Initial base velocity [vx, vy, vz, wz, wy, wx]",
+        validation: { fixed_size<>: [6] }
+      }
+      jointVelocities: {
+        type: double_array,
+        default_value: [],
+        description: "Initial joint velocities, index-aligned with robot.jointNames"
+      }
+
+    costs:
+      qScaling: {
+        type: double,
+        default_value: 1.0,
+        description: "Scaling applied to the whole Q matrix"
+      }
+      rScaling: {
+        type: double,
+        default_value: 0.001,
+        description: "Scaling applied to the whole R matrix"
+      }
+      terminalCostScaling: {
+        type: double,
+        default_value: 4.0,
+        description: "Scaling applied to the terminal cost Q_final"
+      }
+
+      q:
+        basePose: {
+          type: double_array,
+          default_value: [0.0, 0.0, 10.0, 0.0, 20.0, 20.0],
+          description: "State cost diagonal, base pose [x, y, z, yaw, pitch, roll]",
+          validation: { fixed_size<>: [6] }
+        }
+        jointPositions: {
+          type: double_array,
+          default_value: [],
+          description: "State cost diagonal, joint positions, index-aligned with robot.jointNames"
+        }
+        baseVelocity: {
+          type: double_array,
+          default_value: [3.0, 3.0, 3.0, 3.0, 3.0, 3.0],
+          description: "State cost diagonal, base velocity [vx, vy, vz, wz, wy, wx]",
+          validation: { fixed_size<>: [6] }
+        }
+        jointVelocities: {
+          type: double_array,
+          default_value: [],
+          description: "State cost diagonal, joint velocities, index-aligned with robot.jointNames"
+        }
+
+      qFinal:
+        basePose: {
+          type: double_array,
+          default_value: [0.0, 0.0, 10.0, 0.0, 20.0, 20.0],
+          description: "Terminal state cost diagonal, base pose [x, y, z, yaw, pitch, roll]",
+          validation: { fixed_size<>: [6] }
+        }
+        jointPositions: {
+          type: double_array,
+          default_value: [],
+          description: "Terminal state cost diagonal, joint positions, index-aligned with robot.jointNames"
+        }
+        baseVelocity: {
+          type: double_array,
+          default_value: [3.0, 3.0, 3.0, 3.0, 3.0, 3.0],
+          description: "Terminal state cost diagonal, base velocity [vx, vy, vz, wz, wy, wx]",
+          validation: { fixed_size<>: [6] }
+        }
+        jointVelocities: {
+          type: double_array,
+          default_value: [],
+          description: "Terminal state cost diagonal, joint velocities, index-aligned with robot.jointNames"
+        }
+
+      r:
+        contactWrenches: {
+          type: double_array,
+          default_value: [0.003, 0.003, 0.001, 0.01, 0.01, 0.1, 0.003, 0.003, 0.001, 0.01, 0.01, 0.1],
+          description: "Input cost diagonal, contact wrenches [left fx,fy,fz,mx,my,mz, right fx,fy,fz,mx,my,mz]",
+          validation: { fixed_size<>: [12] }
+        }
+        jointAccelerations: {
+          type: double_array,
+          default_value: [],
+          description: "Input cost diagonal, joint accelerations, index-aligned with robot.jointNames"
+        }
+
+      taskSpaceFootCostWeights: {
+        type: double_array,
+        default_value: [0.0, 0.0, 0.0, 10000.0, 10000.0, 0.0, 50.0, 50.0, 0.0, 100.0, 100.0, 100.0, 5.0, 5.0, 0.0, 2.0, 2.0, 2.0],
+        description: "Foot task-space weights [pos xyz, orientation xyz, lin vel xyz, ang vel xyz, lin acc xyz, ang acc xyz]",
+        validation: { fixed_size<>: [18] }
+      }
+
+    constraints:
+      contact:
+        frameTranslation: {
+          type: double_array,
+          default_value: [0.035, 0.0, -0.035],
+          description: "Translation from the contact parent joint to the contact frame [x, y, z]",
+          validation: { fixed_size<>: [3] }
+        }
+        rectangle: {
+          type: double_array,
+          default_value: [0.09, -0.09, 0.03, -0.03],
+          description: "Contact rectangle in the contact frame [x_max, x_min, y_max, y_min]",
+          validation: { fixed_size<>: [4] }
+        }
+
+      frictionCone:
+        frictionCoefficient: {
+          type: double,
+          default_value: 0.4,
+          description: "Contact friction coefficient",
+          validation: { gt: [0.0] }
+        }
+        mu: {
+          type: double,
+          default_value: 0.2,
+          description: "Relaxed barrier mu of the friction cone soft constraint"
+        }
+        delta: {
+          type: double,
+          default_value: 5.0,
+          description: "Relaxed barrier delta of the friction cone soft constraint"
+        }
+
+      contactMomentXY:
+        mu: {
+          type: double,
+          default_value: 0.6,
+          description: "Relaxed barrier mu of the contact moment XY soft constraint"
+        }
+        delta: {
+          type: double,
+          default_value: 0.03,
+          description: "Relaxed barrier delta of the contact moment XY soft constraint"
+        }
+
+      jointLimits:
+        mu: {
+          type: double,
+          default_value: 1200.0,
+          description: "Barrier mu of the joint limits soft constraint"
+        }
+        delta: {
+          type: double,
+          default_value: 0.1,
+          description: "Barrier delta of the joint limits soft constraint"
+        }
+
+      footCollision:
+        leftAnkleFrame: {
+          type: string,
+          default_value: "left_ankle_roll_joint",
+          description: "Left ankle frame of the foot collision constraint"
+        }
+        rightAnkleFrame: {
+          type: string,
+          default_value: "right_ankle_roll_joint",
+          description: "Right ankle frame of the foot collision constraint"
+        }
+        footCollisionSphereRadius: {
+          type: double,
+          default_value: 0.05,
+          description: "Foot collision sphere radius [m]"
+        }
+        leftKneeFrame: {
+          type: string,
+          default_value: "left_knee_joint",
+          description: "Left knee frame of the collision constraint"
+        }
+        rightKneeFrame: {
+          type: string,
+          default_value: "right_knee_joint",
+          description: "Right knee frame of the collision constraint"
+        }
+        kneeCollisionSphereRadius: {
+          type: double,
+          default_value: 0.075,
+          description: "Knee collision sphere radius [m]"
+        }
+        mu: {
+          type: double,
+          default_value: 1500.0,
+          description: "Barrier mu of the collision soft constraint"
+        }
+        delta: {
+          type: double,
+          default_value: 0.04,
+          description: "Barrier delta of the collision soft constraint"
+        }
+
+    reference:
+      targetDisplacementVelocity: {
+        type: double,
+        default_value: 0.5,
+        description: "Nominal displacement velocity used for target arrival time [m/s]"
+      }
+      targetRotationVelocity: {
+        type: double,
+        default_value: 0.5,
+        description: "Nominal rotation velocity used for target arrival time [rad/s]"
+      }
+      maxDisplacementVelocityX: {
+        type: double,
+        default_value: 2.0,
+        description: "Maximum commanded base velocity in x [m/s]"
+      }
+      maxDisplacementVelocityY: {
+        type: double,
+        default_value: 1.2,
+        description: "Maximum commanded base velocity in y [m/s]"
+      }
+      maxDeltaPelvisHeight: {
+        type: double,
+        default_value: 0.4,
+        description: "Maximum commanded pelvis height change [m]"
+      }
+      maxRotationVelocity: {
+        type: double,
+        default_value: 1.0,
+        description: "Maximum commanded yaw rate [rad/s]"
+      }
+      defaultBaseHeight: {
+        type: double,
+        default_value: 0.7925,
+        description: "Default pelvis height above ground [m]"
+      }
+      defaultJointState: {
+        type: double_array,
+        default_value: [],
+        description: "Default (standing) joint configuration, index-aligned with robot.jointNames"
+      }
+
+    gait:
+      gaitFile: {
+        type: string,
+        default_value: "",
+        description: "YAML file with the named gait library (mode sequence templates), see config/g1/gait.yaml"
+      }
+      initialModeSequence: {
+        type: string_array,
+        default_value: ["STANCE", "STANCE"],
+        description: "Initial mode schedule mode sequence"
+      }
+      initialEventTimes: {
+        type: double_array,
+        default_value: [0.5],
+        description: "Initial mode schedule event times [s]"
+      }
+      defaultModeSequence: {
+        type: string_array,
+        default_value: ["STANCE"],
+        description: "Default mode sequence template applied after the initial schedule"
+      }
+      defaultSwitchingTimes: {
+        type: double_array,
+        default_value: [0.0, 0.5],
+        description: "Switching times of the default mode sequence template [s]"
+      }
+
+  visualization:
+    frameId: {
+      type: string,
+      default_value: "world",
+      description: "Visualization marker frame"
+    }
+
+    update_rate: {
+      type: double,
+      default_value: 30.0,
+      description: "Performance visualization update rate",
+      validation: {
+        gt_eq: [0.0]
+      }
+    }
+

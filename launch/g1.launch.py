@@ -1,0 +1,228 @@
+import os
+
+from ament_index_python.packages import get_package_share_directory
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument, ExecuteProcess
+from launch.conditions import IfCondition, UnlessCondition
+from launch.substitutions import (
+    Command,
+    FindExecutable,
+    LaunchConfiguration,
+    PathJoinSubstitution,
+    PythonExpression,
+)
+from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterFile, ParameterValue
+from launch_ros.substitutions import FindPackageShare
+
+
+def generate_launch_description():
+    mpc_share = FindPackageShare("legged_robot_mpc_controller")
+    mpc_share_dir = get_package_share_directory("legged_robot_mpc_controller")
+
+    rviz_default = os.path.join(mpc_share_dir, "description", "g1", "rviz", "urdf_config.rviz")
+    initial_pose_default = os.path.join(mpc_share_dir, "config", "g1", "initial_pose.yaml")
+    lib_folder_default = os.path.join("auto_generated", "g1")
+
+    urdf_default = PathJoinSubstitution([mpc_share, "description", "g1", "urdf", "g1_29dof.urdf"])
+    controllers_default = PathJoinSubstitution([mpc_share, "config", "g1", "ros2_controllers.yaml"])
+    g1_control_xacro = PathJoinSubstitution([mpc_share, "description", "g1", "urdf", "g1.ros2_control.xacro"])
+
+    declared_arguments = [
+        DeclareLaunchArgument("rviz", default_value="true"),
+        DeclareLaunchArgument("rvizconfig", default_value=rviz_default),
+        DeclareLaunchArgument("use_fake_hardware", default_value="false"),
+        DeclareLaunchArgument("use_mujoco_sim", default_value="true"),
+        DeclareLaunchArgument("mujoco_headless", default_value="false"),
+        DeclareLaunchArgument("mujoco_wait_to_start", default_value="true"),
+        DeclareLaunchArgument("mujoco_real_time_factor", default_value="1.0"),
+        DeclareLaunchArgument("mujoco_publish_rate", default_value="100.0"),
+        DeclareLaunchArgument("gt_enabled", default_value="true"),
+        DeclareLaunchArgument("gt_body_frame", default_value="torso_link"),
+        DeclareLaunchArgument("urdfFile", default_value=urdf_default),
+        DeclareLaunchArgument(
+            "libFolder",
+            default_value=lib_folder_default,
+            description="Writable folder for generated or cached CppAD libraries",
+        ),
+        DeclareLaunchArgument("mpcFreq", default_value="50", description="MPC update frequency (should be integer)"),
+        DeclareLaunchArgument("mrtFreq", default_value="1000", description="MRT update frequency (should be integer)"),
+        DeclareLaunchArgument("controllersFile", default_value=controllers_default),
+        DeclareLaunchArgument("mpcControllerName", default_value="humanoid_wb_mpc_controller"),
+        DeclareLaunchArgument("ros2ControlCommandInterface", default_value="effort"),
+        DeclareLaunchArgument("initialPoseFile", default_value=initial_pose_default),
+        DeclareLaunchArgument(
+            "spawnMpcController",
+            default_value="false",
+            description="Activate the MPC controller in the startup sequence. Keep false while the "
+            "controller wrapper is activation-guarded; joint_state_broadcaster and the MuJoCo "
+            "start service are sequenced either way.",
+        ),
+        DeclareLaunchArgument("mujocoModelFile", default_value="scene.xml"),
+    ]
+
+    use_mujoco_sim = LaunchConfiguration("use_mujoco_sim")
+    use_fake_hardware = LaunchConfiguration("use_fake_hardware")
+    use_sim_time = ParameterValue(use_mujoco_sim, value_type=bool)
+    mujoco_model_path = PathJoinSubstitution(
+        [mpc_share, "description", "g1", "mujoco", LaunchConfiguration("mujocoModelFile")]
+    )
+
+    # ros2_control hardware description (minimal kinematic chain + G1System block).
+    robot_description_content = Command(
+        [
+            PathJoinSubstitution([FindExecutable(name="xacro")]),
+            " ",
+            g1_control_xacro,
+            " ",
+            "use_fake_hardware:=",
+            use_fake_hardware,
+            " ",
+            "use_mujoco_sim:=",
+            use_mujoco_sim,
+            " ",
+            "initial_pose_file:=",
+            LaunchConfiguration("initialPoseFile"),
+            " ",
+            "ros2_control_command_interface:=",
+            LaunchConfiguration("ros2ControlCommandInterface"),
+        ]
+    )
+    robot_description = {"robot_description": ParameterValue(robot_description_content, value_type=str)}
+
+    # Full URDF (visuals + collisions) for robot_state_publisher / RViz.
+    display_description_content = Command(
+        [
+            PathJoinSubstitution([FindExecutable(name="xacro")]),
+            " ",
+            LaunchConfiguration("urdfFile"),
+        ]
+    )
+    display_description = {
+        "robot_description": ParameterValue(display_description_content, value_type=str)
+    }
+
+    # Controller sequenced by controller_sequence.py: "none" keeps the guarded MPC
+    # controller out of the sequence while still starting MuJoCo.
+    sequence_controller_name = PythonExpression(
+        [
+            '"',
+            LaunchConfiguration("mpcControllerName"),
+            '" if "',
+            LaunchConfiguration("spawnMpcController"),
+            '" == "true" else "none"',
+        ]
+    )
+
+    ros2_control_node = Node(
+        package="controller_manager",
+        executable="ros2_control_node",
+        output="screen",
+        parameters=[
+            robot_description,
+            ParameterFile(LaunchConfiguration("controllersFile"), allow_substs=True),
+            {"use_sim_time": use_sim_time},
+        ],
+        condition=UnlessCondition(use_mujoco_sim),
+    )
+
+    mujoco_ros2_control_node = Node(
+        package="mujoco_ros2_control",
+        executable="mujoco_ros2_control",
+        output="screen",
+        parameters=[
+            robot_description,
+            ParameterFile(LaunchConfiguration("controllersFile"), allow_substs=True),
+            {"mujoco_model_path": mujoco_model_path},
+            {"mujoco_headless": ParameterValue(LaunchConfiguration("mujoco_headless"), value_type=bool)},
+            {
+                "mujoco_wait_to_start": ParameterValue(
+                    LaunchConfiguration("mujoco_wait_to_start"), value_type=bool
+                )
+            },
+            {
+                "mujoco_real_time_factor": ParameterValue(
+                    LaunchConfiguration("mujoco_real_time_factor"), value_type=float
+                )
+            },
+            {
+                "mujoco_publish_rate": ParameterValue(
+                    LaunchConfiguration("mujoco_publish_rate"), value_type=float
+                )
+            },
+            {"gt_enabled": ParameterValue(LaunchConfiguration("gt_enabled"), value_type=bool)},
+            {"gt_publish_tf": True},
+            {"gt_pub_hz": 100.0},
+            {"gt_odom_topic": "/mujoco/ground_truth/odom"},
+            {"gt_root_frame": "world"},
+            {"gt_body_frames": [LaunchConfiguration("gt_body_frame")]},
+            {"use_sim_time": use_sim_time},
+        ],
+        condition=IfCondition(use_mujoco_sim),
+    )
+
+    controller_sequence_script = PathJoinSubstitution(
+        [FindPackageShare("legged_robot_mpc_controller"), "launch", "controller_sequence.py"]
+    )
+    controller_sequence = ExecuteProcess(
+        cmd=[
+            "python3",
+            controller_sequence_script,
+            "--controller-manager",
+            "/controller_manager",
+            "--robot-description-topic",
+            "/robot_description",
+            "--controller-name",
+            sequence_controller_name,
+            "--timeout",
+            "120",
+        ],
+        output="screen",
+        condition=UnlessCondition(use_mujoco_sim),
+    )
+    controller_sequence_mujoco = ExecuteProcess(
+        cmd=[
+            "python3",
+            controller_sequence_script,
+            "--controller-manager",
+            "/controller_manager",
+            "--robot-description-topic",
+            "/robot_description",
+            "--controller-name",
+            sequence_controller_name,
+            "--timeout",
+            "120",
+            "--use-mujoco-sim",
+            "--use-sim-time",
+        ],
+        output="screen",
+        condition=IfCondition(use_mujoco_sim),
+    )
+
+    robot_state_publisher_node = Node(
+        package="robot_state_publisher",
+        executable="robot_state_publisher",
+        output="screen",
+        parameters=[display_description, {"use_sim_time": use_sim_time}],
+    )
+
+    rviz_node = Node(
+        package="rviz2",
+        executable="rviz2",
+        output="screen",
+        condition=IfCondition(LaunchConfiguration("rviz")),
+        arguments=["-d", LaunchConfiguration("rvizconfig")],
+        parameters=[{"use_sim_time": use_sim_time}],
+    )
+
+    return LaunchDescription(
+        declared_arguments
+        + [
+            ros2_control_node,
+            mujoco_ros2_control_node,
+            controller_sequence,
+            controller_sequence_mujoco,
+            robot_state_publisher_node,
+            rviz_node,
+        ]
+    )

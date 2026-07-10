@@ -1,0 +1,12 @@
+<library path="legged_robot_mpc_controller">
+  <class
+    name="legged_robot_mpc_controller/HumanoidWbMpcController"
+    type="legged_robot_mpc_controller::HumanoidWbMpcController"
+    base_class_type="controller_interface::ChainableControllerInterface">
+    <description>
+      Humanoid whole-body MPC controller wrapper for ros2_control. The first
+      migration step keeps activation guarded until the floating-base
+      observation and torque command adapter are wired.
+    </description>
+  </class>
+</library>
