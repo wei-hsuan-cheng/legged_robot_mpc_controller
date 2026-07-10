@@ -27,7 +27,7 @@ def generate_launch_description():
 
     urdf_default = PathJoinSubstitution([mpc_share, "description", "g1", "urdf", "g1_29dof.urdf"])
     controllers_default = PathJoinSubstitution([mpc_share, "config", "g1", "ros2_controllers.yaml"])
-    g1_control_xacro = PathJoinSubstitution([mpc_share, "description", "g1", "urdf", "g1.ros2_control.xacro"])
+    ros2_control_xacro = PathJoinSubstitution([mpc_share, "description", "g1", "urdf", "g1.ros2_control.xacro"])
 
     declared_arguments = [
         DeclareLaunchArgument("rviz", default_value="true"),
@@ -75,7 +75,7 @@ def generate_launch_description():
         [
             PathJoinSubstitution([FindExecutable(name="xacro")]),
             " ",
-            g1_control_xacro,
+            ros2_control_xacro,
             " ",
             "use_fake_hardware:=",
             use_fake_hardware,
