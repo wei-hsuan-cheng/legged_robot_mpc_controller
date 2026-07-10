@@ -33,12 +33,9 @@ the same time as changing the ROS 2 integration.
 1. Replace `.info` loading in `ModelSettings`, `WBMpcInterface`, cost factories,
    contact settings, and command settings with generated parameter-library
    structs.
-2. Build an observation adapter:
-   - floating base from `/mujoco/ground_truth/odom`;
-   - actuated joints from controller state interfaces.
-3. Build a command adapter:
-   - map MPC joint torque output to ros2_control effort command interfaces;
-   - keep a guarded safe hold mode before MPC policy is valid.
+2. Expand the MuJoCo observation adapter if additional floating-base state
+   sources are needed beyond `/mujoco/ground_truth/odom`.
+3. Decide how to command excluded/fixed joints that are not part of the MPC
+   state/input vectors.
 4. Add performance visualization after the OCS2 policy and Pinocchio interfaces
    are wired.
-

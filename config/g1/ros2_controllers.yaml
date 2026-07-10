@@ -12,11 +12,6 @@ humanoid_wb_mpc_controller:
   ros__parameters:
     update_rate: $(var mrtFreq)
 
-    development:
-      # Placeholder activation commands zero torque on all joints (robot ragdolls in simulation).
-      # The MPC observation/torque adapters replace this next.
-      allowPlaceholderActivation: true
-
     paths:
       urdfFile: "$(var urdfFile)"
       libFolder: "$(var libFolder)"
@@ -48,6 +43,26 @@ humanoid_wb_mpc_controller:
         - right_shoulder_roll_joint
         - right_shoulder_yaw_joint
         - right_elbow_joint
+
+    control:
+      policyTimeOffset: 0.005
+      # Legacy WB MPC stand/balance feedback around the optimized policy.
+      mpcJointKp: [1200.0, 1200.0, 1200.0, 1200.0, 1200.0, 1200.0,
+                   1200.0, 1200.0, 1200.0, 1200.0, 1200.0, 1200.0,
+                   1200.0, 1200.0, 1200.0,
+                   1200.0, 1200.0, 1200.0, 1200.0,
+                   1200.0, 1200.0, 1200.0, 1200.0]
+      mpcJointKd: [10.0, 10.0, 10.0, 10.0, 10.0, 10.0,
+                   10.0, 10.0, 10.0, 10.0, 10.0, 10.0,
+                   10.0, 10.0, 10.0,
+                   10.0, 10.0, 10.0, 10.0,
+                   10.0, 10.0, 10.0, 10.0]
+      # Symmetric software clamp, index-aligned with robot.jointNames.
+      torqueLimit: [88.0, 88.0, 88.0, 139.0, 50.0, 50.0,
+                    88.0, 88.0, 88.0, 139.0, 50.0, 50.0,
+                    88.0, 50.0, 50.0,
+                    25.0, 25.0, 25.0, 25.0,
+                    25.0, 25.0, 25.0, 25.0]
 
     floatingBase:
       # mujoco_ros2_control publishes this from MuJoCo body state, not through
@@ -247,4 +262,3 @@ humanoid_wb_mpc_controller:
     visualization:
       frameId: world
       update_rate: 30.0
-

@@ -58,9 +58,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "spawnMpcController",
             default_value="true",
-            description="Load + configure the MPC controller in the startup sequence (CppAD codegen "
-            "runs at configure). Activation is attempted but tolerated to fail while the "
-            "controller wrapper is guarded; MuJoCo is started either way.",
+            description="Load, configure, and activate the MPC controller before MuJoCo physics starts.",
         ),
         DeclareLaunchArgument("mujocoModelFile", default_value="scene.xml"),
     ]
@@ -106,8 +104,8 @@ def generate_launch_description():
         "robot_description": ParameterValue(display_description_content, value_type=str)
     }
 
-    # Controller sequenced by controller_sequence.py: "none" keeps the guarded MPC
-    # controller out of the sequence while still starting MuJoCo.
+    # Controller sequenced by controller_sequence.py: "none" starts MuJoCo with
+    # joint_state_broadcaster only, which is only useful for environment smoke tests.
     sequence_controller_name = PythonExpression(
         [
             '"',

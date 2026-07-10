@@ -1,11 +1,4 @@
 humanoid_wb_mpc_controller:
-  development:
-    allowPlaceholderActivation: {
-      type: bool,
-      default_value: false,
-      description: "Allow this migration-stage controller wrapper to activate before the floating-base observation and torque adapter are implemented"
-    }
-
   paths:
     urdfFile: {
       type: string,
@@ -39,6 +32,34 @@ humanoid_wb_mpc_controller:
       type: string_array,
       default_value: ["position", "velocity", "effort"],
       description: "Per-joint state interfaces required from ros2_control"
+    }
+
+  control:
+    policyTimeOffset: {
+      type: double,
+      default_value: 0.005,
+      description: "Time offset used when evaluating the MPC policy from the current observation [s]",
+      validation: {
+        gt_eq: [0.0]
+      }
+    }
+
+    mpcJointKp: {
+      type: double_array,
+      default_value: [],
+      description: "Joint-space feedback stiffness added to MPC feedforward torques. Empty means 1200 for all MPC joints."
+    }
+
+    mpcJointKd: {
+      type: double_array,
+      default_value: [],
+      description: "Joint-space feedback damping added to MPC feedforward torques. Empty means 10 for all MPC joints."
+    }
+
+    torqueLimit: {
+      type: double_array,
+      default_value: [],
+      description: "Symmetric command torque limits for robot.jointNames. Empty means no software clamp."
     }
 
   floatingBase:
@@ -670,4 +691,3 @@ humanoid_wb_mpc_controller:
         gt_eq: [0.0]
       }
     }
-

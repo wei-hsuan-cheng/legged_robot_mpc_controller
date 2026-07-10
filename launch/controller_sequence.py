@@ -278,12 +278,12 @@ def main():
         if not start_ros2_controllers(node, active_controller_list, activate=False):
             rclpy.shutdown()
             return 1
-        # Activation may be refused while the controller is still a migration
-        # scaffold; warn and continue so the simulation still starts.
         for name in active_controller_list:
             if not node.activate(name):
-                node.get_logger().warn(
-                    f'Controller {name} refused activation (migration guard); continuing without it')
+                node.get_logger().error(
+                    f'Controller {name} failed activation; refusing to start MuJoCo without it')
+                rclpy.shutdown()
+                return 1
     
     if not start_ros2_controllers(node, inactive_controller_list, activate=False):
         rclpy.shutdown()

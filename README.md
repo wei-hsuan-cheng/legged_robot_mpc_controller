@@ -58,17 +58,14 @@ ros2 launch legged_robot_mpc_controller g1.launch.py \
   mujoco_headless:=true
 ```
 
-> The MPC controller plugin is a migration scaffold and is excluded from the
-> startup sequence by default (`spawnMpcController:=false`). It also refuses
-> activation unless `development.allowPlaceholderActivation` is set to `true`
-> in [`config/g1/ros2_controllers.yaml`](./config/g1/ros2_controllers.yaml), so
-> it cannot command the robot before the observation and torque adapters are
-> wired. MuJoCo is started by the sequence either way.
+The launch sequence activates the MPC controller before starting MuJoCo physics.
+If MPC activation fails, MuJoCo is not started; this avoids beginning simulation
+with zero torque on the humanoid.
 
 Useful launch args:
 
 ```bash
-spawnMpcController:=false | true         # include the (guarded) MPC controller in the startup sequence
+spawnMpcController:=true | false         # false is only for environment smoke tests; the robot will not balance
 mpcControllerName:=humanoid_wb_mpc_controller
 use_mujoco_sim:=true | false             # false: plain ros2_control_node (fake hardware)
 use_fake_hardware:=false | true          # mock_components/GenericSystem when not using MuJoCo
