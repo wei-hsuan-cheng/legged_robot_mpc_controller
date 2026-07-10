@@ -58,6 +58,7 @@ class ModelSettings {
     std::string robotName;
     bool verboseCppAd = true;
     bool recompileLibrariesCppAd = true;
+    std::string modelFolderCppAd;  // base folder for CppAD codegen; empty = derive from mpcName + robotName
     scalar_t phaseTransitionStanceTime = 0.0;
     std::vector<std::string> fixedJointNames;
     std::vector<std::string> contactNames6DoF;

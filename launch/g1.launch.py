@@ -1,4 +1,5 @@
 import os
+from typing import List
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
@@ -53,10 +54,10 @@ def generate_launch_description():
         DeclareLaunchArgument("initialPoseFile", default_value=initial_pose_default),
         DeclareLaunchArgument(
             "spawnMpcController",
-            default_value="false",
-            description="Activate the MPC controller in the startup sequence. Keep false while the "
-            "controller wrapper is activation-guarded; joint_state_broadcaster and the MuJoCo "
-            "start service are sequenced either way.",
+            default_value="true",
+            description="Load + configure the MPC controller in the startup sequence (CppAD codegen "
+            "runs at configure). Activation is attempted but tolerated to fail while the "
+            "controller wrapper is guarded; MuJoCo is started either way.",
         ),
         DeclareLaunchArgument("mujocoModelFile", default_value="scene.xml"),
     ]
@@ -155,7 +156,14 @@ def generate_launch_description():
             {"gt_pub_hz": 100.0},
             {"gt_odom_topic": "/mujoco/ground_truth/odom"},
             {"gt_root_frame": "world"},
-            {"gt_body_frames": [LaunchConfiguration("gt_body_frame")]},
+            {
+                # Build a YAML list string and parse it as string_array; a bare
+                # [LaunchConfiguration] would collapse to a single string.
+                "gt_body_frames": ParameterValue(
+                    ["['", LaunchConfiguration("gt_body_frame"), "']"],
+                    value_type=List[str],
+                )
+            },
             {"use_sim_time": use_sim_time},
         ],
         condition=IfCondition(use_mujoco_sim),

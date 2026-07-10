@@ -111,7 +111,11 @@ ModelSettings::ModelSettings(const Params& params, const std::string& urdfFile, 
   this->j_r_shoulder_y_name = params.j_r_shoulder_y_name;
   this->j_l_elbow_y_name = params.j_l_elbow_y_name;
   this->j_r_elbow_y_name = params.j_r_elbow_y_name;
-  modelFolderCppAd = "cppad_code_gen/cppad_" + mpcName + robotName;
+  if (params.modelFolderCppAd.empty()) {
+    modelFolderCppAd = "cppad_code_gen/cppad_" + mpcName + robotName;
+  } else {
+    modelFolderCppAd = params.modelFolderCppAd + "/" + mpcName + robotName;
+  }
 
   this->fixedJointNames = params.fixedJointNames;
   this->contactNames6DoF = params.contactNames6DoF;

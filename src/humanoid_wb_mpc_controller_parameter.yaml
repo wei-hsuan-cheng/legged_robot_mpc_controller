@@ -99,7 +99,7 @@ humanoid_wb_mpc_controller:
       }
       recompileLibrariesCppAd: {
         type: bool,
-        default_value: false,
+        default_value: true,
         description: "Force recompilation of the CppAD generated libraries"
       }
       fixedJointNames: {

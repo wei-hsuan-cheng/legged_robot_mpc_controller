@@ -11,6 +11,8 @@
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_lifecycle/state.hpp>
 
+#include <humanoid_wb_mpc/WBMpcInterface.h>
+
 #include "legged_robot_mpc_controller/humanoid_wb_mpc_controller_parameters.hpp"
 
 namespace legged_robot_mpc_controller
@@ -47,6 +49,8 @@ private:
 
   std::shared_ptr<ParamListener> param_listener_;
   Params parameters_;
+
+  std::unique_ptr<ocs2::humanoid::WBMpcInterface> mpc_interface_;
 };
 
 }  // namespace legged_robot_mpc_controller

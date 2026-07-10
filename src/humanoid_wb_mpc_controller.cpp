@@ -7,6 +7,8 @@
 #include <hardware_interface/types/hardware_interface_type_values.hpp>
 #include <pluginlib/class_list_macros.hpp>
 
+#include "legged_robot_mpc_controller/config/wb_mpc_config_builder.hpp"
+
 namespace legged_robot_mpc_controller
 {
 
@@ -32,6 +34,41 @@ controller_interface::CallbackReturn HumanoidWbMpcController::on_configure(
 {
   if (param_listener_->is_old(parameters_)) {
     parameters_ = param_listener_->get_params();
+  }
+
+  if (parameters_.paths.urdfFile.empty() || parameters_.paths.libFolder.empty()) {
+    RCLCPP_ERROR(
+      get_node()->get_logger(),
+      "[HumanoidWbMpcController] paths.urdfFile or paths.libFolder is empty.");
+    return controller_interface::CallbackReturn::ERROR;
+  }
+  RCLCPP_INFO(
+    get_node()->get_logger(),
+    "[HumanoidWbMpcController] CppAD library folder: %s | recompileLibraries=%s",
+    parameters_.paths.libFolder.c_str(),
+    parameters_.ocs2.model.recompileLibrariesCppAd ? "true" : "false");
+
+  // Build the whole-body MPC problem from ROS 2 parameters. The first run generates and
+  // compiles the CppAD model libraries into paths.libFolder, which can take several minutes;
+  // subsequent runs load the cached libraries.
+  try {
+    RCLCPP_INFO(
+      get_node()->get_logger(),
+      "[HumanoidWbMpcController] Constructing WBMpcInterface (CppAD codegen folder: %s, "
+      "recompile: %s). First-time codegen can take several minutes...",
+      parameters_.paths.libFolder.c_str(),
+      parameters_.ocs2.model.recompileLibrariesCppAd ? "true" : "false");
+    mpc_interface_ = std::make_unique<ocs2::humanoid::WBMpcInterface>(buildWbMpcConfig(parameters_));
+    RCLCPP_INFO(
+      get_node()->get_logger(),
+      "[HumanoidWbMpcController] WBMpcInterface ready (state dim %zu, input dim %zu)",
+      static_cast<size_t>(mpc_interface_->getMpcRobotModel().getStateDim()),
+      static_cast<size_t>(mpc_interface_->getMpcRobotModel().getInputDim()));
+  } catch (const std::exception& e) {
+    RCLCPP_ERROR(
+      get_node()->get_logger(), "[HumanoidWbMpcController] Failed to build WBMpcInterface: %s",
+      e.what());
+    return controller_interface::CallbackReturn::ERROR;
   }
 
   RCLCPP_INFO(

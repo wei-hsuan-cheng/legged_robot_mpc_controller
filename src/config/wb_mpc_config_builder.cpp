@@ -65,6 +65,7 @@ ocs2::humanoid::WBMpcInterface::Config buildWbMpcConfig(const humanoid_wb_mpc_co
   model.robotName = p.model.robotName;
   model.verboseCppAd = p.model.verboseCppAd;
   model.recompileLibrariesCppAd = p.model.recompileLibrariesCppAd;
+  model.modelFolderCppAd = params.paths.libFolder;
   model.phaseTransitionStanceTime = p.model.phaseTransitionStanceTime;
   model.fixedJointNames = p.model.fixedJointNames;
   model.contactNames6DoF = p.model.contactNames6DoF;
