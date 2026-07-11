@@ -30,7 +30,8 @@
 #include <humanoid_wb_mpc/common/WBAccelMpcRobotModel.h>
 
 #include "legged_robot_mpc_controller/humanoid_wb_mpc_controller_parameters.hpp"
-#include "legged_robot_mpc_controller/ros2_procedural_mpc_motion_manager.hpp"
+#include "legged_robot_mpc_controller/common/heading_reference.hpp"
+#include "legged_robot_mpc_controller/common/ros2_procedural_mpc_motion_manager.hpp"
 #include "legged_robot_mpc_controller/visualization/performance_visualization.hpp"
 
 namespace legged_robot_mpc_controller
@@ -127,18 +128,8 @@ private:
   // Private pinocchio copy for diagnostics FK (solver owns its own instances).
   std::unique_ptr<ocs2::PinocchioInterface> diag_pinocchio_;
 
-  // Persistent heading reference: the legacy calculator anchors the yaw target to the
-  // measured yaw every solve, so slow yaw drift is never corrected. We overwrite the
-  // yaw targets with an integrated heading reference (commanded yaw rate) instead.
-  // Only touched from the solver thread (preSolverRun).
-  void apply_heading_reference(
-    double yaw_rate_command,
-    double init_time,
-    const vector_t& init_state,
-    ocs2::TargetTrajectories& target_trajectories);
-  bool heading_reference_initialized_{false};
-  double heading_reference_{0.0};
-  double heading_reference_time_{0.0};
+  // Heading hold for velocity-commanded walking; only touched from the solver thread.
+  common::HeadingReference heading_reference_;
 
   // Diagnostics and visualization are time-gated so their cost (string formatting,
   // FK, trajectory copies) is not paid every real-time update. Legacy has no such

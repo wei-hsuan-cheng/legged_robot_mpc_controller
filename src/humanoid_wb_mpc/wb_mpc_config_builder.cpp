@@ -1,4 +1,4 @@
-#include "legged_robot_mpc_controller/config/wb_mpc_config_builder.hpp"
+#include "legged_robot_mpc_controller/humanoid_wb_mpc/wb_mpc_config_builder.hpp"
 
 #include <stdexcept>
 #include <vector>

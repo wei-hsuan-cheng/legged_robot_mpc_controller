@@ -96,12 +96,12 @@ ros2 topic echo /joint_states
 
 No `.info` files are used. All whole-body MPC settings live in ROS 2 parameters:
 
-- [`src/humanoid_wb_mpc_controller_parameter.yaml`](./src/humanoid_wb_mpc_controller_parameter.yaml) declares the full parameter surface (`generate_parameter_library`): model settings, foot-constraint gains, swing trajectory, SQP/rollout/MPC solver settings, initial state, `Q`/`R`/`Q_final` cost diagonals, task-space foot cost weights, and the friction-cone / contact-moment / joint-limit / foot-collision constraint parameters.
+- [`src/humanoid_wb_mpc/humanoid_wb_mpc_controller_parameter.yaml`](./src/humanoid_wb_mpc/humanoid_wb_mpc_controller_parameter.yaml) declares the full parameter surface (`generate_parameter_library`): model settings, foot-constraint gains, swing trajectory, SQP/rollout/MPC solver settings, initial state, `Q`/`R`/`Q_final` cost diagonals, task-space foot cost weights, and the friction-cone / contact-moment / joint-limit / foot-collision constraint parameters.
 - [`config/g1/ros2_controllers.yaml`](./config/g1/ros2_controllers.yaml) holds the G1 values under `ocs2.*`. Joint-indexed arrays (costs, initial state, default joint state) are index-aligned with `robot.jointNames`.
 - [`config/g1/gait.yaml`](./config/g1/gait.yaml) is the named gait library (mode sequence templates), referenced by `ocs2.gait.gaitFile`.
 - [`config/g1/initial_pose.yaml`](./config/g1/initial_pose.yaml) sets the simulation start pose consumed by the `ros2_control` xacro.
 
-The Params-to-config adapter ([`src/config/wb_mpc_config_builder.cpp`](./src/config/wb_mpc_config_builder.cpp))
+The Params-to-config adapter ([`src/humanoid_wb_mpc/wb_mpc_config_builder.cpp`](./src/humanoid_wb_mpc/wb_mpc_config_builder.cpp))
 maps these parameters onto the vendored MPC core (`WBMpcInterface::Config`).
 
 ## Floating-Base State

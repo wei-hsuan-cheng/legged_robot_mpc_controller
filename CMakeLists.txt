@@ -45,7 +45,7 @@ foreach(dependency IN ITEMS ${THIS_PACKAGE_INCLUDE_DEPENDS})
 endforeach()
 
 generate_parameter_library(humanoid_wb_mpc_controller_parameters
-  src/humanoid_wb_mpc_controller_parameter.yaml
+  src/humanoid_wb_mpc/humanoid_wb_mpc_controller_parameter.yaml
 )
 
 file(GLOB_RECURSE HUMANOID_COMMON_CORE_SOURCES CONFIGURE_DEPENDS
@@ -142,9 +142,10 @@ target_link_libraries(legged_robot_humanoid_centroidal_core
 target_compile_definitions(legged_robot_humanoid_centroidal_core PUBLIC BOOST_MPL_LIMIT_LIST_SIZE=30)
 
 add_library(${PROJECT_NAME} SHARED
-  src/humanoid_wb_mpc_controller.cpp
-  src/config/wb_mpc_config_builder.cpp
-  src/ros2_procedural_mpc_motion_manager.cpp
+  src/common/heading_reference.cpp
+  src/common/ros2_procedural_mpc_motion_manager.cpp
+  src/humanoid_wb_mpc/humanoid_wb_mpc_controller.cpp
+  src/humanoid_wb_mpc/wb_mpc_config_builder.cpp
   src/visualization/optimized_state_trajectory_visualization.cpp
   src/visualization/performance_visualization.cpp
 )

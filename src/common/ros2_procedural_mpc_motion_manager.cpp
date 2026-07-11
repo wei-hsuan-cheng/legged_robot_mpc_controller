@@ -1,4 +1,4 @@
-#include "legged_robot_mpc_controller/ros2_procedural_mpc_motion_manager.hpp"
+#include "legged_robot_mpc_controller/common/ros2_procedural_mpc_motion_manager.hpp"
 
 #include <utility>
 

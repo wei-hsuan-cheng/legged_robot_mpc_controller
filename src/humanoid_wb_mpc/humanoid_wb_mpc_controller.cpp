@@ -1,4 +1,4 @@
-#include "legged_robot_mpc_controller/humanoid_wb_mpc_controller.hpp"
+#include "legged_robot_mpc_controller/humanoid_wb_mpc/humanoid_wb_mpc_controller.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -23,7 +23,7 @@
 #include <pinocchio/algorithm/frames.hpp>
 #include <pinocchio/algorithm/kinematics.hpp>
 
-#include "legged_robot_mpc_controller/config/wb_mpc_config_builder.hpp"
+#include "legged_robot_mpc_controller/humanoid_wb_mpc/wb_mpc_config_builder.hpp"
 
 namespace legged_robot_mpc_controller
 {
@@ -160,7 +160,11 @@ controller_interface::CallbackReturn HumanoidWbMpcController::on_configure(
           velocity_target,
           init_time,
           init_state);
-        apply_heading_reference(velocity_target(3), init_time, init_state, target_trajectories);
+        heading_reference_.apply(
+          velocity_target(3),
+          init_time,
+          control_model_->getBasePose(init_state)[3],
+          target_trajectories);
         return target_trajectories;
       };
     auto motion_manager = std::make_shared<Ros2ProceduralMpcMotionManager>(
@@ -226,7 +230,7 @@ controller_interface::CallbackReturn HumanoidWbMpcController::on_activate(
     return controller_interface::CallbackReturn::ERROR;
   }
 
-  heading_reference_initialized_ = false;
+  heading_reference_.reset();
   initial_observation_state_ = mpc_interface_->getInitialState();
   const auto initial_observation = build_observation(get_node()->now());
   if (parameters_.robot.commandInterface == "effort_pd") {
@@ -735,36 +739,6 @@ HumanoidWbMpcController::vector_t HumanoidWbMpcController::compute_weight_compen
     input,
     mpc_interface_->getPinocchioInterface(),
     *control_model_);
-}
-
-void HumanoidWbMpcController::apply_heading_reference(
-  double yaw_rate_command,
-  double init_time,
-  const vector_t& init_state,
-  ocs2::TargetTrajectories& target_trajectories)
-{
-  const double measured_yaw = control_model_->getBasePose(init_state)[3];
-  if (!heading_reference_initialized_) {
-    heading_reference_ = measured_yaw;
-    heading_reference_time_ = init_time;
-    heading_reference_initialized_ = true;
-  }
-
-  heading_reference_ += yaw_rate_command * (init_time - heading_reference_time_);
-  heading_reference_time_ = init_time;
-
-  // Anti-windup: never demand more than kMaxHeadingError of correction at once, and
-  // keep the reference continuous with the measured yaw (no +-pi jumps).
-  constexpr double kMaxHeadingError = 0.3;
-  double error = std::remainder(heading_reference_ - measured_yaw, 2.0 * M_PI);
-  error = std::clamp(error, -kMaxHeadingError, kMaxHeadingError);
-  heading_reference_ = measured_yaw + error;
-
-  for (std::size_t i = 0; i < target_trajectories.stateTrajectory.size(); ++i) {
-    const double target_yaw =
-      heading_reference_ + yaw_rate_command * (target_trajectories.timeTrajectory[i] - init_time);
-    target_trajectories.stateTrajectory[i][3] = target_yaw;
-  }
 }
 
 HumanoidWbMpcController::TorqueCommand HumanoidWbMpcController::compute_mpc_torque_command(
