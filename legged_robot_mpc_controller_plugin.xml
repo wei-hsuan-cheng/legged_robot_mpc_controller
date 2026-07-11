@@ -4,7 +4,7 @@
     type="legged_robot_mpc_controller::HumanoidWbMpcController"
     base_class_type="controller_interface::ChainableControllerInterface">
     <description>
-      OCS2-based humanoid whole-body MPC controller for ros2_control.
+      OCS2 floating-base humanoid whole-body MPC controller.
     </description>
   </class>
 </library>
