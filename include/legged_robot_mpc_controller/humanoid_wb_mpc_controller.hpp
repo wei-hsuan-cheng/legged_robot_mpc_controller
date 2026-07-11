@@ -143,6 +143,8 @@ private:
   // Diagnostics and visualization are time-gated so their cost (string formatting,
   // FK, trajectory copies) is not paid every real-time update. Legacy has no such
   // per-tick load competing with the solver.
+  // Observation velocity low-pass state (see build_observation).
+  vector_t filtered_generalized_velocity_;
   bool diagnostics_due_{false};
   double last_diagnostics_time_{-1.0};
   double last_visualization_time_{-1.0};

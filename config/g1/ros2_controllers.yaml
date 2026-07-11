@@ -45,6 +45,8 @@ humanoid_wb_mpc_controller:
         - right_elbow_joint
 
     control:
+      # DIAGNOSTIC: smooth simulator velocity dither out of the MPC observation.
+      observationVelocityFilterCutoffHz: 30.0
       policyTimeOffset: 0.005
       # Legacy WB MPC stand/balance feedback around the optimized policy.
       mpcJointKp: [1200.0, 1200.0, 1200.0, 1200.0, 1200.0, 1200.0,
@@ -182,26 +184,26 @@ humanoid_wb_mpc_controller:
         rScaling: 0.001
         terminalCostScaling: 4.0
         q:
-          basePose: [0.0, 0.0, 10.0, 0.0, 20.0, 20.0]
+          basePose: [0.0, 0.0, 10.0, 20.0, 20.0, 20.0]  # DELTA: yaw stiffness (legacy 0) for heading hold
           jointPositions: [0.05, 0.2, 0.2, 0.1, 0.1, 0.1,
                            0.05, 0.2, 0.2, 0.1, 0.1, 0.1,
                            2.0, 2.0, 2.0,
                            0.4, 2.0, 0.4, 0.4,
                            0.4, 2.0, 0.4, 0.4]
-          baseVelocity: [3.0, 3.0, 3.0, 3.0, 3.0, 3.0]
+          baseVelocity: [10.0, 3.0, 3.0, 10.0, 3.0, 3.0]  # DELTA: vx 10, wz 10 (legacy 3)
           jointVelocities: [0.001, 0.001, 0.001, 0.001, 0.001, 0.001,
                             0.001, 0.001, 0.001, 0.001, 0.001, 0.001,
                             0.2, 0.2, 0.2,
                             0.02, 0.02, 0.02, 0.02,
                             0.02, 0.02, 0.02, 0.02]
         qFinal:
-          basePose: [0.0, 0.0, 10.0, 0.0, 20.0, 20.0]
+          basePose: [0.0, 0.0, 10.0, 20.0, 20.0, 20.0]  # DELTA: yaw stiffness (legacy 0) for heading hold
           jointPositions: [0.05, 0.1, 0.1, 0.1, 0.1, 0.1,
                            0.05, 0.1, 0.1, 0.1, 0.1, 0.1,
                            2.0, 2.0, 2.0,
                            0.4, 2.0, 0.4, 0.4,
                            0.4, 2.0, 0.4, 0.4]
-          baseVelocity: [3.0, 3.0, 3.0, 3.0, 3.0, 3.0]
+          baseVelocity: [10.0, 3.0, 3.0, 10.0, 3.0, 3.0]  # DELTA: vx 10, wz 10 (legacy 3)
           jointVelocities: [0.001, 0.001, 0.001, 0.001, 0.001, 0.001,
                             0.001, 0.001, 0.001, 0.001, 0.001, 0.001,
                             0.2, 0.2, 0.2,

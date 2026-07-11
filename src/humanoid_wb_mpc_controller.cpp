@@ -602,6 +602,24 @@ ocs2::SystemObservation HumanoidWbMpcController::build_observation(const rclcpp:
     model.setJointVelocities(observation.state, observation.input, v_joint);
   }
 
+  // Low-pass the generalized-velocity half of the state. Raw simulator velocity
+  // dither at node 0 keeps the SQP baseline dynamics defect above g_max, trapping
+  // the linesearch in constraint-repair mode where the tracking cost is ignored.
+  const double cutoff_hz = parameters_.control.observationVelocityFilterCutoffHz;
+  if (cutoff_hz > 0.0) {
+    const auto vel_dim = static_cast<Eigen::Index>(model.getGenCoordinatesDim());
+    const double dt = 1.0 / std::max(1.0, static_cast<double>(get_update_rate()));
+    const double alpha = 1.0 - std::exp(-2.0 * M_PI * cutoff_hz * dt);
+    auto velocity = observation.state.tail(vel_dim);
+    if (filtered_generalized_velocity_.size() != vel_dim) {
+      filtered_generalized_velocity_ = velocity;
+    } else {
+      filtered_generalized_velocity_ =
+        alpha * velocity + (1.0 - alpha) * filtered_generalized_velocity_;
+    }
+    velocity = filtered_generalized_velocity_;
+  }
+
   return observation;
 }
 

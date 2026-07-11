@@ -35,6 +35,15 @@ humanoid_wb_mpc_controller:
     }
 
   control:
+    observationVelocityFilterCutoffHz: {
+      type: double,
+      default_value: 0.0,
+      description: "Low-pass cutoff for observed generalized velocities [Hz]; 0 disables (legacy feeds raw velocities)",
+      validation: {
+        gt_eq: [0.0]
+      }
+    }
+
     policyTimeOffset: {
       type: double,
       default_value: 0.005,
