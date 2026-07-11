@@ -10,7 +10,8 @@ void HeadingReference::apply(
   double yaw_rate_command,
   double init_time,
   double measured_yaw,
-  ocs2::TargetTrajectories& target_trajectories)
+  ocs2::TargetTrajectories& target_trajectories,
+  int yaw_state_index)
 {
   if (!initialized_) {
     heading_ = measured_yaw;
@@ -29,7 +30,7 @@ void HeadingReference::apply(
   heading_ = measured_yaw + error;
 
   for (std::size_t i = 0; i < target_trajectories.stateTrajectory.size(); ++i) {
-    target_trajectories.stateTrajectory[i][3] =
+    target_trajectories.stateTrajectory[i][yaw_state_index] =
       heading_ + yaw_rate_command * (target_trajectories.timeTrajectory[i] - init_time);
   }
 }

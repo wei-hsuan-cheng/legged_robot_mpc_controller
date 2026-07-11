@@ -24,6 +24,7 @@ def generate_launch_description():
     rviz_default = os.path.join(mpc_share_dir, "config", "rviz", "humanoid.rviz")
     initial_pose_default = os.path.join(mpc_share_dir, "config", "g1", "initial_pose.yaml")
     lib_folder_default = os.path.join("auto_generated", "g1")
+    mpc_controller_default = "humanoid_centroidal_mpc_controller" # humanoid_centroidal_mpc_controller | humanoid_wb_mpc_controller
 
     urdf_default = PathJoinSubstitution([mpc_share, "description", "g1", "urdf", "g1_29dof.urdf"])
     controllers_default = PathJoinSubstitution([mpc_share, "config", "g1", "ros2_controllers.yaml"])
@@ -52,7 +53,10 @@ def generate_launch_description():
         DeclareLaunchArgument("mpcFreq", default_value="50", description="MPC update frequency (should be integer)"),
         DeclareLaunchArgument("mrtFreq", default_value="1000", description="MRT update frequency (should be integer)"),
         DeclareLaunchArgument("controllersFile", default_value=controllers_default),
-        DeclareLaunchArgument("mpcControllerName", default_value="humanoid_wb_mpc_controller"),
+        DeclareLaunchArgument(
+            "mpcControllerName", 
+            default_value=mpc_controller_default,
+            description="Name of the supported MPC ros2 controllers to load and activate.",),
         DeclareLaunchArgument("ros2ControlCommandInterface", default_value="effort_pd"),
         DeclareLaunchArgument("initialPoseFile", default_value=initial_pose_default),
         DeclareLaunchArgument(

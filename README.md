@@ -51,6 +51,7 @@ Unitree `g1` environment. MuJoCo starts **paused** (`mujoco_wait_to_start:=true`
 
 ```bash
 ros2 launch legged_robot_mpc_controller g1.launch.py \
+  mpcControllerName:=humanoid_wb_mpc_controller \
   mujoco_headless:=true \
   velocityCommandGui:=true
 ```
@@ -63,7 +64,7 @@ Useful launch args:
 ```bash
 velocityCommandGui:=true | false
 spawnMpcController:=true | false         # false is only for environment smoke tests; the robot will not balance
-mpcControllerName:=humanoid_wb_mpc_controller
+mpcControllerName:=humanoid_centroidal_mpc_controller | humanoid_wb_mpc_controller
 use_mujoco_sim:=true | false             # false: plain ros2_control_node (fake hardware)
 use_fake_hardware:=false | true          # mock_components/GenericSystem when not using MuJoCo
 ros2ControlCommandInterface:=effort | position

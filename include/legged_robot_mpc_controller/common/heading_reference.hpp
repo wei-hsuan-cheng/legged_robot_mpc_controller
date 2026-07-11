@@ -21,11 +21,14 @@ public:
 
   /// Overwrites the yaw entries of the target state trajectory with the integrated
   /// heading reference. `measured_yaw` is the current base yaw from the observation.
+  /// `yaw_state_index` is the yaw entry in the target state (3 for the whole-body
+  /// model, 9 for the centroidal model where the pose starts after the momentum).
   void apply(
     double yaw_rate_command,
     double init_time,
     double measured_yaw,
-    ocs2::TargetTrajectories& target_trajectories);
+    ocs2::TargetTrajectories& target_trajectories,
+    int yaw_state_index = 3);
 
 private:
   bool initialized_{false};

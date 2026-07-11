@@ -48,6 +48,10 @@ generate_parameter_library(humanoid_wb_mpc_controller_parameters
   src/humanoid_wb_mpc/humanoid_wb_mpc_controller_parameter.yaml
 )
 
+generate_parameter_library(humanoid_centroidal_mpc_controller_parameters
+  src/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller_parameter.yaml
+)
+
 file(GLOB_RECURSE HUMANOID_COMMON_CORE_SOURCES CONFIGURE_DEPENDS
   src/core/humanoid_common_mpc/src/*.cpp
 )
@@ -142,8 +146,11 @@ target_link_libraries(legged_robot_humanoid_centroidal_core
 target_compile_definitions(legged_robot_humanoid_centroidal_core PUBLIC BOOST_MPL_LIMIT_LIST_SIZE=30)
 
 add_library(${PROJECT_NAME} SHARED
+  src/common/config_builder_utils.cpp
   src/common/heading_reference.cpp
   src/common/ros2_procedural_mpc_motion_manager.cpp
+  src/humanoid_centroidal_mpc/centroidal_mpc_config_builder.cpp
+  src/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller.cpp
   src/humanoid_wb_mpc/humanoid_wb_mpc_controller.cpp
   src/humanoid_wb_mpc/wb_mpc_config_builder.cpp
   src/visualization/optimized_state_trajectory_visualization.cpp
@@ -159,6 +166,7 @@ target_link_libraries(${PROJECT_NAME}
   PUBLIC
     Eigen3::Eigen
     humanoid_wb_mpc_controller_parameters
+    humanoid_centroidal_mpc_controller_parameters
     legged_robot_humanoid_wb_core
     legged_robot_humanoid_centroidal_core
     yaml-cpp
@@ -197,6 +205,7 @@ install(FILES legged_robot_mpc_controller_plugin.xml
 install(TARGETS
   ${PROJECT_NAME}
   humanoid_wb_mpc_controller_parameters
+  humanoid_centroidal_mpc_controller_parameters
   legged_robot_humanoid_common_core
   legged_robot_humanoid_wb_core
   legged_robot_humanoid_centroidal_core

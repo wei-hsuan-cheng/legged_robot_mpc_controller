@@ -7,4 +7,12 @@
       OCS2 floating-base humanoid whole-body MPC controller.
     </description>
   </class>
+  <class
+    name="legged_robot_mpc_controller/HumanoidCentroidalMpcController"
+    type="legged_robot_mpc_controller::HumanoidCentroidalMpcController"
+    base_class_type="controller_interface::ChainableControllerInterface">
+    <description>
+      OCS2 floating-base humanoid centroidal MPC controller.
+    </description>
+  </class>
 </library>

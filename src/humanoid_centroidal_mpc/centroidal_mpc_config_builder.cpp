@@ -1,6 +1,4 @@
-#include "legged_robot_mpc_controller/humanoid_wb_mpc/wb_mpc_config_builder.hpp"
-
-#include "legged_robot_mpc_controller/common/config/config_builder_utils.hpp"
+#include "legged_robot_mpc_controller/humanoid_centroidal_mpc/centroidal_mpc_config_builder.hpp"
 
 #include <stdexcept>
 #include <vector>
@@ -8,29 +6,31 @@
 #include <ocs2_core/integration/Integrator.h>
 #include <ocs2_core/integration/SensitivityIntegrator.h>
 
+#include "legged_robot_mpc_controller/common/config/config_builder_utils.hpp"
+
 namespace legged_robot_mpc_controller
 {
 
 namespace
 {
 
-using ocs2::matrix_t;
-using ocs2::scalar_t;
-using ocs2::vector3_t;
-using ocs2::vector_t;
-
 using common::assembleDiagonalMatrix;
 using common::checkJointArraySize;
 using common::toVector;
+using ocs2::scalar_t;
+using ocs2::vector2_t;
+using ocs2::vector3_t;
+using ocs2::vector_t;
 
 }  // namespace
 
-ocs2::humanoid::WBMpcInterface::Config buildWbMpcConfig(const humanoid_wb_mpc_controller::Params& params)
+ocs2::humanoid::CentroidalMpcInterface::Config buildCentroidalMpcConfig(
+  const humanoid_centroidal_mpc_controller::Params& params)
 {
   const auto& p = params.ocs2;
   const size_t numJoints = params.robot.jointNames.size();
 
-  ocs2::humanoid::WBMpcInterface::Config config;
+  ocs2::humanoid::CentroidalMpcInterface::Config config;
   config.urdfFile = params.paths.urdfFile;
   config.verbose = p.interface.verbose;
 
@@ -46,7 +46,7 @@ ocs2::humanoid::WBMpcInterface::Config buildWbMpcConfig(const humanoid_wb_mpc_co
   model.contactParentJointNames = p.model.contactParentJointNames;
   if (p.model.armJointNames.size() != 4) {
     throw std::invalid_argument(
-      "[wb_mpc_config_builder] model.armJointNames must contain exactly 4 entries "
+      "[centroidal_mpc_config_builder] model.armJointNames must contain exactly 4 entries "
       "[left_shoulder_y, right_shoulder_y, left_elbow_y, right_elbow_y]");
   }
   model.j_l_shoulder_y_name = p.model.armJointNames[0];
@@ -72,6 +72,8 @@ ocs2::humanoid::WBMpcInterface::Config buildWbMpcConfig(const humanoid_wb_mpc_co
   model.contactRectangleXMin = p.constraints.contact.rectangle[1];
   model.contactRectangleYMax = p.constraints.contact.rectangle[2];
   model.contactRectangleYMin = p.constraints.contact.rectangle[3];
+
+  config.centroidalModelType = static_cast<ocs2::CentroidalModelType>(p.model.centroidalModelType);
 
   // --- solver settings ---
   auto& sqp = config.sqpSettings;
@@ -107,7 +109,7 @@ ocs2::humanoid::WBMpcInterface::Config buildWbMpcConfig(const humanoid_wb_mpc_co
   rollout.maxNumStepsPerSecond = static_cast<size_t>(p.rollout.maxNumStepsPerSecond);
   rollout.checkNumericalStability = p.rollout.checkNumericalStability;
 
-  // ddpSettings: kept at library defaults, the whole-body MPC runs with the SQP backend.
+  // ddpSettings: kept at library defaults, the centroidal MPC runs with the SQP backend.
 
   // --- gait / mode schedule ---
   config.initialModeSchedule =
@@ -126,30 +128,29 @@ ocs2::humanoid::WBMpcInterface::Config buildWbMpcConfig(const humanoid_wb_mpc_co
   swing.impactProximityFactorTouchDownVelocity = p.swingTrajectory.impactProximityFactorTouchDownVelocity;
   swing.impactProximityFactorMidPointValue = p.swingTrajectory.impactProximityFactorMidPointValue;
 
-  // --- initial state: [base pose (6), joint positions, base velocity (6), joint velocities] ---
+  // --- default joint state used to build the centroidal model info (legacy reference.info) ---
+  checkJointArraySize(p.reference.defaultJointState, numJoints, "reference.defaultJointState");
+  config.referenceJointState = toVector(p.reference.defaultJointState);
+
+  // --- initial state: [normalized momentum (6), base pose (6), joint positions] ---
   checkJointArraySize(p.initialState.jointPositions, numJoints, "initialState.jointPositions");
-  checkJointArraySize(p.initialState.jointVelocities, numJoints, "initialState.jointVelocities");
-  config.initialState = vector_t::Zero(static_cast<Eigen::Index>(12 + 2 * numJoints));
-  config.initialState << toVector(p.initialState.basePose), toVector(p.initialState.jointPositions),
-    toVector(p.initialState.baseVelocity), toVector(p.initialState.jointVelocities);
+  config.initialState = vector_t::Zero(static_cast<Eigen::Index>(12 + numJoints));
+  config.initialState << toVector(p.initialState.centroidalMomentum), toVector(p.initialState.basePose),
+    toVector(p.initialState.jointPositions);
 
   // --- costs ---
   checkJointArraySize(p.costs.q.jointPositions, numJoints, "costs.q.jointPositions");
-  checkJointArraySize(p.costs.q.jointVelocities, numJoints, "costs.q.jointVelocities");
   checkJointArraySize(p.costs.qFinal.jointPositions, numJoints, "costs.qFinal.jointPositions");
-  checkJointArraySize(p.costs.qFinal.jointVelocities, numJoints, "costs.qFinal.jointVelocities");
-  checkJointArraySize(p.costs.r.jointAccelerations, numJoints, "costs.r.jointAccelerations");
+  checkJointArraySize(p.costs.r.jointVelocities, numJoints, "costs.r.jointVelocities");
 
   auto& costs = config.costConstraintConfig;
   costs.Q = assembleDiagonalMatrix(
-    {p.costs.q.basePose, p.costs.q.jointPositions, p.costs.q.baseVelocity, p.costs.q.jointVelocities},
-    p.costs.qScaling);
+    {p.costs.q.centroidalMomentum, p.costs.q.basePose, p.costs.q.jointPositions}, p.costs.qScaling);
   costs.QFinal = assembleDiagonalMatrix(
-    {p.costs.qFinal.basePose, p.costs.qFinal.jointPositions, p.costs.qFinal.baseVelocity,
-     p.costs.qFinal.jointVelocities},
+    {p.costs.qFinal.centroidalMomentum, p.costs.qFinal.basePose, p.costs.qFinal.jointPositions},
     p.costs.qScaling);
   costs.terminalCostScaling = p.costs.terminalCostScaling;
-  costs.R = assembleDiagonalMatrix({p.costs.r.contactWrenches, p.costs.r.jointAccelerations}, p.costs.rScaling);
+  costs.R = assembleDiagonalMatrix({p.costs.r.contactWrenches, p.costs.r.jointVelocities}, p.costs.rScaling);
 
   // --- constraints ---
   costs.footCollisionConfig.leftAnkleFrame = p.constraints.footCollision.leftAnkleFrame;
@@ -171,9 +172,41 @@ ocs2::humanoid::WBMpcInterface::Config buildWbMpcConfig(const humanoid_wb_mpc_co
   costs.frictionBarrierConfig.mu = p.constraints.frictionCone.mu;
   costs.frictionBarrierConfig.delta = p.constraints.frictionCone.delta;
 
-  // --- task-space foot tracking cost ---
-  config.taskSpaceFootCostWeights = ocs2::humanoid::EndEffectorDynamicsWeights::fromVector(
-    Eigen::Map<const Eigen::Matrix<scalar_t, 18, 1>>(p.costs.taskSpaceFootCostWeights.data()), config.verbose);
+  // --- leg external-torque quadratic costs (legacy left/right_leg_torque_cost) ---
+  costs.leftLegTorqueCostConfig.activeJointNames = p.costs.legTorqueCost.leftActiveJointNames;
+  costs.leftLegTorqueCostConfig.weights =
+    p.costs.legTorqueCost.scaling * toVector(p.costs.legTorqueCost.leftWeights);
+  costs.rightLegTorqueCostConfig.activeJointNames = p.costs.legTorqueCost.rightActiveJointNames;
+  costs.rightLegTorqueCostConfig.weights =
+    p.costs.legTorqueCost.scaling * toVector(p.costs.legTorqueCost.rightWeights);
+
+  // --- task-space kinematics costs ---
+  if (p.costs.taskSpaceFootCostWeights.size() != 12) {
+    throw std::invalid_argument(
+      "[centroidal_mpc_config_builder] costs.taskSpaceFootCostWeights must have 12 entries");
+  }
+  config.taskSpaceFootCostWeights = ocs2::humanoid::EndEffectorKinematicsWeights::fromVector(
+    Eigen::Map<const Eigen::Matrix<scalar_t, 12, 1>>(p.costs.taskSpaceFootCostWeights.data()),
+    config.verbose);
+
+  config.icpCostWeights = vector2_t::Constant(p.costs.icpErrorWeight);
+
+  for (const auto& costName : p.costs.taskSpaceCosts.names) {
+    if (costName.empty()) {
+      continue;
+    }
+    const auto& entry = p.costs.taskSpaceCosts.names_map.at(costName);
+    if (entry.weights.size() != 12) {
+      throw std::invalid_argument(
+        "[centroidal_mpc_config_builder] taskSpaceCosts." + costName + ".weights must have 12 entries");
+    }
+    ocs2::humanoid::CentroidalMpcInterface::TaskSpaceCostConfig taskSpaceCost;
+    taskSpaceCost.costName = costName;
+    taskSpaceCost.linkName = entry.linkName;
+    taskSpaceCost.weights = ocs2::humanoid::EndEffectorKinematicsWeights::fromVector(
+      Eigen::Map<const Eigen::Matrix<scalar_t, 12, 1>>(entry.weights.data()), config.verbose);
+    config.taskSpaceCosts.push_back(std::move(taskSpaceCost));
+  }
 
   return config;
 }

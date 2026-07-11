@@ -23,6 +23,7 @@
 #include <pinocchio/algorithm/frames.hpp>
 #include <pinocchio/algorithm/kinematics.hpp>
 
+#include "legged_robot_mpc_controller/common/config/config_builder_utils.hpp"
 #include "legged_robot_mpc_controller/humanoid_wb_mpc/wb_mpc_config_builder.hpp"
 
 namespace legged_robot_mpc_controller
@@ -141,7 +142,7 @@ controller_interface::CallbackReturn HumanoidWbMpcController::on_configure(
     fixed_joint_kd_ = make_vector(parameters_.control.fixedJointKd, fixed_joint_dim, 1.0, "control.fixedJointKd");
     torque_limit_ = make_vector(parameters_.control.torqueLimit, joint_dim, 0.0, "control.torqueLimit");
 
-    const auto reference_config = buildReferenceConfig(parameters_);
+    const auto reference_config = common::buildReferenceConfig(parameters_);
     if (parameters_.ocs2.gait.gaitFile.empty()) {
       throw std::invalid_argument("[HumanoidWbMpcController] ocs2.gait.gaitFile is empty.");
     }
@@ -168,7 +169,7 @@ controller_interface::CallbackReturn HumanoidWbMpcController::on_configure(
         return target_trajectories;
       };
     auto motion_manager = std::make_shared<Ros2ProceduralMpcMotionManager>(
-      loadGaitMap(parameters_.ocs2.gait.gaitFile),
+      common::loadGaitMap(parameters_.ocs2.gait.gaitFile),
       reference_config,
       mpc_interface_->getSwitchedModelReferenceManagerPtr(),
       mpc_interface_->getMpcRobotModel(),
