@@ -1,11 +1,6 @@
 # Legged Robot MPC Controller
 
-ROS 2 controller package for legged robot MPC using [OCS2](https://github.com/wei-hsuan-cheng/ocs2_ros2.git) and [Pinocchio](https://github.com/stack-of-tasks/pinocchio.git). The first migration target is the Unitree G1 humanoid whole-body MPC from [`wb_humanoid_mpc`](https://github.com/wei-hsuan-cheng/wb_humanoid_mpc.git).
-
-- Humanoid common, whole-body (WB), and centroidal MPC core are vendored under [`include/`](./include) and [`src/core/`](./src/core).
-- Simulation runs through [`mujoco_ros2_control`](https://github.com/wei-hsuan-cheng/mujoco_ros2_control.git) only (no `mujoco_vendor`).
-- All legacy `task.info` / `reference.info` / `gait.info` loading is removed: the whole-body MPC is configured entirely from `generate_parameter_library` YAML (see Configuration below).
-- The `ros2_control` hardware description is a separate xacro ([`g1.ros2_control.xacro`](./description/g1/urdf/g1.ros2_control.xacro)), same pattern as `dynamics_mpc_controller`.
+ROS 2 controller integration for legged robot MPC using [OCS2](https://github.com/wei-hsuan-cheng/ocs2_ros2.git) and [Pinocchio](https://github.com/stack-of-tasks/pinocchio.git). The Unitree G1 humanoid centroidal dynamics & whole-body MPC are migrated from [`wb_humanoid_mpc`](https://github.com/wei-hsuan-cheng/wb_humanoid_mpc.git).
 
 Migration status and remaining milestones are documented in [`docs/humanoid_migration.md`](./docs/humanoid_migration.md).
 
@@ -47,17 +42,12 @@ colcon build --symlink-install \
 
 ## Run MuJoCo Example
 
-Unitree `g1` environment. MuJoCo starts **paused** (`mujoco_wait_to_start:=true` by default); [`controller_sequence.py`](./launch/controller_sequence.py) loads and activates `joint_state_broadcaster` (and the MPC controller when `spawnMpcController:=true`), then calls the `/mujoco_ros2_control/start` service so physics begins with controllers already active:
-
 ```bash
 ros2 launch legged_robot_mpc_controller g1.launch.py \
   mpcControllerName:=humanoid_wb_mpc_controller \
   mujoco_headless:=true \
   velocityCommandGui:=true
 ```
-
-The launch sequence activates the MPC controller before starting MuJoCo physics.
-If MPC activation fails, MuJoCo is not started; this avoids beginning simulation with zero torque on the humanoid.
 
 Useful launch args:
 
@@ -95,15 +85,29 @@ ros2 topic echo /joint_states
 
 ## Configuration
 
-No `.info` files are used. All whole-body MPC settings live in ROS 2 parameters:
+All MPC settings live in ROS 2 parameters:
 
-- [`src/humanoid_wb_mpc/humanoid_wb_mpc_controller_parameter.yaml`](./src/humanoid_wb_mpc/humanoid_wb_mpc_controller_parameter.yaml) declares the full parameter surface (`generate_parameter_library`): model settings, foot-constraint gains, swing trajectory, SQP/rollout/MPC solver settings, initial state, `Q`/`R`/`Q_final` cost diagonals, task-space foot cost weights, and the friction-cone / contact-moment / joint-limit / foot-collision constraint parameters.
-- [`config/g1/ros2_controllers.yaml`](./config/g1/ros2_controllers.yaml) holds the G1 values under `ocs2.*`. Joint-indexed arrays (costs, initial state, default joint state) are index-aligned with `robot.jointNames`.
-- [`config/g1/gait.yaml`](./config/g1/gait.yaml) is the named gait library (mode sequence templates), referenced by `ocs2.gait.gaitFile`.
+| Controller | Parameter declaration | Config adapter | Interface |
+|---|---|---|---|
+| `humanoid_wb_mpc_controller` | [`src/humanoid_wb_mpc/humanoid_wb_mpc_controller_parameter.yaml`](./src/humanoid_wb_mpc/humanoid_wb_mpc_controller_parameter.yaml) | [`src/humanoid_wb_mpc/wb_mpc_config_builder.cpp`](./src/humanoid_wb_mpc/wb_mpc_config_builder.cpp) | `WBMpcInterface::Config` |
+| `humanoid_centroidal_mpc_controller` | [`src/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller_parameter.yaml`](./src/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller_parameter.yaml) | [`src/humanoid_centroidal_mpc/centroidal_mpc_config_builder.cpp`](./src/humanoid_centroidal_mpc/centroidal_mpc_config_builder.cpp) | `CentroidalMpcInterface::Config` |
+
+Both declare model settings, foot-constraint gains, swing trajectory, SQP/rollout/MPC solver settings, initial state, `Q`/`R`/`Q_final` cost diagonals, task-space foot cost weights, and the friction-cone / contact-moment / joint-limit / foot-collision constraint parameters. 
+
+The whole-body state is:
+- `[base pose, joint positions, base velocity, joint velocities]` with joint accelerations + contact wrenches as inputs.
+
+The centroidal state is:
+- `[normalized centroidal momentum, base pose, joint positions]` with joint velocities + contact wrenches as inputs.
+- Additional centroidal-only costs (ICP, torso task-space tracking via `costs.taskSpaceCosts`, leg external-torque costs via `costs.legTorqueCost`). 
+
+Loaders shared by both controllers (gait map, reference config, cost-matrix assembly) live in [`common/config/config_builder_utils.hpp`](./include/legged_robot_mpc_controller/common/config/config_builder_utils.hpp).
+
+Robot-specific values:
+
+- [`config/g1/gait.yaml`](./config/g1/gait.yaml) is the named gait library (mode sequence templates), referenced by `ocs2.gait.gaitFile` and shared by both controllers.
 - [`config/g1/initial_pose.yaml`](./config/g1/initial_pose.yaml) sets the simulation start pose consumed by the `ros2_control` xacro.
 
-The Params-to-config adapter ([`src/humanoid_wb_mpc/wb_mpc_config_builder.cpp`](./src/humanoid_wb_mpc/wb_mpc_config_builder.cpp))
-maps these parameters onto the vendored MPC core (`WBMpcInterface::Config`).
 
 ## Floating-Base State
 
