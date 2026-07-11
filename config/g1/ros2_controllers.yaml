@@ -425,7 +425,7 @@ humanoid_centroidal_mpc_controller:
 
       mpc:
         solverType: sqp
-        mpcDesiredFrequency: 80
+        mpcDesiredFrequency: $(var mpcFreq)
         mrtDesiredFrequency: $(var mrtFreq)
         timeHorizon: 1.0
         solutionTimeWindow: -1.0
