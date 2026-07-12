@@ -31,7 +31,7 @@ def generate_launch_description():
         mpc_share, 
         "config", 
         "g1", 
-        "ros2_controllers.yaml" # ros2_controllers.yaml | ros2_controllers_legacy.yaml
+        "ros2_controllers_legacy.yaml" # ros2_controllers.yaml | ros2_controllers_legacy.yaml
         ])
     ros2_control_xacro = PathJoinSubstitution([mpc_share, "description", "g1", "urdf", "g1.ros2_control.xacro"])
 
