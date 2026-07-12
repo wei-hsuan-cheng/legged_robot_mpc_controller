@@ -1,0 +1,567 @@
+controller_manager:
+  ros__parameters:
+    update_rate: $(var mrtFreq)
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    humanoid_wb_mpc_controller:
+      type: legged_robot_mpc_controller/HumanoidWbMpcController
+
+    humanoid_centroidal_mpc_controller:
+      type: legged_robot_mpc_controller/HumanoidCentroidalMpcController
+
+humanoid_wb_mpc_controller:
+  ros__parameters:
+    update_rate: $(var mrtFreq)
+
+    paths:
+      urdfFile: "$(var urdfFile)"
+      libFolder: "$(var libFolder)"
+
+    robot:
+      commandInterface: effort_pd
+      stateInterfaces: [position, velocity, effort]
+      jointNames:
+        - left_hip_pitch_joint
+        - left_hip_roll_joint
+        - left_hip_yaw_joint
+        - left_knee_joint
+        - left_ankle_pitch_joint
+        - left_ankle_roll_joint
+        - right_hip_pitch_joint
+        - right_hip_roll_joint
+        - right_hip_yaw_joint
+        - right_knee_joint
+        - right_ankle_pitch_joint
+        - right_ankle_roll_joint
+        - waist_yaw_joint
+        - waist_roll_joint
+        - waist_pitch_joint
+        - left_shoulder_pitch_joint
+        - left_shoulder_roll_joint
+        - left_shoulder_yaw_joint
+        - left_elbow_joint
+        - right_shoulder_pitch_joint
+        - right_shoulder_roll_joint
+        - right_shoulder_yaw_joint
+        - right_elbow_joint
+
+    control:
+      # DIAGNOSTIC: smooth simulator velocity dither out of the MPC observation.
+      observationVelocityFilterCutoffHz: 30.0
+      policyTimeOffset: 0.005
+      # Legacy WB MPC stand/balance feedback around the optimized policy.
+      mpcJointKp: [1200.0, 1200.0, 1200.0, 1200.0, 1200.0, 1200.0,
+                   1200.0, 1200.0, 1200.0, 1200.0, 1200.0, 1200.0,
+                   1200.0, 1200.0, 1200.0,
+                   1200.0, 1200.0, 1200.0, 1200.0,
+                   1200.0, 1200.0, 1200.0, 1200.0]
+      mpcJointKd: [10.0, 10.0, 10.0, 10.0, 10.0, 10.0,
+                   10.0, 10.0, 10.0, 10.0, 10.0, 10.0,
+                   10.0, 10.0, 10.0,
+                   10.0, 10.0, 10.0, 10.0,
+                   10.0, 10.0, 10.0, 10.0]
+      # Legacy WB controller behavior for the six joints excluded from the MPC model.
+      fixedJointKp: [100.0, 100.0, 100.0, 100.0, 100.0, 100.0]
+      fixedJointKd: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+      # Symmetric software clamp, index-aligned with robot.jointNames.
+      torqueLimit: [88.0, 88.0, 88.0, 139.0, 50.0, 50.0,
+                    88.0, 88.0, 88.0, 139.0, 50.0, 50.0,
+                    88.0, 50.0, 50.0,
+                    25.0, 25.0, 25.0, 25.0,
+                    25.0, 25.0, 25.0, 25.0]
+
+    diagnostics:
+      activate: true
+      # 5 Hz to resolve the first walking step; restore 1.0 once walking is stable.
+      period: 0.2
+
+    floatingBase:
+      # Direct MuJoCo body state exposed through ros2_control state interfaces.
+      # The odometry topic/TF publisher remains enabled for visualization and
+      # other ROS nodes.
+      source: state_interfaces # state_interfaces (from state interface) | mujoco_ground_truth_odom (from topic)
+      stateInterfaceName: pelvis
+      odometryTopic: /mujoco/ground_truth/odom
+      baseFrame: pelvis
+
+    ocs2:
+      interface:
+        verbose: false
+        useAnalyticalGradientsDynamics: true
+        useAnalyticalGradientsConstraints: true
+
+      model:
+        robotName: g1
+        phaseTransitionStanceTime: 0.0
+        verboseCppAd: true
+        recompileLibrariesCppAd: false
+        fixedJointNames:
+          - left_wrist_roll_joint
+          - left_wrist_pitch_joint
+          - left_wrist_yaw_joint
+          - right_wrist_roll_joint
+          - right_wrist_pitch_joint
+          - right_wrist_yaw_joint
+        contactNames6DoF: [foot_l_contact, foot_r_contact]
+        contactParentJointNames: [left_ankle_roll_joint, right_ankle_roll_joint]
+        # [left_shoulder_y, right_shoulder_y, left_elbow_y, right_elbow_y]
+        armJointNames:
+          - left_shoulder_pitch_joint
+          - right_shoulder_pitch_joint
+          - left_elbow_joint
+          - right_elbow_joint
+        footConstraint:
+          positionErrorGain_z: 100.0
+          orientationErrorGain: 80.0
+          linearVelocityErrorGain_z: 10.0
+          linearVelocityErrorGain_xy: 20.0
+          angularVelocityErrorGain: 20.0
+          linearAccelerationErrorGain_z: 1.0
+          linearAccelerationErrorGain_xy: 1.0
+          angularAccelerationErrorGain: 1.0
+
+      swingTrajectory:
+        liftOffVelocity: 0.05
+        touchDownVelocity: -0.0
+        swingHeight: 0.08
+        touchDownHeightOffset: -0.001
+        swingTimeScale: 0.4
+        impactProximityFactorLiftOffVelocity: -0.15
+        impactProximityFactorTouchDownVelocity: 0.3
+        impactProximityFactorMidPointValue: 0.005
+
+      sqp:
+        nThreads: 4
+        dt: 0.035
+        sqpIteration: 1
+        deltaTol: 0.0001
+        g_max: 0.01
+        g_min: 0.000001
+        inequalityConstraintMu: 0.1
+        inequalityConstraintDelta: 5.0
+        projectStateInputEqualityConstraints: true
+        printSolverStatistics: true
+        printSolverStatus: false
+        printLinesearch: false
+        useFeedbackPolicy: false
+        integratorType: RK4
+        threadPriority: 90
+
+      rollout:
+        AbsTolODE: 0.00001
+        RelTolODE: 0.001
+        timeStep: 0.015  # should be <= sqp.dt
+        integratorType: ODE45
+        maxNumStepsPerSecond: 10000
+        checkNumericalStability: false
+
+      mpc:
+        solverType: sqp
+        mpcDesiredFrequency: $(var mpcFreq)
+        mrtDesiredFrequency: $(var mrtFreq)
+        timeHorizon: 1.4
+        solutionTimeWindow: -1.0
+        coldStart: false
+        debugPrint: false
+
+      # Arrays below are index-aligned with robot.jointNames:
+      # 12 leg joints, 3 waist joints, 8 arm joints.
+      initialState:
+        basePose: [0.0, 0.0, 0.7925, 0.0, 0.0, 0.0]  # [x, y, z, yaw, pitch, roll]
+        jointPositions: [-0.05, 0.0, 0.0, 0.1, -0.05, 0.0,
+                         -0.05, 0.0, 0.0, 0.1, -0.05, 0.0,
+                          0.0, 0.0, 0.0,
+                          0.0, 0.0, 0.0, 0.0,
+                          0.0, 0.0, 0.0, 0.0]
+        baseVelocity: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]  # [vx, vy, vz, wz, wy, wx]
+        jointVelocities: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                          0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                          0.0, 0.0, 0.0,
+                          0.0, 0.0, 0.0, 0.0,
+                          0.0, 0.0, 0.0, 0.0]
+
+      costs:
+        qScaling: 1.0
+        rScaling: 0.001
+        terminalCostScaling: 4.0
+        q:
+          basePose: [0.0, 0.0, 10.0, 20.0, 20.0, 20.0]  # DELTA: yaw stiffness (legacy 0) for heading hold
+          jointPositions: [0.05, 0.2, 0.2, 0.1, 0.1, 0.1,
+                           0.05, 0.2, 0.2, 0.1, 0.1, 0.1,
+                           2.0, 2.0, 2.0,
+                           0.4, 2.0, 0.4, 0.4,
+                           0.4, 2.0, 0.4, 0.4]
+          baseVelocity: [10.0, 3.0, 3.0, 10.0, 3.0, 3.0]  # DELTA: vx 10, wz 10 (legacy 3)
+          jointVelocities: [0.001, 0.001, 0.001, 0.001, 0.001, 0.001,
+                            0.001, 0.001, 0.001, 0.001, 0.001, 0.001,
+                            0.2, 0.2, 0.2,
+                            0.02, 0.02, 0.02, 0.02,
+                            0.02, 0.02, 0.02, 0.02]
+        qFinal:
+          basePose: [0.0, 0.0, 10.0, 20.0, 20.0, 20.0]  # DELTA: yaw stiffness (legacy 0) for heading hold
+          jointPositions: [0.05, 0.1, 0.1, 0.1, 0.1, 0.1,
+                           0.05, 0.1, 0.1, 0.1, 0.1, 0.1,
+                           2.0, 2.0, 2.0,
+                           0.4, 2.0, 0.4, 0.4,
+                           0.4, 2.0, 0.4, 0.4]
+          baseVelocity: [10.0, 3.0, 3.0, 10.0, 3.0, 3.0]  # DELTA: vx 10, wz 10 (legacy 3)
+          jointVelocities: [0.001, 0.001, 0.001, 0.001, 0.001, 0.001,
+                            0.001, 0.001, 0.001, 0.001, 0.001, 0.001,
+                            0.2, 0.2, 0.2,
+                            0.02, 0.02, 0.02, 0.02,
+                            0.02, 0.02, 0.02, 0.02]
+        r:
+          # [left fx, fy, fz, mx, my, mz, right fx, fy, fz, mx, my, mz]
+          contactWrenches: [0.003, 0.003, 0.001, 0.01, 0.01, 0.1,
+                            0.003, 0.003, 0.001, 0.01, 0.01, 0.1]
+          jointAccelerations: [0.005, 0.005, 0.005, 0.005, 0.005, 0.005,
+                               0.005, 0.005, 0.005, 0.005, 0.005, 0.005,
+                               0.005, 0.005, 0.005,
+                               0.005, 0.005, 0.005, 0.005,
+                               0.005, 0.005, 0.005, 0.005]
+        # [pos xyz, orientation xyz, lin vel xyz, ang vel xyz, lin acc xyz, ang acc xyz]
+        taskSpaceFootCostWeights: [0.0, 0.0, 0.0,
+                                   10000.0, 10000.0, 0.0,
+                                   50.0, 50.0, 0.0,
+                                   100.0, 100.0, 100.0,
+                                   5.0, 5.0, 0.0,
+                                   2.0, 2.0, 2.0]
+
+      constraints:
+        contact:
+          frameTranslation: [0.035, 0.0, -0.035]  # parent joint -> contact frame [x, y, z]
+          rectangle: [0.09, -0.09, 0.03, -0.03]   # [x_max, x_min, y_max, y_min]
+        frictionCone:
+          frictionCoefficient: 0.4
+          mu: 0.2
+          delta: 5.0
+        contactMomentXY:
+          mu: 0.6
+          delta: 0.03
+        jointLimits:
+          mu: 1200.0
+          delta: 0.1
+        footCollision:
+          leftAnkleFrame: left_ankle_roll_joint
+          rightAnkleFrame: right_ankle_roll_joint
+          footCollisionSphereRadius: 0.05
+          leftKneeFrame: left_knee_joint
+          rightKneeFrame: right_knee_joint
+          kneeCollisionSphereRadius: 0.075
+          mu: 1500.0
+          delta: 0.04
+
+      reference:
+        targetDisplacementVelocity: 0.5
+        targetRotationVelocity: 0.5
+        maxDisplacementVelocityX: 2.0
+        maxDisplacementVelocityY: 1.2
+        maxDeltaPelvisHeight: 0.4
+        maxRotationVelocity: 1.0
+        defaultBaseHeight: 0.7925
+        defaultJointState: [-0.05, 0.0, 0.0, 0.1, -0.05, 0.0,
+                            -0.05, 0.0, 0.0, 0.1, -0.05, 0.0,
+                             0.0, 0.0, 0.0,
+                             0.0, 0.0, 0.0, 0.0,
+                             0.0, 0.0, 0.0, 0.0]
+
+      gait:
+        gaitFile: $(find-pkg-share legged_robot_mpc_controller)/config/g1/gait.yaml
+        initialModeSequence: [STANCE, STANCE]
+        initialEventTimes: [0.5]
+        defaultModeSequence: [STANCE]
+        defaultSwitchingTimes: [0.0, 0.5]
+
+    visualization:
+      frameId: world
+      update_rate: 50.0
+      trajectory:
+        activate: true
+        markerTopic: /performance_visualization/optimizedStateTrajectory
+        frame_names:
+          - pelvis
+          - mid360_link
+          - left_wrist_yaw_link
+          - right_wrist_yaw_link
+          - foot_l_contact
+          - foot_r_contact
+        lineWidth: 0.005
+        pointScale: 0.01
+
+humanoid_centroidal_mpc_controller:
+  ros__parameters:
+    update_rate: $(var mrtFreq)
+
+    paths:
+      urdfFile: "$(var urdfFile)"
+      libFolder: "$(var libFolder)"
+
+    robot:
+      commandInterface: effort_pd
+      stateInterfaces: [position, velocity, effort]
+      jointNames:
+        - left_hip_pitch_joint
+        - left_hip_roll_joint
+        - left_hip_yaw_joint
+        - left_knee_joint
+        - left_ankle_pitch_joint
+        - left_ankle_roll_joint
+        - right_hip_pitch_joint
+        - right_hip_roll_joint
+        - right_hip_yaw_joint
+        - right_knee_joint
+        - right_ankle_pitch_joint
+        - right_ankle_roll_joint
+        - waist_yaw_joint
+        - waist_roll_joint
+        - waist_pitch_joint
+        - left_shoulder_pitch_joint
+        - left_shoulder_roll_joint
+        - left_shoulder_yaw_joint
+        - left_elbow_joint
+        - right_shoulder_pitch_joint
+        - right_shoulder_roll_joint
+        - right_shoulder_yaw_joint
+        - right_elbow_joint
+
+    control:
+      observationVelocityFilterCutoffHz: 30.0
+      policyTimeOffset: 0.005
+      # Legacy CentroidalMpcMrtJointController servo gains.
+      mpcJointKp: [1200.0, 1200.0, 1200.0, 1200.0, 1200.0, 1200.0,
+                   1200.0, 1200.0, 1200.0, 1200.0, 1200.0, 1200.0,
+                   1200.0, 1200.0, 1200.0,
+                   1200.0, 1200.0, 1200.0, 1200.0,
+                   1200.0, 1200.0, 1200.0, 1200.0]
+      mpcJointKd: [10.0, 10.0, 10.0, 10.0, 10.0, 10.0,
+                   10.0, 10.0, 10.0, 10.0, 10.0, 10.0,
+                   10.0, 10.0, 10.0,
+                   10.0, 10.0, 10.0, 10.0,
+                   10.0, 10.0, 10.0, 10.0]
+      fixedJointKp: [100.0, 100.0, 100.0, 100.0, 100.0, 100.0]
+      fixedJointKd: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+
+    diagnostics:
+      statusLogPeriod: 2.0
+
+    floatingBase:
+      source: state_interfaces
+      stateInterfaceName: pelvis
+      odometryTopic: /mujoco/ground_truth/odom
+      baseFrame: pelvis
+
+    ocs2:
+      interface:
+        verbose: false
+        useAnalyticalGradientsDynamics: false
+        useAnalyticalGradientsConstraints: false
+
+      model:
+        robotName: g1
+        centroidalModelType: 0  # FullCentroidalDynamics
+        phaseTransitionStanceTime: 0.0
+        verboseCppAd: true
+        recompileLibrariesCppAd: false
+        fixedJointNames:
+          - left_wrist_roll_joint
+          - left_wrist_pitch_joint
+          - left_wrist_yaw_joint
+          - right_wrist_roll_joint
+          - right_wrist_pitch_joint
+          - right_wrist_yaw_joint
+        contactNames6DoF: [foot_l_contact, foot_r_contact]
+        contactParentJointNames: [left_ankle_roll_joint, right_ankle_roll_joint]
+        armJointNames:
+          - left_shoulder_pitch_joint
+          - right_shoulder_pitch_joint
+          - left_elbow_joint
+          - right_elbow_joint
+        footConstraint:
+          positionErrorGain_z: 5.0
+          orientationErrorGain: 20.0
+          linearVelocityErrorGain_z: 1.0
+          linearVelocityErrorGain_xy: 1.0
+          angularVelocityErrorGain: 1.0
+          linearAccelerationErrorGain_z: 0.0
+          linearAccelerationErrorGain_xy: 0.0
+          angularAccelerationErrorGain: 0.0
+
+      swingTrajectory:
+        liftOffVelocity: 0.05
+        touchDownVelocity: -0.0
+        swingHeight: 0.08
+        touchDownHeightOffset: -0.001
+        swingTimeScale: 0.4
+        impactProximityFactorLiftOffVelocity: -0.15
+        impactProximityFactorTouchDownVelocity: 0.3
+        impactProximityFactorMidPointValue: 0.0
+
+      sqp:
+        nThreads: 5
+        dt: 0.02
+        sqpIteration: 1
+        deltaTol: 0.0001
+        g_max: 0.01
+        g_min: 0.000001
+        inequalityConstraintMu: 0.1
+        inequalityConstraintDelta: 5.0
+        projectStateInputEqualityConstraints: true
+        printSolverStatistics: true
+        printSolverStatus: false
+        printLinesearch: false
+        useFeedbackPolicy: false
+        integratorType: RK4
+        threadPriority: 50
+
+      rollout:
+        AbsTolODE: 0.00005
+        RelTolODE: 0.005
+        timeStep: 0.015
+        integratorType: ODE45
+        maxNumStepsPerSecond: 10000
+        checkNumericalStability: false
+
+      mpc:
+        solverType: sqp
+        mpcDesiredFrequency: $(var mpcFreq)
+        mrtDesiredFrequency: $(var mrtFreq)
+        timeHorizon: 1.2
+        solutionTimeWindow: -1.0
+        coldStart: false
+        debugPrint: false
+
+      # Arrays below are index-aligned with robot.jointNames:
+      # 12 leg joints, 3 waist joints, 8 arm joints.
+      initialState:
+        centroidalMomentum: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        basePose: [0.0, 0.0, 0.7925, 0.0, 0.0, 0.0]  # [x, y, z, yaw, pitch, roll]
+        jointPositions: [-0.05, 0.0, 0.0, 0.1, -0.05, 0.0,
+                         -0.05, 0.0, 0.0, 0.1, -0.05, 0.0,
+                          0.0, 0.0, 0.0,
+                          0.0, 0.0, 0.0, 0.0,
+                          0.0, 0.0, 0.0, 0.0]
+
+      costs:
+        qScaling: 1.0
+        rScaling: 0.001
+        terminalCostScaling: 3.0
+        q:
+          centroidalMomentum: [8.0, 8.0, 15.0, 15.0, 15.0, 4.0]
+          basePose: [0.0, 0.0, 15.0, 0.0, 5.0, 5.0]
+          jointPositions: [0.02, 0.06, 4.0, 0.02, 0.01, 0.01,
+                           0.02, 0.06, 4.0, 0.02, 0.01, 0.01,
+                           2.0, 0.5, 0.5,
+                           10.0, 20.0, 2.0, 2.0,
+                           10.0, 20.0, 2.0, 2.0]
+        qFinal:
+          centroidalMomentum: [25.0, 25.0, 25.0, 25.0, 25.0, 25.0]
+          basePose: [0.0, 0.0, 20.0, 0.0, 5.0, 5.0]
+          jointPositions: [0.02, 0.06, 8.0, 0.02, 0.01, 0.01,
+                           0.02, 0.06, 8.0, 0.02, 0.01, 0.01,
+                           2.0, 0.5, 0.5,
+                           10.0, 20.0, 2.0, 2.0,
+                           10.0, 20.0, 2.0, 2.0]
+        r:
+          # [left fx, fy, fz, mx, my, mz, right fx, fy, fz, mx, my, mz]
+          contactWrenches: [0.05, 0.05, 0.01, 0.05, 0.05, 0.2,
+                            0.05, 0.05, 0.01, 0.05, 0.05, 0.2]
+          jointVelocities: [20.0, 20.0, 200.0, 20.0, 20.0, 20.0,
+                            20.0, 20.0, 200.0, 20.0, 20.0, 20.0,
+                            2000.0, 800.0, 2000.0,
+                            200.0, 100.0, 100.0, 200.0,
+                            200.0, 100.0, 100.0, 200.0]
+        # [pos xyz, orientation xyz, lin vel xyz, ang vel xyz]
+        taskSpaceFootCostWeights: [0.0, 0.0, 0.0,
+                                   1000.0, 1000.0, 0.0,
+                                   10.0, 10.0, 0.0,
+                                   1.0, 1.0, 0.005]
+        icpErrorWeight: 0.0
+        taskSpaceCosts:
+          names: [torso]
+          torso:
+            linkName: mid360_link
+            weights: [0.0, 0.0, 0.0,
+                      100.0, 100.0, 0.0,
+                      0.1, 0.1, 0.005,
+                      5.0, 5.0, 2.0]
+        legTorqueCost:
+          scaling: 0.0001
+          leftActiveJointNames:
+            - left_hip_pitch_joint
+            - left_hip_roll_joint
+            - left_hip_yaw_joint
+            - left_knee_joint
+            - left_ankle_pitch_joint
+            - left_ankle_roll_joint
+          leftWeights: [2.0, 2.0, 1.0, 8.0, 0.2, 0.2]
+          rightActiveJointNames:
+            - right_hip_pitch_joint
+            - right_hip_roll_joint
+            - right_hip_yaw_joint
+            - right_knee_joint
+            - right_ankle_pitch_joint
+            - right_ankle_roll_joint
+          rightWeights: [2.0, 2.0, 1.0, 8.0, 0.2, 0.2]
+
+      constraints:
+        contact:
+          frameTranslation: [0.035, 0.0, -0.035]
+          rectangle: [0.09, -0.09, 0.03, -0.03]
+        frictionCone:
+          frictionCoefficient: 0.4
+          mu: 0.2
+          delta: 5.0
+        contactMomentXY:
+          mu: 0.6
+          delta: 0.03
+        jointLimits:
+          mu: 1200.0
+          delta: 0.1
+        footCollision:
+          leftAnkleFrame: left_ankle_roll_joint
+          rightAnkleFrame: right_ankle_roll_joint
+          footCollisionSphereRadius: 0.065
+          leftKneeFrame: left_knee_joint
+          rightKneeFrame: right_knee_joint
+          kneeCollisionSphereRadius: 0.07
+          mu: 30000.0
+          delta: 0.05
+
+      reference:
+        targetDisplacementVelocity: 0.5
+        targetRotationVelocity: 0.5
+        maxDisplacementVelocityX: 2.4
+        maxDisplacementVelocityY: 1.2
+        maxDeltaPelvisHeight: 0.4
+        maxRotationVelocity: 1.0
+        defaultBaseHeight: 0.7925
+        defaultJointState: [-0.05, 0.0, 0.0, 0.1, -0.05, 0.0,
+                            -0.05, 0.0, 0.0, 0.1, -0.05, 0.0,
+                             0.0, 0.0, 0.0,
+                             0.0, 0.0, 0.0, 0.0,
+                             0.0, 0.0, 0.0, 0.0]
+
+      gait:
+        gaitFile: $(find-pkg-share legged_robot_mpc_controller)/config/g1/gait.yaml
+        initialModeSequence: [STANCE, STANCE]
+        initialEventTimes: [0.5]
+        defaultModeSequence: [STANCE]
+        defaultSwitchingTimes: [0.0, 0.5]
+
+    visualization:
+      frameId: world
+      update_rate: 30.0
+      trajectory:
+        activate: true
+        markerTopic: /performance_visualization/optimizedStateTrajectory
+        frame_names:
+          - pelvis
+          - mid360_link
+          - left_wrist_yaw_link
+          - right_wrist_yaw_link
+          - foot_l_contact
+          - foot_r_contact
+        lineWidth: 0.005
+        pointScale: 0.01
