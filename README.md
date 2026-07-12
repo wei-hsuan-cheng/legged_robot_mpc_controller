@@ -44,7 +44,7 @@ colcon build --symlink-install \
 
 ```bash
 ros2 launch legged_robot_mpc_controller g1.launch.py \
-  mpcControllerName:=humanoid_wb_mpc_controller \
+  mpcControllerName:=humanoid_centroidal_mpc_controller \
   mpcFreq:=80 \
   mrtFreq:=1000 \
   mujoco_headless:=true \
