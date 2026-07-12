@@ -27,7 +27,12 @@ def generate_launch_description():
     mpc_controller_default = "humanoid_centroidal_mpc_controller" # humanoid_centroidal_mpc_controller | humanoid_wb_mpc_controller
 
     urdf_default = PathJoinSubstitution([mpc_share, "description", "g1", "urdf", "g1_29dof.urdf"])
-    controllers_default = PathJoinSubstitution([mpc_share, "config", "g1", "ros2_controllers.yaml"])
+    controllers_default = PathJoinSubstitution([
+        mpc_share, 
+        "config", 
+        "g1", 
+        "ros2_controllers.yaml" # ros2_controllers.yaml | ros2_controllers_legacy.yaml
+        ])
     ros2_control_xacro = PathJoinSubstitution([mpc_share, "description", "g1", "urdf", "g1.ros2_control.xacro"])
 
     declared_arguments = [
