@@ -89,8 +89,8 @@ humanoid_wb_mpc_controller:
     ocs2:
       interface:
         verbose: false
-        useAnalyticalGradientsDynamics: true
-        useAnalyticalGradientsConstraints: true
+        useAnalyticalGradientsDynamics: false
+        useAnalyticalGradientsConstraints: false
 
       model:
         robotName: g1
@@ -159,9 +159,9 @@ humanoid_wb_mpc_controller:
 
       mpc:
         solverType: sqp
-        mpcDesiredFrequency: $(var mpcFreq)
-        mrtDesiredFrequency: $(var mrtFreq)
-        timeHorizon: 1.4
+        mpcDesiredFrequency: 60
+        mrtDesiredFrequency: 500
+        timeHorizon: 1.1
         solutionTimeWindow: -1.0
         coldStart: false
         debugPrint: false
@@ -169,7 +169,7 @@ humanoid_wb_mpc_controller:
       # Arrays below are index-aligned with robot.jointNames:
       # 12 leg joints, 3 waist joints, 8 arm joints.
       initialState:
-        basePose: [0.0, 0.0, 0.7925, 0.0, 0.0, 0.0]  # [x, y, z, yaw, pitch, roll]
+        basePose: [0.0, 0.0, 0.8, 0.0, 0.0, 0.0]  # [x, y, z, yaw, pitch, roll]
         jointPositions: [-0.05, 0.0, 0.0, 0.1, -0.05, 0.0,
                          -0.05, 0.0, 0.0, 0.1, -0.05, 0.0,
                           0.0, 0.0, 0.0,
@@ -187,26 +187,26 @@ humanoid_wb_mpc_controller:
         rScaling: 0.001
         terminalCostScaling: 4.0
         q:
-          basePose: [0.0, 0.0, 10.0, 20.0, 20.0, 20.0]  # DELTA: yaw stiffness (legacy 0) for heading hold
+          basePose: [0.0, 0.0, 10.0, 0.0, 20.0, 20.0]
           jointPositions: [0.05, 0.2, 0.2, 0.1, 0.1, 0.1,
                            0.05, 0.2, 0.2, 0.1, 0.1, 0.1,
                            2.0, 2.0, 2.0,
                            0.4, 2.0, 0.4, 0.4,
                            0.4, 2.0, 0.4, 0.4]
-          baseVelocity: [10.0, 3.0, 3.0, 10.0, 3.0, 3.0]  # DELTA: vx 10, wz 10 (legacy 3)
+          baseVelocity: [3.0, 3.0, 3.0, 3.0, 3.0, 3.0]
           jointVelocities: [0.001, 0.001, 0.001, 0.001, 0.001, 0.001,
                             0.001, 0.001, 0.001, 0.001, 0.001, 0.001,
                             0.2, 0.2, 0.2,
                             0.02, 0.02, 0.02, 0.02,
                             0.02, 0.02, 0.02, 0.02]
         qFinal:
-          basePose: [0.0, 0.0, 10.0, 20.0, 20.0, 20.0]  # DELTA: yaw stiffness (legacy 0) for heading hold
+          basePose: [0.0, 0.0, 10.0, 0.0, 20.0, 20.0]
           jointPositions: [0.05, 0.1, 0.1, 0.1, 0.1, 0.1,
                            0.05, 0.1, 0.1, 0.1, 0.1, 0.1,
                            2.0, 2.0, 2.0,
                            0.4, 2.0, 0.4, 0.4,
                            0.4, 2.0, 0.4, 0.4]
-          baseVelocity: [10.0, 3.0, 3.0, 10.0, 3.0, 3.0]  # DELTA: vx 10, wz 10 (legacy 3)
+          baseVelocity: [3.0, 3.0, 3.0, 3.0, 3.0, 3.0]
           jointVelocities: [0.001, 0.001, 0.001, 0.001, 0.001, 0.001,
                             0.001, 0.001, 0.001, 0.001, 0.001, 0.001,
                             0.2, 0.2, 0.2,
