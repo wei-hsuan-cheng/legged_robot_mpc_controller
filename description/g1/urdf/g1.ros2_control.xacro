@@ -10,6 +10,7 @@
   <xacro:arg name="mujoco_position_kd" default="500"/>
   <xacro:arg name="mujoco_position_i_max" default="10000"/>
   <xacro:arg name="mujoco_position_i_min" default="-10000"/>
+  <xacro:arg name="mujoco_effort_command_mode" default="actuator"/>
 
   <xacro:property name="use_fake_hardware" value="$(arg use_fake_hardware)"/>
   <xacro:property name="use_mujoco_sim" value="$(arg use_mujoco_sim)"/>
@@ -266,6 +267,7 @@
     mujoco_position_ki="$(arg mujoco_position_ki)"
     mujoco_position_kd="$(arg mujoco_position_kd)"
     mujoco_position_i_max="$(arg mujoco_position_i_max)"
-    mujoco_position_i_min="$(arg mujoco_position_i_min)"/>
+    mujoco_position_i_min="$(arg mujoco_position_i_min)"
+    mujoco_effort_command_mode="$(arg mujoco_effort_command_mode)"/>
 
 </robot>

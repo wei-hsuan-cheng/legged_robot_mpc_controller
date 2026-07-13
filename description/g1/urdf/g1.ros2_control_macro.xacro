@@ -71,13 +71,16 @@
       mujoco_position_ki:=50
       mujoco_position_kd:=500
       mujoco_position_i_max:=10000
-      mujoco_position_i_min:=-10000">
+      mujoco_position_i_min:=-10000
+      mujoco_effort_command_mode:=actuator">
     <ros2_control name="${system_name}" type="system">
       <hardware>
         <xacro:if value="${use_mujoco_sim}">
           <plugin>mujoco_ros2_control/MujocoSystem</plugin>
-          <!-- Match the legacy WB simulator: effort commands drive MuJoCo motors through ctrl. -->
-          <param name="mujoco_effort_command_mode">actuator</param>
+          <!-- 'actuator' drives the MuJoCo motors through ctrl (actuatorfrcrange limits apply,
+               legacy WB simulator behavior); 'qfrc_applied' bypasses the actuators and injects
+               the unclamped PD torque directly as a generalized force. -->
+          <param name="mujoco_effort_command_mode">${mujoco_effort_command_mode}</param>
         </xacro:if>
         <xacro:unless value="${use_mujoco_sim}">
           <xacro:if value="${use_fake_hardware}">

@@ -63,6 +63,12 @@ def generate_launch_description():
             default_value=mpc_controller_default,
             description="Name of the supported MPC ros2 controllers to load and activate.",),
         DeclareLaunchArgument("ros2ControlCommandInterface", default_value="effort_pd"),
+        DeclareLaunchArgument(
+            "mujocoEffortCommandMode",
+            default_value="actuator",
+            description="actuator: PD torque through MuJoCo motors (force limits apply); "
+                        "qfrc_applied: unclamped direct generalized-force bypass.",
+        ),
         DeclareLaunchArgument("initialPoseFile", default_value=initial_pose_default),
         DeclareLaunchArgument(
             "spawnMpcController",
@@ -102,6 +108,9 @@ def generate_launch_description():
             " ",
             "ros2_control_command_interface:=",
             LaunchConfiguration("ros2ControlCommandInterface"),
+            " ",
+            "mujoco_effort_command_mode:=",
+            LaunchConfiguration("mujocoEffortCommandMode"),
         ]
     )
     robot_description = {"robot_description": ParameterValue(robot_description_content, value_type=str)}
