@@ -42,6 +42,7 @@ colcon build --symlink-install \
 
 ## Run MuJoCo Example
 
+Launch humanoid robot:
 ```bash
 ros2 launch legged_robot_mpc_controller g1.launch.py \
   mpcControllerName:=humanoid_centroidal_mpc_controller \
@@ -49,6 +50,14 @@ ros2 launch legged_robot_mpc_controller g1.launch.py \
   mrtFreq:=1000 \
   mujoco_headless:=true \
   velocityCommandGui:=true
+```
+
+Twist command interface:
+```bash
+ros2 topic pub -r 25 /humanoid/walking_velocity_command \
+  ocs2_msgs/msg/WalkingVelocityCommand \
+  "{linear_velocity_x: 0.25, linear_velocity_y: 0.0,
+    desired_pelvis_height: 0.7925, angular_velocity_z: 0.0}"
 ```
 
 Useful launch args:
