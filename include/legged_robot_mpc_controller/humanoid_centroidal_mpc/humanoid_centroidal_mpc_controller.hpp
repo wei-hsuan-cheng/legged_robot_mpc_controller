@@ -29,6 +29,7 @@
 #include <humanoid_centroidal_mpc/common/CentroidalMpcRobotModel.h>
 
 #include "legged_robot_mpc_controller/common/heading_reference.hpp"
+#include "legged_robot_mpc_controller/common/yaw_unwrapper.hpp"
 #include "legged_robot_mpc_controller/common/ros2_procedural_mpc_motion_manager.hpp"
 #include "legged_robot_mpc_controller/humanoid_centroidal_mpc_controller_parameters.hpp"
 #include "legged_robot_mpc_controller/visualization/performance_visualization.hpp"
@@ -107,6 +108,8 @@ private:
 
   // Heading hold for velocity-commanded walking; only touched from the solver thread.
   common::HeadingReference heading_reference_;
+  // Keeps the observed yaw continuous across the +-pi wrap (update thread only).
+  common::YawUnwrapper yaw_unwrapper_;
 
   // Observation velocity low-pass state (see build_observation).
   vector_t filtered_generalized_velocity_;

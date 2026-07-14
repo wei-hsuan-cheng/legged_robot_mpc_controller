@@ -191,6 +191,7 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_activat
   }
 
   heading_reference_.reset();
+  yaw_unwrapper_.reset();
   filtered_generalized_velocity_.resize(0);
   initial_observation_state_ = mpc_interface_->getInitialState();
   const auto initial_observation = build_observation(get_node()->now());
@@ -486,7 +487,8 @@ ocs2::SystemObservation HumanoidCentroidalMpcController::build_observation(const
   } else {
     base_orientation.normalize();
   }
-  const ocs2::vector3_t euler_zyx = ocs2::humanoid::quaternionToEulerZYX(base_orientation);
+  ocs2::vector3_t euler_zyx = ocs2::humanoid::quaternionToEulerZYX(base_orientation);
+  euler_zyx(0) = yaw_unwrapper_.unwrap(euler_zyx(0));
 
   // Generalized coordinates and velocities in the pinocchio (centroidal) convention.
   vector_t q_pinocchio(gen_coordinates_dim);

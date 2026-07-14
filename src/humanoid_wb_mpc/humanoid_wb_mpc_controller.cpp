@@ -232,6 +232,7 @@ controller_interface::CallbackReturn HumanoidWbMpcController::on_activate(
   }
 
   heading_reference_.reset();
+  yaw_unwrapper_.reset();
   initial_observation_state_ = mpc_interface_->getInitialState();
   const auto initial_observation = build_observation(get_node()->now());
   if (parameters_.robot.commandInterface == "effort_pd") {
@@ -519,7 +520,8 @@ bool HumanoidWbMpcController::read_floating_base_state(ocs2::SystemObservation& 
     q.normalize();
   }
 
-  const ocs2::vector3_t euler_zyx = ocs2::humanoid::quaternionToEulerZYX(q);
+  ocs2::vector3_t euler_zyx = ocs2::humanoid::quaternionToEulerZYX(q);
+  euler_zyx(0) = yaw_unwrapper_.unwrap(euler_zyx(0));
   model.setBaseOrientationEulerZYX(observation.state, euler_zyx);
 
   const ocs2::vector3_t linear_velocity_local(*lvx, *lvy, *lvz);
@@ -580,7 +582,8 @@ ocs2::SystemObservation HumanoidWbMpcController::build_observation(const rclcpp:
       odometry.pose.pose.orientation.z);
     q.normalize();
 
-    const ocs2::vector3_t euler_zyx = ocs2::humanoid::quaternionToEulerZYX(q);
+    ocs2::vector3_t euler_zyx = ocs2::humanoid::quaternionToEulerZYX(q);
+    euler_zyx(0) = yaw_unwrapper_.unwrap(euler_zyx(0));
     model.setBaseOrientationEulerZYX(observation.state, euler_zyx);
 
     const ocs2::vector3_t linear_velocity_local(
