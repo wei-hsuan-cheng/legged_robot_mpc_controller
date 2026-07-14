@@ -46,7 +46,7 @@ Launch humanoid robot:
 ```bash
 ros2 launch legged_robot_mpc_controller g1.launch.py \
   mpcControllerName:=humanoid_centroidal_mpc_controller \
-  mpcFreq:=80 \
+  mpcFreq:=100 \
   mrtFreq:=1000 \
   mujoco_headless:=true \
   velocityCommandGui:=true
@@ -78,7 +78,7 @@ mujoco_real_time_factor:=1.0             # double
 mujoco_publish_rate:=100.0               # double
 gt_enabled:=true | false                 # floating-base ground-truth odometry for visualization / ROS consumers
 gt_body_frame:=pelvis                    # MuJoCo body published as ground truth
-mpcFreq:=80                              # integer
+mpcFreq:=100                             # integer
 mrtFreq:=1000                            # integer
 libFolder:=auto_generated/g1             # CppAD codegen output
 mujocoModelFile:=scene.xml               # swap scene: boxes / stairs / slope in description/g1/mujoco

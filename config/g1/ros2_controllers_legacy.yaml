@@ -418,7 +418,7 @@ humanoid_centroidal_mpc_controller:
       rollout:
         AbsTolODE: 0.00005
         RelTolODE: 0.005
-        timeStep: 0.015
+        timeStep: 0.02
         integratorType: ODE45
         maxNumStepsPerSecond: 10000
         checkNumericalStability: false
@@ -427,7 +427,7 @@ humanoid_centroidal_mpc_controller:
         solverType: sqp
         mpcDesiredFrequency: $(var mpcFreq)
         mrtDesiredFrequency: $(var mrtFreq)
-        timeHorizon: 1.2
+        timeHorizon: 1.0
         solutionTimeWindow: -1.0
         coldStart: false
         debugPrint: false
