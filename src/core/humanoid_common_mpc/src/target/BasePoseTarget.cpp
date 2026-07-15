@@ -35,28 +35,48 @@ BasePoseTarget::BasePoseTarget(const ReferenceConfig& referenceConfig,
 void BasePoseTarget::setCommand(const BasePoseCommand& command) {
   std::lock_guard<std::mutex> lock(commandMutex_);
   command_ = command;
-  commandReceived_ = true;
+  externalCommandReceived_ = true;
+  currentPoseLatchRequested_ = false;
+}
+
+void BasePoseTarget::requestCurrentPoseLatch() {
+  std::lock_guard<std::mutex> lock(commandMutex_);
+  if (!externalCommandReceived_) {
+    currentPoseLatchRequested_ = true;
+  }
 }
 
 BasePoseTarget::Output BasePoseTarget::evaluate(scalar_t initTime,
                                                 scalar_t finalTime,
-                                                const vector_t& initState) const {
+                                                const vector_t& initState) {
+  const vector6_t currentPose = mpcRobotModelPtr_->getBasePose(initState);
+
   BasePoseCommand command;
-  bool commandReceived = false;
+  vector6_t latchedTargetPose = vector6_t::Zero();
+  bool externalCommandReceived = false;
+  bool latchedTargetPoseValid = false;
   {
     std::lock_guard<std::mutex> lock(commandMutex_);
+    if (currentPoseLatchRequested_ && !externalCommandReceived_) {
+      latchedTargetPose_ = currentPose;
+      latchedTargetPoseValid_ = true;
+      currentPoseLatchRequested_ = false;
+    }
     command = command_;
-    commandReceived = commandReceived_;
+    latchedTargetPose = latchedTargetPose_;
+    externalCommandReceived = externalCommandReceived_;
+    latchedTargetPoseValid = latchedTargetPoseValid_;
   }
 
-  const vector6_t currentPose = mpcRobotModelPtr_->getBasePose(initState);
   vector6_t targetPose = currentPose;
-  if (commandReceived) {
+  if (externalCommandReceived) {
     const vector3_t commandEulerZyx = quaternionToEulerZYX(command.orientation.normalized());
     targetPose.head<3>() = command.position;
     for (Eigen::Index i = 0; i < 3; ++i) {
       targetPose(3 + i) = unwrapAround(commandEulerZyx(i), currentPose(3 + i));
     }
+  } else if (latchedTargetPoseValid) {
+    targetPose = latchedTargetPose;
   }
 
   const vector2_t worldPositionError = targetPose.head<2>() - currentPose.head<2>();

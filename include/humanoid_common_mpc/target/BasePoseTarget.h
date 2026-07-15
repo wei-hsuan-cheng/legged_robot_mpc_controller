@@ -35,7 +35,11 @@ class BasePoseTarget {
 
   void setCommand(const BasePoseCommand& command);
 
-  Output evaluate(scalar_t initTime, scalar_t finalTime, const vector_t& initState) const;
+  /** Capture the current base pose on the next solver evaluation unless an
+   * explicit pose command has already been received. */
+  void requestCurrentPoseLatch();
+
+  Output evaluate(scalar_t initTime, scalar_t finalTime, const vector_t& initState);
 
  private:
   Generator generator_;
@@ -47,9 +51,12 @@ class BasePoseTarget {
   scalar_t positionTolerance_;
   scalar_t orientationTolerance_;
 
-  mutable std::mutex commandMutex_;
+  std::mutex commandMutex_;
   BasePoseCommand command_;
-  bool commandReceived_{false};
+  vector6_t latchedTargetPose_{vector6_t::Zero()};
+  bool externalCommandReceived_{false};
+  bool latchedTargetPoseValid_{false};
+  bool currentPoseLatchRequested_{false};
 };
 
 }  // namespace ocs2::humanoid

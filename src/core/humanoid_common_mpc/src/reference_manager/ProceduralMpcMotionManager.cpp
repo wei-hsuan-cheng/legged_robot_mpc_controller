@@ -75,6 +75,10 @@ void ProceduralMpcMotionManager::setBasePoseCommand(const BasePoseCommand& comma
 /******************************************************************************************************/
 
 void ProceduralMpcMotionManager::setTargetMode(TargetMode mode) {
+  const TargetMode previousMode = targetMode_.load(std::memory_order_acquire);
+  if (mode == TargetMode::BasePose && previousMode != TargetMode::BasePose) {
+    basePoseTarget_.requestCurrentPoseLatch();
+  }
   targetMode_.store(mode, std::memory_order_release);
 }
 
