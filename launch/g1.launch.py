@@ -69,7 +69,7 @@ def generate_launch_description():
         DeclareLaunchArgument("controllersFile", default_value=controllers_file_default),
         DeclareLaunchArgument("gaitFile", default_value=gait_file_default),
         DeclareLaunchArgument(
-            "mpcControllerName", 
+            "mpcControllerName",
             default_value=mpc_controller_default,
             description="Name of the supported MPC ros2 controllers to load and activate.",),
         DeclareLaunchArgument("ros2ControlCommandInterface", default_value="effort_pd"),
