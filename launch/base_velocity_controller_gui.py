@@ -117,7 +117,7 @@ class VelocityCommandGui(tk.Tk):
         ).pack(side=tk.LEFT, padx=6)
 
         self.protocol("WM_DELETE_WINDOW", self._close)
-        self.after(40, self._publish_periodically)
+        self.after(20, self._publish_periodically)
 
     def _changed(self):
         return
@@ -131,7 +131,7 @@ class VelocityCommandGui(tk.Tk):
         # Joystick vertical axis = forward (vx); horizontal = lateral (ROS +y is left,
         # so a right-drag must command negative vy).
         self._publish(self._linear.y, -self._linear.x, self._height.get(), self._yaw.y)
-        self.after(40, self._publish_periodically)
+        self.after(20, self._publish_periodically)
 
     def _close(self):
         self.destroy()
