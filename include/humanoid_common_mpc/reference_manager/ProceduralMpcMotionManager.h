@@ -74,7 +74,7 @@ class ProceduralMpcMotionManager : public SolverSynchronizedModule {
   /**
    * Constructor
    *
-   * @param [in] gaitFile: The file path that contains the different gait patterns.
+   * @param [in] gaitMap: The named gait library loaded from the configured file.
    * @param [in] referenceFile: The file path containing the default references and velocity limits.
    * @param [in] velocityTargetToTargetTrajectories: A function which transforms the commanded velocities to TargetTrajectories.
    * @param [in] switchedModelReferenceManagerPtr: A pointer to the switched model reference manager used to update gait and references

@@ -15,7 +15,7 @@ namespace legged_robot_mpc_controller::common
 
 /// Loads the named gait library (mode sequence templates) from a YAML file, see
 /// config/g1/gait.yaml. This replaces the legacy gait.info loading of wb_humanoid_mpc.
-ocs2::humanoid::GaitMap loadGaitMap(const std::string& gaitFile);
+ocs2::humanoid::GaitMap loadGaitMap(const std::string& gaitLibraryFile);
 
 inline ocs2::vector_t toVector(const std::vector<double>& values)
 {

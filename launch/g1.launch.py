@@ -35,7 +35,7 @@ def generate_launch_description():
         "ros2_controllers_legacy.yaml" # ros2_controllers.yaml | ros2_controllers_legacy.yaml
         ])
     
-    gait_file_default = PathJoinSubstitution([
+    gait_library_file_default = PathJoinSubstitution([
         mpc_share,
         "config",
         "g1",
@@ -67,7 +67,7 @@ def generate_launch_description():
         DeclareLaunchArgument("mpcFreq", default_value="100", description="MPC update frequency (should be integer) (100 for centroidal, 50 for whole-body)"),
         DeclareLaunchArgument("mrtFreq", default_value="1000", description="MRT update frequency (should be integer)"),
         DeclareLaunchArgument("controllersFile", default_value=controllers_file_default),
-        DeclareLaunchArgument("gaitFile", default_value=gait_file_default),
+        DeclareLaunchArgument("gaitLibraryFile", default_value=gait_library_file_default),
         DeclareLaunchArgument(
             "mpcControllerName",
             default_value=mpc_controller_default,

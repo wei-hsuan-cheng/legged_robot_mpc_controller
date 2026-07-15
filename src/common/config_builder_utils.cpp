@@ -5,11 +5,12 @@
 namespace legged_robot_mpc_controller::common
 {
 
-ocs2::humanoid::GaitMap loadGaitMap(const std::string& gaitFile)
+ocs2::humanoid::GaitMap loadGaitMap(const std::string& gaitLibraryFile)
 {
-  const YAML::Node root = YAML::LoadFile(gaitFile);
+  const YAML::Node root = YAML::LoadFile(gaitLibraryFile);
   if (!root["list"]) {
-    throw std::runtime_error("[config_builder] gait file has no 'list' key: " + gaitFile);
+    throw std::runtime_error(
+      "[config_builder] gait library file has no 'list' key: " + gaitLibraryFile);
   }
 
   ocs2::humanoid::GaitMap gaitMap;
@@ -17,7 +18,8 @@ ocs2::humanoid::GaitMap loadGaitMap(const std::string& gaitFile)
     const auto gaitName = gaitNameNode.as<std::string>();
     const YAML::Node gait = root[gaitName];
     if (!gait || !gait["modeSequence"] || !gait["switchingTimes"]) {
-      throw std::runtime_error("[config_builder] gait '" + gaitName + "' is missing in " + gaitFile);
+      throw std::runtime_error(
+        "[config_builder] gait '" + gaitName + "' is missing in " + gaitLibraryFile);
     }
     const auto modeSequence = gait["modeSequence"].as<std::vector<std::string>>();
     const auto switchingTimes = gait["switchingTimes"].as<std::vector<double>>();

@@ -118,8 +118,8 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_configu
     fixed_joint_kd_ = make_vector(parameters_.control.fixedJointKd, fixed_joint_dim, 1.0, "control.fixedJointKd");
 
     const auto reference_config = common::buildReferenceConfig(parameters_);
-    if (parameters_.ocs2.gait.gaitFile.empty()) {
-      throw std::invalid_argument("[HumanoidCentroidalMpcController] ocs2.gait.gaitFile is empty.");
+    if (parameters_.ocs2.gait.gaitLibraryFile.empty()) {
+      throw std::invalid_argument("[HumanoidCentroidalMpcController] ocs2.gait.gaitLibraryFile is empty.");
     }
     target_trajectories_calculator_ =
       std::make_unique<ocs2::humanoid::CentroidalMpcTargetTrajectoriesCalculator>(
@@ -157,7 +157,7 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_configu
           base_pose_target, init_time, init_state);
       };
     auto motion_manager = std::make_shared<Ros2ProceduralMpcMotionManager>(
-      common::loadGaitMap(parameters_.ocs2.gait.gaitFile),
+      common::loadGaitMap(parameters_.ocs2.gait.gaitLibraryFile),
       reference_config,
       mpc_interface_->getSwitchedModelReferenceManagerPtr(),
       mpc_interface_->getMpcRobotModel(),

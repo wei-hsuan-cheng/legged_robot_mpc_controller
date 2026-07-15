@@ -125,7 +125,7 @@ ModeSequenceTemplate modeSequenceTemplateFromStrings(const std::vector<scalar_t>
 /** Builds a ModeSchedule from event times and mode names (e.g. "STANCE", "LF", "RF"). */
 ModeSchedule modeScheduleFromStrings(const std::vector<scalar_t>& eventTimes, const std::vector<std::string>& modeSequenceString);
 
-// returns the gait map for a gait file
+// Returns the parsed map for a named gait library.
 using GaitMap = std::map<std::string, ModeSequenceTemplate>;
 
 }  // namespace ocs2::humanoid

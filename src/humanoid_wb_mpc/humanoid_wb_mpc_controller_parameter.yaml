@@ -739,7 +739,7 @@ humanoid_wb_mpc_controller:
       }
 
     gait:
-      gaitFile: {
+      gaitLibraryFile: {
         type: string,
         default_value: "",
         description: "YAML file with the named gait library (mode sequence templates), see config/g1/gait.yaml"

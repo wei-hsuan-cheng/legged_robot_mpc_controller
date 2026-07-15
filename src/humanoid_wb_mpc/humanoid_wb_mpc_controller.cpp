@@ -143,8 +143,8 @@ controller_interface::CallbackReturn HumanoidWbMpcController::on_configure(
     torque_limit_ = make_vector(parameters_.control.torqueLimit, joint_dim, 0.0, "control.torqueLimit");
 
     const auto reference_config = common::buildReferenceConfig(parameters_);
-    if (parameters_.ocs2.gait.gaitFile.empty()) {
-      throw std::invalid_argument("[HumanoidWbMpcController] ocs2.gait.gaitFile is empty.");
+    if (parameters_.ocs2.gait.gaitLibraryFile.empty()) {
+      throw std::invalid_argument("[HumanoidWbMpcController] ocs2.gait.gaitLibraryFile is empty.");
     }
     target_trajectories_calculator_ =
       std::make_unique<ocs2::humanoid::WBMpcTargetTrajectoriesCalculator>(
@@ -178,7 +178,7 @@ controller_interface::CallbackReturn HumanoidWbMpcController::on_configure(
           base_pose_target, init_time, init_state);
       };
     auto motion_manager = std::make_shared<Ros2ProceduralMpcMotionManager>(
-      common::loadGaitMap(parameters_.ocs2.gait.gaitFile),
+      common::loadGaitMap(parameters_.ocs2.gait.gaitLibraryFile),
       reference_config,
       mpc_interface_->getSwitchedModelReferenceManagerPtr(),
       mpc_interface_->getMpcRobotModel(),

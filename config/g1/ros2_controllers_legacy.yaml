@@ -277,7 +277,7 @@ humanoid_wb_mpc_controller:
                              0.0, 0.0, 0.0, 0.0]
 
       gait:
-        gaitFile: $(var gaitFile)
+        gaitLibraryFile: $(var gaitLibraryFile)
         initialModeSequence: [STANCE, STANCE]
         initialEventTimes: [0.5]
         defaultModeSequence: [STANCE]
@@ -562,7 +562,7 @@ humanoid_centroidal_mpc_controller:
                              0.0, 0.0, 0.0, 0.0]
 
       gait:
-        gaitFile: $(var gaitFile)
+        gaitLibraryFile: $(var gaitLibraryFile)
         initialModeSequence: [STANCE, STANCE]
         initialEventTimes: [0.5]
         defaultModeSequence: [STANCE]
