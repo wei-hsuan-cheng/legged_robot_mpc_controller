@@ -1,5 +1,5 @@
-# Gait library migrated from wb_humanoid_mpc humanoid_common_mpc/config/command/gait.info
-# Each gait is a mode sequence template: N modes and N+1 switching times.
+# Gait library
+# Each gait is a mode sequence template: N modes and N+1 switching times
 
 list: [stance, left_leg, right_leg, trot, fast_trot, slow_trot, slower_trot, walk, fast_walk, slow_walk, very_slow_walk, run, fast_run, skip, jump]
 
