@@ -83,6 +83,7 @@ class WBAccelMpcRobotModel : public MpcRobotModelBase<SCALAR_T> {
   /******************************************************************************************************/
 
   size_t getBaseStartindex() const override { return 0; };
+  size_t getBaseComVelocityStartindex() const override { return (6 + this->modelSettings.mpc_joint_dim); };
   size_t getJointStartindex() const override { return 6; };
   // Be careful, the joint Velocities are part of the state vector here.
   size_t getJointVelocitiesStartindex() const override { return (12 + this->modelSettings.mpc_joint_dim); };

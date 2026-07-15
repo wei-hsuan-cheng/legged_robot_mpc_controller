@@ -30,9 +30,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #pragma once
 
-#include <algorithm>
-
-#include <ocs2_msgs/msg/walking_velocity_command.hpp>
 #include "humanoid_common_mpc/common/Types.h"
 
 namespace ocs2::humanoid {
@@ -62,12 +59,4 @@ struct WalkingVelocityCommand {
   vector4_t toVector() { return vector4_t(linear_velocity_x, linear_velocity_y, desired_pelvis_height, angular_velocity_z); };
 };
 
-inline WalkingVelocityCommand getWalkingVelocityCommandFromMsg(const ocs2_msgs::msg::WalkingVelocityCommand& msg) {
-  WalkingVelocityCommand cmd;
-  cmd.linear_velocity_x = std::clamp(msg.linear_velocity_x, -1.0, 1.0);
-  cmd.linear_velocity_y = std::clamp(msg.linear_velocity_y, -1.0, 1.0);
-  cmd.desired_pelvis_height = std::clamp(msg.desired_pelvis_height, 0.2, 1.0);
-  cmd.angular_velocity_z = std::clamp(msg.angular_velocity_z, -1.0, 1.0);
-  return cmd;
-}
 }  // namespace ocs2::humanoid

@@ -42,6 +42,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <humanoid_common_mpc/constraint/ZeroWrenchConstraint.h>
 #include <humanoid_common_mpc/contact/ContactRectangle.h>
 #include <humanoid_common_mpc/cost/StateInputQuadraticCost.h>
+#include <humanoid_common_mpc/cost/BaseMotionTrackingCost.h>
 #include <humanoid_common_mpc/pinocchio_model/pinocchioUtils.h>
 #include "humanoid_common_mpc/constraint/ContactMomentXYConstraintCppAd.h"
 #include "humanoid_common_mpc/constraint/FootCollisionConstraint.h"
@@ -86,6 +87,27 @@ std::unique_ptr<StateInputCost> HumanoidCostConstraintFactory::getStateInputQuad
 
   return std::unique_ptr<StateInputCost>(
       new StateInputQuadraticCost(std::move(Q), std::move(R), *referenceManagerPtr_, *pinocchioInterfacePtr_, *mpcRobotModelPtr_));
+}
+
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+
+std::unique_ptr<StateCost> HumanoidCostConstraintFactory::getBaseMotionTrackingCost() const
+{
+  return std::make_unique<BaseMotionTrackingCost>(
+    config_.baseMotionQ, *referenceManagerPtr_, *mpcRobotModelPtr_);
+}
+
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+
+std::unique_ptr<StateCost> HumanoidCostConstraintFactory::getBaseMotionTrackingTerminalCost() const
+{
+  return std::make_unique<BaseMotionTrackingCost>(
+    config_.baseMotionQFinal * config_.terminalCostScaling,
+    *referenceManagerPtr_, *mpcRobotModelPtr_);
 }
 
 /******************************************************************************************************/

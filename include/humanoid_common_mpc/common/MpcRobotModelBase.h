@@ -76,6 +76,7 @@ class MpcRobotModelBase {
   /******************************************************************************************************/
 
   virtual size_t getBaseStartindex() const = 0;
+  virtual size_t getBaseComVelocityStartindex() const = 0;
   virtual size_t getJointStartindex() const = 0;
   virtual size_t getJointVelocitiesStartindex() const = 0;
 

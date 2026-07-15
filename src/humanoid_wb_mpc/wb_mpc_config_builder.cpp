@@ -142,12 +142,17 @@ ocs2::humanoid::WBMpcInterface::Config buildWbMpcConfig(const humanoid_wb_mpc_co
 
   auto& costs = config.costConstraintConfig;
   costs.Q = assembleDiagonalMatrix(
-    {p.costs.q.basePose, p.costs.q.jointPositions, p.costs.q.baseVelocity, p.costs.q.jointVelocities},
+    {std::vector<double>(6, 0.0), p.costs.q.jointPositions, std::vector<double>(6, 0.0),
+     p.costs.q.jointVelocities},
     p.costs.qScaling);
   costs.QFinal = assembleDiagonalMatrix(
-    {p.costs.qFinal.basePose, p.costs.qFinal.jointPositions, p.costs.qFinal.baseVelocity,
+    {std::vector<double>(6, 0.0), p.costs.qFinal.jointPositions, std::vector<double>(6, 0.0),
      p.costs.qFinal.jointVelocities},
     p.costs.qScaling);
+  costs.baseMotionQ = assembleDiagonalMatrix(
+    {p.costs.q.basePose, p.costs.q.baseVelocity}, p.costs.qScaling);
+  costs.baseMotionQFinal = assembleDiagonalMatrix(
+    {p.costs.qFinal.basePose, p.costs.qFinal.baseVelocity}, p.costs.qScaling);
   costs.terminalCostScaling = p.costs.terminalCostScaling;
   costs.R = assembleDiagonalMatrix({p.costs.r.contactWrenches, p.costs.r.jointAccelerations}, p.costs.rScaling);
 

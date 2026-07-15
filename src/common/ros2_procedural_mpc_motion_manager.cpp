@@ -1,5 +1,7 @@
 #include "legged_robot_mpc_controller/common/ros2_procedural_mpc_motion_manager.hpp"
 
+#include "legged_robot_mpc_controller/common/target/walking_velocity_target.hpp"
+
 #include <utility>
 
 namespace legged_robot_mpc_controller
@@ -31,7 +33,7 @@ void Ros2ProceduralMpcMotionManager::subscribe(
     "/humanoid/walking_velocity_command",
     qos,
     [this](const ocs2_msgs::msg::WalkingVelocityCommand::SharedPtr message) {
-      setAndScaleVelocityCommand(ocs2::humanoid::getWalkingVelocityCommandFromMsg(*message));
+      setAndScaleVelocityCommand(target::from_message(*message));
     });
 }
 

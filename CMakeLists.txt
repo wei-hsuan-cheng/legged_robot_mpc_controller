@@ -149,6 +149,7 @@ add_library(${PROJECT_NAME} SHARED
   src/common/config_builder_utils.cpp
   src/common/heading_reference.cpp
   src/common/ros2_procedural_mpc_motion_manager.cpp
+  src/common/target/walking_velocity_target.cpp
   src/humanoid_centroidal_mpc/centroidal_mpc_config_builder.cpp
   src/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller.cpp
   src/humanoid_wb_mpc/humanoid_wb_mpc_controller.cpp

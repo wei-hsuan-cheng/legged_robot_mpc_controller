@@ -145,10 +145,14 @@ ocs2::humanoid::CentroidalMpcInterface::Config buildCentroidalMpcConfig(
 
   auto& costs = config.costConstraintConfig;
   costs.Q = assembleDiagonalMatrix(
-    {p.costs.q.centroidalMomentum, p.costs.q.basePose, p.costs.q.jointPositions}, p.costs.qScaling);
+    {p.costs.q.centroidalMomentum, std::vector<double>(6, 0.0), p.costs.q.jointPositions}, p.costs.qScaling);
   costs.QFinal = assembleDiagonalMatrix(
-    {p.costs.qFinal.centroidalMomentum, p.costs.qFinal.basePose, p.costs.qFinal.jointPositions},
+    {p.costs.qFinal.centroidalMomentum, std::vector<double>(6, 0.0), p.costs.qFinal.jointPositions},
     p.costs.qScaling);
+  costs.baseMotionQ = assembleDiagonalMatrix(
+    {p.costs.q.basePose, std::vector<double>(6, 0.0)}, p.costs.qScaling);
+  costs.baseMotionQFinal = assembleDiagonalMatrix(
+    {p.costs.qFinal.basePose, std::vector<double>(6, 0.0)}, p.costs.qScaling);
   costs.terminalCostScaling = p.costs.terminalCostScaling;
   costs.R = assembleDiagonalMatrix({p.costs.r.contactWrenches, p.costs.r.jointVelocities}, p.costs.rScaling);
 

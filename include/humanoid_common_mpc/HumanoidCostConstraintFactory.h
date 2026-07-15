@@ -61,6 +61,8 @@ class HumanoidCostConstraintFactory {
     matrix_t Q;       // (stateDim x stateDim) state cost matrix
     matrix_t R;       // (inputDim x inputDim) input cost matrix
     matrix_t QFinal;  // (stateDim x stateDim) terminal state cost matrix (unscaled)
+    matrix_t baseMotionQ;       // (12 x 12) base pose/motion tracking cost matrix
+    matrix_t baseMotionQFinal;  // (12 x 12) terminal base pose/motion tracking cost matrix
     scalar_t terminalCostScaling{1.0};
 
     FootCollisionConstraint::Config footCollisionConfig;
@@ -89,6 +91,10 @@ class HumanoidCostConstraintFactory {
   HumanoidCostConstraintFactory(const HumanoidCostConstraintFactory& other) = delete;
 
   std::unique_ptr<StateInputCost> getStateInputQuadraticCost() const;
+
+  std::unique_ptr<StateCost> getBaseMotionTrackingCost() const;
+
+  std::unique_ptr<StateCost> getBaseMotionTrackingTerminalCost() const;
 
   std::unique_ptr<StateCost> getTerminalCost() const;
 
