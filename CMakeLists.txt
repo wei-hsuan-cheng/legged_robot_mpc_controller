@@ -13,6 +13,7 @@ set(THIS_PACKAGE_INCLUDE_DEPENDS
   ament_index_cpp
   controller_interface
   generate_parameter_library
+  geometry_msgs
   hardware_interface
   nav_msgs
   ocs2_centroidal_model
@@ -31,6 +32,7 @@ set(THIS_PACKAGE_INCLUDE_DEPENDS
   rclcpp_lifecycle
   realtime_tools
   tf2_ros
+  tf2_geometry_msgs
   urdf
   visualization_msgs
 )

@@ -12,6 +12,7 @@
   <depend>ament_index_cpp</depend>
   <depend>controller_interface</depend>
   <depend>generate_parameter_library</depend>
+  <depend>geometry_msgs</depend>
   <depend>hardware_interface</depend>
   <depend>nav_msgs</depend>
   <depend>ocs2_centroidal_model</depend>
@@ -30,6 +31,7 @@
   <depend>rclcpp_lifecycle</depend>
   <depend>realtime_tools</depend>
   <depend>tf2_ros</depend>
+  <depend>tf2_geometry_msgs</depend>
   <depend>urdf</depend>
   <depend>visualization_msgs</depend>
   <depend>yaml-cpp</depend>

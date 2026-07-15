@@ -163,4 +163,15 @@ scalar_t TargetTrajectoriesCalculatorBase::estimateTimeToTarget(const vector_t& 
   return std::max(rotationTime, displacementTime);
 }
 
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+
+scalar_t TargetTrajectoriesCalculatorBase::estimateTimeToBasePoseTarget(
+    const vector6_t& desiredBaseDisplacement) const {
+  const scalar_t translationTime = desiredBaseDisplacement.head<3>().norm() / targetDisplacementVelocity_;
+  const scalar_t rotationTime = desiredBaseDisplacement.tail<3>().norm() / targetRotationVelocity_;
+  return std::max({translationTime, rotationTime, scalar_t(0.1)});
+}
+
 }  // namespace ocs2::humanoid

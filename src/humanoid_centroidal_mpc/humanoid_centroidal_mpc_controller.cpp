@@ -147,16 +147,28 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_configu
           9);
         return target_trajectories;
       };
+    auto base_pose_target_to_target_trajectories =
+      [this](
+      const ocs2::vector6_t& base_pose_target,
+      ocs2::scalar_t init_time,
+      ocs2::scalar_t /* final_time */,
+      const ocs2::vector_t& init_state) {
+        return target_trajectories_calculator_->commandedBasePoseToTargetTrajectories(
+          base_pose_target, init_time, init_state);
+      };
     auto motion_manager = std::make_shared<Ros2ProceduralMpcMotionManager>(
       common::loadGaitMap(parameters_.ocs2.gait.gaitFile),
       reference_config,
       mpc_interface_->getSwitchedModelReferenceManagerPtr(),
       mpc_interface_->getMpcRobotModel(),
-      std::move(velocity_target_to_target_trajectories));
+      std::move(velocity_target_to_target_trajectories),
+      std::move(base_pose_target_to_target_trajectories));
     motion_manager_ = std::move(motion_manager);
     rclcpp::QoS command_qos(1);
     command_qos.best_effort();
-    motion_manager_->subscribe(get_node(), command_qos);
+    motion_manager_->subscribe(
+      get_node(), command_qos, parameters_.target.walkingVelocityTopic,
+      parameters_.target.basePoseTopic, parameters_.target.globalFrame);
 
     performance_visualization_ = std::make_unique<visualization::PerformanceVisualization>(
       get_node(),

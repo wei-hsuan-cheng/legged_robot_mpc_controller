@@ -19,6 +19,11 @@ humanoid_wb_mpc_controller:
       urdfFile: "$(var urdfFile)"
       libFolder: "$(var libFolder)"
 
+    target:
+      walkingVelocityTopic: /humanoid/walking_velocity_command
+      basePoseTopic: /humanoid/base_pose_command
+      globalFrame: world
+
     robot:
       commandInterface: effort_pd
       stateInterfaces: [position, velocity, effort]
@@ -261,6 +266,8 @@ humanoid_wb_mpc_controller:
         maxDeltaPelvisHeight: 0.4
         maxRotationVelocity: 1.0
         defaultBaseHeight: 0.7925
+        basePosePositionTolerance: 0.02
+        basePoseOrientationTolerance: 0.03
         defaultJointState: [-0.05, 0.0, 0.0, 0.1, -0.05, 0.0,
                             -0.05, 0.0, 0.0, 0.1, -0.05, 0.0,
                              0.0, 0.0, 0.0,
@@ -297,6 +304,11 @@ humanoid_centroidal_mpc_controller:
     paths:
       urdfFile: "$(var urdfFile)"
       libFolder: "$(var libFolder)"
+
+    target:
+      walkingVelocityTopic: /humanoid/walking_velocity_command
+      basePoseTopic: /humanoid/base_pose_command
+      globalFrame: world
 
     robot:
       commandInterface: effort_pd
@@ -537,6 +549,8 @@ humanoid_centroidal_mpc_controller:
         maxDeltaPelvisHeight: 0.4
         maxRotationVelocity: 1.0
         defaultBaseHeight: 0.7925
+        basePosePositionTolerance: 0.02
+        basePoseOrientationTolerance: 0.03
         defaultJointState: [-0.05, 0.0, 0.0, 0.1, -0.05, 0.0,
                             -0.05, 0.0, 0.0, 0.1, -0.05, 0.0,
                              0.0, 0.0, 0.0,

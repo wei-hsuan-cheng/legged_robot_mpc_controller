@@ -1,7 +1,12 @@
 #include "legged_robot_mpc_controller/common/ros2_procedural_mpc_motion_manager.hpp"
 
 #include <algorithm>
+#include <cmath>
+#include <stdexcept>
 #include <utility>
+
+#include <tf2/time.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
 namespace legged_robot_mpc_controller
 {
@@ -20,6 +25,30 @@ ocs2::humanoid::WalkingVelocityCommand boundedCommandFromMessage(
   return command;
 }
 
+ocs2::humanoid::BasePoseCommand basePoseCommandFromMessage(
+  const geometry_msgs::msg::PoseStamped& message)
+{
+  const auto& position = message.pose.position;
+  const auto& orientation = message.pose.orientation;
+  if (!std::isfinite(position.x) || !std::isfinite(position.y) ||
+      !std::isfinite(position.z) || !std::isfinite(orientation.x) ||
+      !std::isfinite(orientation.y) || !std::isfinite(orientation.z) ||
+      !std::isfinite(orientation.w)) {
+    throw std::invalid_argument("base pose command contains non-finite values");
+  }
+
+  ocs2::quaternion_t quaternion(
+    orientation.w, orientation.x, orientation.y, orientation.z);
+  if (quaternion.norm() <= 1.0e-12) {
+    throw std::invalid_argument("base pose command quaternion has zero norm");
+  }
+
+  ocs2::humanoid::BasePoseCommand command;
+  command.position << position.x, position.y, position.z;
+  command.orientation = quaternion.normalized();
+  return command;
+}
+
 }  // namespace
 
 Ros2ProceduralMpcMotionManager::Ros2ProceduralMpcMotionManager(
@@ -27,13 +56,15 @@ Ros2ProceduralMpcMotionManager::Ros2ProceduralMpcMotionManager(
   const ocs2::humanoid::ReferenceConfig& reference_config,
   std::shared_ptr<ocs2::humanoid::SwitchedModelReferenceManager> reference_manager,
   const ocs2::humanoid::MpcRobotModelBase<ocs2::scalar_t>& mpc_robot_model,
-  VelocityTargetToTargetTrajectories velocity_target_to_target_trajectories)
+  VelocityTargetToTargetTrajectories velocity_target_to_target_trajectories,
+  BasePoseTargetToTargetTrajectories base_pose_target_to_target_trajectories)
 : ProceduralMpcMotionManager(
     std::move(gait_map),
     reference_config,
     std::move(reference_manager),
     mpc_robot_model,
-    std::move(velocity_target_to_target_trajectories))
+    std::move(velocity_target_to_target_trajectories),
+    std::move(base_pose_target_to_target_trajectories))
 {
   // Hold the configured standing height until a command arrives.
   setVelocityCommand(
@@ -42,13 +73,38 @@ Ros2ProceduralMpcMotionManager::Ros2ProceduralMpcMotionManager(
 
 void Ros2ProceduralMpcMotionManager::subscribe(
   const rclcpp_lifecycle::LifecycleNode::SharedPtr& node,
-  const rclcpp::QoS& qos)
+  const rclcpp::QoS& qos,
+  const std::string& walking_velocity_topic,
+  const std::string& base_pose_topic,
+  const std::string& global_frame)
 {
+  tf_buffer_ = std::make_unique<tf2_ros::Buffer>(node->get_clock());
+  tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
+
   velocity_command_subscription_ = node->create_subscription<ocs2_msgs::msg::WalkingVelocityCommand>(
-    "/humanoid/walking_velocity_command",
+    walking_velocity_topic,
     qos,
     [this](const ocs2_msgs::msg::WalkingVelocityCommand::SharedPtr message) {
       setVelocityCommand(boundedCommandFromMessage(*message));
+    });
+
+  base_pose_command_subscription_ = node->create_subscription<geometry_msgs::msg::PoseStamped>(
+    base_pose_topic,
+    qos,
+    [this, node, global_frame](const geometry_msgs::msg::PoseStamped::SharedPtr message) {
+      try {
+        geometry_msgs::msg::PoseStamped global_pose = *message;
+        if (global_pose.header.frame_id.empty()) {
+          global_pose.header.frame_id = global_frame;
+        } else if (global_pose.header.frame_id != global_frame) {
+          global_pose = tf_buffer_->transform(
+            global_pose, global_frame, tf2::durationFromSec(0.05));
+        }
+        setBasePoseCommand(basePoseCommandFromMessage(global_pose));
+      } catch (const std::exception& error) {
+        RCLCPP_WARN(
+          node->get_logger(), "Rejected base pose command: %s", error.what());
+      }
     });
 }
 

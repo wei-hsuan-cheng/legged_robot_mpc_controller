@@ -1,5 +1,6 @@
 #include "humanoid_common_mpc/cost/BaseMotionTrackingCost.h"
 
+#include <cmath>
 #include <stdexcept>
 #include <utility>
 
@@ -30,6 +31,9 @@ vector_t BaseMotionTrackingCost::getDeviation(
   vector_t deviation(12);
   deviation.head<6>() =
     mpc_robot_model_ptr_->getBasePose(state) - mpc_robot_model_ptr_->getBasePose(desired_state);
+  for (Eigen::Index index = 3; index < 6; ++index) {
+    deviation(index) = std::remainder(deviation(index), 2.0 * M_PI);
+  }
   deviation.tail<6>() =
     mpc_robot_model_ptr_->getBaseComVelocity(state) -
     mpc_robot_model_ptr_->getBaseComVelocity(desired_state);

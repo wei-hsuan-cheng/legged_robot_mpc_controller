@@ -50,6 +50,8 @@ struct ReferenceConfig {
   scalar_t maxDeltaPelvisHeight{0.4};
   scalar_t maxRotationVelocity{1.0};
   scalar_t defaultBaseHeight{0.79};
+  scalar_t basePosePositionTolerance{0.02};
+  scalar_t basePoseOrientationTolerance{0.03};
   vector_t defaultJointState;
 };
 
@@ -74,6 +76,11 @@ class TargetTrajectoriesCalculatorBase {
                                                                    scalar_t initTime,
                                                                    const vector_t& initState) = 0;
 
+  /** Converts an absolute global-frame [x, y, z, yaw, pitch, roll] target. */
+  virtual TargetTrajectories commandedBasePoseToTargetTrajectories(const vector6_t& targetBasePose,
+                                                                   scalar_t initTime,
+                                                                   const vector_t& initState) = 0;
+
   /**
    * Converts desired velocities to TargetTrajectories.
    * @param [in] commandedVelocities : [v_x, v_y, v_yaw] defined in pelvis frame
@@ -85,6 +92,8 @@ class TargetTrajectoriesCalculatorBase {
 
  protected:
   scalar_t estimateTimeToTarget(const vector_t& desiredBaseDisplacement) const;
+
+  scalar_t estimateTimeToBasePoseTarget(const vector6_t& desiredBaseDisplacement) const;
 
   virtual vector6_t getCurrentBasePoseTarget(const vector_t& state) const;
 

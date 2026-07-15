@@ -44,12 +44,32 @@ ProceduralMpcMotionManager::ProceduralMpcMotionManager(GaitMap gaitMap,
                                                        const ReferenceConfig& referenceConfig,
                                                        std::shared_ptr<SwitchedModelReferenceManager> switchedModelReferenceManagerPtr,
                                                        const MpcRobotModelBase<scalar_t>& mpcRobotModel,
-                                                       VelocityTargetToTargetTrajectories velocityTargetToTargetTrajectories)
+                                                       VelocityTargetToTargetTrajectories velocityTargetToTargetTrajectories,
+                                                       BasePoseTargetToTargetTrajectories basePoseTargetToTargetTrajectories)
     : switchedModelReferenceManagerPtr_(switchedModelReferenceManagerPtr),
       gaitSchedulePtr_(switchedModelReferenceManagerPtr_->getGaitSchedule()),
       mpcRobotModelPtr_(&mpcRobotModel),
-      walkingVelocityTarget_(referenceConfig, std::move(velocityTargetToTargetTrajectories)) {
+      walkingVelocityTarget_(referenceConfig, std::move(velocityTargetToTargetTrajectories)),
+      basePoseTarget_(referenceConfig, mpcRobotModel, std::move(basePoseTargetToTargetTrajectories)) {
   gaitMap_ = std::move(gaitMap);
+}
+
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+
+void ProceduralMpcMotionManager::setVelocityCommand(const WalkingVelocityCommand& command) {
+  walkingVelocityTarget_.setCommand(command);
+  targetMode_.store(TargetMode::WalkingVelocity, std::memory_order_release);
+}
+
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+
+void ProceduralMpcMotionManager::setBasePoseCommand(const BasePoseCommand& command) {
+  basePoseTarget_.setCommand(command);
+  targetMode_.store(TargetMode::BasePose, std::memory_order_release);
 }
 
 /******************************************************************************************************/
@@ -93,12 +113,16 @@ void ProceduralMpcMotionManager::preSolverRun(scalar_t initTime,
                                               scalar_t finalTime,
                                               const vector_t& initState,
                                               const ReferenceManagerInterface& referenceManager) {
-  // Condition the command once (scale + filter) and build the reference trajectory.
-  WalkingVelocityTarget::Output target = walkingVelocityTarget_.evaluate(initTime, finalTime, initState);
-  switchedModelReferenceManagerPtr_->setTargetTrajectories(target.targetTrajectories);
-
-  // The gait selector consumes the same conditioned command used for the reference.
-  const vector4_t& filteredVelCommand = target.conditionedCommand;
+  vector4_t filteredVelCommand;
+  if (getTargetMode() == TargetMode::BasePose) {
+    BasePoseTarget::Output target = basePoseTarget_.evaluate(initTime, finalTime, initState);
+    switchedModelReferenceManagerPtr_->setTargetTrajectories(std::move(target.targetTrajectories));
+    filteredVelCommand = target.motionCommand;
+  } else {
+    WalkingVelocityTarget::Output target = walkingVelocityTarget_.evaluate(initTime, finalTime, initState);
+    switchedModelReferenceManagerPtr_->setTargetTrajectories(std::move(target.targetTrajectories));
+    filteredVelCommand = target.conditionedCommand;
+  }
 
   static GaitModeStateConfig currentCfg = gaitModeStates_[currentGaitMode_];
   vector6_t baseVelocity = mpcRobotModelPtr_->getBaseComVelocity(initState);

@@ -83,6 +83,24 @@ TargetTrajectories CentroidalMpcTargetTrajectoriesCalculator::commandedPositionT
 /******************************************************************************************************/
 /******************************************************************************************************/
 
+TargetTrajectories CentroidalMpcTargetTrajectoriesCalculator::commandedBasePoseToTargetTrajectories(
+    const vector6_t& targetBasePose, scalar_t initTime, const vector_t& initState) {
+  const vector6_t currentPose = mpcRobotModelPtr_->getBasePose(initState);
+  const scalar_t targetReachingTime = initTime + estimateTimeToBasePoseTarget(targetBasePose - currentPose);
+
+  const scalar_array_t timeTrajectory{initTime, targetReachingTime};
+  vector_array_t stateTrajectory(2, vector_t::Zero(mpcRobotModelPtr_->getStateDim()));
+  stateTrajectory[0] << vector_t::Zero(6), currentPose, targetJointState_;
+  stateTrajectory[1] << vector_t::Zero(6), targetBasePose, targetJointState_;
+
+  const vector_array_t inputTrajectory(2, vector_t::Zero(mpcRobotModelPtr_->getInputDim()));
+  return TargetTrajectories{timeTrajectory, stateTrajectory, inputTrajectory};
+}
+
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+
 TargetTrajectories CentroidalMpcTargetTrajectoriesCalculator::commandedVelocityToTargetTrajectories(const vector4_t& commandedVelocities,
                                                                                                     scalar_t initTime,
                                                                                                     const vector_t& initState) {

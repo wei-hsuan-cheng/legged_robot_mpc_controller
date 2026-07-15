@@ -63,6 +63,10 @@ class CentroidalMpcTargetTrajectoriesCalculator : public TargetTrajectoriesCalcu
                                                            scalar_t initTime,
                                                            const vector_t& initState) override;
 
+  TargetTrajectories commandedBasePoseToTargetTrajectories(const vector6_t& targetBasePose,
+                                                           scalar_t initTime,
+                                                           const vector_t& initState) override;
+
   /**
    * Converts desired velocities to TargetTrajectories.
    * @param [in] commandedVelocities : [v_x, v_y, v_yaw] defined in pelvis frame

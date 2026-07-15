@@ -30,6 +30,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #pragma once
 
+#include <atomic>
 #include <functional>
 #include <string>
 #include <vector>
@@ -38,6 +39,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <ocs2_mpc/SystemObservation.h>
 
 #include <humanoid_common_mpc/command/WalkingVelocityCommand.h>
+#include <humanoid_common_mpc/command/BasePoseCommand.h>
 #include <humanoid_common_mpc/gait/GaitSchedule.h>
 #include <humanoid_common_mpc/gait/ModeSequenceTemplate.h>
 
@@ -45,6 +47,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "humanoid_common_mpc/common/MpcRobotModelBase.h"
 #include "humanoid_common_mpc/command/TargetTrajectoriesCalculatorBase.h"
 #include "humanoid_common_mpc/target/WalkingVelocityTarget.h"
+#include "humanoid_common_mpc/target/BasePoseTarget.h"
 #include "humanoid_common_mpc/reference_manager/SwitchedModelReferenceManager.h"
 
 namespace ocs2::humanoid {
@@ -53,6 +56,10 @@ class ProceduralMpcMotionManager : public SolverSynchronizedModule {
  public:
   using VelocityTargetToTargetTrajectories =
       std::function<TargetTrajectories(const vector4_t& velocityTarget, scalar_t initTime, scalar_t finalTime, const vector_t& initState)>;
+  using BasePoseTargetToTargetTrajectories =
+      std::function<TargetTrajectories(const vector6_t& basePoseTarget, scalar_t initTime, scalar_t finalTime, const vector_t& initState)>;
+
+  enum class TargetMode { WalkingVelocity, BasePose };
 
   struct GaitModeStateConfig {
     std::string gaitCommand = "stance";
@@ -76,7 +83,8 @@ class ProceduralMpcMotionManager : public SolverSynchronizedModule {
                              const ReferenceConfig& referenceConfig,
                              std::shared_ptr<SwitchedModelReferenceManager> switchedModelReferenceManagerPtr,
                              const MpcRobotModelBase<scalar_t>& mpcRobotModel,
-                             VelocityTargetToTargetTrajectories velocityTargetToTargetTrajectories);
+                             VelocityTargetToTargetTrajectories velocityTargetToTargetTrajectories,
+                             BasePoseTargetToTargetTrajectories basePoseTargetToTargetTrajectories);
 
   ProceduralMpcMotionManager(const ProceduralMpcMotionManager& mpcMotionManager) = delete;
 
@@ -101,7 +109,11 @@ class ProceduralMpcMotionManager : public SolverSynchronizedModule {
   void postSolverRun(const PrimalSolution& primalSolution) override {};
 
   /// Store the latest bounded walking command; conditioning happens in preSolverRun. Thread-safe.
-  void setVelocityCommand(const WalkingVelocityCommand& command) { walkingVelocityTarget_.setCommand(command); }
+  void setVelocityCommand(const WalkingVelocityCommand& command);
+
+  void setBasePoseCommand(const BasePoseCommand& command);
+
+  TargetMode getTargetMode() const { return targetMode_.load(std::memory_order_acquire); }
 
   static bool transitionToFasterGait(const vector4_t& velCommandVec, const vector6_t& baseVelocity, const GaitModeStateConfig& cfg);
 
@@ -131,6 +143,8 @@ class ProceduralMpcMotionManager : public SolverSynchronizedModule {
   // Owns the command -> TargetTrajectories path (scale, filter, generate) for both the
   // reference update and the gait selection below.
   WalkingVelocityTarget walkingVelocityTarget_;
+  BasePoseTarget basePoseTarget_;
+  std::atomic<TargetMode> targetMode_{TargetMode::WalkingVelocity};
 
   std::string currentGaitCommand_{"stance"};
   std::string lastGaitCommand_{"stance"};

@@ -65,6 +65,8 @@ ocs2::humanoid::ReferenceConfig buildReferenceConfig(const Params& params)
   config.maxDeltaPelvisHeight = r.maxDeltaPelvisHeight;
   config.maxRotationVelocity = r.maxRotationVelocity;
   config.defaultBaseHeight = r.defaultBaseHeight;
+  config.basePosePositionTolerance = r.basePosePositionTolerance;
+  config.basePoseOrientationTolerance = r.basePoseOrientationTolerance;
   config.defaultJointState = toVector(r.defaultJointState);
   return config;
 }

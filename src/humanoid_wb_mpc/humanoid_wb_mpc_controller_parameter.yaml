@@ -12,6 +12,23 @@ humanoid_wb_mpc_controller:
       description: "CppAD code generation output folder"
     }
 
+  target:
+    walkingVelocityTopic: {
+      type: string,
+      default_value: "/humanoid/walking_velocity_command",
+      description: "Walking velocity command topic"
+    }
+    basePoseTopic: {
+      type: string,
+      default_value: "/humanoid/base_pose_command",
+      description: "Absolute floating-base geometry_msgs/PoseStamped command topic"
+    }
+    globalFrame: {
+      type: string,
+      default_value: "world",
+      description: "Global frame used by MPC base-pose targets"
+    }
+
   robot:
     jointNames: {
       type: string_array,
@@ -685,6 +702,22 @@ humanoid_wb_mpc_controller:
         type: double,
         default_value: 0.7925,
         description: "Default pelvis height above ground [m]"
+      }
+      basePosePositionTolerance: {
+        type: double,
+        default_value: 0.02,
+        description: "Planar position error below which a base pose target no longer requests walking [m]",
+        validation: {
+          gt_eq: [0.0]
+        }
+      }
+      basePoseOrientationTolerance: {
+        type: double,
+        default_value: 0.03,
+        description: "Yaw error below which a base pose target no longer requests rotation [rad]",
+        validation: {
+          gt_eq: [0.0]
+        }
       }
       defaultJointState: {
         type: double_array,
