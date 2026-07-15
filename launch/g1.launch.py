@@ -27,7 +27,7 @@ def generate_launch_description():
     mpc_controller_default = "humanoid_centroidal_mpc_controller" # humanoid_centroidal_mpc_controller | humanoid_wb_mpc_controller
 
     urdf_default = PathJoinSubstitution([mpc_share, "description", "g1", "urdf", "g1_29dof.urdf"])
-    controllers_default = PathJoinSubstitution([
+    controllers_file_default = PathJoinSubstitution([
         mpc_share, 
         "config", 
         "g1", 
@@ -57,7 +57,7 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument("mpcFreq", default_value="100", description="MPC update frequency (should be integer) (100 for centroidal, 50 for whole-body)"),
         DeclareLaunchArgument("mrtFreq", default_value="1000", description="MRT update frequency (should be integer)"),
-        DeclareLaunchArgument("controllersFile", default_value=controllers_default),
+        DeclareLaunchArgument("controllersFile", default_value=controllers_file_default),
         DeclareLaunchArgument(
             "mpcControllerName", 
             default_value=mpc_controller_default,
