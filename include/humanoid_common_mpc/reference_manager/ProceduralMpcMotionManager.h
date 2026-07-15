@@ -43,8 +43,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <ocs2_oc/synchronized_module/SolverSynchronizedModule.h>
 #include "humanoid_common_mpc/common/MpcRobotModelBase.h"
-#include "humanoid_common_mpc/reference_manager/BreakFrequencyAlphaFilter.h"
 #include "humanoid_common_mpc/command/TargetTrajectoriesCalculatorBase.h"
+#include "humanoid_common_mpc/target/WalkingVelocityTarget.h"
 #include "humanoid_common_mpc/reference_manager/SwitchedModelReferenceManager.h"
 
 namespace ocs2::humanoid {
@@ -100,7 +100,8 @@ class ProceduralMpcMotionManager : public SolverSynchronizedModule {
    */
   void postSolverRun(const PrimalSolution& primalSolution) override {};
 
-  virtual void setAndScaleVelocityCommand(const WalkingVelocityCommand& rawVelocityCommand);
+  /// Store the latest bounded walking command; conditioning happens in preSolverRun. Thread-safe.
+  void setVelocityCommand(const WalkingVelocityCommand& command) { walkingVelocityTarget_.setCommand(command); }
 
   static bool transitionToFasterGait(const vector4_t& velCommandVec, const vector6_t& baseVelocity, const GaitModeStateConfig& cfg);
 
@@ -120,28 +121,16 @@ class ProceduralMpcMotionManager : public SolverSynchronizedModule {
 
   size_t currentGaitMode_{0};
 
-  virtual WalkingVelocityCommand getScaledWalkingVelocityCommand() { return velocityCommand_; }
-
-  WalkingVelocityCommand scaleWalkingVelocityCommand(const WalkingVelocityCommand& rawVelocityCommand) const;
-
   std::shared_ptr<SwitchedModelReferenceManager> switchedModelReferenceManagerPtr_;
   std::shared_ptr<GaitSchedule> gaitSchedulePtr_;
   const MpcRobotModelBase<scalar_t>* mpcRobotModelPtr_;
 
-  const vector_t targetCommandLimits_;
-  VelocityTargetToTargetTrajectories velocityTargetToTargetTrajectoriesFun_;
-
   std::vector<std::string> gaitList_;
   std::map<std::string, ModeSequenceTemplate> gaitMap_;
 
-  // For velocity control mode
-  scalar_t maxDisplacementVelocityX_ = 0.6;
-  scalar_t maxDisplacementVelocityY_ = 0.3;
-  scalar_t maxDeltaPelvisHeight_ = 0.3;
-  scalar_t maxRotationVelocity_ = 0.6;
-
-  BreakFrequencyAlphaFilter velocityCommandFilter;
-  WalkingVelocityCommand velocityCommand_;
+  // Owns the command -> TargetTrajectories path (scale, filter, generate) for both the
+  // reference update and the gait selection below.
+  WalkingVelocityTarget walkingVelocityTarget_;
 
   std::string currentGaitCommand_{"stance"};
   std::string lastGaitCommand_{"stance"};

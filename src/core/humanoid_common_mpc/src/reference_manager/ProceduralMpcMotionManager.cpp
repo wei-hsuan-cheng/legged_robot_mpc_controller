@@ -45,37 +45,11 @@ ProceduralMpcMotionManager::ProceduralMpcMotionManager(GaitMap gaitMap,
                                                        std::shared_ptr<SwitchedModelReferenceManager> switchedModelReferenceManagerPtr,
                                                        const MpcRobotModelBase<scalar_t>& mpcRobotModel,
                                                        VelocityTargetToTargetTrajectories velocityTargetToTargetTrajectories)
-    : velocityTargetToTargetTrajectoriesFun_(std::move(velocityTargetToTargetTrajectories)),
-      switchedModelReferenceManagerPtr_(switchedModelReferenceManagerPtr),
+    : switchedModelReferenceManagerPtr_(switchedModelReferenceManagerPtr),
       gaitSchedulePtr_(switchedModelReferenceManagerPtr_->getGaitSchedule()),
       mpcRobotModelPtr_(&mpcRobotModel),
-      velocityCommandFilter(5, vector4_t::Zero()) {
-  maxDisplacementVelocityX_ = referenceConfig.maxDisplacementVelocityX;
-  maxDisplacementVelocityY_ = referenceConfig.maxDisplacementVelocityY;
-  maxDeltaPelvisHeight_ = referenceConfig.maxDeltaPelvisHeight;
-  maxRotationVelocity_ = referenceConfig.maxRotationVelocity;
-
+      walkingVelocityTarget_(referenceConfig, std::move(velocityTargetToTargetTrajectories)) {
   gaitMap_ = std::move(gaitMap);
-}
-
-/******************************************************************************************************/
-/******************************************************************************************************/
-/******************************************************************************************************/
-
-void ProceduralMpcMotionManager::setAndScaleVelocityCommand(const WalkingVelocityCommand& rawVelocityCommand) {
-  velocityCommand_ = scaleWalkingVelocityCommand(rawVelocityCommand);
-}
-
-/******************************************************************************************************/
-/******************************************************************************************************/
-/******************************************************************************************************/
-
-WalkingVelocityCommand ProceduralMpcMotionManager::scaleWalkingVelocityCommand(const WalkingVelocityCommand& rawVelocityCommand) const {
-  WalkingVelocityCommand scaledCommand = rawVelocityCommand;
-  scaledCommand.linear_velocity_x *= maxDisplacementVelocityX_;
-  scaledCommand.linear_velocity_y *= maxDisplacementVelocityY_;
-  scaledCommand.angular_velocity_z *= maxRotationVelocity_;
-  return scaledCommand;
 }
 
 /******************************************************************************************************/
@@ -119,12 +93,12 @@ void ProceduralMpcMotionManager::preSolverRun(scalar_t initTime,
                                               scalar_t finalTime,
                                               const vector_t& initState,
                                               const ReferenceManagerInterface& referenceManager) {
-  WalkingVelocityCommand incommingVelCommand = getScaledWalkingVelocityCommand();
-  vector4_t filteredVelCommand = velocityCommandFilter.getFilteredVector(incommingVelCommand.toVector());
+  // Condition the command once (scale + filter) and build the reference trajectory.
+  WalkingVelocityTarget::Output target = walkingVelocityTarget_.evaluate(initTime, finalTime, initState);
+  switchedModelReferenceManagerPtr_->setTargetTrajectories(target.targetTrajectories);
 
-  // Update TargetTrajectories
-  TargetTrajectories targetTrajectories = velocityTargetToTargetTrajectoriesFun_(filteredVelCommand, initTime, finalTime, initState);
-  switchedModelReferenceManagerPtr_->setTargetTrajectories(targetTrajectories);
+  // The gait selector consumes the same conditioned command used for the reference.
+  const vector4_t& filteredVelCommand = target.conditionedCommand;
 
   static GaitModeStateConfig currentCfg = gaitModeStates_[currentGaitMode_];
   vector6_t baseVelocity = mpcRobotModelPtr_->getBaseComVelocity(initState);
