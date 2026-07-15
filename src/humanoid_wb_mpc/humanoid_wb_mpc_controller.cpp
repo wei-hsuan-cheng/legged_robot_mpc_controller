@@ -183,13 +183,15 @@ controller_interface::CallbackReturn HumanoidWbMpcController::on_configure(
       mpc_interface_->getSwitchedModelReferenceManagerPtr(),
       mpc_interface_->getMpcRobotModel(),
       std::move(velocity_target_to_target_trajectories),
-      std::move(base_pose_target_to_target_trajectories));
+      std::move(base_pose_target_to_target_trajectories),
+      parameters_.target.defaultMode);
     motion_manager_ = std::move(motion_manager);
     rclcpp::QoS command_qos(1);
     command_qos.best_effort();
     motion_manager_->subscribe(
       get_node(), command_qos, parameters_.target.walkingVelocityTopic,
-      parameters_.target.basePoseTopic, parameters_.target.globalFrame);
+      parameters_.target.basePoseTopic, parameters_.target.modeTopic,
+      parameters_.target.globalFrame);
   } catch (const std::exception& e) {
     RCLCPP_ERROR(
       get_node()->get_logger(), "[HumanoidWbMpcController] Failed to build WBMpcInterface: %s",

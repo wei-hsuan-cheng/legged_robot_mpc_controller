@@ -49,6 +49,20 @@ ocs2::humanoid::BasePoseCommand basePoseCommandFromMessage(
   return command;
 }
 
+ocs2::humanoid::ProceduralMpcMotionManager::TargetMode targetModeFromString(
+  const std::string& mode)
+{
+  using TargetMode = ocs2::humanoid::ProceduralMpcMotionManager::TargetMode;
+  if (mode == "base_twist") {
+    return TargetMode::BaseTwist;
+  }
+  if (mode == "base_pose") {
+    return TargetMode::BasePose;
+  }
+  throw std::invalid_argument(
+    "target mode must be 'base_twist' or 'base_pose', got '" + mode + "'");
+}
+
 }  // namespace
 
 Ros2ProceduralMpcMotionManager::Ros2ProceduralMpcMotionManager(
@@ -57,7 +71,8 @@ Ros2ProceduralMpcMotionManager::Ros2ProceduralMpcMotionManager(
   std::shared_ptr<ocs2::humanoid::SwitchedModelReferenceManager> reference_manager,
   const ocs2::humanoid::MpcRobotModelBase<ocs2::scalar_t>& mpc_robot_model,
   VelocityTargetToTargetTrajectories velocity_target_to_target_trajectories,
-  BasePoseTargetToTargetTrajectories base_pose_target_to_target_trajectories)
+  BasePoseTargetToTargetTrajectories base_pose_target_to_target_trajectories,
+  const std::string& default_target_mode)
 : ProceduralMpcMotionManager(
     std::move(gait_map),
     reference_config,
@@ -66,9 +81,10 @@ Ros2ProceduralMpcMotionManager::Ros2ProceduralMpcMotionManager(
     std::move(velocity_target_to_target_trajectories),
     std::move(base_pose_target_to_target_trajectories))
 {
-  // Hold the configured standing height until a command arrives.
+  // Initialize the stored twist target independently of the selected mode.
   setVelocityCommand(
     ocs2::humanoid::WalkingVelocityCommand(0.0, 0.0, reference_config.defaultBaseHeight, 0.0));
+  setTargetMode(targetModeFromString(default_target_mode));
 }
 
 void Ros2ProceduralMpcMotionManager::subscribe(
@@ -76,6 +92,7 @@ void Ros2ProceduralMpcMotionManager::subscribe(
   const rclcpp::QoS& qos,
   const std::string& walking_velocity_topic,
   const std::string& base_pose_topic,
+  const std::string& target_mode_topic,
   const std::string& global_frame)
 {
   tf_buffer_ = std::make_unique<tf2_ros::Buffer>(node->get_clock());
@@ -104,6 +121,18 @@ void Ros2ProceduralMpcMotionManager::subscribe(
       } catch (const std::exception& error) {
         RCLCPP_WARN(
           node->get_logger(), "Rejected base pose command: %s", error.what());
+      }
+    });
+
+  target_mode_subscription_ = node->create_subscription<std_msgs::msg::String>(
+    target_mode_topic,
+    rclcpp::QoS(1).reliable(),
+    [this, node](const std_msgs::msg::String::SharedPtr message) {
+      try {
+        setTargetMode(targetModeFromString(message->data));
+        RCLCPP_INFO(node->get_logger(), "Humanoid MPC target mode: %s", message->data.c_str());
+      } catch (const std::exception& error) {
+        RCLCPP_WARN(node->get_logger(), "Rejected target mode: %s", error.what());
       }
     });
 }

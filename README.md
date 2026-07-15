@@ -54,6 +54,11 @@ ros2 launch legged_robot_mpc_controller g1.launch.py \
 
 Base twist command:
 ```bash
+# Select twist tracking
+ros2 topic pub --once /humanoid/target_mode \
+  std_msgs/msg/String "{data: base_pose}"
+
+# Publish twist command
 ros2 topic pub -r 50 /humanoid/walking_velocity_command \
   ocs2_msgs/msg/WalkingVelocityCommand \
   "{linear_velocity_x: 0.25, linear_velocity_y: 0.0,
@@ -63,7 +68,12 @@ ros2 topic pub -r 50 /humanoid/walking_velocity_command \
 Base pose command:
 
 ```bash
-ros2 topic pub -r 50 /humanoid/base_pose_command \
+# Select pose tracking
+ros2 topic pub --once /humanoid/target_mode \
+  std_msgs/msg/String "{data: base_pose}"
+
+# Publish pose command
+ros2 topic pub --once /humanoid/base_pose_command \
   geometry_msgs/msg/PoseStamped \
   "{header: {frame_id: world},
     pose: {
@@ -71,12 +81,6 @@ ros2 topic pub -r 50 /humanoid/base_pose_command \
       orientation: {x: 0.0, y: 0.0, z: 0.0, w: 1.0}
     }}"
 ```
-
-The pose command is transformed into `target.globalFrame` when its `frame_id` differs. An empty
-`frame_id` is interpreted as `target.globalFrame`. The quaternion is normalized and converted to
-the MPC base state `[x, y, z, yaw, pitch, roll]`, with angles unwrapped around the current state.
-The most recently received pose or velocity command selects the active target mode, so stop the
-velocity GUI or any continuous velocity publisher when using one-shot pose commands.
 
 Useful launch args:
 

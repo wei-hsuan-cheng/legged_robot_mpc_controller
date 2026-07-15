@@ -59,7 +59,7 @@ class ProceduralMpcMotionManager : public SolverSynchronizedModule {
   using BasePoseTargetToTargetTrajectories =
       std::function<TargetTrajectories(const vector6_t& basePoseTarget, scalar_t initTime, scalar_t finalTime, const vector_t& initState)>;
 
-  enum class TargetMode { WalkingVelocity, BasePose };
+  enum class TargetMode { BaseTwist, BasePose };
 
   struct GaitModeStateConfig {
     std::string gaitCommand = "stance";
@@ -113,6 +113,8 @@ class ProceduralMpcMotionManager : public SolverSynchronizedModule {
 
   void setBasePoseCommand(const BasePoseCommand& command);
 
+  void setTargetMode(TargetMode mode);
+
   TargetMode getTargetMode() const { return targetMode_.load(std::memory_order_acquire); }
 
   static bool transitionToFasterGait(const vector4_t& velCommandVec, const vector6_t& baseVelocity, const GaitModeStateConfig& cfg);
@@ -144,7 +146,7 @@ class ProceduralMpcMotionManager : public SolverSynchronizedModule {
   // reference update and the gait selection below.
   WalkingVelocityTarget walkingVelocityTarget_;
   BasePoseTarget basePoseTarget_;
-  std::atomic<TargetMode> targetMode_{TargetMode::WalkingVelocity};
+  std::atomic<TargetMode> targetMode_{TargetMode::BaseTwist};
 
   std::string currentGaitCommand_{"stance"};
   std::string lastGaitCommand_{"stance"};

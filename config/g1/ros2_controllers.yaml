@@ -22,6 +22,8 @@ humanoid_wb_mpc_controller:
     target:
       walkingVelocityTopic: /humanoid/walking_velocity_command
       basePoseTopic: /humanoid/base_pose_command
+      modeTopic: /humanoid/target_mode
+      defaultMode: base_twist
       globalFrame: world
 
     robot:
@@ -308,6 +310,8 @@ humanoid_centroidal_mpc_controller:
     target:
       walkingVelocityTopic: /humanoid/walking_velocity_command
       basePoseTopic: /humanoid/base_pose_command
+      modeTopic: /humanoid/target_mode
+      defaultMode: base_twist
       globalFrame: world
 
     robot:

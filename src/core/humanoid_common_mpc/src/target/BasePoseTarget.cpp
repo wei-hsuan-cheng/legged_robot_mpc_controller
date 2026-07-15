@@ -35,24 +35,28 @@ BasePoseTarget::BasePoseTarget(const ReferenceConfig& referenceConfig,
 void BasePoseTarget::setCommand(const BasePoseCommand& command) {
   std::lock_guard<std::mutex> lock(commandMutex_);
   command_ = command;
+  commandReceived_ = true;
 }
 
 BasePoseTarget::Output BasePoseTarget::evaluate(scalar_t initTime,
                                                 scalar_t finalTime,
                                                 const vector_t& initState) const {
   BasePoseCommand command;
+  bool commandReceived = false;
   {
     std::lock_guard<std::mutex> lock(commandMutex_);
     command = command_;
+    commandReceived = commandReceived_;
   }
 
   const vector6_t currentPose = mpcRobotModelPtr_->getBasePose(initState);
-  const vector3_t commandEulerZyx = quaternionToEulerZYX(command.orientation.normalized());
-
-  vector6_t targetPose;
-  targetPose.head<3>() = command.position;
-  for (Eigen::Index i = 0; i < 3; ++i) {
-    targetPose(3 + i) = unwrapAround(commandEulerZyx(i), currentPose(3 + i));
+  vector6_t targetPose = currentPose;
+  if (commandReceived) {
+    const vector3_t commandEulerZyx = quaternionToEulerZYX(command.orientation.normalized());
+    targetPose.head<3>() = command.position;
+    for (Eigen::Index i = 0; i < 3; ++i) {
+      targetPose(3 + i) = unwrapAround(commandEulerZyx(i), currentPose(3 + i));
+    }
   }
 
   const vector2_t worldPositionError = targetPose.head<2>() - currentPose.head<2>();

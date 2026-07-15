@@ -49,6 +49,7 @@ class BasePoseTarget {
 
   mutable std::mutex commandMutex_;
   BasePoseCommand command_;
+  bool commandReceived_{false};
 };
 
 }  // namespace ocs2::humanoid

@@ -60,7 +60,6 @@ ProceduralMpcMotionManager::ProceduralMpcMotionManager(GaitMap gaitMap,
 
 void ProceduralMpcMotionManager::setVelocityCommand(const WalkingVelocityCommand& command) {
   walkingVelocityTarget_.setCommand(command);
-  targetMode_.store(TargetMode::WalkingVelocity, std::memory_order_release);
 }
 
 /******************************************************************************************************/
@@ -69,7 +68,14 @@ void ProceduralMpcMotionManager::setVelocityCommand(const WalkingVelocityCommand
 
 void ProceduralMpcMotionManager::setBasePoseCommand(const BasePoseCommand& command) {
   basePoseTarget_.setCommand(command);
-  targetMode_.store(TargetMode::BasePose, std::memory_order_release);
+}
+
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+
+void ProceduralMpcMotionManager::setTargetMode(TargetMode mode) {
+  targetMode_.store(mode, std::memory_order_release);
 }
 
 /******************************************************************************************************/

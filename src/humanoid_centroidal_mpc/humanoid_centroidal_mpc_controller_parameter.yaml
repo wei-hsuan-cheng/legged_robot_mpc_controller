@@ -23,6 +23,19 @@ humanoid_centroidal_mpc_controller:
       default_value: "/humanoid/base_pose_command",
       description: "Absolute floating-base geometry_msgs/PoseStamped command topic"
     }
+    modeTopic: {
+      type: string,
+      default_value: "/humanoid/target_mode",
+      description: "Explicit target mode command topic; accepts base_twist or base_pose"
+    }
+    defaultMode: {
+      type: string,
+      default_value: "base_twist",
+      description: "Target mode selected when the controller starts",
+      validation: {
+        one_of<>: [["base_twist", "base_pose"]]
+      }
+    }
     globalFrame: {
       type: string,
       default_value: "world",
