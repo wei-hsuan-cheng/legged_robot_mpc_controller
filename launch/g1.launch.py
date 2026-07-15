@@ -27,12 +27,21 @@ def generate_launch_description():
     mpc_controller_default = "humanoid_centroidal_mpc_controller" # humanoid_centroidal_mpc_controller | humanoid_wb_mpc_controller
 
     urdf_default = PathJoinSubstitution([mpc_share, "description", "g1", "urdf", "g1_29dof.urdf"])
+    
     controllers_file_default = PathJoinSubstitution([
-        mpc_share, 
-        "config", 
-        "g1", 
+        mpc_share,
+        "config",
+        "g1",
         "ros2_controllers_legacy.yaml" # ros2_controllers.yaml | ros2_controllers_legacy.yaml
         ])
+    
+    gait_file_default = PathJoinSubstitution([
+        mpc_share,
+        "config",
+        "g1",
+        "gait.yaml"
+        ])
+    
     ros2_control_xacro = PathJoinSubstitution([mpc_share, "description", "g1", "urdf", "g1.ros2_control.xacro"])
 
     declared_arguments = [
@@ -58,6 +67,7 @@ def generate_launch_description():
         DeclareLaunchArgument("mpcFreq", default_value="100", description="MPC update frequency (should be integer) (100 for centroidal, 50 for whole-body)"),
         DeclareLaunchArgument("mrtFreq", default_value="1000", description="MRT update frequency (should be integer)"),
         DeclareLaunchArgument("controllersFile", default_value=controllers_file_default),
+        DeclareLaunchArgument("gaitFile", default_value=gait_file_default),
         DeclareLaunchArgument(
             "mpcControllerName", 
             default_value=mpc_controller_default,
