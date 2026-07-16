@@ -4,41 +4,105 @@ ROS 2 controller integration for legged robot MPC using [OCS2](https://github.co
 
 Migration status and remaining milestones are documented in [`docs/humanoid_migration.md`](./docs/humanoid_migration.md).
 
+
 ## Build and Install
 
-Make sure the workspace `src` contains this package, `ocs2_ros2`, and `mujoco_ros2_control`, then install dependencies:
+- Clone this repo
+  ```bash
+  git clone \
+    https://github.com/wei-hsuan-cheng/legged_robot_mpc_controller.git \
+    -b main
+  ```
 
-```bash
-cd <workspace_dir>
-rosdep update
-rosdep install --from-paths src --ignore-src -r -y
-```
+- Clone all sub-repo with vcs
+  ```bash
+  cd <workspace_dir>/src
+  mkdir mpc_controllers_dependencies
+  vcs import < mpc_controllers/mpc_controllers.repos
+  ```
 
-First download the `mujoco` pre-built library (details in [`mujoco_ros2_control`](https://github.com/wei-hsuan-cheng/mujoco_ros2_control.git)):
+- Install `pinocchio` library (**3.9.x required**; `packages.ros.org` only serves the newest
+  build, which is `4.0.0` now, so install `3.9.0` from the ROS snapshot archive and hold it)
+    ```bash
+    # Import the ROS snapshot archive key and add the 2026-03-29 humble snapshot
+    # (works on x86_64 and arm64; the arch is taken from dpkg)
+    curl -s "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xAD19BAB3CBF125EA" | \
+      sudo gpg --batch --yes --dearmor -o /usr/share/keyrings/ros-snapshots-archive-keyring.gpg
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-snapshots-archive-keyring.gpg] http://snapshots.ros.org/humble/2026-03-29/ubuntu jammy main" | \
+      sudo tee /etc/apt/sources.list.d/ros2-snapshots.list
+    sudo apt update
 
-```bash
-cd <your_path>
-# Check x86_64 or aarch64
-wget -O mujoco-3.3.7-linux-x86_64.tar.gz \
-  https://github.com/google-deepmind/mujoco/releases/download/3.3.7/mujoco-3.3.7-linux-x86_64.tar.gz && \
-tar -xzf mujoco-3.3.7-linux-x86_64.tar.gz
-export MUJOCO_DIR=<your_path>/mujoco-3.x.x # e.g. mujoco-3.3.7 (depends on your own version)
-```
+    # Install pinocchio 3.9.0 from the snapshot and pin it so a later apt upgrade
+    # does not pull 4.x. The exact build id differs per architecture
+    # (amd64: ...20260304.203533, arm64: ...20260307.163259), so resolve it from apt:
+    PINOCCHIO_VERSION=$(apt-cache madison ros-humble-pinocchio | awk '/snapshots.ros.org/ {print $3; exit}')
+    sudo apt install ros-humble-pinocchio=${PINOCCHIO_VERSION}
+    sudo apt-mark hold ros-humble-pinocchio
 
-Then build all pkgs up-to `legged_robot_mpc_controller`:
+    # Drop the snapshot source again afterwards
+    sudo rm /etc/apt/sources.list.d/ros2-snapshots.list && sudo apt update
 
-```bash
-cd <workspace_dir>
-export CMAKE_BUILD_PARALLEL_LEVEL=2 && \
-export MAKEFLAGS=-j2 && \
-export NINJAFLAGS=-j2 && \
-colcon build --symlink-install \
-  --packages-up-to legged_robot_mpc_controller \
-  --executor sequential --parallel-workers 2 \
-  --cmake-force-configure \
-  --cmake-args -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release && \
-  . install/setup.bash
-```
+    # Check the installed version and the hold:
+    # expect "Version: 3.9.0-..." and flag "hi" (h = held, i = installed)
+    dpkg -s ros-humble-pinocchio | grep Version
+    dpkg -l ros-humble-pinocchio | tail -1
+    ```
+
+- First install by `rosdep`
+  ```bash
+  # rosdep install
+  cd <workspace_dir>
+  sudo rosdep init # if you never did this
+  rosdep update
+  rosdep install --ignore-src --from-paths src -y -r
+  ```
+
+- Build and install `mujoco`-related pkgs. (See **troubleshooting section** [here](https://github.com/wei-hsuan-cheng/mujoco_ros2_control) if needed)
+
+  - **Prerequisites:** make sure you have the following software installed if you are running on the local machine:
+    - [ROS 2](https://docs.ros.org/en/humble/Installation.html)
+    - [Mujoco](https://mujoco.org/)
+      - Recommended to install the `mujoco-3.3.7` pre-built libraries [here](https://github.com/google-deepmind/mujoco/releases) (following the [doc](https://mujoco.readthedocs.io/en/latest/programming/#)).
+  
+  - Build [`mujoco_ros2_control`](https://github.com/wei-hsuan-cheng/mujoco_ros2_control) pkg
+    ```bash
+    # Configure environment variable for mujoco pre-built directory
+    cd <any_path>
+    # Check x86_64 or aarch64
+    wget -O mujoco-3.3.7-linux-x86_64.tar.gz \
+      https://github.com/google-deepmind/mujoco/releases/download/3.3.7/mujoco-3.3.7-linux-x86_64.tar.gz && \
+    tar -xzf mujoco-3.3.7-linux-x86_64.tar.gz
+    export MUJOCO_DIR=<any_path>/mujoco-3.3.7
+
+    # Build mujoco_ros2_control pkg
+    cd <workspace_dir>
+    NUM_JOBS=8 && \
+    export CMAKE_BUILD_PARALLEL_LEVEL=${NUM_JOBS} && \
+    export MAKEFLAGS=-j${NUM_JOBS} && \
+    export NINJAFLAGS=-j${NUM_JOBS} && \
+    colcon build --symlink-install \
+      --packages-up-to mujoco_ros2_control mujoco_ros2_control_demos \
+      --executor sequential --parallel-workers ${NUM_JOBS} \
+      --cmake-force-configure \
+      --cmake-args -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release && \
+      . install/setup.bash
+    ```
+
+- Build pkgs up-to `legged_robot_mpc_controller`
+  ```bash
+  cd <workspace_dir>
+  NUM_JOBS=2 && \
+  export CMAKE_BUILD_PARALLEL_LEVEL=${NUM_JOBS} && \
+  export MAKEFLAGS=-j${NUM_JOBS} && \
+  export NINJAFLAGS=-j${NUM_JOBS} && \
+  colcon build --symlink-install \
+    --packages-up-to legged_robot_mpc_controller \
+    --executor sequential --parallel-workers ${NUM_JOBS} \
+    --cmake-force-configure \
+    --cmake-args -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release && \
+    . install/setup.bash
+  ```
+
 
 ## Run MuJoCo Example
 
