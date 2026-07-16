@@ -17,8 +17,8 @@ Migration status and remaining milestones are documented in [`docs/humanoid_migr
 - Clone all sub-repo with vcs
   ```bash
   cd <workspace_dir>/src
-  mkdir mpc_controllers_dependencies
-  vcs import < mpc_controllers/mpc_controllers.repos
+  mkdir legged_robot_mpc_controller_dependencies
+  vcs import < legged_robot_mpc_controller/legged_robot_mpc_controller.repos
   ```
 
 - Install `pinocchio` library (**3.9.x required**; `packages.ros.org` only serves the newest

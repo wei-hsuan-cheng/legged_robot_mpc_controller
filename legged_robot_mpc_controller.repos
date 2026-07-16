@@ -1,0 +1,26 @@
+repositories:
+    # mujoco simulator
+    legged_robot_mpc_controller_dependencies/mujoco_ros2_control:
+      type: git
+      url: https://github.com/wei-hsuan-cheng/mujoco_ros2_control.git
+      version: main
+    
+    # ros2_controller parameter auto generator
+    legged_robot_mpc_controller_dependencies/generate_parameter_library:
+      type: git
+      url: https://github.com/wei-hsuan-cheng/generate_parameter_library.git
+      version: humble
+
+    # ocs2 stack
+    legged_robot_mpc_controller_dependencies/ocs2_ros2:
+      type: git
+      url: https://github.com/wei-hsuan-cheng/ocs2_ros2.git
+      version: humble_frame_relation
+    legged_robot_mpc_controller_dependencies/ocs2_ros2/submodules/ocs2_robotic_assets:
+      type: git
+      url: https://github.com/wei-hsuan-cheng/ocs2_robotic_assets.git
+      version: ros2_x86
+    legged_robot_mpc_controller_dependencies/ocs2_ros2/submodules/plane_segmentation_ros2:
+      type: git
+      url: https://github.com/wei-hsuan-cheng/plane_segmentation_ros2.git
+      version: main
