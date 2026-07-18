@@ -192,6 +192,11 @@ controller_interface::CallbackReturn HumanoidWbMpcController::on_configure(
       get_node(), command_qos, parameters_.target.walkingVelocityTopic,
       parameters_.target.basePoseTopic, parameters_.target.modeTopic,
       parameters_.target.globalFrame);
+    motion_manager_->subscribeMpcTargets(
+      get_node(), parameters_.target.mpcTargetsTopic,
+      common::selectAtIndices(
+        parameters_.robot.jointNames,
+        common::findArmJointIndices(parameters_.robot.jointNames)));
   } catch (const std::exception& e) {
     RCLCPP_ERROR(
       get_node()->get_logger(), "[HumanoidWbMpcController] Failed to build WBMpcInterface: %s",

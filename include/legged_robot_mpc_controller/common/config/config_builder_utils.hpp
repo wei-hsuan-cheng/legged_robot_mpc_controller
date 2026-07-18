@@ -49,6 +49,45 @@ inline void checkJointArraySize(
   }
 }
 
+/// Indices (within the joint block) of the arm joints, identified by name. Wrist
+/// joints are fixed and never appear in the MPC joint list, so matching
+/// "shoulder"/"elbow" selects exactly the actuated arm joints.
+inline std::vector<size_t> findArmJointIndices(const std::vector<std::string>& jointNames)
+{
+  std::vector<size_t> indices;
+  for (size_t i = 0; i < jointNames.size(); ++i) {
+    if (jointNames[i].find("shoulder") != std::string::npos ||
+        jointNames[i].find("elbow") != std::string::npos) {
+      indices.push_back(i);
+    }
+  }
+  return indices;
+}
+
+/// Copy of the per-joint values with the given indices zeroed (moves those joints
+/// out of the generic joint cost so the dedicated arm term owns them).
+inline std::vector<double> zeroAtIndices(
+  std::vector<double> values, const std::vector<size_t>& indices)
+{
+  for (size_t idx : indices) {
+    values.at(idx) = 0.0;
+  }
+  return values;
+}
+
+/// The per-joint values at the given indices, in index order.
+template <typename T>
+inline std::vector<T> selectAtIndices(
+  const std::vector<T>& values, const std::vector<size_t>& indices)
+{
+  std::vector<T> out;
+  out.reserve(indices.size());
+  for (size_t idx : indices) {
+    out.push_back(values.at(idx));
+  }
+  return out;
+}
+
 /// Builds the reference / command generation configuration from the generated ROS 2
 /// parameters. Templated because every controller has its own generated Params type
 /// with an identical ocs2.reference section.

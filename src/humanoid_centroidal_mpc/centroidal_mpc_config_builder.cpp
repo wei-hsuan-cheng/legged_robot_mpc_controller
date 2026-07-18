@@ -16,7 +16,10 @@ namespace
 
 using common::assembleDiagonalMatrix;
 using common::checkJointArraySize;
+using common::findArmJointIndices;
+using common::selectAtIndices;
 using common::toVector;
+using common::zeroAtIndices;
 using ocs2::scalar_t;
 using ocs2::vector2_t;
 using ocs2::vector3_t;
@@ -143,16 +146,27 @@ ocs2::humanoid::CentroidalMpcInterface::Config buildCentroidalMpcConfig(
   checkJointArraySize(p.costs.qFinal.jointPositions, numJoints, "costs.qFinal.jointPositions");
   checkJointArraySize(p.costs.r.jointVelocities, numJoints, "costs.r.jointVelocities");
 
+  // Arm joints (shoulder/elbow) are tracked by the dedicated JointTrackingCost, so
+  // move their weights out of the generic joint-position blocks (behavior-preserving).
+  const std::vector<size_t> armJointIndices = findArmJointIndices(params.robot.jointNames);
+  const std::vector<double> qJointsGeneric = zeroAtIndices(p.costs.q.jointPositions, armJointIndices);
+  const std::vector<double> qFinalJointsGeneric = zeroAtIndices(p.costs.qFinal.jointPositions, armJointIndices);
+
   auto& costs = config.costConstraintConfig;
   costs.Q = assembleDiagonalMatrix(
-    {p.costs.q.centroidalMomentum, std::vector<double>(6, 0.0), p.costs.q.jointPositions}, p.costs.qScaling);
+    {p.costs.q.centroidalMomentum, std::vector<double>(6, 0.0), qJointsGeneric}, p.costs.qScaling);
   costs.QFinal = assembleDiagonalMatrix(
-    {p.costs.qFinal.centroidalMomentum, std::vector<double>(6, 0.0), p.costs.qFinal.jointPositions},
+    {p.costs.qFinal.centroidalMomentum, std::vector<double>(6, 0.0), qFinalJointsGeneric},
     p.costs.qScaling);
   costs.baseMotionQ = assembleDiagonalMatrix(
     {p.costs.q.basePose, std::vector<double>(6, 0.0)}, p.costs.qScaling);
   costs.baseMotionQFinal = assembleDiagonalMatrix(
     {p.costs.qFinal.basePose, std::vector<double>(6, 0.0)}, p.costs.qScaling);
+  costs.armJointIndices = armJointIndices;
+  costs.armJointQ = assembleDiagonalMatrix(
+    {selectAtIndices(p.costs.q.jointPositions, armJointIndices)}, p.costs.qScaling);
+  costs.armJointQFinal = assembleDiagonalMatrix(
+    {selectAtIndices(p.costs.qFinal.jointPositions, armJointIndices)}, p.costs.qScaling);
   costs.terminalCostScaling = p.costs.terminalCostScaling;
   costs.R = assembleDiagonalMatrix({p.costs.r.contactWrenches, p.costs.r.jointVelocities}, p.costs.rScaling);
 

@@ -30,6 +30,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #pragma once
 
+#include <ocs2_core/thread_support/BufferedValue.h>
 #include <ocs2_core/thread_support/Synchronized.h>
 #include <ocs2_oc/synchronized_module/ReferenceManager.h>
 #include <ocs2_pinocchio_interface/PinocchioInterface.h>
@@ -67,6 +68,19 @@ class SwitchedModelReferenceManager : public ReferenceManager {
 
   void setArmSwingReferenceActive(bool armSwingReferenceActive) { armSwingReferenceActive_ = armSwingReferenceActive; }
 
+  /**
+   * External joint-target channel (command_type "joint", mirroring the
+   * mpc_controllers reference-manager targets). When a non-empty trajectory is
+   * buffered, JointTrackingCost tracks it instead of the internal arm-swing
+   * reference; an empty trajectory reverts to the internal reference. States are
+   * sized and ordered like the tracked-joint subset. Buffered: setters are
+   * thread-safe, consumers read the value swapped in before the solver run.
+   * A frame-relation target channel can be added alongside later.
+   */
+  void setExternalJointTargets(TargetTrajectories jointTargets) { externalJointTargets_.setBuffer(std::move(jointTargets)); }
+  const TargetTrajectories& getExternalJointTargets() const { return externalJointTargets_.get(); }
+  bool hasExternalJointTargets() const { return !externalJointTargets_.get().empty(); }
+
   const std::shared_ptr<GaitSchedule>& getGaitSchedule() const { return gaitSchedulePtr_; }
 
   const std::shared_ptr<SwingTrajectoryPlanner>& getSwingTrajectoryPlanner() const { return swingTrajectoryPtr_; }
@@ -92,6 +106,8 @@ class SwitchedModelReferenceManager : public ReferenceManager {
   ModeSchedule modeSchedule_;
 
   bool armSwingReferenceActive_{false};
+
+  BufferedValue<TargetTrajectories> externalJointTargets_{TargetTrajectories()};
 
   std::shared_ptr<GaitSchedule> gaitSchedulePtr_;
   std::shared_ptr<SwingTrajectoryPlanner> swingTrajectoryPtr_;

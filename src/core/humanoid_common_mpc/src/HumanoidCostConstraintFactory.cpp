@@ -43,6 +43,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <humanoid_common_mpc/contact/ContactRectangle.h>
 #include <humanoid_common_mpc/cost/StateInputQuadraticCost.h>
 #include <humanoid_common_mpc/cost/BaseMotionTrackingCost.h>
+#include <humanoid_common_mpc/cost/JointTrackingCost.h>
 #include <humanoid_common_mpc/pinocchio_model/pinocchioUtils.h>
 #include "humanoid_common_mpc/constraint/ContactMomentXYConstraintCppAd.h"
 #include "humanoid_common_mpc/constraint/FootCollisionConstraint.h"
@@ -108,6 +109,30 @@ std::unique_ptr<StateCost> HumanoidCostConstraintFactory::getBaseMotionTrackingT
   return std::make_unique<BaseMotionTrackingCost>(
     config_.baseMotionQFinal * config_.terminalCostScaling,
     *referenceManagerPtr_, *mpcRobotModelPtr_);
+}
+
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+
+std::unique_ptr<StateCost> HumanoidCostConstraintFactory::getJointTrackingCost() const
+{
+  // Running term: tracks the arm-swing reference (matches the running StateInputQuadraticCost).
+  return std::make_unique<JointTrackingCost>(
+    config_.armJointQ, config_.armJointIndices, *referenceManagerPtr_, *mpcRobotModelPtr_,
+    /*apply_arm_swing_reference=*/true);
+}
+
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+
+std::unique_ptr<StateCost> HumanoidCostConstraintFactory::getJointTrackingTerminalCost() const
+{
+  // Terminal term: tracks the raw posture reference (matches the terminal QuadraticStateCost).
+  return std::make_unique<JointTrackingCost>(
+    config_.armJointQFinal * config_.terminalCostScaling, config_.armJointIndices,
+    *referenceManagerPtr_, *mpcRobotModelPtr_, /*apply_arm_swing_reference=*/false);
 }
 
 /******************************************************************************************************/

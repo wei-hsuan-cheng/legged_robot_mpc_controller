@@ -63,6 +63,10 @@ class HumanoidCostConstraintFactory {
     matrix_t QFinal;  // (stateDim x stateDim) terminal state cost matrix (unscaled)
     matrix_t baseMotionQ;       // (12 x 12) base pose/motion tracking cost matrix
     matrix_t baseMotionQFinal;  // (12 x 12) terminal base pose/motion tracking cost matrix
+    // Arm joint-tracking term (subset of the joint block, addressed by joint-block index).
+    std::vector<size_t> armJointIndices;
+    matrix_t armJointQ;       // (nArm x nArm) running arm joint-position tracking cost matrix
+    matrix_t armJointQFinal;  // (nArm x nArm) terminal arm joint-position tracking cost matrix
     scalar_t terminalCostScaling{1.0};
 
     FootCollisionConstraint::Config footCollisionConfig;
@@ -95,6 +99,10 @@ class HumanoidCostConstraintFactory {
   std::unique_ptr<StateCost> getBaseMotionTrackingCost() const;
 
   std::unique_ptr<StateCost> getBaseMotionTrackingTerminalCost() const;
+
+  std::unique_ptr<StateCost> getJointTrackingCost() const;
+
+  std::unique_ptr<StateCost> getJointTrackingTerminalCost() const;
 
   std::unique_ptr<StateCost> getTerminalCost() const;
 

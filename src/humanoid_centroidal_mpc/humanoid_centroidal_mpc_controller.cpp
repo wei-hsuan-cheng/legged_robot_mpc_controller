@@ -171,6 +171,11 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_configu
       get_node(), command_qos, parameters_.target.walkingVelocityTopic,
       parameters_.target.basePoseTopic, parameters_.target.modeTopic,
       parameters_.target.globalFrame);
+    motion_manager_->subscribeMpcTargets(
+      get_node(), parameters_.target.mpcTargetsTopic,
+      common::selectAtIndices(
+        parameters_.robot.jointNames,
+        common::findArmJointIndices(parameters_.robot.jointNames)));
 
     performance_visualization_ = std::make_unique<visualization::PerformanceVisualization>(
       get_node(),

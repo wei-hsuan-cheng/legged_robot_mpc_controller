@@ -41,6 +41,11 @@ humanoid_centroidal_mpc_controller:
       default_value: "world",
       description: "Global frame used by MPC base-pose targets"
     }
+    mpcTargetsTopic: {
+      type: string,
+      default_value: "/humanoid/mpc_targets",
+      description: "ocs2_msgs/MpcTargets command topic (command_type dispatch: joint arm targets; frame_relation is a future extension)"
+    }
 
   robot:
     jointNames: {

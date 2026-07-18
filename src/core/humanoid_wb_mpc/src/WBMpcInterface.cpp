@@ -128,10 +128,13 @@ void WBMpcInterface::setupOptimalControlProblem() {
   // Cost terms
   problemPtr_->costPtr->add("stateInputQuadraticCost", factory.getStateInputQuadraticCost());
   problemPtr_->stateCostPtr->add("baseMotionTrackingCost", factory.getBaseMotionTrackingCost());
+  problemPtr_->stateCostPtr->add("jointTrackingCost", factory.getJointTrackingCost());
   // problemPtr_->costPtr->add("jointTorqueCost", getJointTorqueCost());
   problemPtr_->finalCostPtr->add("terminalCost", factory.getTerminalCost());
   problemPtr_->finalCostPtr->add(
       "baseMotionTrackingTerminalCost", factory.getBaseMotionTrackingTerminalCost());
+  problemPtr_->finalCostPtr->add(
+      "jointTrackingTerminalCost", factory.getJointTrackingTerminalCost());
 
   // Constraints
   problemPtr_->stateSoftConstraintPtr->add("jointLimits", factory.getJointLimitsConstraint());

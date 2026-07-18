@@ -3,8 +3,10 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
 #include <geometry_msgs/msg/pose_stamped.hpp>
+#include <ocs2_msgs/msg/mpc_targets.hpp>
 #include <ocs2_msgs/msg/walking_velocity_command.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_lifecycle/lifecycle_node.hpp>
@@ -40,10 +42,20 @@ public:
     const std::string& target_mode_topic,
     const std::string& global_frame);
 
+  /// Subscribes to the MpcTargets command topic (command_type dispatch: "joint"
+  /// arm targets now, frame_relation as a future extension). Kept separate from
+  /// subscribe() so controllers opt in with the tracked-joint ordering.
+  void subscribeMpcTargets(
+    const rclcpp_lifecycle::LifecycleNode::SharedPtr& node,
+    const std::string& mpc_targets_topic,
+    std::vector<std::string> tracked_arm_joint_names);
+
 private:
   rclcpp::Subscription<ocs2_msgs::msg::WalkingVelocityCommand>::SharedPtr velocity_command_subscription_;
   rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr base_pose_command_subscription_;
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr target_mode_subscription_;
+  rclcpp::Subscription<ocs2_msgs::msg::MpcTargets>::SharedPtr mpc_targets_subscription_;
+  std::vector<std::string> tracked_arm_joint_names_;
   std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
 };

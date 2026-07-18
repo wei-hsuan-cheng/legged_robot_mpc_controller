@@ -146,9 +146,12 @@ void CentroidalMpcInterface::setupOptimalControlProblem() {
   // Cost terms
   problemPtr_->costPtr->add("stateInputQuadraticCost", factory.getStateInputQuadraticCost());
   problemPtr_->stateCostPtr->add("baseMotionTrackingCost", factory.getBaseMotionTrackingCost());
+  problemPtr_->stateCostPtr->add("jointTrackingCost", factory.getJointTrackingCost());
   problemPtr_->finalCostPtr->add("terminalCost", factory.getTerminalCost());
   problemPtr_->finalCostPtr->add(
       "baseMotionTrackingTerminalCost", factory.getBaseMotionTrackingTerminalCost());
+  problemPtr_->finalCostPtr->add(
+      "jointTrackingTerminalCost", factory.getJointTrackingTerminalCost());
 
   std::unique_ptr<EndEffectorKinematics<scalar_t>> eeKinematicsPtr;
 

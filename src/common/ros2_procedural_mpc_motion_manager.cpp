@@ -1,5 +1,7 @@
 #include "legged_robot_mpc_controller/common/ros2_procedural_mpc_motion_manager.hpp"
 
+#include "legged_robot_mpc_controller/common/target/mpc_targets_parser.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
@@ -133,6 +135,28 @@ void Ros2ProceduralMpcMotionManager::subscribe(
         RCLCPP_INFO(node->get_logger(), "Humanoid MPC target mode: %s", message->data.c_str());
       } catch (const std::exception& error) {
         RCLCPP_WARN(node->get_logger(), "Rejected target mode: %s", error.what());
+      }
+    });
+}
+
+void Ros2ProceduralMpcMotionManager::subscribeMpcTargets(
+  const rclcpp_lifecycle::LifecycleNode::SharedPtr& node,
+  const std::string& mpc_targets_topic,
+  std::vector<std::string> tracked_arm_joint_names)
+{
+  tracked_arm_joint_names_ = std::move(tracked_arm_joint_names);
+
+  mpc_targets_subscription_ = node->create_subscription<ocs2_msgs::msg::MpcTargets>(
+    mpc_targets_topic,
+    rclcpp::QoS(1).reliable(),
+    [this, node](const ocs2_msgs::msg::MpcTargets::SharedPtr message) {
+      try {
+        target::applyMpcTargets(
+          *message, tracked_arm_joint_names_, *switchedModelReferenceManagerPtr_);
+        RCLCPP_INFO(
+          node->get_logger(), "Humanoid MPC targets command: %s", message->command_type.c_str());
+      } catch (const std::exception& error) {
+        RCLCPP_WARN(node->get_logger(), "Rejected MPC targets command: %s", error.what());
       }
     });
 }
