@@ -43,12 +43,14 @@ public:
     const std::string& global_frame);
 
   /// Subscribes to the MpcTargets command topic (command_type dispatch: "joint"
-  /// arm targets now, frame_relation as a future extension). Kept separate from
-  /// subscribe() so controllers opt in with the tracked-joint ordering.
+  /// arm targets, "frame_relation" world-frame pose tracking of declared frames,
+  /// "joint_frame_relation", "default"). Kept separate from subscribe() so
+  /// controllers opt in with the tracked-joint ordering and declared frames.
   void subscribeMpcTargets(
     const rclcpp_lifecycle::LifecycleNode::SharedPtr& node,
     const std::string& mpc_targets_topic,
-    std::vector<std::string> tracked_arm_joint_names);
+    std::vector<std::string> tracked_arm_joint_names,
+    std::vector<std::string> declared_frame_relation_frames);
 
 private:
   rclcpp::Subscription<ocs2_msgs::msg::WalkingVelocityCommand>::SharedPtr velocity_command_subscription_;
@@ -56,6 +58,7 @@ private:
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr target_mode_subscription_;
   rclcpp::Subscription<ocs2_msgs::msg::MpcTargets>::SharedPtr mpc_targets_subscription_;
   std::vector<std::string> tracked_arm_joint_names_;
+  std::vector<std::string> declared_frame_relation_frames_;
   std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
 };

@@ -602,6 +602,24 @@ humanoid_centroidal_mpc_controller:
             validation:
               fixed_size<>: [12]
 
+      frameRelationTracking:
+        frameNames: {
+          type: string_array,
+          default_value: ["left_rubber_hand", "right_rubber_hand"],
+          description: "Frames available for external frame-relation tracking commands (CppAD models generated per frame at startup); empty disables the feature",
+          validation: {
+            unique<>: null
+          }
+        }
+        weights: {
+          type: double_array,
+          default_value: [100.0, 100.0, 100.0, 20.0, 20.0, 20.0, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
+          description: "Default frame-relation tracking weights [pos xyz, orientation xyz, lin vel xyz, ang vel xyz]; the command may override the pose part",
+          validation: {
+            fixed_size<>: [12]
+          }
+        }
+
       legTorqueCost:
         scaling: {
           type: double,

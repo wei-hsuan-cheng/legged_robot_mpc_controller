@@ -116,6 +116,9 @@ ros2 launch legged_robot_mpc_controller g1.launch.py \
   velocityCommandGui:=true
 ```
 
+
+### Base targets
+
 Base twist command:
 ```bash
 # Select twist tracking
@@ -145,6 +148,60 @@ ros2 topic pub --once /humanoid/base_pose_command \
       orientation: {x: 0.0, y: 0.0, z: 0.0, w: 1.0}
     }}"
 ```
+
+
+### Arm joint / frame-relation targets (`/humanoid/mpc_targets`)
+
+The arm reference is commanded through one `ocs2_msgs/MpcTargets` topic (`target.mpcTargetsTopic`, default `/humanoid/mpc_targets`), parsed internally by [`mpc_targets_parser`](./src/common/target/mpc_targets_parser.cpp). The `command_type` field **is** the mode switch — every message replaces the full external target state (channels the command does not name are cleared):
+
+| `command_type` | Meaning |
+|---|---|
+| `joint` | Track arm joint positions. One trajectory; states cover exactly the tracked arm joints (shoulder + elbow), ordered by `joint_names`. Overrides the built-in gait arm swing. |
+| `frame_relation` | Track declared robot frames to world-frame poses. One trajectory per `source_frames[i]`/`target_frames[i]` pair; states are `[position xyz, quaternion xyzw]`; `target_frames` must be a global frame (`world`). Optional `frame_relation_tracking_weights` (6 per pair: position xyz, orientation xyz) override the configured defaults. |
+| `joint_frame_relation` | Both at once: the joint trajectory first in `target_trajectories`, then one per frame pair. |
+| `default` | Clear all external targets and revert to the built-in posture + gait arm swing. |
+
+Commandable frames are declared in `costs.frameRelationTracking.frameNames` (default `left_rubber_hand`, `right_rubber_hand`; CppAD models are generated per frame on the first launch and cached in `auto_generated`). Malformed commands are rejected with a warning and leave the current targets untouched.
+
+Sample target publishers (mirroring `mpc_controllers/launch/command/mpc_targets`) live in [`launch/command/mpc_targets/`](./launch/command/mpc_targets/):
+
+```bash
+# Sine arm-joint swing (command_type: joint)
+ros2 run legged_robot_mpc_controller joint_tracking_target.py
+
+# Left hand tracks a small vertical circle in world frame (command_type: frame_relation)
+ros2 run legged_robot_mpc_controller frame_relation_tracking_target.py
+
+# Fixed arm posture + left-hand pose target together (command_type: joint_frame_relation)
+ros2 run legged_robot_mpc_controller joint_frame_relation_tracking_target.py
+
+# Switch back to the built-in arm-swing reference
+ros2 topic pub --once /humanoid/mpc_targets ocs2_msgs/msg/MpcTargets "{command_type: 'default'}"
+```
+
+Minimal one-shot CLI examples:
+
+```bash
+# Hold both arms at a raised posture (command_type: joint)
+ros2 topic pub --once /humanoid/mpc_targets ocs2_msgs/msg/MpcTargets "{
+  command_type: 'joint',
+  joint_names: [left_shoulder_pitch_joint, left_shoulder_roll_joint, left_shoulder_yaw_joint, left_elbow_joint,
+                right_shoulder_pitch_joint, right_shoulder_roll_joint, right_shoulder_yaw_joint, right_elbow_joint],
+  target_trajectories: [{time_trajectory: [0.0],
+                         state_trajectory: [{value: [0.3, 0.0, 0.0, 0.6, 0.3, 0.0, 0.0, 0.6]}],
+                         input_trajectory: [{value: []}]}]}"
+
+# Move the left hand to a world-frame pose (command_type: frame_relation)
+ros2 topic pub --once /humanoid/mpc_targets ocs2_msgs/msg/MpcTargets "{
+  command_type: 'frame_relation',
+  source_frames: [left_rubber_hand],
+  target_frames: [world],
+  target_trajectories: [{time_trajectory: [0.0],
+                         state_trajectory: [{value: [0.35, 0.15, 1.0, 0.0, 0.0, 0.0, 1.0]}],
+                         input_trajectory: [{value: []}]}]}"
+```
+
+Both channels are soft costs balanced against the rest of the MPC; raise the command weights to track tighter. `frame_relation` is currently registered for the centroidal controller only.
 
 Useful launch args:
 

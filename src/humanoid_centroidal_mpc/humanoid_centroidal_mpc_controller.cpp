@@ -175,7 +175,8 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_configu
       get_node(), parameters_.target.mpcTargetsTopic,
       common::selectAtIndices(
         parameters_.robot.jointNames,
-        common::findArmJointIndices(parameters_.robot.jointNames)));
+        common::findArmJointIndices(parameters_.robot.jointNames)),
+      parameters_.ocs2.costs.frameRelationTracking.frameNames);
 
     performance_visualization_ = std::make_unique<visualization::PerformanceVisualization>(
       get_node(),

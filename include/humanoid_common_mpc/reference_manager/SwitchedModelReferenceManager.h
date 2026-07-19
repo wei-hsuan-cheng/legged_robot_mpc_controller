@@ -81,6 +81,27 @@ class SwitchedModelReferenceManager : public ReferenceManager {
   const TargetTrajectories& getExternalJointTargets() const { return externalJointTargets_.get(); }
   bool hasExternalJointTargets() const { return !externalJointTargets_.get().empty(); }
 
+  /**
+   * External frame-relation target channel (command_type "frame_relation").
+   * Each entry tracks a robot source frame to a commanded world-frame pose
+   * trajectory (states are [position(3), quaternion x y z w]). weights holds an
+   * optional 6-vector [position xyz, orientation xyz] per entry; an empty vector
+   * keeps the configured default weights. Same buffering semantics as the joint
+   * channel.
+   */
+  struct FrameRelationTargets {
+    std::vector<std::string> sourceFrames;
+    std::vector<TargetTrajectories> targets;
+    std::vector<vector_t> weights;
+    bool empty() const { return sourceFrames.empty(); }
+  };
+
+  void setExternalFrameRelationTargets(FrameRelationTargets frameRelationTargets) {
+    externalFrameRelationTargets_.setBuffer(std::move(frameRelationTargets));
+  }
+  const FrameRelationTargets& getExternalFrameRelationTargets() const { return externalFrameRelationTargets_.get(); }
+  bool hasExternalFrameRelationTargets() const { return !externalFrameRelationTargets_.get().empty(); }
+
   const std::shared_ptr<GaitSchedule>& getGaitSchedule() const { return gaitSchedulePtr_; }
 
   const std::shared_ptr<SwingTrajectoryPlanner>& getSwingTrajectoryPlanner() const { return swingTrajectoryPtr_; }
@@ -108,6 +129,7 @@ class SwitchedModelReferenceManager : public ReferenceManager {
   bool armSwingReferenceActive_{false};
 
   BufferedValue<TargetTrajectories> externalJointTargets_{TargetTrajectories()};
+  BufferedValue<FrameRelationTargets> externalFrameRelationTargets_{FrameRelationTargets()};
 
   std::shared_ptr<GaitSchedule> gaitSchedulePtr_;
   std::shared_ptr<SwingTrajectoryPlanner> swingTrajectoryPtr_;

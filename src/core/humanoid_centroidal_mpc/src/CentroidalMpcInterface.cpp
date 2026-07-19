@@ -50,6 +50,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <humanoid_common_mpc/HumanoidPreComputation.h>
 #include <humanoid_common_mpc/constraint/EndEffectorKinematicsTwistConstraint.h>
 #include <humanoid_common_mpc/cost/EndEffectorKinematicsQuadraticCost.h>
+#include <humanoid_common_mpc/cost/FrameRelationTrackingCost.h>
 #include <humanoid_common_mpc/pinocchio_model/createPinocchioModel.h>
 
 #include "humanoid_centroidal_mpc/constraint/JointMimicKinematicConstraint.h"
@@ -292,6 +293,25 @@ void CentroidalMpcInterface::addTaskSpaceKinematicsCosts(
     problemPtr_->costPtr->add(costName + "_TaskSpaceKinematicsCost", std::move(cost));
 
     std::cout << "Initialized Task Space Kinematics Cost for link: " << linkName << std::endl;
+  }
+
+  // Externally commanded frame-relation tracking (command_type "frame_relation"):
+  // one cost per declared frame, inactive until a command names it.
+  for (const std::string& frameName : config_.frameRelationFrames) {
+    std::unique_ptr<EndEffectorKinematics<scalar_t>> eeKinematicsPtr;
+
+    eeKinematicsPtr.reset(new PinocchioEndEffectorKinematicsCppAd(*pinocchioInterfacePtr_, pinocchioMappingCppAd, {frameName},
+                                                                  centroidalModelInfo_.stateDim, centroidalModelInfo_.inputDim,
+                                                                  velocityUpdateCallback, frameName, modelSettings_.modelFolderCppAd,
+                                                                  modelSettings_.recompileLibrariesCppAd, modelSettings_.verboseCppAd));
+
+    std::unique_ptr<StateInputCost> cost = std::make_unique<FrameRelationTrackingCost>(
+        config_.frameRelationDefaultWeights, *pinocchioInterfacePtr_, *eeKinematicsPtr, *mpcRobotModelADPtr_, frameName,
+        modelSettings_, *referenceManagerPtr_);
+
+    problemPtr_->costPtr->add(frameName + "_FrameRelationTrackingCost", std::move(cost));
+
+    std::cout << "Initialized Frame Relation Tracking Cost for frame: " << frameName << std::endl;
   }
 }
 

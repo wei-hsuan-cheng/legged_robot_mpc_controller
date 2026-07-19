@@ -145,6 +145,7 @@ void SwitchedModelReferenceManager::modifyReferences(scalar_t initTime,
                                                      ModeSchedule& modeSchedule) {
   // Swap in the latest external targets on the solver thread before the costs read them.
   externalJointTargets_.updateFromBuffer();
+  externalFrameRelationTargets_.updateFromBuffer();
 
   const auto timeHorizon = finalTime - initTime;
   modeSchedule = gaitSchedulePtr_->getModeSchedule(initTime - timeHorizon, finalTime + timeHorizon);

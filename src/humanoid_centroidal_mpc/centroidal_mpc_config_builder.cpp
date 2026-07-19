@@ -226,6 +226,11 @@ ocs2::humanoid::CentroidalMpcInterface::Config buildCentroidalMpcConfig(
     config.taskSpaceCosts.push_back(std::move(taskSpaceCost));
   }
 
+  config.frameRelationFrames = p.costs.frameRelationTracking.frameNames;
+  config.frameRelationDefaultWeights = ocs2::humanoid::EndEffectorKinematicsWeights::fromVector(
+    Eigen::Map<const Eigen::Matrix<scalar_t, 12, 1>>(p.costs.frameRelationTracking.weights.data()),
+    config.verbose);
+
   return config;
 }
 

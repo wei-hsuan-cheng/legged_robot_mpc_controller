@@ -191,6 +191,9 @@ install(DIRECTORY launch/
 )
 install(PROGRAMS
   launch/base_velocity_controller_gui.py
+  launch/command/mpc_targets/joint_tracking_target.py
+  launch/command/mpc_targets/frame_relation_tracking_target.py
+  launch/command/mpc_targets/joint_frame_relation_tracking_target.py
   DESTINATION lib/${PROJECT_NAME}
 )
 install(DIRECTORY config/
