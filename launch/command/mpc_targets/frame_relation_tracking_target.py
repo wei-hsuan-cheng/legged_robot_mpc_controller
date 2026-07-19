@@ -31,20 +31,20 @@ DEFAULT_FRAME_PAIRS = [
         "source_frame": "pelvis",
         "target_frame": "left_rubber_hand",
         "center_position": [0.241, 0.152, 0.195],
-        "amplitude": [0.1, 0.0, 0.1],
+        "amplitude": [0.2, 0.0, 0.2],
         "phase": [1.5708, 0.0, 0.0],
         "quaternion": [0.0, 0.0, 0.0, 1.0],
-        "weights": [200.0, 200.0, 200.0, 20.0, 20.0, 20.0],
+        "weights": [100.0, 100.0, 100.0, 25.0, 25.0, 25.0],
     },
 
     {
         "source_frame": "pelvis",
         "target_frame": "right_rubber_hand",
         "center_position": [0.241, -0.152, 0.295],
-        "amplitude": [0.1, 0.0, 0.1],
+        "amplitude": [0.2, 0.0, 0.2],
         "phase": [0.0, 0.0, 1.5708],
         "quaternion": [0.0, 0.0, 0.0, 1.0],
-        "weights": [200.0, 200.0, 200.0, 20.0, 20.0, 20.0],
+        "weights": [100.0, 100.0, 100.0, 25.0, 25.0, 25.0],
     },
 
 ]
@@ -55,8 +55,8 @@ class FrameRelationTrackingTargetPublisher(Node):
         super().__init__("frame_relation_tracking_target_publisher")
 
         self.declare_parameter("topic", "/humanoid/mpc_targets")
-        self.declare_parameter("publish_rate", 20.0)
-        self.declare_parameter("sine_frequency", 0.15)
+        self.declare_parameter("publish_rate", 50.0)
+        self.declare_parameter("sine_frequency", 0.5)
 
         self.topic = self.get_parameter("topic").value
         self.publish_rate = max(1e-6, float(self.get_parameter("publish_rate").value))
