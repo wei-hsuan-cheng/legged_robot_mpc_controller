@@ -296,22 +296,20 @@ void CentroidalMpcInterface::addTaskSpaceKinematicsCosts(
   }
 
   // Externally commanded frame-relation tracking (command_type "frame_relation"):
-  // one cost per declared frame, inactive until a command names it.
-  for (const std::string& frameName : config_.frameRelationFrames) {
-    std::unique_ptr<EndEffectorKinematics<scalar_t>> eeKinematicsPtr;
-
-    eeKinematicsPtr.reset(new PinocchioEndEffectorKinematicsCppAd(*pinocchioInterfacePtr_, pinocchioMappingCppAd, {frameName},
-                                                                  centroidalModelInfo_.stateDim, centroidalModelInfo_.inputDim,
-                                                                  velocityUpdateCallback, frameName, modelSettings_.modelFolderCppAd,
-                                                                  modelSettings_.recompileLibrariesCppAd, modelSettings_.verboseCppAd));
+  // one cost per declared (source, target) pair, inactive until a command names it.
+  if (config_.frameRelationSourceFrames.size() != config_.frameRelationTargetFrames.size()) {
+    throw std::invalid_argument(
+        "[CentroidalMpcInterface] frameRelationTracking source/target frame lists must have equal size");
+  }
+  for (size_t i = 0; i < config_.frameRelationSourceFrames.size(); ++i) {
+    const std::string& sourceFrame = config_.frameRelationSourceFrames[i];
+    const std::string& targetFrame = config_.frameRelationTargetFrames[i];
 
     std::unique_ptr<StateInputCost> cost = std::make_unique<FrameRelationTrackingCost>(
-        config_.frameRelationDefaultWeights, *pinocchioInterfacePtr_, *eeKinematicsPtr, *mpcRobotModelADPtr_, frameName,
+        config_.frameRelationDefaultWeights, *pinocchioInterfacePtr_, *mpcRobotModelADPtr_, sourceFrame, targetFrame,
         modelSettings_, *referenceManagerPtr_);
 
-    problemPtr_->costPtr->add(frameName + "_FrameRelationTrackingCost", std::move(cost));
-
-    std::cout << "Initialized Frame Relation Tracking Cost for frame: " << frameName << std::endl;
+    problemPtr_->costPtr->add(sourceFrame + "_to_" + targetFrame + "_FrameRelationTrackingCost", std::move(cost));
   }
 }
 

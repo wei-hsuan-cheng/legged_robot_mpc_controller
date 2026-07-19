@@ -109,9 +109,12 @@ class CentroidalMpcInterface final : public RobotInterface {
     std::vector<TaskSpaceCostConfig> taskSpaceCosts;   // optional additional task-space tracking costs
     std::vector<MimicJointConfig> mimicJoints;         // optional, empty = mimic constraints disabled
 
-    // Frames available for external frame-relation tracking commands (CppAD models
-    // are generated per frame at startup); empty disables the feature.
-    std::vector<std::string> frameRelationFrames;
+    // Frame pairs available for external frame-relation tracking commands:
+    // sourceFrames[i] is the reference frame (robot frame or "world"),
+    // targetFrames[i] the tracked leaf. CppAD models are generated per pair at
+    // startup; empty disables the feature.
+    std::vector<std::string> frameRelationSourceFrames;
+    std::vector<std::string> frameRelationTargetFrames;
     EndEffectorKinematicsWeights frameRelationDefaultWeights;
   };
 

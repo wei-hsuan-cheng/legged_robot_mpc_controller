@@ -12,11 +12,6 @@ namespace
 
 using ocs2::humanoid::SwitchedModelReferenceManager;
 
-bool isGlobalFrameName(const std::string& frame)
-{
-  return frame == "world" || frame == "odom" || frame == "map" || frame == "global";
-}
-
 /// msg.joint_names -> tracked order: reorder[i] is the msg column of tracked joint i.
 std::vector<size_t> buildReorderMap(
   const std::vector<std::string>& message_joint_names,
@@ -67,9 +62,11 @@ ocs2::TargetTrajectories parseJointTargets(
 }
 
 /// Parses the frame-relation pairs; their trajectories start at trajectory_offset.
+/// Convention: source = reference frame the pose is expressed in, target = tracked leaf.
 SwitchedModelReferenceManager::FrameRelationTargets parseFrameRelationTargets(
   const ocs2_msgs::msg::MpcTargets& message,
-  const std::vector<std::string>& declared_frame_relation_frames,
+  const std::vector<std::string>& declared_source_frames,
+  const std::vector<std::string>& declared_target_frames,
   size_t trajectory_offset)
 {
   const size_t pair_count = message.source_frames.size();
@@ -97,16 +94,17 @@ SwitchedModelReferenceManager::FrameRelationTargets parseFrameRelationTargets(
     const std::string& source_frame = message.source_frames[i];
     const std::string& target_frame = message.target_frames[i];
 
-    if (!isGlobalFrameName(target_frame)) {
-      throw std::invalid_argument(
-        "[mpc_targets_parser] target frame '" + target_frame +
-        "' is not a global frame (robot-relative targets are a future extension)");
+    bool pair_declared = false;
+    for (size_t j = 0; j < declared_source_frames.size(); ++j) {
+      if (declared_source_frames[j] == source_frame && declared_target_frames[j] == target_frame) {
+        pair_declared = true;
+        break;
+      }
     }
-    if (std::find(declared_frame_relation_frames.begin(), declared_frame_relation_frames.end(),
-                  source_frame) == declared_frame_relation_frames.end()) {
+    if (!pair_declared) {
       throw std::invalid_argument(
-        "[mpc_targets_parser] source frame '" + source_frame +
-        "' is not declared in costs.frameRelationTracking.frameNames");
+        "[mpc_targets_parser] frame pair '" + source_frame + "' -> '" + target_frame +
+        "' is not declared in costs.frameRelationTracking (sourceFrames/targetFrames)");
     }
 
     ocs2::TargetTrajectories trajectory = ocs2::ros_msg_conversions::readTargetTrajectoriesMsg(
@@ -135,6 +133,7 @@ SwitchedModelReferenceManager::FrameRelationTargets parseFrameRelationTargets(
     }
 
     targets.sourceFrames.push_back(source_frame);
+    targets.targetFrames.push_back(target_frame);
     targets.targets.push_back(std::move(trajectory));
     targets.weights.push_back(std::move(weights));
   }
@@ -146,7 +145,8 @@ SwitchedModelReferenceManager::FrameRelationTargets parseFrameRelationTargets(
 void applyMpcTargets(
   const ocs2_msgs::msg::MpcTargets& message,
   const std::vector<std::string>& tracked_arm_joint_names,
-  const std::vector<std::string>& declared_frame_relation_frames,
+  const std::vector<std::string>& declared_frame_relation_source_frames,
+  const std::vector<std::string>& declared_frame_relation_target_frames,
   ocs2::humanoid::SwitchedModelReferenceManager& reference_manager)
 {
   const std::string& command_type = message.command_type;
@@ -163,8 +163,8 @@ void applyMpcTargets(
     reference_manager.setExternalJointTargets(std::move(joint_targets));
     reference_manager.setExternalFrameRelationTargets({});
   } else if (command_type == "frame_relation") {
-    auto frame_targets =
-      parseFrameRelationTargets(message, declared_frame_relation_frames, 0);
+    auto frame_targets = parseFrameRelationTargets(
+      message, declared_frame_relation_source_frames, declared_frame_relation_target_frames, 0);
     reference_manager.setExternalJointTargets(ocs2::TargetTrajectories());
     reference_manager.setExternalFrameRelationTargets(std::move(frame_targets));
   } else if (command_type == "joint_frame_relation") {
@@ -174,8 +174,8 @@ void applyMpcTargets(
         "[mpc_targets_parser] joint_frame_relation command has no trajectories");
     }
     auto joint_targets = parseJointTargets(message, tracked_arm_joint_names, 0);
-    auto frame_targets =
-      parseFrameRelationTargets(message, declared_frame_relation_frames, 1);
+    auto frame_targets = parseFrameRelationTargets(
+      message, declared_frame_relation_source_frames, declared_frame_relation_target_frames, 1);
     reference_manager.setExternalJointTargets(std::move(joint_targets));
     reference_manager.setExternalFrameRelationTargets(std::move(frame_targets));
   } else if (command_type == "default") {

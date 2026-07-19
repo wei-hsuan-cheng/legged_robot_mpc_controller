@@ -83,14 +83,17 @@ class SwitchedModelReferenceManager : public ReferenceManager {
 
   /**
    * External frame-relation target channel (command_type "frame_relation").
-   * Each entry tracks a robot source frame to a commanded world-frame pose
-   * trajectory (states are [position(3), quaternion x y z w]). weights holds an
-   * optional 6-vector [position xyz, orientation xyz] per entry; an empty vector
-   * keeps the configured default weights. Same buffering semantics as the joint
-   * channel.
+   * Convention (matching mpc_controllers): sourceFrames[i] is the reference
+   * frame the pose is expressed in (a robot frame such as "pelvis", or a global
+   * frame), targetFrames[i] is the tracked leaf frame (e.g. a hand). Each entry
+   * carries a pose trajectory (states are [position(3), quaternion x y z w] of
+   * target in source) and an optional 6-vector weight [position xyz,
+   * orientation xyz]; an empty weight keeps the configured defaults. Same
+   * buffering semantics as the joint channel.
    */
   struct FrameRelationTargets {
     std::vector<std::string> sourceFrames;
+    std::vector<std::string> targetFrames;
     std::vector<TargetTrajectories> targets;
     std::vector<vector_t> weights;
     bool empty() const { return sourceFrames.empty(); }

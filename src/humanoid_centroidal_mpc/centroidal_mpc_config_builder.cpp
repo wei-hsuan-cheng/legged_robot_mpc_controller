@@ -226,7 +226,14 @@ ocs2::humanoid::CentroidalMpcInterface::Config buildCentroidalMpcConfig(
     config.taskSpaceCosts.push_back(std::move(taskSpaceCost));
   }
 
-  config.frameRelationFrames = p.costs.frameRelationTracking.frameNames;
+  if (p.costs.frameRelationTracking.sourceFrames.size() !=
+      p.costs.frameRelationTracking.targetFrames.size()) {
+    throw std::invalid_argument(
+      "[centroidal_mpc_config_builder] frameRelationTracking.sourceFrames/targetFrames must be "
+      "index-aligned");
+  }
+  config.frameRelationSourceFrames = p.costs.frameRelationTracking.sourceFrames;
+  config.frameRelationTargetFrames = p.costs.frameRelationTracking.targetFrames;
   config.frameRelationDefaultWeights = ocs2::humanoid::EndEffectorKinematicsWeights::fromVector(
     Eigen::Map<const Eigen::Matrix<scalar_t, 12, 1>>(p.costs.frameRelationTracking.weights.data()),
     config.verbose);

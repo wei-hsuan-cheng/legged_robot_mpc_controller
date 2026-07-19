@@ -603,13 +603,15 @@ humanoid_centroidal_mpc_controller:
               fixed_size<>: [12]
 
       frameRelationTracking:
-        frameNames: {
+        sourceFrames: {
+          type: string_array,
+          default_value: ["pelvis", "pelvis"],
+          description: "Reference (root) frame per commandable pair: a robot frame or a global frame (world/odom/map/global). Index-aligned with targetFrames; CppAD models generated per pair at startup; empty disables the feature"
+        }
+        targetFrames: {
           type: string_array,
           default_value: ["left_rubber_hand", "right_rubber_hand"],
-          description: "Frames available for external frame-relation tracking commands (CppAD models generated per frame at startup); empty disables the feature",
-          validation: {
-            unique<>: null
-          }
+          description: "Tracked leaf frame per commandable pair, index-aligned with sourceFrames"
         }
         weights: {
           type: double_array,

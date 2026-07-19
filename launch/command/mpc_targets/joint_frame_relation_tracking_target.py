@@ -3,9 +3,10 @@
 
 Msg convention (parsed internally by mpc_targets_parser): the arm joint
 trajectory comes first in target_trajectories, followed by one pose trajectory
-per source/target frame pair. Here the arms hold a fixed posture while the left
-hand additionally tracks a world-frame pose; both are soft costs, so they
-balance on the left arm. Send {command_type: "default"} to revert.
+per source/target frame pair (source = reference frame, target = tracked leaf).
+Here the arms hold a fixed posture while the left hand additionally tracks a
+pelvis-relative pose; both are soft costs, so they balance on the left arm.
+Send {command_type: "default"} to revert.
 """
 
 import rclpy
@@ -27,8 +28,12 @@ JOINT_NAMES = [
 ]
 JOINT_TARGET = [0.2, 0.0, 0.0, 0.5, 0.3, 0.0, 0.0, 0.6]
 
-HAND_FRAME = "left_rubber_hand"
-HAND_POSE = [0.35, 0.15, 1.0, 0.0, 0.0, 0.0, 1.0]  # [pos, quat xyzw] in world
+# Left hand pose expressed in the pelvis frame (source = reference/root frame,
+# target = tracked leaf frame; the pair must be declared in
+# costs.frameRelationTracking sourceFrames/targetFrames).
+SOURCE_FRAME = "pelvis"
+TARGET_FRAME = "left_rubber_hand"
+HAND_POSE = [0.32, 0.15, 0.20, 0.0, 0.0, 0.0, 1.0]  # [pos, quat xyzw] of target in source
 HAND_WEIGHTS = [200.0, 200.0, 200.0, 20.0, 20.0, 20.0]
 
 
@@ -64,8 +69,8 @@ class JointFrameRelationTargetPublisher(Node):
         msg.header.stamp = self.get_clock().now().to_msg()
         msg.command_type = "joint_frame_relation"
         msg.joint_names = list(JOINT_NAMES)
-        msg.source_frames = [HAND_FRAME]
-        msg.target_frames = ["world"]
+        msg.source_frames = [SOURCE_FRAME]
+        msg.target_frames = [TARGET_FRAME]
         msg.frame_relation_tracking_weights = [weights]
         # Joint trajectory first, then one trajectory per frame pair.
         msg.target_trajectories = [

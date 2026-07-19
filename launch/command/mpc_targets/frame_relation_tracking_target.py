@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
-"""Publishes command_type "frame_relation" MpcTargets: world-frame hand pose targets.
+"""Publishes command_type "frame_relation" MpcTargets: relative-pose hand targets.
 
-The humanoid MPC parses this internally (mpc_targets_parser): each source frame
-must be declared in costs.frameRelationTracking.frameNames (default
-left/right_rubber_hand) and the target frame must be a global frame ("world").
-States are [position(3), quaternion x y z w]. Optional weights (6 per pair:
-position xyz, orientation xyz) override the configured defaults. Send
-{command_type: "default"} to revert to the built-in arm-swing reference.
+Convention (matching mpc_controllers): source_frame is the reference (root)
+frame the pose is expressed in - a robot frame such as "pelvis" or a global
+frame ("world") - and target_frame is the tracked leaf frame (a hand). States
+are [position(3), quaternion x y z w] of target expressed in source. Each
+(source, target) pair must be declared in costs.frameRelationTracking
+(sourceFrames/targetFrames, default pelvis -> left/right_rubber_hand). Optional
+weights (6 per pair: position xyz, orientation xyz) override the configured
+defaults. Send {command_type: "default"} to revert to the built-in arm-swing
+reference.
 
-Each message carries a single-sample trajectory (constant pose); the motion is
+Each message carries a single-sample trajectory (constant pose); motion is
 produced by republishing at publish_rate, so no clock synchronization with the
 simulation is required.
 """
@@ -23,18 +26,27 @@ from ocs2_msgs.msg import MpcInput, MpcState, MpcTargets, MpcTargetTrajectories
 from std_msgs.msg import Float64MultiArray
 
 
-# Small vertical circle in front of the standing robot's left shoulder
-# (nominal standing left hand position is about [0.26, 0.15, 0.89] in world).
 DEFAULT_FRAME_PAIRS = [
     {
-        "source_frame": "left_rubber_hand",
-        "target_frame": "world",
-        "center_position": [0.30, 0.15, 0.95],
-        "amplitude": [0.05, 0.0, 0.06],
-        "phase": [0.0, 0.0, 1.5708],
+        "source_frame": "pelvis",
+        "target_frame": "left_rubber_hand",
+        "center_position": [0.241, 0.152, 0.095],
+        "amplitude": [0.0, 0.0, 0.0],
+        "phase": [0.0, 0.0, 0.0],
         "quaternion": [0.0, 0.0, 0.0, 1.0],
         "weights": [200.0, 200.0, 200.0, 20.0, 20.0, 20.0],
     },
+
+    {
+        "source_frame": "pelvis",
+        "target_frame": "right_rubber_hand",
+        "center_position": [0.241, -0.152, 0.094],
+        "amplitude": [0.0, 0.0, 0.0],
+        "phase": [0.0, 0.0, 0.0],
+        "quaternion": [0.0, 0.0, 0.0, 1.0],
+        "weights": [200.0, 200.0, 200.0, 20.0, 20.0, 20.0],
+    },
+
 ]
 
 
