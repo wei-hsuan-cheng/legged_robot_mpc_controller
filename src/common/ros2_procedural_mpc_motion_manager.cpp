@@ -158,8 +158,8 @@ void Ros2ProceduralMpcMotionManager::subscribeMpcTargets(
         target::applyMpcTargets(
           *message, tracked_arm_joint_names_, declared_frame_relation_source_frames_,
           declared_frame_relation_target_frames_, *switchedModelReferenceManagerPtr_);
-        RCLCPP_INFO(
-          node->get_logger(), "Humanoid MPC targets command: %s", message->command_type.c_str());
+        // RCLCPP_INFO(
+        //   node->get_logger(), "Humanoid MPC targets command: %s", message->command_type.c_str());
       } catch (const std::exception& error) {
         RCLCPP_WARN(node->get_logger(), "Rejected MPC targets command: %s", error.what());
       }
