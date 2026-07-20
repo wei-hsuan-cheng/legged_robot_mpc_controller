@@ -15,7 +15,7 @@ repositories:
     legged_robot_mpc_controller_dependencies/ocs2_ros2:
       type: git
       url: https://github.com/wei-hsuan-cheng/ocs2_ros2.git
-      version: humble_frame_relation
+      version: humble
     legged_robot_mpc_controller_dependencies/ocs2_ros2/submodules/ocs2_robotic_assets:
       type: git
       url: https://github.com/wei-hsuan-cheng/ocs2_robotic_assets.git
