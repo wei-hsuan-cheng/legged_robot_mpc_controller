@@ -57,37 +57,6 @@ Migration status and remaining milestones are documented in [`docs/humanoid_migr
   rosdep install --ignore-src --from-paths src -y -r
   ```
 
-- Build and install `mujoco`-related pkgs. (See **troubleshooting section** [here](https://github.com/wei-hsuan-cheng/mujoco_ros2_control) if needed)
-
-  - **Prerequisites:** make sure you have the following software installed if you are running on the local machine:
-    - [ROS 2](https://docs.ros.org/en/humble/Installation.html)
-    - [Mujoco](https://mujoco.org/)
-      - Recommended to install the `mujoco-3.3.7` pre-built libraries [here](https://github.com/google-deepmind/mujoco/releases) (following the [doc](https://mujoco.readthedocs.io/en/latest/programming/#)).
-  
-  - Build [`mujoco_ros2_control`](https://github.com/wei-hsuan-cheng/mujoco_ros2_control) pkg
-    ```bash
-    # Configure environment variable for mujoco pre-built directory
-    cd <any_path>
-    # Check x86_64 or aarch64
-    wget -O mujoco-3.3.7-linux-x86_64.tar.gz \
-      https://github.com/google-deepmind/mujoco/releases/download/3.3.7/mujoco-3.3.7-linux-x86_64.tar.gz && \
-    tar -xzf mujoco-3.3.7-linux-x86_64.tar.gz
-    export MUJOCO_DIR=<any_path>/mujoco-3.3.7
-
-    # Build mujoco_ros2_control pkg
-    cd <workspace_dir>
-    NUM_JOBS=2 && \
-    export CMAKE_BUILD_PARALLEL_LEVEL=${NUM_JOBS} && \
-    export MAKEFLAGS=-j${NUM_JOBS} && \
-    export NINJAFLAGS=-j${NUM_JOBS} && \
-    colcon build --symlink-install \
-      --packages-up-to mujoco_ros2_control mujoco_ros2_control_demos \
-      --executor sequential --parallel-workers ${NUM_JOBS} \
-      --cmake-force-configure \
-      --cmake-args -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release && \
-      . install/setup.bash
-    ```
-
 - Build pkgs up-to `legged_robot_mpc_controller`
   ```bash
   cd <workspace_dir>
