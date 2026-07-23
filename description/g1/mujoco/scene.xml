@@ -1,7 +1,10 @@
 <mujoco model="g1_scene">
+  <!-- legged robot -->
   <include file="g1_29dof.xml"/>
+  
+  <!-- terrain & obstacles -->
+  <include file="stairs.xml"/>
   <!-- <include file="boxes.xml"/> -->
-  <!-- <include file="stairs.xml"/> -->
   <!-- <include file="slope.xml"/> -->
 
   <!-- Match the legacy whole-body MuJoCo simulation timestep. -->
