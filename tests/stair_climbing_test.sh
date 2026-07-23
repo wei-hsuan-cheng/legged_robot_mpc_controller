@@ -21,6 +21,11 @@
 # Success thresholds match the default staircase in config/g1/stair_climbing.yaml
 # (5 x 0.10 m risers, 0.30 m treads, base at x=0.75). Override for a different
 # staircase with env vars EXPECT_MIN_X / EXPECT_MIN_Z.
+#
+# STAIR_CONFIG selects an alternative stair climbing yaml (absolute path passed
+# to the stairClimbingFile launch argument), e.g. the single-support variant:
+#   STAIR_CONFIG=$(ros2 pkg prefix legged_robot_mpc_controller)/share/legged_robot_mpc_controller/config/g1/stair_climbing_ss.yaml \
+#     ros2 run legged_robot_mpc_controller stair_climbing_test.sh
 # =============================================================================
 set -u
 
@@ -29,6 +34,7 @@ MONITOR="${2:-45}"        # seconds to monitor after triggering the climb
 STARTUP_WAIT="${3:-90}"   # seconds to wait for the simulation to come up
 EXPECT_MIN_X="${EXPECT_MIN_X:-1.85}"
 EXPECT_MIN_Z="${EXPECT_MIN_Z:-1.15}"
+STAIR_CONFIG="${STAIR_CONFIG:-}"
 
 if ! command -v ros2 >/dev/null; then
   echo "ERROR: ros2 not found - source your ROS 2 + workspace setup first." >&2
@@ -49,9 +55,13 @@ pkill -f 'g1[.]launch' 2>/dev/null
 pkill -f mujoco_ros2_control 2>/dev/null
 sleep 2
 
+EXTRA_ARGS=()
+if [ -n "$STAIR_CONFIG" ]; then
+  EXTRA_ARGS+=("stairClimbingFile:=$STAIR_CONFIG")
+fi
 ros2 launch legged_robot_mpc_controller g1.launch.py \
   mujoco_headless:=true velocityCommandGui:=false rviz:=false \
-  mpcControllerName:=humanoid_centroidal_mpc_controller > "$LOG" 2>&1 &
+  mpcControllerName:=humanoid_centroidal_mpc_controller "${EXTRA_ARGS[@]}" > "$LOG" 2>&1 &
 LAUNCH_PID=$!
 
 for _ in $(seq 1 "$STARTUP_WAIT"); do

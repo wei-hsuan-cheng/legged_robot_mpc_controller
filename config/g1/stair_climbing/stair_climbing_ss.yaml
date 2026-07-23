@@ -1,0 +1,42 @@
+# -----------------------------------------------------------------------------
+# Fixed-sequence stair climbing - SINGLE-SUPPORT (one-tread-one-leg) variant.
+#
+# Same trigger and geometry as stair_climbing.yaml, but the climb uses the
+# human-like alternating gait: each foot lands on the NEXT tread (left on
+# tread 1, right on tread 2, ...), finishing with the trailing foot joining
+# on the top tread. N+1 climb swings instead of 2N, but each climb swing
+# spans TWO treads (~0.6 m stride, ~0.2 m rise), so timing is slower per
+# swing and the pelvis reference is more crouched.
+#
+# Select via the launch argument:
+#   ros2 launch legged_robot_mpc_controller g1.launch.py \
+#     stairClimbingFile:=<pkg_share>/config/g1/stair_climbing_ss.yaml ...
+# -----------------------------------------------------------------------------
+stair_climbing:
+  stairs:                       # world-frame staircase geometry (0th step frame)
+    base_pos: [0.75, 0.0, 0.0]  # center of the 0th step at ground level
+    yaw: 0.0                    # ascent direction about world +z [rad]
+    start_offset: 0.0           # local +x offset from base_pos to the first riser
+    heights: [0.10, 0.10, 0.10, 0.10, 0.10]   # riser height per step [m]
+    depths:  [0.30, 0.30, 0.30, 0.30, 0.30]   # tread depth per step [m]
+
+  gait:
+    initial_stance_duration: 2.0  # settle before the first lift-off [s]
+    swing_duration: 0.9           # single-support duration [s] (double-tread stride)
+    stance_duration: 0.8          # double-support duration between swings [s]
+    final_stance_duration: 1.0    # settle after the last touch-down [s]
+    left_foot_first: true
+    both_feet_per_tread: false    # one-tread-one-leg (alternating) climb gait
+
+  footholds:
+    lateral_offset: 0.115     # |y| of each foot from the staircase centerline [m]
+    tread_inset: 0.0          # foothold x offset from the tread center [m]
+    approach_stride: 0.25     # flat-ground stride toward the stairs [m]
+    approach_standoff: 0.15   # feet stop this far before the first riser [m]
+    tracking_weight: 250.0    # swing-foot xy position tracking weight
+
+  base:
+    # More crouched than the step-to gait: with the feet on ADJACENT treads the
+    # rear-leg extension is height_above_support + riser/2, and the larger swing
+    # articulation needs extra margin below the ~0.79 m standing height.
+    height_above_support: 0.70

@@ -88,16 +88,31 @@ StairClimbingPlan::StairClimbingPlan(const StairClimbingConfig& config,
     foot = other;
   }
 
-  // Climb: step-to gait, both feet per tread, same lead foot on every tread.
   const size_t leadFoot = config.leftFootFirst ? LEFT_FOOT : RIGHT_FOOT;
   scalar_t treadStartX = config.startOffset;
   scalar_t treadTopZ = 0.0;
-  for (size_t i = 0; i < numSteps; ++i) {
-    const scalar_t footholdX = treadStartX + 0.5 * config.stepDepths[i] + config.treadInset;
-    treadTopZ += config.stepHeights[i];
-    swings.push_back({leadFoot, footholdX, treadTopZ});
-    swings.push_back({1 - leadFoot, footholdX, treadTopZ});
-    treadStartX += config.stepDepths[i];
+  if (config.bothFeetPerTread) {
+    // Climb: step-to gait, both feet per tread, same lead foot on every tread.
+    for (size_t i = 0; i < numSteps; ++i) {
+      const scalar_t footholdX = treadStartX + 0.5 * config.stepDepths[i] + config.treadInset;
+      treadTopZ += config.stepHeights[i];
+      swings.push_back({leadFoot, footholdX, treadTopZ});
+      swings.push_back({1 - leadFoot, footholdX, treadTopZ});
+      treadStartX += config.stepDepths[i];
+    }
+  } else {
+    // Climb: one-tread-one-leg gait, alternating feet over consecutive treads
+    // (each swing spans two treads), then the trailing foot joins on the top.
+    size_t climbFoot = leadFoot;
+    scalar_t footholdX = 0.0;
+    for (size_t i = 0; i < numSteps; ++i) {
+      footholdX = treadStartX + 0.5 * config.stepDepths[i] + config.treadInset;
+      treadTopZ += config.stepHeights[i];
+      swings.push_back({climbFoot, footholdX, treadTopZ});
+      climbFoot = 1 - climbFoot;
+      treadStartX += config.stepDepths[i];
+    }
+    swings.push_back({climbFoot, footholdX, treadTopZ});  // trailing foot joins on the top tread
   }
 
   // ---------------------------------------------------------------------------

@@ -136,7 +136,7 @@ ros2 topic pub --once /humanoid/base_pose_command \
 
 ### Fixed-sequence stair climbing (`stair_climb` target mode)
 
-The centroidal MPC provides an example of climbing a staircase with **known ground-truth geometry** using a pre-compiled, fixed sequence: gait (mode schedule), foothold placements, swing lift-off/touch-down heights, and a pelvis reference (zero pitch/roll) are all generated once from [`config/g1/stair_climbing.yaml`](./config/g1/stair_climbing.yaml) at trigger time. No perception / plane segmentation is involved.
+The centroidal MPC provides an example of climbing a staircase with **known ground-truth geometry** using a pre-compiled, fixed sequence: gait (mode schedule), foothold placements, swing lift-off/touch-down heights, and a pelvis reference (zero pitch/roll) are all generated once from [`config/g1/stair_climbing/*.yaml`](./config/g1/stair_climbing) at trigger time. No perception / plane segmentation is involved.
 
 **1. Put the stairs in the world.** The staircase must exist in three places with *identical* geometry (single source of truth is the semantic params):
 
@@ -144,7 +144,7 @@ The centroidal MPC provides an example of climbing a staircase with **known grou
 |---|---|---|
 | MuJoCo physics | `description/g1/mujoco/stairs.xml` (included by `scene.xml`) | `xacro stairs.xml.xacro stairs_params_file:=stairs_params.yaml -o stairs.xml` |
 | RViz display | stairs links in `description/g1/urdf/g1_29dof_stairs.urdf` | `xacro stairs.urdf.xacro` (see header comment) |
-| Climb plan | `stairs:` section of `config/g1/stair_climbing.yaml` | keep in sync by hand |
+| Climb plan | `stairs:` section of `config/g1/stair_climbing/*.yaml` | keep in sync by hand |
 
 **2. Launch** (headless or with GUI):
 
@@ -154,7 +154,7 @@ ros2 launch legged_robot_mpc_controller g1.launch.py \
   mujoco_headless:=true velocityCommandGui:=false
 ```
 
-The controller logs `stair climbing config loaded from .../stair_climbing.yaml` on configure (the file path comes from the `stairClimbingFile` launch arg → `ocs2.gait.stairClimbingFile` parameter; an empty path disables the mode).
+The controller logs `stair climbing config loaded from config/g1/stair_climbing/*.yaml` on configure (the file path comes from the `stairClimbingFile` launch arg → `ocs2.gait.stairClimbingFile` parameter; an empty path disables the mode).
 
 **3. Trigger the climb** once the robot is standing (the plan is anchored at the robot's pose and the solver time at this moment):
 

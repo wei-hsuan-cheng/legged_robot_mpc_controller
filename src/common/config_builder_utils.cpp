@@ -60,6 +60,7 @@ ocs2::humanoid::StairClimbingConfig loadStairClimbingConfig(const std::string& s
     config.stanceDuration = gait["stance_duration"].as<double>(config.stanceDuration);
     config.finalStanceDuration = gait["final_stance_duration"].as<double>(config.finalStanceDuration);
     config.leftFootFirst = gait["left_foot_first"].as<bool>(config.leftFootFirst);
+    config.bothFeetPerTread = gait["both_feet_per_tread"].as<bool>(config.bothFeetPerTread);
   }
 
   if (const YAML::Node footholds = node["footholds"]) {

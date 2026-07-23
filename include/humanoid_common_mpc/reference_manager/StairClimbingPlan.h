@@ -47,6 +47,10 @@ struct StairClimbingConfig {
   scalar_t stanceDuration{0.6};         ///< double-support duration between swings
   scalar_t finalStanceDuration{1.0};    ///< settle time appended after the last touch-down
   bool leftFootFirst{true};             ///< which foot leads
+  /// true: step-to gait, both feet land on every tread (2N climb swings).
+  /// false: one-tread-one-leg gait, the feet alternate over consecutive treads
+  /// (N+1 climb swings; each swing spans two treads, ~2x stride and riser).
+  bool bothFeetPerTread{true};
 
   // ----- foothold generation -----
   scalar_t lateralOffset{0.12};   ///< |y| of each foot from the staircase centerline
