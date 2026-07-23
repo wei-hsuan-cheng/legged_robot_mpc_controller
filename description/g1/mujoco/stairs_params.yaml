@@ -1,0 +1,38 @@
+# -----------------------------------------------------------------------------
+# Semantic-level parameters for a parametric staircase.
+#
+# Geometry convention (see the schematic in stairs.xml.xacro):
+#   - The "0th step" is the reference frame. It lies in the horizontal plane and
+#     is fully described by its world center position and yaw orientation.
+#   - Steps 1..N ascend from the 0th step in the local +x direction (the
+#     direction the yaw points) and grow vertically in +z.
+#   - Every step is a solid box that spans from the ground (local z = 0) up to
+#     its own tread height, so heights are RISER heights (added on top of the
+#     previous tread), depths are TREAD depths along +x, widths are along +y.
+#
+# This single file feeds BOTH:
+#   - mujoco/stairs.xml.xacro   -> stairs.xml
+#   - urdf/stairs.urdf.xacro    -> stairs.urdf
+# Keep it as the single source of truth.
+# -----------------------------------------------------------------------------
+stairs:
+  # ----- 0th step: reference frame in the horizontal plane -----
+  base:
+    pos: [-1.0, 0.0, 0.0]   # world center position of the 0th step [x, y, z]
+    yaw: 3.14159               # yaw orientation about world +z [radians]
+    start_offset: 0.0      # local +x offset from the 0th-step center to the
+                           # near edge of step 1 (a flat landing gap)
+
+  # ----- number of ascending steps -----
+  num_steps: 5
+
+  # ----- per-step lists (length must equal num_steps) -----
+  heights: [0.10, 0.10, 0.10, 0.10, 0.10]   # H_i : riser height of each step
+  depths:  [0.30, 0.30, 0.30, 0.30, 0.30]   # D_i : tread depth (along +x)
+  widths:  [1.20, 1.20, 1.20, 1.20, 1.20]   # W_i : width (along +y, centered)
+
+  # ----- shared appearance / physics -----
+  friction: [0.8, 0.1, 0.001]   # MuJoCo geom friction (slide, spin, roll)
+  color_base_gray: 0.40         # gray value of step 1
+  color_gray_step: 0.04         # gray increment per step (lighter as it climbs)
+  color_gray_max: 0.70          # clamp so tall staircases don't wash out

@@ -1,0 +1,81 @@
+<?xml version="1.0"?>
+<mujoco model="stairs" xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <!--
+    Parametric staircase for MuJoCo.
+
+    Generate the xml file using xacro with the following command:
+      sudo xacro \
+        ./stairs.xml.xacro \
+        stairs_params_file:=./stairs_params.yaml \
+        -o ./stairs.xml
+
+    Schematic (side view, local frame of the 0th step):
+
+                             _______   step 3 (H_3, D_3, W_3), tread @ z=H1+H2+H3
+                            |
+                     _______|          step 2 (H_2, D_2, W_2), tread @ z=H1+H2
+                    |
+             _______|                  step 1 (H_1, D_1, W_1), tread @ z=H1
+            |
+      ======O============> +x (ascent / yaw direction)
+            ^
+            0th step center  (world pos + yaw come from the params file)
+
+    Each step is a SOLID box from the ground (local z=0) up to its tread
+    height, so its half-size in z is (cumulative height)/2.
+  -->
+  <xacro:arg name="stairs_params_file" default="stairs_params.yaml"/>
+  <xacro:property name="stairs_params_file" value="$(arg stairs_params_file)"/>
+
+  <xacro:property name="stairs" value="${xacro.load_yaml(stairs_params_file)['stairs']}"/>
+
+  <xacro:property name="base"      value="${stairs['base']}"/>
+  <xacro:property name="num_steps" value="${stairs['num_steps']}"/>
+  <xacro:property name="heights"   value="${stairs['heights']}"/>
+  <xacro:property name="depths"    value="${stairs['depths']}"/>
+  <xacro:property name="widths"    value="${stairs['widths']}"/>
+  <xacro:property name="friction"  value="${stairs['friction']}"/>
+
+  <xacro:property name="base_gray" value="${stairs['color_base_gray']}"/>
+  <xacro:property name="gray_step" value="${stairs['color_gray_step']}"/>
+  <xacro:property name="gray_max"  value="${stairs['color_gray_max']}"/>
+
+  <!-- yaw (about world +z) -> quaternion (w, x, y, z) -->
+  <xacro:property name="yaw" value="${base['yaw']}"/>
+  <xacro:property name="qw"  value="${cos(yaw / 2.0)}"/>
+  <xacro:property name="qz"  value="${sin(yaw / 2.0)}"/>
+
+  <!--
+    Recursively emit one box geom per step.
+      i  : 1-based step index
+      x0 : local +x of the near edge of this step
+      z0 : tread height of the previous step (z-top of the box below)
+  -->
+  <xacro:macro name="emit_step" params="i x0 z0">
+    <xacro:if value="${i &lt;= num_steps}">
+      <xacro:property name="D"    value="${depths[i-1]}"/>
+      <xacro:property name="W"    value="${widths[i-1]}"/>
+      <xacro:property name="H"    value="${heights[i-1]}"/>
+      <xacro:property name="ztop" value="${z0 + H}"/>
+      <xacro:property name="xc"   value="${x0 + D / 2.0}"/>
+      <xacro:property name="gray" value="${min(base_gray + gray_step * (i - 1), gray_max)}"/>
+
+      <geom name="stairs_step_${i}"
+            type="box"
+            size="${D / 2.0} ${W / 2.0} ${ztop / 2.0}"
+            pos="${xc} 0 ${ztop / 2.0}"
+            rgba="${gray} ${gray} ${gray} 1"
+            friction="${friction[0]} ${friction[1]} ${friction[2]}"/>
+
+      <xacro:emit_step i="${i + 1}" x0="${x0 + D}" z0="${ztop}"/>
+    </xacro:if>
+  </xacro:macro>
+
+  <worldbody>
+    <body name="stairs"
+          pos="${base['pos'][0]} ${base['pos'][1]} ${base['pos'][2]}"
+          quat="${qw} 0 0 ${qz}">
+      <xacro:emit_step i="${1}" x0="${base['start_offset']}" z0="${0}"/>
+    </body>
+  </worldbody>
+</mujoco>

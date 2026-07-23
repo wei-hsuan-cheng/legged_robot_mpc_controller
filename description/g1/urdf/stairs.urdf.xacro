@@ -1,0 +1,94 @@
+<?xml version="1.0"?>
+<robot name="stairs" xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <!--
+    Parametric staircase for URDF (same geometry convention as
+    ../mujoco/stairs.xml.xacro, driven by the SAME params file).
+
+    Generate a standalone urdf:
+      sudo xacro \
+        ./stairs.urdf.xacro \
+        stairs_params_file:=../mujoco/stairs_params.yaml \
+        parent:=world \
+        -o ./stairs.urdf
+
+    The result is a chain of fixed joints:
+      <parent> -[fixed]-> stairs_base -[fixed]-> stairs_step_1 ... stairs_step_N
+    The "stairs_base" link is the 0th step reference frame (world pos + yaw).
+
+    To fold it into g1_29dof.urdf: copy the generated <link>/<joint> blocks in,
+    and make sure the chosen <parent> link (default "world") exists in that file
+    (g1_29dof.urdf already has a commented-out "world" link you can enable).
+
+    Each step is a SOLID box from the ground up to its tread height; the box
+    origin sits at half that height.
+  -->
+  <xacro:arg name="stairs_params_file" default="../mujoco/stairs_params.yaml"/>
+  <xacro:arg name="parent" default="world"/>
+
+  <xacro:property name="stairs_params_file" value="$(arg stairs_params_file)"/>
+  <xacro:property name="parent_link"        value="$(arg parent)"/>
+
+  <xacro:property name="stairs" value="${xacro.load_yaml(stairs_params_file)['stairs']}"/>
+
+  <xacro:property name="base"      value="${stairs['base']}"/>
+  <xacro:property name="num_steps" value="${stairs['num_steps']}"/>
+  <xacro:property name="heights"   value="${stairs['heights']}"/>
+  <xacro:property name="depths"    value="${stairs['depths']}"/>
+  <xacro:property name="widths"    value="${stairs['widths']}"/>
+
+  <xacro:property name="base_gray" value="${stairs['color_base_gray']}"/>
+  <xacro:property name="gray_step" value="${stairs['color_gray_step']}"/>
+  <xacro:property name="gray_max"  value="${stairs['color_gray_max']}"/>
+
+  <!-- 0th step reference frame: world center position + yaw. -->
+  <link name="stairs_base"/>
+  <joint name="stairs_base_joint" type="fixed">
+    <parent link="${parent_link}"/>
+    <child link="stairs_base"/>
+    <origin xyz="${base['pos'][0]} ${base['pos'][1]} ${base['pos'][2]}"
+            rpy="0 0 ${base['yaw']}"/>
+  </joint>
+
+  <!--
+    Recursively emit one link + fixed joint per step.
+      i  : 1-based step index
+      x0 : local +x of the near edge of this step
+      z0 : tread height of the previous step
+  -->
+  <xacro:macro name="emit_step" params="i x0 z0">
+    <xacro:if value="${i &lt;= num_steps}">
+      <xacro:property name="D"    value="${depths[i-1]}"/>
+      <xacro:property name="W"    value="${widths[i-1]}"/>
+      <xacro:property name="H"    value="${heights[i-1]}"/>
+      <xacro:property name="ztop" value="${z0 + H}"/>
+      <xacro:property name="xc"   value="${x0 + D / 2.0}"/>
+      <xacro:property name="gray" value="${min(base_gray + gray_step * (i - 1), gray_max)}"/>
+
+      <link name="stairs_step_${i}">
+        <visual>
+          <origin xyz="${xc} 0 ${ztop / 2.0}" rpy="0 0 0"/>
+          <geometry>
+            <box size="${D} ${W} ${ztop}"/>
+          </geometry>
+          <material name="stairs_mat_${i}">
+            <color rgba="${gray} ${gray} ${gray} 1"/>
+          </material>
+        </visual>
+        <collision>
+          <origin xyz="${xc} 0 ${ztop / 2.0}" rpy="0 0 0"/>
+          <geometry>
+            <box size="${D} ${W} ${ztop}"/>
+          </geometry>
+        </collision>
+      </link>
+      <joint name="stairs_step_${i}_joint" type="fixed">
+        <parent link="stairs_base"/>
+        <child link="stairs_step_${i}"/>
+      </joint>
+
+      <xacro:emit_step i="${i + 1}" x0="${x0 + D}" z0="${ztop}"/>
+    </xacro:if>
+  </xacro:macro>
+
+  <xacro:emit_step i="${1}" x0="${base['start_offset']}" z0="${0}"/>
+</robot>
