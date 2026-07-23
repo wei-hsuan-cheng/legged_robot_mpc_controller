@@ -1,8 +1,8 @@
 <mujoco model="g1_scene">
   <include file="g1_29dof.xml"/>
   <!-- <include file="boxes.xml"/> -->
-  <!-- <include file="stairs.xml"/>
-  <include file="slope.xml"/> -->
+  <!-- <include file="stairs.xml"/> -->
+  <!-- <include file="slope.xml"/> -->
 
   <!-- Match the legacy whole-body MuJoCo simulation timestep. -->
   <option timestep="0.0005"/>
