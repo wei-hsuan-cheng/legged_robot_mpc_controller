@@ -28,4 +28,53 @@ ocs2::humanoid::GaitMap loadGaitMap(const std::string& gaitLibraryFile)
   return gaitMap;
 }
 
+ocs2::humanoid::StairClimbingConfig loadStairClimbingConfig(const std::string& stairClimbingFile)
+{
+  const YAML::Node root = YAML::LoadFile(stairClimbingFile);
+  const YAML::Node node = root["stair_climbing"];
+  if (!node) {
+    throw std::runtime_error(
+      "[config_builder] stair climbing file has no 'stair_climbing' key: " + stairClimbingFile);
+  }
+
+  ocs2::humanoid::StairClimbingConfig config;
+
+  const YAML::Node stairs = node["stairs"];
+  if (!stairs || !stairs["base_pos"] || !stairs["heights"] || !stairs["depths"]) {
+    throw std::runtime_error(
+      "[config_builder] stair_climbing.stairs needs base_pos, heights and depths: " + stairClimbingFile);
+  }
+  const auto basePos = stairs["base_pos"].as<std::vector<double>>();
+  if (basePos.size() != 3) {
+    throw std::runtime_error("[config_builder] stair_climbing.stairs.base_pos must have 3 entries");
+  }
+  config.stairsBasePosition << basePos[0], basePos[1], basePos[2];
+  config.stairsYaw = stairs["yaw"].as<double>(0.0);
+  config.startOffset = stairs["start_offset"].as<double>(0.0);
+  config.stepHeights = stairs["heights"].as<std::vector<double>>();
+  config.stepDepths = stairs["depths"].as<std::vector<double>>();
+
+  if (const YAML::Node gait = node["gait"]) {
+    config.initialStanceDuration = gait["initial_stance_duration"].as<double>(config.initialStanceDuration);
+    config.swingDuration = gait["swing_duration"].as<double>(config.swingDuration);
+    config.stanceDuration = gait["stance_duration"].as<double>(config.stanceDuration);
+    config.finalStanceDuration = gait["final_stance_duration"].as<double>(config.finalStanceDuration);
+    config.leftFootFirst = gait["left_foot_first"].as<bool>(config.leftFootFirst);
+  }
+
+  if (const YAML::Node footholds = node["footholds"]) {
+    config.lateralOffset = footholds["lateral_offset"].as<double>(config.lateralOffset);
+    config.treadInset = footholds["tread_inset"].as<double>(config.treadInset);
+    config.approachStride = footholds["approach_stride"].as<double>(config.approachStride);
+    config.approachStandoff = footholds["approach_standoff"].as<double>(config.approachStandoff);
+    config.footholdTrackingWeight = footholds["tracking_weight"].as<double>(config.footholdTrackingWeight);
+  }
+
+  if (const YAML::Node base = node["base"]) {
+    config.baseHeightAboveSupport = base["height_above_support"].as<double>(config.baseHeightAboveSupport);
+  }
+
+  return config;
+}
+
 }  // namespace legged_robot_mpc_controller::common

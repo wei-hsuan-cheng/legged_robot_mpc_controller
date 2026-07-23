@@ -146,13 +146,23 @@ void SwitchedModelReferenceManager::modifyReferences(scalar_t initTime,
   // Swap in the latest external targets on the solver thread before the costs read them.
   externalJointTargets_.updateFromBuffer();
   externalFrameRelationTargets_.updateFromBuffer();
+  stairClimbingPlan_.updateFromBuffer();
 
   const auto timeHorizon = finalTime - initTime;
   modeSchedule = gaitSchedulePtr_->getModeSchedule(initTime - timeHorizon, finalTime + timeHorizon);
 
-  scalar_t terrainHeight = adaptToCurrentGroundHeight(targetTrajectories, initState, initMode);
-
-  swingTrajectoryPtr_->update(modeSchedule, terrainHeight);
+  const auto& stairPlan = stairClimbingPlan_.get();
+  if (stairPlan) {
+    // Fixed-sequence stair climbing: feed the planned per-phase support heights
+    // to the swing planner instead of the flat-ground estimate.
+    feet_array_t<scalar_array_t> liftOffHeightSequence;
+    feet_array_t<scalar_array_t> touchDownHeightSequence;
+    stairPlan->getHeightSequences(modeSchedule, liftOffHeightSequence, touchDownHeightSequence);
+    swingTrajectoryPtr_->update(modeSchedule, liftOffHeightSequence, touchDownHeightSequence);
+  } else {
+    scalar_t terrainHeight = adaptToCurrentGroundHeight(targetTrajectories, initState, initMode);
+    swingTrajectoryPtr_->update(modeSchedule, terrainHeight);
+  }
 
   modeSchedule_ = modeSchedule;
 }

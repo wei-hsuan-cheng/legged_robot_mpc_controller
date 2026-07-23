@@ -9,6 +9,7 @@
 
 #include <humanoid_common_mpc/command/TargetTrajectoriesCalculatorBase.h>
 #include <humanoid_common_mpc/gait/ModeSequenceTemplate.h>
+#include <humanoid_common_mpc/reference_manager/StairClimbingPlan.h>
 
 namespace legged_robot_mpc_controller::common
 {
@@ -16,6 +17,10 @@ namespace legged_robot_mpc_controller::common
 /// Loads the named gait library (mode sequence templates) from a YAML file, see
 /// config/g1/gait.yaml. This replaces the legacy gait.info loading of wb_humanoid_mpc.
 ocs2::humanoid::GaitMap loadGaitMap(const std::string& gaitLibraryFile);
+
+/// Loads the semantic stair climbing parameters (staircase ground truth, gait
+/// timing, foothold generation, base reference), see config/g1/stair_climbing.yaml.
+ocs2::humanoid::StairClimbingConfig loadStairClimbingConfig(const std::string& stairClimbingFile);
 
 inline ocs2::vector_t toVector(const std::vector<double>& values)
 {

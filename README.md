@@ -134,6 +134,86 @@ ros2 topic pub --once /humanoid/base_pose_command \
 ```
 
 
+### Fixed-sequence stair climbing (`stair_climb` target mode)
+
+The centroidal MPC provides an example of climbing a staircase with **known ground-truth geometry** using a pre-compiled, fixed sequence: gait (mode schedule), foothold placements, swing lift-off/touch-down heights, and a pelvis reference (zero pitch/roll) are all generated once from [`config/g1/stair_climbing.yaml`](./config/g1/stair_climbing.yaml) at trigger time. No perception / plane segmentation is involved.
+
+**1. Put the stairs in the world.** The staircase must exist in three places with *identical* geometry (single source of truth is the semantic params):
+
+| Consumer | File | Generated from |
+|---|---|---|
+| MuJoCo physics | `description/g1/mujoco/stairs.xml` (included by `scene.xml`) | `xacro stairs.xml.xacro stairs_params_file:=stairs_params.yaml -o stairs.xml` |
+| RViz display | stairs links in `description/g1/urdf/g1_29dof_stairs.urdf` | `xacro stairs.urdf.xacro` (see header comment) |
+| Climb plan | `stairs:` section of `config/g1/stair_climbing.yaml` | keep in sync by hand |
+
+**2. Launch** (headless or with GUI):
+
+```bash
+ros2 launch legged_robot_mpc_controller g1.launch.py \
+  mpcControllerName:=humanoid_centroidal_mpc_controller \
+  mujoco_headless:=true velocityCommandGui:=false
+```
+
+The controller logs `stair climbing config loaded from .../stair_climbing.yaml` on configure (the file path comes from the `stairClimbingFile` launch arg → `ocs2.gait.stairClimbingFile` parameter; an empty path disables the mode).
+
+**3. Trigger the climb** once the robot is standing (the plan is anchored at the robot's pose and the solver time at this moment):
+
+```bash
+ros2 topic pub --once /humanoid/target_mode std_msgs/msg/String "{data: stair_climb}"
+```
+
+Expected log lines:
+
+```text
+[StairClimbingPlan] compiled: 14 swings (7 left, 7 right), t in [6.5, 28.5], top height 0.5 m
+[ProceduralMpcMotionManager] Stair climbing started at t=6.5, finishes at t=28.5
+[ProceduralMpcMotionManager] Stair climbing sequence finished; holding stance on the last step.
+```
+
+The sequence is: settle (`initial_stance_duration`) → flat-ground approach strides up to the first riser → step-to climb (both feet per tread, lead foot first) → hold stance on the top step.
+
+**4. Verify** with the ground-truth odometry:
+
+```bash
+ros2 topic echo /mujoco/ground_truth/odom
+```
+
+For the default 5 × (0.10 m riser / 0.30 m tread) staircase at `base_pos: [0.75, 0, 0]`, success looks like: pelvis ends near `x ≈ 2.05`, `z ≈ 1.23` (= 0.5 m stair height + `height_above_support`), roll/pitch ≈ 0, and it keeps standing there. A fall shows up as `z` dropping below ~0.5 or |roll|/|pitch| > 0.6 rad.
+
+**Automated test** — steps 2–4 in one shot with an automatic verdict:
+[`tests/stair_climbing_test.sh`](./tests/stair_climbing_test.sh) launches the simulation headless, triggers the climb, monitors the pelvis ground-truth odometry and both foot TF frames, and prints one of `VERDICT: SUCCESS | INCOMPLETE | FALL | NO_ODOM` (exit code 0 only on `SUCCESS`, so it can gate CI):
+
+```bash
+# Workspace sourced; runs from anywhere (cds to the workspace root internally
+# so the CppAD cache in auto_generated/ is found)
+ros2 run legged_robot_mpc_controller stair_climbing_test.sh
+# or with explicit args / from the source tree:
+./tests/stair_climbing_test.sh /tmp/stair_climbing_test.log 45 90   # [log] [monitor_s] [startup_wait_s]
+```
+
+Sample passing output (feet lines are world-frame `ankle_roll_link` positions — on the treads the ankle z snaps to `0.035 + k*0.10`):
+
+```text
+t=26.6 x=1.919 y=0.010 z=1.166 roll=0.037 pitch=0.061 yaw=-0.113
+feet L=(2.048,0.102,0.535) R=(2.054,-0.144,0.535)
+VERDICT: SUCCESS final x=2.057 y=-0.014 z=1.233 (max x=2.059 z=1.237)
+```
+
+The success thresholds default to the staircase in `stair_climbing.yaml` (pelvis beyond `x=1.85`, above `z=1.15`); override with `EXPECT_MIN_X` / `EXPECT_MIN_Z` env vars for a different staircase. A fall is flagged when the pelvis drops below 0.5 m or |roll|/|pitch| exceeds 0.6 rad.
+
+**Tuning knobs that matter** (in `stair_climbing.yaml`):
+
+- `base.height_above_support` — pelvis height above the *mean* foot support. Keep ≤ ~0.72 for the G1: during a tread transfer the rear-leg extension is `height_above_support + riser/2` and must stay below the ~0.79 m standing height, otherwise the robot tips backwards at the first step.
+- `footholds.tracking_weight` — swing-foot xy tracking. The swing foot lags its reference by ~0.1 m at low weights and will clip the stair nosing.
+- `gait.swing_duration` / `gait.stance_duration` — slow down for larger risers.
+
+**Caveats:**
+
+- The schedule is time-based with **no contact feedback**; a strong disturbance mid-climb is not re-planned.
+- Do **not** switch back to `base_twist` while standing on the stairs: the velocity mode commands an absolute (ground-referenced) pelvis height and would drive the robot down into the steps. Stay in `stair_climb` — it holds stance on the top step after the sequence finishes.
+- Registered for the **centroidal controller only**.
+
+
 ### Arm joint / frame-relation targets (`/humanoid/mpc_targets`)
 
 | `command_type` | Meaning |
@@ -243,6 +323,7 @@ Loaders shared by both controllers (gait map, reference config, cost-matrix asse
 Robot-specific values:
 
 - [`config/g1/gait.yaml`](./config/g1/gait.yaml) is the named gait library (mode sequence templates), referenced by `ocs2.gait.gaitLibraryFile` and shared by both controllers.
+- [`config/g1/stair_climbing.yaml`](./config/g1/stair_climbing.yaml) holds the fixed-sequence stair climbing parameters (staircase ground truth, gait timing, foothold generation, pelvis reference), referenced by `ocs2.gait.stairClimbingFile` (centroidal controller only).
 - [`config/g1/initial_pose.yaml`](./config/g1/initial_pose.yaml) sets the simulation start pose consumed by the `ros2_control` xacro.
 
 

@@ -563,6 +563,7 @@ humanoid_centroidal_mpc_controller:
 
       gait:
         gaitLibraryFile: $(var gaitLibraryFile)
+        stairClimbingFile: $(var stairClimbingFile)
         initialModeSequence: [STANCE, STANCE]
         initialEventTimes: [0.5]
         defaultModeSequence: [STANCE]

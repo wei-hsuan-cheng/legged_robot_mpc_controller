@@ -61,8 +61,11 @@ ocs2::humanoid::ProceduralMpcMotionManager::TargetMode targetModeFromString(
   if (mode == "base_pose") {
     return TargetMode::BasePose;
   }
+  if (mode == "stair_climb") {
+    return TargetMode::StairClimb;
+  }
   throw std::invalid_argument(
-    "target mode must be 'base_twist' or 'base_pose', got '" + mode + "'");
+    "target mode must be 'base_twist', 'base_pose' or 'stair_climb', got '" + mode + "'");
 }
 
 }  // namespace

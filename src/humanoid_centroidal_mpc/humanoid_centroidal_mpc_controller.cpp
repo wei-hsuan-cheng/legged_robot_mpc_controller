@@ -164,6 +164,14 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_configu
       std::move(velocity_target_to_target_trajectories),
       std::move(base_pose_target_to_target_trajectories),
       parameters_.target.defaultMode);
+    if (!parameters_.ocs2.gait.stairClimbingFile.empty()) {
+      motion_manager->setStairClimbingConfig(
+        common::loadStairClimbingConfig(parameters_.ocs2.gait.stairClimbingFile));
+      RCLCPP_INFO(
+        get_node()->get_logger(),
+        "[HumanoidCentroidalMpcController] stair climbing config loaded from %s",
+        parameters_.ocs2.gait.stairClimbingFile.c_str());
+    }
     motion_manager_ = std::move(motion_manager);
     rclcpp::QoS command_qos(1);
     command_qos.best_effort();

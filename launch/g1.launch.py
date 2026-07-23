@@ -60,6 +60,13 @@ def generate_launch_description():
         "g1",
         "gait.yaml"
         ])
+
+    stair_climbing_file_default = PathJoinSubstitution([
+        mpc_share,
+        "config",
+        "g1",
+        "stair_climbing.yaml"
+        ])
     
     ros2_control_xacro = PathJoinSubstitution([mpc_share, "description", "g1", "urdf", "g1.ros2_control.xacro"])
 
@@ -88,6 +95,7 @@ def generate_launch_description():
         DeclareLaunchArgument("mrtFreq", default_value="1000", description="MRT update frequency (should be integer)"),
         DeclareLaunchArgument("controllersFile", default_value=controllers_file_default),
         DeclareLaunchArgument("gaitLibraryFile", default_value=gait_library_file_default),
+        DeclareLaunchArgument("stairClimbingFile", default_value=stair_climbing_file_default),
         DeclareLaunchArgument(
             "mpcControllerName",
             default_value=mpc_controller_default,

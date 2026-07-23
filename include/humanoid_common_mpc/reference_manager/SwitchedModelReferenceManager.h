@@ -38,6 +38,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "humanoid_common_mpc/common/MpcRobotModelBase.h"
 #include "humanoid_common_mpc/gait/GaitSchedule.h"
 #include "humanoid_common_mpc/gait/MotionPhaseDefinition.h"
+#include "humanoid_common_mpc/reference_manager/StairClimbingPlan.h"
 #include "humanoid_common_mpc/swing_foot_planner/SwingTrajectoryPlanner.h"
 
 namespace ocs2::humanoid {
@@ -105,6 +106,16 @@ class SwitchedModelReferenceManager : public ReferenceManager {
   const FrameRelationTargets& getExternalFrameRelationTargets() const { return externalFrameRelationTargets_.get(); }
   bool hasExternalFrameRelationTargets() const { return !externalFrameRelationTargets_.get().empty(); }
 
+  /**
+   * Fixed-sequence stair climbing plan channel. When a plan is set, the swing
+   * trajectory planner is fed the plan's per-phase lift-off / touch-down height
+   * sequences (instead of flat ground) and the swing-foot cost tracks the
+   * planned footholds. Buffered: the setter is thread-safe, consumers read the
+   * value swapped in before the solver run. Set nullptr to clear.
+   */
+  void setStairClimbingPlan(std::shared_ptr<const StairClimbingPlan> plan) { stairClimbingPlan_.setBuffer(std::move(plan)); }
+  const std::shared_ptr<const StairClimbingPlan>& getStairClimbingPlan() const { return stairClimbingPlan_.get(); }
+
   const std::shared_ptr<GaitSchedule>& getGaitSchedule() const { return gaitSchedulePtr_; }
 
   const std::shared_ptr<SwingTrajectoryPlanner>& getSwingTrajectoryPlanner() const { return swingTrajectoryPtr_; }
@@ -133,6 +144,7 @@ class SwitchedModelReferenceManager : public ReferenceManager {
 
   BufferedValue<TargetTrajectories> externalJointTargets_{TargetTrajectories()};
   BufferedValue<FrameRelationTargets> externalFrameRelationTargets_{FrameRelationTargets()};
+  BufferedValue<std::shared_ptr<const StairClimbingPlan>> stairClimbingPlan_{nullptr};
 
   std::shared_ptr<GaitSchedule> gaitSchedulePtr_;
   std::shared_ptr<SwingTrajectoryPlanner> swingTrajectoryPtr_;

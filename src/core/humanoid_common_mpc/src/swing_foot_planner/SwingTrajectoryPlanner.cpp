@@ -129,7 +129,9 @@ void SwingTrajectoryPlanner::update(const ModeSchedule& modeSchedule,
 
           const CubicSpline::Node liftOffHeight{swingStartTime, liftOffHeightSequence[j][p], scaling * config_.liftOffVelocity};
           const CubicSpline::Node touchDownHeight{swingFinalTime, touchDownHeightSequence[j][p], scaling * config_.touchDownVelocity};
-          const scalar_t midHeight = std::min(liftOffHeightSequence[j][p], touchDownHeightSequence[j][p]) + scaling * config_.swingHeight;
+          // Apex above the HIGHER of the two contact heights so the swing clears a step
+          // when climbing stairs; identical to the previous behavior on flat ground.
+          const scalar_t midHeight = std::max(liftOffHeightSequence[j][p], touchDownHeightSequence[j][p]) + scaling * config_.swingHeight;
           feetHeightTrajectories_[j].emplace_back(liftOffHeight, midHeight, touchDownHeight);
 
           const CubicSpline::Node impactProximityLiftOff{swingStartTime, 1.0, scaling * config_.impactProximityFactorLiftOffVelocity};

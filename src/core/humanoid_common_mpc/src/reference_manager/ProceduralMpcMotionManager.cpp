@@ -50,8 +50,18 @@ ProceduralMpcMotionManager::ProceduralMpcMotionManager(GaitMap gaitMap,
       gaitSchedulePtr_(switchedModelReferenceManagerPtr_->getGaitSchedule()),
       mpcRobotModelPtr_(&mpcRobotModel),
       walkingVelocityTarget_(referenceConfig, std::move(velocityTargetToTargetTrajectories)),
-      basePoseTarget_(referenceConfig, mpcRobotModel, std::move(basePoseTargetToTargetTrajectories)) {
+      basePoseTarget_(referenceConfig, mpcRobotModel, std::move(basePoseTargetToTargetTrajectories)),
+      referenceConfig_(referenceConfig) {
   gaitMap_ = std::move(gaitMap);
+}
+
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+
+void ProceduralMpcMotionManager::setStairClimbingConfig(StairClimbingConfig config) {
+  std::lock_guard<std::mutex> lock(stairClimbingConfigMutex_);
+  stairClimbingConfig_ = std::make_shared<const StairClimbingConfig>(std::move(config));
 }
 
 /******************************************************************************************************/
@@ -123,6 +133,21 @@ void ProceduralMpcMotionManager::preSolverRun(scalar_t initTime,
                                               scalar_t finalTime,
                                               const vector_t& initState,
                                               const ReferenceManagerInterface& referenceManager) {
+  if (getTargetMode() == TargetMode::StairClimb) {
+    runStairClimbing(initTime, initState);
+    return;
+  }
+  if (activeStairClimbingPlan_) {
+    // Left stair climbing mode: drop the plan so the swing planner reverts to
+    // flat ground and the gait FSM takes over again from stance.
+    activeStairClimbingPlan_.reset();
+    switchedModelReferenceManagerPtr_->setStairClimbingPlan(nullptr);
+    stairClimbFinishedLogged_ = false;
+    currentGaitMode_ = 0;
+    currentGaitCommand_ = lastGaitCommand_ = "stance";
+    std::cout << "[ProceduralMpcMotionManager] Stair climbing plan cleared." << std::endl;
+  }
+
   vector4_t filteredVelCommand;
   if (getTargetMode() == TargetMode::BasePose) {
     BasePoseTarget::Output target = basePoseTarget_.evaluate(initTime, finalTime, initState);
@@ -163,6 +188,53 @@ void ProceduralMpcMotionManager::preSolverRun(scalar_t initTime,
 
     GaitScheduleUpdater::updateGaitSchedule(gaitSchedulePtr_, modeSequenceTemplate, initTime, finalTime);
     lastGaitCommand_ = currentGaitCommand_;
+  }
+}
+
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+
+void ProceduralMpcMotionManager::runStairClimbing(scalar_t initTime, const vector_t& initState) {
+  if (!activeStairClimbingPlan_) {
+    std::shared_ptr<const StairClimbingConfig> config;
+    {
+      std::lock_guard<std::mutex> lock(stairClimbingConfigMutex_);
+      config = stairClimbingConfig_;
+    }
+    if (!config) {
+      std::cerr << "[ProceduralMpcMotionManager] StairClimb mode selected but no stair climbing config is loaded." << std::endl;
+      return;
+    }
+
+    // Anchor the plan at the current solver time, starting from the current base pose.
+    const vector6_t basePose = mpcRobotModelPtr_->getBasePose(initState);
+    auto plan = std::make_shared<const StairClimbingPlan>(*config, initTime, basePose, *mpcRobotModelPtr_, referenceConfig_);
+
+    // Insert the full (non-periodic) climb sequence once, then park the stored
+    // template on stance so the schedule extends with stance after the climb.
+    gaitSchedulePtr_->insertModeSequenceTemplate(plan->getModeSequenceTemplate(), initTime, plan->getFinalTime() - 1e-3);
+    gaitSchedulePtr_->insertModeSequenceTemplate(gaitMap_.at("stance"), plan->getFinalTime(), plan->getFinalTime() + 0.5);
+
+    switchedModelReferenceManagerPtr_->setStairClimbingPlan(plan);
+    activeStairClimbingPlan_ = std::move(plan);
+    stairClimbFinishedLogged_ = false;
+
+    // Park the velocity-gait FSM while the fixed sequence runs.
+    currentGaitMode_ = 0;
+    currentGaitCommand_ = lastGaitCommand_ = "stance";
+
+    std::cout << "[ProceduralMpcMotionManager] Stair climbing started at t=" << initTime << ", finishes at t="
+              << activeStairClimbingPlan_->getFinalTime() << std::endl;
+  }
+
+  // The plan's base reference covers the whole climb with absolute times; the
+  // solver interpolates (and holds the final state after the climb ends).
+  switchedModelReferenceManagerPtr_->setTargetTrajectories(TargetTrajectories(activeStairClimbingPlan_->getBaseTargetTrajectories()));
+
+  if (!stairClimbFinishedLogged_ && initTime > activeStairClimbingPlan_->getFinalTime()) {
+    std::cout << "[ProceduralMpcMotionManager] Stair climbing sequence finished; holding stance on the last step." << std::endl;
+    stairClimbFinishedLogged_ = true;
   }
 }
 

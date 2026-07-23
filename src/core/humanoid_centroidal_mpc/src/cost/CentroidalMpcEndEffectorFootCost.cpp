@@ -34,6 +34,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "humanoid_centroidal_mpc/cost/CentroidalMpcEndEffectorFootCost.h"
 
+#include <cmath>
+
 #include <ocs2_centroidal_model/ModelHelperFunctions.h>
 #include <ocs2_robotic_tools/common/RotationTransforms.h>
 
@@ -131,13 +133,28 @@ vector_t CentroidalMpcEndEffectorFootCost::getParameters(scalar_t time,
 
   const scalar_t impactProximityScaler = referenceManagerPtr_->getSwingTrajectoryPlanner()->getImpactProximityFactor(contactIndex_, time);
 
-  // TODO Update this reference for non flat ground in the future
+  vector3_t positionReference(0.0, 0.0, 0.0);
+  vector12_t sqrtWeights = sqrtWeights_;
+
+  // Fixed-sequence stair climbing: track the planned foothold (interpolated from
+  // lift-off to touch-down) with the configured xy weight during swing phases.
+  const auto& stairPlan = referenceManagerPtr_->getStairClimbingPlan();
+  if (stairPlan != nullptr) {
+    vector3_t plannedPosition;
+    if (stairPlan->getSwingFootReference(contactIndex_, time, plannedPosition)) {
+      positionReference = plannedPosition;
+      const scalar_t sqrtTrackingWeight = std::sqrt(stairPlan->getFootholdTrackingWeight());
+      sqrtWeights[0] = sqrtTrackingWeight;
+      sqrtWeights[1] = sqrtTrackingWeight;
+    }
+  }
+
   vector_t parameters(25);
-  parameters.head(3) = vector3_t(0.0, 0.0, 0.0);        // Reference position
+  parameters.head(3) = positionReference;               // Reference position
   parameters.segment(3, 3) = vector3_t(0.0, 0.0, 1.0);  // Ground plane normal
   parameters.segment(6, 3) = vector3_t(0.0, 0.0, 0.0);  // Reference linear velocity
   parameters.segment(9, 3) = vector3_t(0.0, 0.0, 0.0);  // Reference angular velocity
-  parameters.segment(12, 12) = sqrtWeights_;            // EndEffectorKinematicsWeights vector element
+  parameters.segment(12, 12) = sqrtWeights;             // EndEffectorKinematicsWeights vector element
 
   parameters[24] = impactProximityScaler;
 

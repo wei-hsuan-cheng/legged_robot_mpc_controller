@@ -32,6 +32,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <atomic>
 #include <functional>
+#include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -59,7 +61,7 @@ class ProceduralMpcMotionManager : public SolverSynchronizedModule {
   using BasePoseTargetToTargetTrajectories =
       std::function<TargetTrajectories(const vector6_t& basePoseTarget, scalar_t initTime, scalar_t finalTime, const vector_t& initState)>;
 
-  enum class TargetMode { BaseTwist, BasePose };
+  enum class TargetMode { BaseTwist, BasePose, StairClimb };
 
   struct GaitModeStateConfig {
     std::string gaitCommand = "stance";
@@ -113,6 +115,11 @@ class ProceduralMpcMotionManager : public SolverSynchronizedModule {
 
   void setBasePoseCommand(const BasePoseCommand& command);
 
+  /// Stores the semantic stair climbing parameters; the plan itself is compiled
+  /// and anchored on the solver thread when TargetMode::StairClimb is selected.
+  /// Thread-safe.
+  void setStairClimbingConfig(StairClimbingConfig config);
+
   void setTargetMode(TargetMode mode);
 
   TargetMode getTargetMode() const { return targetMode_.load(std::memory_order_acquire); }
@@ -151,6 +158,17 @@ class ProceduralMpcMotionManager : public SolverSynchronizedModule {
   std::string currentGaitCommand_{"stance"};
   std::string lastGaitCommand_{"stance"};
   scalar_t lastGaitChangeTime_{0.0};
+
+  // Stair climbing: semantic config is shared with the ROS thread; the compiled
+  // plan is owned by the solver thread (created / cleared in preSolverRun).
+  const ReferenceConfig referenceConfig_;
+  std::mutex stairClimbingConfigMutex_;
+  std::shared_ptr<const StairClimbingConfig> stairClimbingConfig_;
+  std::shared_ptr<const StairClimbingPlan> activeStairClimbingPlan_;
+  bool stairClimbFinishedLogged_{false};
+
+  /// Handles TargetMode::StairClimb inside preSolverRun (solver thread).
+  void runStairClimbing(scalar_t initTime, const vector_t& initState);
 };
 
 }  // namespace ocs2::humanoid

@@ -812,6 +812,11 @@ humanoid_centroidal_mpc_controller:
         default_value: "",
         description: "YAML file with the named gait library (mode sequence templates), see config/g1/gait.yaml"
       }
+      stairClimbingFile: {
+        type: string,
+        default_value: "",
+        description: "YAML file with the fixed-sequence stair climbing parameters, see config/g1/stair_climbing.yaml. Empty disables the stair_climb target mode."
+      }
       initialModeSequence: {
         type: string_array,
         default_value: ["STANCE", "STANCE"],
