@@ -26,13 +26,27 @@ def generate_launch_description():
     lib_folder_default = os.path.join("auto_generated", "g1")
     mpc_controller_default = "humanoid_centroidal_mpc_controller" # humanoid_centroidal_mpc_controller | humanoid_wb_mpc_controller
 
-    urdf_default = PathJoinSubstitution([mpc_share, 
-                                         "description", 
-                                         "g1", 
-                                         "urdf", 
-                                         "g1_29dof.urdf", # g1_29dof.urdf | g1_29dof_stairs.urdf
+    # URDF for the MPC's Pinocchio model: MUST be pelvis-rooted (the MPC adds its
+    # own floating base). Do NOT point this at a URDF that contains a world link /
+    # floating_base_joint or static environment (e.g. stairs) — the extra floating
+    # joint adds 6 DOF and trips "referenceJointState size does not match nq - 6".
+    urdf_default = PathJoinSubstitution([mpc_share,
+                                         "description",
+                                         "g1",
+                                         "urdf",
+                                         "g1_29dof.urdf", # robot-only, pelvis-rooted (MPC/Pinocchio)
                                          ])
-    
+
+    # URDF for robot_state_publisher / RViz only: may include the world link and
+    # static environment (stairs). RSP skips the floating joint and gets
+    # world->pelvis from the sim's ground-truth TF instead.
+    display_urdf_default = PathJoinSubstitution([mpc_share,
+                                                 "description",
+                                                 "g1",
+                                                 "urdf",
+                                                 "g1_29dof_stairs.urdf", # g1_29dof.urdf | g1_29dof_stairs.urdf
+                                                 ])
+
     controllers_file_default = PathJoinSubstitution([
         mpc_share,
         "config",
@@ -64,6 +78,7 @@ def generate_launch_description():
         # (any other body would get two TF parents).
         DeclareLaunchArgument("gt_body_frame", default_value="pelvis"),
         DeclareLaunchArgument("urdfFile", default_value=urdf_default),
+        DeclareLaunchArgument("displayUrdfFile", default_value=display_urdf_default),
         DeclareLaunchArgument(
             "libFolder",
             default_value=lib_folder_default,
@@ -130,12 +145,12 @@ def generate_launch_description():
     )
     robot_description = {"robot_description": ParameterValue(robot_description_content, value_type=str)}
 
-    # Full URDF (visuals + collisions) for robot_state_publisher / RViz.
+    # Full URDF (visuals + collisions + static environment) for robot_state_publisher / RViz.
     display_description_content = Command(
         [
             PathJoinSubstitution([FindExecutable(name="xacro")]),
             " ",
-            LaunchConfiguration("urdfFile"),
+            LaunchConfiguration("displayUrdfFile"),
         ]
     )
     display_description = {
