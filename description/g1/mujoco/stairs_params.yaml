@@ -18,8 +18,8 @@
 stairs:
   # ----- 0th step: reference frame in the horizontal plane -----
   base:
-    pos: [-1.0, 0.0, 0.0]   # world center position of the 0th step [x, y, z]
-    yaw: 3.14159               # yaw orientation about world +z [radians]
+    pos: [0.75, 0.0, 0.0]   # world center position of the 0th step [x, y, z]
+    yaw: 0.0               # yaw orientation about world +z [radians]
     start_offset: 0.0      # local +x offset from the 0th-step center to the
                            # near edge of step 1 (a flat landing gap)
 
