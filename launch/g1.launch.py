@@ -26,7 +26,12 @@ def generate_launch_description():
     lib_folder_default = os.path.join("auto_generated", "g1")
     mpc_controller_default = "humanoid_centroidal_mpc_controller" # humanoid_centroidal_mpc_controller | humanoid_wb_mpc_controller
 
-    urdf_default = PathJoinSubstitution([mpc_share, "description", "g1", "urdf", "g1_29dof.urdf"])
+    urdf_default = PathJoinSubstitution([mpc_share, 
+                                         "description", 
+                                         "g1", 
+                                         "urdf", 
+                                         "g1_29dof.urdf", # g1_29dof.urdf | g1_29dof_stairs.urdf
+                                         ])
     
     controllers_file_default = PathJoinSubstitution([
         mpc_share,
