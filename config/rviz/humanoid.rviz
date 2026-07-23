@@ -230,6 +230,35 @@ Visualization Manager:
           Show Axes: false
           Show Trail: false
           Value: true
+        stairs_base:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        stairs_step_1:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        stairs_step_2:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        stairs_step_3:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        stairs_step_4:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        stairs_step_5:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
         torso_link:
           Alpha: 1
           Show Axes: false
@@ -250,6 +279,10 @@ Visualization Manager:
           Show Axes: false
           Show Trail: false
           Value: true
+        world:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
       Mass Properties:
         Inertia: false
         Mass: false
@@ -288,7 +321,18 @@ Visualization Manager:
       Enabled: true
       Name: OptimizedStateTrajectory
       Namespaces:
-        {}
+        optimizedStateTrajectoryLine_foot_l_contact: true
+        optimizedStateTrajectoryLine_foot_r_contact: true
+        optimizedStateTrajectoryLine_left_wrist_yaw_link: true
+        optimizedStateTrajectoryLine_mid360_link: true
+        optimizedStateTrajectoryLine_pelvis: true
+        optimizedStateTrajectoryLine_right_wrist_yaw_link: true
+        optimizedStateTrajectorySamples_foot_l_contact: true
+        optimizedStateTrajectorySamples_foot_r_contact: true
+        optimizedStateTrajectorySamples_left_wrist_yaw_link: true
+        optimizedStateTrajectorySamples_mid360_link: true
+        optimizedStateTrajectorySamples_pelvis: true
+        optimizedStateTrajectorySamples_right_wrist_yaw_link: true
       Topic:
         Depth: 5
         Durability Policy: Transient Local
@@ -407,7 +451,7 @@ Window Geometry:
   Height: 880
   Hide Left Dock: false
   Hide Right Dock: false
-  QMainWindow State: 000000ff00000000fd0000000100000000000001d60000031afc0200000003fb000000100044006900730070006c006100790073010000003b0000031a000000c700fffffffb0000000c00430061006d0065007200610100000725000000e90000000000000000fb0000000a005600690065007700730000000276000000df000000a000ffffff000003ca0000031a00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  QMainWindow State: 000000ff00000000fd0000000100000000000001d60000031afc0200000003fb000000100044006900730070006c006100790073000000003b0000031a000000c700fffffffb0000000c00430061006d0065007200610100000725000000e90000000000000000fb0000000a005600690065007700730000000276000000df000000a000ffffff000005a60000031a00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   Views:
     collapsed: false
   Width: 1446
