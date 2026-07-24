@@ -31,9 +31,7 @@ def generate_launch_description():
     # floating_base_joint or static environment (e.g. stairs) — the extra floating
     # joint adds 6 DOF and trips "referenceJointState size does not match nq - 6".
     urdf_default = PathJoinSubstitution([mpc_share,
-                                         "description",
-                                         "g1",
-                                         "urdf",
+                                         "description", "g1", "urdf",
                                          "g1_29dof.urdf", # robot-only, pelvis-rooted (MPC/Pinocchio)
                                          ])
 
@@ -41,41 +39,29 @@ def generate_launch_description():
     # static environment (stairs). RSP skips the floating joint and gets
     # world->pelvis from the sim's ground-truth TF instead.
     display_urdf_default = PathJoinSubstitution([mpc_share,
-                                                 "description",
-                                                 "g1",
-                                                 "urdf",
+                                                 "description", "g1", "urdf",
                                                  "g1_29dof_stairs.urdf", # g1_29dof.urdf | g1_29dof_stairs.urdf
                                                  ])
 
     controllers_file_default = PathJoinSubstitution([
-        mpc_share,
-        "config",
-        "g1",
+        mpc_share, "config", "g1",
         "ros2_controllers_legacy.yaml" # ros2_controllers.yaml | ros2_controllers_legacy.yaml
         ])
     
     gait_library_file_default = PathJoinSubstitution([
-        mpc_share,
-        "config",
-        "g1",
+        mpc_share, "config", "g1",
         "gait.yaml"
         ])
 
     stair_climbing_file_default = PathJoinSubstitution([
-        mpc_share,
-        "config",
-        "g1",
-        "terrain",
-        "stair_climbing",
+        mpc_share, "config", "g1",
+        "terrain", "stair_climbing",
         "stair_climbing_sos.yaml" # stair_climbing_st.yaml | stair_climbing_sos.yaml
         ])
 
     terrain_walking_file_default = PathJoinSubstitution([
-        mpc_share,
-        "config",
-        "g1",
-        "terrain",
-        "terrain_walking",
+        mpc_share, "config", "g1",
+        "terrain", "terrain_walking",
         "terrain_walking.yaml"
         ])
 
