@@ -166,21 +166,18 @@ void ProceduralMpcMotionManager::preSolverRun(scalar_t initTime,
   static GaitModeStateConfig currentCfg = gaitModeStates_[currentGaitMode_];
   vector6_t baseVelocity = mpcRobotModelPtr_->getBaseComVelocity(initState);
 
-  // Terrain-aware walking never escalates beyond the "slow_walk" gait: faster
-  // gaits shorten or drop the double support, which is unsafe on stairs.
-  constexpr size_t slowWalkGaitModeIndex = 1;  // index of "slow_walk" in gaitModeStates_
-  const size_t maxGaitMode =
-      (getTargetMode() == TargetMode::TerrainWalk) ? slowWalkGaitModeIndex : gaitModeStates_.size() - 1;
-  if (currentGaitMode_ > maxGaitMode) {
-    currentGaitMode_ = maxGaitMode;
-    currentCfg = gaitModeStates_[currentGaitMode_];
-    currentGaitCommand_ = currentCfg.gaitCommand;
-    lastGaitChangeTime_ = initTime;
-  }
-
-  // Do not change the gait pattern for at least 0.5s
-  if (initTime > lastGaitChangeTime_ + 0.2) {
-    if (currentGaitMode_ < maxGaitMode && transitionToFasterGait(filteredVelCommand, baseVelocity, currentCfg)) {
+  if (getTargetMode() == TargetMode::TerrainWalk) {
+    // Terrain-aware walking uses a fixed, deliberately slow gait with generous
+    // double support (the "terrain_walk" entry in gait.yaml, matching the
+    // stair-climb swing/stance timing) instead of the velocity-based gait FSM,
+    // which would speed up and shorten the double support and fall on stairs.
+    const std::string terrainGait = (gaitMap_.count("terrain_walk") > 0) ? "terrain_walk" : "slow_walk";
+    const bool moving = std::abs(filteredVelCommand(0)) > 0.03 || std::abs(filteredVelCommand(1)) > 0.03 ||
+                        std::abs(filteredVelCommand(3)) > 0.05;
+    currentGaitMode_ = 0;
+    currentGaitCommand_ = moving ? terrainGait : "stance";
+  } else if (initTime > lastGaitChangeTime_ + 0.2) {  // do not change the gait pattern for at least 0.2s
+    if (transitionToFasterGait(filteredVelCommand, baseVelocity, currentCfg)) {
       std::cout << "filteredVelCommand: " << filteredVelCommand.transpose() << std::endl;
       std::cout << "Linear limits: " << currentCfg.minLinVelCmd << ", " << currentCfg.maxLinVelCmd << std::endl;
       currentGaitMode_++;

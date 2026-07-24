@@ -1,7 +1,7 @@
 # Gait library
 # Each gait is a mode sequence template: N modes and N+1 switching times
 
-list: [stance, left_leg, right_leg, trot, fast_trot, slow_trot, slower_trot, walk, fast_walk, slow_walk, very_slow_walk, run, fast_run, skip, jump]
+list: [stance, left_leg, right_leg, trot, fast_trot, slow_trot, slower_trot, walk, fast_walk, slow_walk, very_slow_walk, run, fast_run, skip, jump, terrain_walk]
 
 stance:
   modeSequence: [STANCE]
@@ -62,3 +62,7 @@ skip:
 jump:
   modeSequence: [STANCE, FLY]
   switchingTimes: [0.0, 0.3, 0.5]
+
+terrain_walk:
+  modeSequence: [LF, STANCE, RF, STANCE]
+  switchingTimes: [0.0, 0.9, 1.7, 2.6, 3.4]
