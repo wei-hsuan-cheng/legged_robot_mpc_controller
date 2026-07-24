@@ -53,6 +53,7 @@ ocs2::humanoid::StairClimbingConfig loadStairClimbingConfig(const std::string& s
   config.startOffset = stairs["start_offset"].as<double>(0.0);
   config.stepHeights = stairs["heights"].as<std::vector<double>>();
   config.stepDepths = stairs["depths"].as<std::vector<double>>();
+  config.stepWidth = stairs["width"].as<double>(config.stepWidth);
 
   if (const YAML::Node gait = node["gait"]) {
     config.initialStanceDuration = gait["initial_stance_duration"].as<double>(config.initialStanceDuration);
@@ -76,6 +77,30 @@ ocs2::humanoid::StairClimbingConfig loadStairClimbingConfig(const std::string& s
   }
 
   return config;
+}
+
+ocs2::humanoid::TerrainFootholdPlannerSettings loadTerrainFootholdPlannerSettings(const std::string& stairClimbingFile)
+{
+  ocs2::humanoid::TerrainFootholdPlannerSettings settings;
+
+  const YAML::Node root = YAML::LoadFile(stairClimbingFile);
+  const YAML::Node node = root["terrain_walk"];
+  if (!node) {
+    return settings;  // defaults
+  }
+
+  settings.hipLateralOffset = node["hip_lateral_offset"].as<double>(settings.hipLateralOffset);
+  settings.footMarginX = node["foot_margin_x"].as<double>(settings.footMarginX);
+  settings.footMarginY = node["foot_margin_y"].as<double>(settings.footMarginY);
+  settings.maxStepHeight = node["max_step_height"].as<double>(settings.maxStepHeight);
+  settings.capturePointFeedbackGain = node["capture_point_feedback_gain"].as<double>(settings.capturePointFeedbackGain);
+  settings.maxCapturePointOffset = node["max_capture_point_offset"].as<double>(settings.maxCapturePointOffset);
+  settings.maxBaseHeightAboveSupport = node["max_base_height_above_support"].as<double>(settings.maxBaseHeightAboveSupport);
+  settings.maxBaseLead = node["max_base_lead"].as<double>(settings.maxBaseLead);
+  settings.footholdTrackingWeight = node["tracking_weight"].as<double>(settings.footholdTrackingWeight);
+  settings.swingReferenceArrivalFraction = node["swing_reference_arrival_fraction"].as<double>(settings.swingReferenceArrivalFraction);
+
+  return settings;
 }
 
 }  // namespace legged_robot_mpc_controller::common

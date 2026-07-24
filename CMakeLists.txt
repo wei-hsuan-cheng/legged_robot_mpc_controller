@@ -195,6 +195,7 @@ install(PROGRAMS
   launch/command/mpc_targets/frame_relation_tracking_target.py
   launch/command/mpc_targets/joint_frame_relation_tracking_target.py
   tests/stair_climbing_test.sh
+  tests/terrain_walk_test.sh
   DESTINATION lib/${PROJECT_NAME}
 )
 install(DIRECTORY config/

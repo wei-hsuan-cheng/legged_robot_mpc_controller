@@ -40,6 +40,7 @@ struct StairClimbingConfig {
   scalar_t startOffset{0.0};      ///< local +x offset from the 0th-step center to the first riser
   std::vector<scalar_t> stepHeights;  ///< riser height per step H_i
   std::vector<scalar_t> stepDepths;   ///< tread depth per step D_i
+  scalar_t stepWidth{1.2};            ///< tread width along the local y (used by the terrain model)
 
   // ----- gait timing -----
   scalar_t initialStanceDuration{2.0};  ///< settle time before the first lift-off

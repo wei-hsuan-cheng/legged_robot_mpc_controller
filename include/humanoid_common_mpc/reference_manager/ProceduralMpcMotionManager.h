@@ -61,7 +61,7 @@ class ProceduralMpcMotionManager : public SolverSynchronizedModule {
   using BasePoseTargetToTargetTrajectories =
       std::function<TargetTrajectories(const vector6_t& basePoseTarget, scalar_t initTime, scalar_t finalTime, const vector_t& initState)>;
 
-  enum class TargetMode { BaseTwist, BasePose, StairClimb };
+  enum class TargetMode { BaseTwist, BasePose, StairClimb, TerrainWalk };
 
   struct GaitModeStateConfig {
     std::string gaitCommand = "stance";

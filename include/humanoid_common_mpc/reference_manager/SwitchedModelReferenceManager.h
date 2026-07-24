@@ -39,6 +39,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "humanoid_common_mpc/gait/GaitSchedule.h"
 #include "humanoid_common_mpc/gait/MotionPhaseDefinition.h"
 #include "humanoid_common_mpc/reference_manager/StairClimbingPlan.h"
+#include "humanoid_common_mpc/reference_manager/TerrainFootholdPlanner.h"
 #include "humanoid_common_mpc/swing_foot_planner/SwingTrajectoryPlanner.h"
 
 namespace ocs2::humanoid {
@@ -116,6 +117,27 @@ class SwitchedModelReferenceManager : public ReferenceManager {
   void setStairClimbingPlan(std::shared_ptr<const StairClimbingPlan> plan) { stairClimbingPlan_.setBuffer(std::move(plan)); }
   const std::shared_ptr<const StairClimbingPlan>& getStairClimbingPlan() const { return stairClimbingPlan_.get(); }
 
+  /**
+   * Online terrain-aware foothold planning channel (terrain_walk mode).
+   * The planner is installed once at configure time; the activation flag is
+   * buffered (thread-safe). When active, modifyReferences re-plans the
+   * footsteps each cycle from the fetched mode schedule and the desired base
+   * trajectory, feeds the resulting height sequences to the swing planner, and
+   * terrain-adapts the base height reference.
+   */
+  void setTerrainFootholdPlanner(std::shared_ptr<TerrainFootholdPlanner> planner) {
+    terrainFootholdPlannerPtr_ = std::move(planner);
+  }
+  void setTerrainWalkActive(bool active) { terrainWalkActive_.setBuffer(active); }
+  bool isTerrainWalkActive() const { return terrainWalkActive_.get() && terrainFootholdPlannerPtr_ != nullptr; }
+
+  /**
+   * Unified swing-foot foothold reference used by the task-space foot cost:
+   * dispatches to the fixed stair climbing plan or the online terrain planner.
+   * @return true when a foothold reference is active for `foot` at `time`.
+   */
+  bool getSwingFootholdReference(size_t foot, scalar_t time, vector3_t& positionReference, scalar_t& trackingWeight) const;
+
   const std::shared_ptr<GaitSchedule>& getGaitSchedule() const { return gaitSchedulePtr_; }
 
   const std::shared_ptr<SwingTrajectoryPlanner>& getSwingTrajectoryPlanner() const { return swingTrajectoryPtr_; }
@@ -145,6 +167,14 @@ class SwitchedModelReferenceManager : public ReferenceManager {
   BufferedValue<TargetTrajectories> externalJointTargets_{TargetTrajectories()};
   BufferedValue<FrameRelationTargets> externalFrameRelationTargets_{FrameRelationTargets()};
   BufferedValue<std::shared_ptr<const StairClimbingPlan>> stairClimbingPlan_{nullptr};
+
+  // Terrain-aware walking: planner mutated only in modifyReferences (solver
+  // thread, pre-solve); read-only during the solve, same pattern as the swing planner.
+  std::shared_ptr<TerrainFootholdPlanner> terrainFootholdPlannerPtr_;
+  BufferedValue<bool> terrainWalkActive_{false};
+
+  /// Measured feet (contact frame) world positions from FK of the current state.
+  feet_array_t<vector3_t> computeFeetPositions(const vector_t& initState);
 
   std::shared_ptr<GaitSchedule> gaitSchedulePtr_;
   std::shared_ptr<SwingTrajectoryPlanner> swingTrajectoryPtr_;

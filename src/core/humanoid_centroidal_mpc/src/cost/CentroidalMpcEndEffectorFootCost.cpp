@@ -136,14 +136,15 @@ vector_t CentroidalMpcEndEffectorFootCost::getParameters(scalar_t time,
   vector3_t positionReference(0.0, 0.0, 0.0);
   vector12_t sqrtWeights = sqrtWeights_;
 
-  // Fixed-sequence stair climbing: track the planned foothold (interpolated from
-  // lift-off to touch-down) with the configured xy weight during swing phases.
-  const auto& stairPlan = referenceManagerPtr_->getStairClimbingPlan();
-  if (stairPlan != nullptr) {
+  // Foothold tracking (fixed stair climbing plan or online terrain planner):
+  // track the planned foothold (interpolated from lift-off to touch-down) with
+  // the configured xy weight during swing phases.
+  {
     vector3_t plannedPosition;
-    if (stairPlan->getSwingFootReference(contactIndex_, time, plannedPosition)) {
+    scalar_t trackingWeight = 0.0;
+    if (referenceManagerPtr_->getSwingFootholdReference(contactIndex_, time, plannedPosition, trackingWeight)) {
       positionReference = plannedPosition;
-      const scalar_t sqrtTrackingWeight = std::sqrt(stairPlan->getFootholdTrackingWeight());
+      const scalar_t sqrtTrackingWeight = std::sqrt(trackingWeight);
       sqrtWeights[0] = sqrtTrackingWeight;
       sqrtWeights[1] = sqrtTrackingWeight;
     }

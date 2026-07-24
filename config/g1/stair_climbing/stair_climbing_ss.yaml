@@ -19,6 +19,7 @@ stair_climbing:
     start_offset: 0.0           # local +x offset from base_pos to the first riser
     heights: [0.10, 0.10, 0.10, 0.10, 0.10]   # riser height per step [m]
     depths:  [0.30, 0.30, 0.30, 0.30, 0.30]   # tread depth per step [m]
+    width: 1.2                                # tread width along local y [m]
 
   gait:
     initial_stance_duration: 2.0  # settle before the first lift-off [s]
@@ -40,3 +41,20 @@ stair_climbing:
     # rear-leg extension is height_above_support + riser/2, and the larger swing
     # articulation needs extra margin below the ~0.79 m standing height.
     height_above_support: 0.70
+
+# -----------------------------------------------------------------------------
+# Online terrain-aware walking ("terrain_walk" target mode): footholds are
+# selected automatically over the ground-truth staircase geometry above while
+# the robot follows plain velocity commands (no pre-scripted sequence).
+# -----------------------------------------------------------------------------
+terrain_walk:
+  hip_lateral_offset: 0.13        # |y| of the nominal foothold from the base centerline [m]
+  foot_margin_x: 0.10             # region shrink along local x (half foot length + margin) [m]
+  foot_margin_y: 0.05             # region shrink along local y (half foot width + margin) [m]
+  max_step_height: 0.18           # reject candidate regions further than this in z from the previous foothold [m]
+  capture_point_feedback_gain: 0.27   # sqrt(h/g) velocity feedback on the first upcoming step
+  max_capture_point_offset: 0.10  # clamp on the capture-point foothold offset [m]
+  max_base_height_above_support: 0.68  # cap of the commanded pelvis height above the mean support [m]
+  max_base_lead: 0.40             # clamp of the base reference lead over the planned support midpoint [m]
+  tracking_weight: 250.0          # swing-foot xy position tracking weight
+  swing_reference_arrival_fraction: 0.75  # xy reference reaches the foothold at this swing fraction

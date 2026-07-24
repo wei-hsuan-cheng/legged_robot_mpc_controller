@@ -32,6 +32,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <humanoid_common_mpc/pinocchio_model/DynamicsHelperFunctions.h>
 
+#include <pinocchio/algorithm/frames.hpp>
+#include <pinocchio/algorithm/kinematics.hpp>
+
 namespace ocs2::humanoid {
 
 /******************************************************************************************************/
@@ -147,6 +150,7 @@ void SwitchedModelReferenceManager::modifyReferences(scalar_t initTime,
   externalJointTargets_.updateFromBuffer();
   externalFrameRelationTargets_.updateFromBuffer();
   stairClimbingPlan_.updateFromBuffer();
+  terrainWalkActive_.updateFromBuffer();
 
   const auto timeHorizon = finalTime - initTime;
   modeSchedule = gaitSchedulePtr_->getModeSchedule(initTime - timeHorizon, finalTime + timeHorizon);
@@ -159,12 +163,117 @@ void SwitchedModelReferenceManager::modifyReferences(scalar_t initTime,
     feet_array_t<scalar_array_t> touchDownHeightSequence;
     stairPlan->getHeightSequences(modeSchedule, liftOffHeightSequence, touchDownHeightSequence);
     swingTrajectoryPtr_->update(modeSchedule, liftOffHeightSequence, touchDownHeightSequence);
+  } else if (isTerrainWalkActive()) {
+    // Terrain-aware walking: re-plan the footsteps over the ground-truth
+    // terrain for the current window, terrain-adapt the base height reference,
+    // and feed the planned support heights to the swing planner.
+    auto& planner = *terrainFootholdPlannerPtr_;
+    planner.update(modeSchedule, targetTrajectories, computeFeetPositions(initState), initState, initTime, *mpcRobotModelPtr_);
+
+    // Interpret the commanded pelvis height as height-above-support (capped so
+    // the rear leg can still reach during a tread transfer); zero pitch/roll.
+    // The horizontal reference is clamped to a maximum lead over the planned
+    // support midpoint, and the forward momentum reference is damped by that
+    // same lead, so the base reference "arrives over the support and waits":
+    // a velocity command cannot drag the CoM past where the feet can be placed
+    // on the terrain (which otherwise topples the robot over the first riser).
+    const size_t velStart = mpcRobotModelPtr_->getBaseComVelocityStartindex();
+    for (size_t i = 0; i < targetTrajectories.stateTrajectory.size(); i++) {
+      vector_t& targetState = targetTrajectories.stateTrajectory[i];
+      const scalar_t knotTime = targetTrajectories.timeTrajectory[i];
+      vector6_t basePose = mpcRobotModelPtr_->getBasePose(targetState);
+
+      const vector3_t footL = planner.getPlannedFootPosition(0, knotTime);
+      const vector3_t footR = planner.getPlannedFootPosition(1, knotTime);
+      const vector3_t supportMidpoint = 0.5 * (footL + footR);
+      const Eigen::Vector2d horizontalOffset = basePose.head<2>() - supportMidpoint.head<2>();
+      const scalar_t maxLead = planner.getMaxBaseLead();
+
+      // Decompose the base lead over the support into forward / lateral (yaw frame).
+      const scalar_t yaw = basePose(3);
+      const Eigen::Vector2d forwardDir(std::cos(yaw), std::sin(yaw));
+      const Eigen::Vector2d lateralDir(-std::sin(yaw), std::cos(yaw));
+      const scalar_t forwardLead = horizontalOffset.dot(forwardDir);
+
+      // Damp the horizontal momentum/velocity reference as the base approaches
+      // its maximum FORWARD lead. A deadzone at half the max lead keeps normal
+      // (flat-ground) walking at full speed and only gates gross overrun, e.g.
+      // when the feet are blocked by a riser: full speed below 0.5*maxLead,
+      // ramping to zero at maxLead.
+      const scalar_t velScale = std::clamp(2.0 * (maxLead - std::max(forwardLead, 0.0)) / maxLead, 0.0, 1.0);
+      targetState(velStart + 0) *= velScale;
+      targetState(velStart + 1) *= velScale;
+
+      // Lateral weight shift: in single support the pelvis reference must move
+      // over the stance foot (a biped cannot stay centered while stepping up
+      // onto a tread). In double support target the support midpoint.
+      const contact_flag_t contacts = modeNumber2StanceLeg(modeSchedule.modeAtTime(knotTime));
+      constexpr scalar_t lateralShiftFraction = 0.8;
+      scalar_t lateralTarget = 0.0;  // signed offset from support midpoint along lateralDir
+      if (contacts[0] && !contacts[1]) {
+        lateralTarget = lateralShiftFraction * (footL.head<2>() - supportMidpoint.head<2>()).dot(lateralDir);
+      } else if (contacts[1] && !contacts[0]) {
+        lateralTarget = lateralShiftFraction * (footR.head<2>() - supportMidpoint.head<2>()).dot(lateralDir);
+      }
+
+      const scalar_t clampedForward = std::clamp(forwardLead, -maxLead, maxLead);
+      basePose.head<2>() = supportMidpoint.head<2>() + clampedForward * forwardDir + lateralTarget * lateralDir;
+
+      basePose(2) = supportMidpoint(2) + std::min(basePose(2), planner.getMaxBaseHeightAboveSupport());
+      basePose(4) = 0.0;
+      basePose(5) = 0.0;
+      mpcRobotModelPtr_->setBasePose(targetState, basePose);
+    }
+
+    feet_array_t<scalar_array_t> liftOffHeightSequence;
+    feet_array_t<scalar_array_t> touchDownHeightSequence;
+    planner.getHeightSequences(modeSchedule, liftOffHeightSequence, touchDownHeightSequence);
+    swingTrajectoryPtr_->update(modeSchedule, liftOffHeightSequence, touchDownHeightSequence);
   } else {
     scalar_t terrainHeight = adaptToCurrentGroundHeight(targetTrajectories, initState, initMode);
     swingTrajectoryPtr_->update(modeSchedule, terrainHeight);
   }
 
   modeSchedule_ = modeSchedule;
+}
+
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+
+feet_array_t<vector3_t> SwitchedModelReferenceManager::computeFeetPositions(const vector_t& initState) {
+  const auto& model = pinocchioInterface_.getModel();
+  auto& data = pinocchioInterface_.getData();
+  const vector_t q = mpcRobotModelPtr_->getGeneralizedCoordinates(initState);
+  pinocchio::forwardKinematics(model, data, q);
+
+  feet_array_t<vector3_t> feetPositions;
+  const auto& contactNames = mpcRobotModelPtr_->modelSettings.contactNames;
+  for (size_t foot = 0; foot < feetPositions.size(); ++foot) {
+    const auto frameId = model.getFrameId(contactNames[foot]);
+    feetPositions[foot] = pinocchio::updateFramePlacement(model, data, frameId).translation();
+  }
+  return feetPositions;
+}
+
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+
+bool SwitchedModelReferenceManager::getSwingFootholdReference(size_t foot,
+                                                              scalar_t time,
+                                                              vector3_t& positionReference,
+                                                              scalar_t& trackingWeight) const {
+  const auto& stairPlan = stairClimbingPlan_.get();
+  if (stairPlan && stairPlan->getSwingFootReference(foot, time, positionReference)) {
+    trackingWeight = stairPlan->getFootholdTrackingWeight();
+    return true;
+  }
+  if (isTerrainWalkActive() && terrainFootholdPlannerPtr_->getSwingFootReference(foot, time, positionReference)) {
+    trackingWeight = terrainFootholdPlannerPtr_->getFootholdTrackingWeight();
+    return true;
+  }
+  return false;
 }
 
 }  // namespace ocs2::humanoid
