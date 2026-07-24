@@ -23,8 +23,8 @@ stair_climbing:
 
   gait:
     initial_stance_duration: 2.0  # settle before the first lift-off [s]
-    swing_duration: 0.9           # single-support duration [s] (double-tread stride)
-    stance_duration: 0.8          # double-support duration between swings [s]
+    swing_duration: 0.7           # single-support duration [s] (double-tread stride)
+    stance_duration: 0.5          # double-support duration between swings [s]
     final_stance_duration: 1.0    # settle after the last touch-down [s]
     left_foot_first: true
     both_feet_per_tread: false    # one-tread-one-leg (alternating) climb gait
