@@ -57,6 +57,9 @@ terrain_walk:
   capture_point_feedback_gain: 0.27   # sqrt(h/g) velocity feedback on the first upcoming step
   max_capture_point_offset: 0.10  # clamp on the capture-point foothold offset [m]
   max_base_height_above_support: 0.68  # cap of the commanded pelvis height above the mean support [m]
+  engage_distance: 0.5            # terrain adaptation engages only within this distance of the stairs [m]
   max_base_lead: 0.40             # clamp of the base reference lead over the planned support midpoint [m]
-  tracking_weight: 250.0          # swing-foot xy position tracking weight
-  swing_reference_arrival_fraction: 0.75  # xy reference reaches the foothold at this swing fraction
+  tracking_weight: 500.0          # swing-foot xy position tracking weight (raised: the executed
+                                  # step was landing short of the planned foothold -> cramped stance)
+  swing_reference_arrival_fraction: 0.5   # xy reference reaches the foothold by mid-swing then holds,
+                                  # front-loading the foot motion so execution reaches the tread

@@ -72,6 +72,7 @@ struct TerrainFootholdPlannerSettings {
   scalar_t capturePointFeedbackGain{0.27};  ///< sqrt(h/g) gain on the (measured - desired) base velocity, first step only
   scalar_t maxCapturePointOffset{0.10};     ///< clamp on the capture-point foothold offset [m]
   scalar_t maxBaseHeightAboveSupport{0.72};  ///< cap of the commanded pelvis height above the mean support
+  scalar_t engageDistance{0.5};  ///< terrain adaptation engages within this distance of the staircase footprint [m]
   scalar_t maxBaseLead{0.30};  ///< clamp of the base reference's horizontal lead over the planned support midpoint [m]
   scalar_t footholdTrackingWeight{250.0};    ///< task-space foot cost xy weight during swing
   scalar_t swingReferenceArrivalFraction{0.75};  ///< xy reference reaches the foothold at this swing fraction
@@ -123,6 +124,12 @@ class TerrainFootholdPlanner {
   scalar_t getFootholdTrackingWeight() const { return settings_.footholdTrackingWeight; }
   scalar_t getMaxBaseHeightAboveSupport() const { return settings_.maxBaseHeightAboveSupport; }
   scalar_t getMaxBaseLead() const { return settings_.maxBaseLead; }
+
+  /// True when a world xy is within the engage distance of the staircase
+  /// footprint. Away from the stairs the terrain adaptation (base override,
+  /// momentum gating, foothold tracking) is disabled so the robot walks
+  /// normally on flat ground; it engages only near/on the stairs.
+  bool isNearStairs(const vector2_t& positionWorld) const;
 
   /// Per-foot, per-phase lift-off / touch-down heights for the SwingTrajectoryPlanner.
   void getHeightSequences(const ModeSchedule& modeSchedule,

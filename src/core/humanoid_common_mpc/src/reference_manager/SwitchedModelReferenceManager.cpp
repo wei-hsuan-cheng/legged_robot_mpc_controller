@@ -177,15 +177,46 @@ void SwitchedModelReferenceManager::modifyReferences(scalar_t initTime,
     // same lead, so the base reference "arrives over the support and waits":
     // a velocity command cannot drag the CoM past where the feet can be placed
     // on the terrain (which otherwise topples the robot over the first riser).
+    
     const size_t velStart = mpcRobotModelPtr_->getBaseComVelocityStartindex();
     for (size_t i = 0; i < targetTrajectories.stateTrajectory.size(); i++) {
       vector_t& targetState = targetTrajectories.stateTrajectory[i];
       const scalar_t knotTime = targetTrajectories.timeTrajectory[i];
       vector6_t basePose = mpcRobotModelPtr_->getBasePose(targetState);
 
-      const vector3_t footL = planner.getPlannedFootPosition(0, knotTime);
+      // Away from the stairs, leave the velocity-command base reference untouched
+      // so the robot walks normally (base_twist behavior) on the flat approach;
+      // the terrain adaptation below engages only near/on the stairs.
+      if (!planner.isNearStairs(basePose.head<2>())) {
+        continue;
+      }
+
+      // Anticipated foot position: during a swing, blend the previous foothold
+      // toward the upcoming one by swing progress so the base reference moves
+      // forward AND rises onto the step AS the foot does (using only the
+      // committed touchdown lags the base behind/below the step and pitches the
+      // robot backward off it). Committed positions are used for the lateral
+      // weight-shift target (the actual stance foot).
+      const auto anticipatedFoot = [&](size_t foot, scalar_t t) -> vector3_t {
+        const auto& steps = planner.getFootsteps()[foot];
+        vector3_t pos = steps.empty() ? planner.getPlannedFootPosition(foot, t) : steps.front().liftOffPosition;
+        for (const auto& fs : steps) {
+          if (t >= fs.touchDownTime) {
+            pos = fs.touchDownPosition;
+          } else if (t >= fs.liftOffTime) {
+            const scalar_t prog = std::clamp((t - fs.liftOffTime) / std::max(fs.touchDownTime - fs.liftOffTime, 1e-6), 0.0, 1.0);
+            pos = fs.liftOffPosition + prog * (fs.touchDownPosition - fs.liftOffPosition);
+            break;
+          } else {
+            break;
+          }
+        }
+        return pos;
+      };
+
+      const vector3_t footL = planner.getPlannedFootPosition(0, knotTime);  // committed (stance)
       const vector3_t footR = planner.getPlannedFootPosition(1, knotTime);
-      const vector3_t supportMidpoint = 0.5 * (footL + footR);
+      const vector3_t supportMidpoint = 0.5 * (anticipatedFoot(0, knotTime) + anticipatedFoot(1, knotTime));
       const Eigen::Vector2d horizontalOffset = basePose.head<2>() - supportMidpoint.head<2>();
       const scalar_t maxLead = planner.getMaxBaseLead();
 
@@ -208,7 +239,11 @@ void SwitchedModelReferenceManager::modifyReferences(scalar_t initTime,
       // over the stance foot (a biped cannot stay centered while stepping up
       // onto a tread). In double support target the support midpoint.
       const contact_flag_t contacts = modeNumber2StanceLeg(modeSchedule.modeAtTime(knotTime));
-      constexpr scalar_t lateralShiftFraction = 0.8;
+      // Fraction of the way to the stance foot the pelvis reference shifts in
+      // single support. Full shift (0.8) overshot and, coupled with the rise
+      // onto the step, rolled the robot; a partial shift leaves the momentum to
+      // carry the CoM, like normal walking.
+      constexpr scalar_t lateralShiftFraction = 0.6;
       scalar_t lateralTarget = 0.0;  // signed offset from support midpoint along lateralDir
       if (contacts[0] && !contacts[1]) {
         lateralTarget = lateralShiftFraction * (footL.head<2>() - supportMidpoint.head<2>()).dot(lateralDir);

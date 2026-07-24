@@ -241,11 +241,37 @@ void TerrainFootholdPlanner::update(const ModeSchedule& modeSchedule,
         }
       }
 
+      vector3_t foothold = projectFoothold(nominalXY, previousFoothold(2));
+
+      // Horizontal step-reach limit: a step UP that is too far ahead of the
+      // previous foothold cannot be executed in one swing (the foot lands short,
+      // stacking the feet near the riser into an unstable stance). In that case
+      // take a bounded ground step toward the riser instead, so the next
+      // step-up is a short, reachable up-step (approach, then climb).
+      constexpr scalar_t maxStepReach = 0.16;
+      const scalar_t horizReach = (foothold.head<2>() - previousFoothold.head<2>()).norm();
+      if (foothold(2) > previousFoothold(2) + 1e-3 && horizReach > maxStepReach) {
+        const vector2_t dir = (foothold.head<2>() - previousFoothold.head<2>()) / horizReach;
+        vector2_t groundXY = previousFoothold.head<2>() + maxStepReach * dir;
+        // Keep this intermediate step on the ground right up against the riser
+        // (a small 2 cm gap), so the next step-up onto the tread is within reach.
+        if (terrainModel_.footprintHalfLengthX > 0.0) {
+          vector2_t local = toLocal(groundXY, terrainModel_.footprintCenter, terrainModel_.footprintYaw);
+          const scalar_t nearEdge = -terrainModel_.footprintHalfLengthX;
+          constexpr scalar_t riserGap = 0.02;
+          if (local(0) > nearEdge - riserGap) {
+            local(0) = nearEdge - riserGap;
+            groundXY = toWorld(local, terrainModel_.footprintCenter, terrainModel_.footprintYaw);
+          }
+        }
+        foothold = vector3_t(groundXY(0), groundXY(1), terrainModel_.heightAt(groundXY));
+      }
+
       PlannedFootstep footstep;
       footstep.liftOffTime = liftOffTime;
       footstep.touchDownTime = touchDownTime;
       footstep.liftOffPosition = previousFoothold;
-      footstep.touchDownPosition = projectFoothold(nominalXY, previousFoothold(2));
+      footstep.touchDownPosition = foothold;
       footsteps_[foot].push_back(footstep);
 
       previousFoothold = footstep.touchDownPosition;
@@ -275,9 +301,30 @@ vector3_t TerrainFootholdPlanner::getPlannedFootPosition(size_t foot, scalar_t t
 
 /******************************************************************************************************/
 
+bool TerrainFootholdPlanner::isNearStairs(const vector2_t& positionWorld) const {
+  if (terrainModel_.footprintHalfLengthX <= 0.0) {
+    return false;
+  }
+  const scalar_t c = std::cos(terrainModel_.footprintYaw);
+  const scalar_t s = std::sin(terrainModel_.footprintYaw);
+  const vector2_t d = positionWorld - terrainModel_.footprintCenter;
+  const vector2_t local(c * d(0) + s * d(1), -s * d(0) + c * d(1));
+  return std::abs(local(0)) <= terrainModel_.footprintHalfLengthX + settings_.engageDistance &&
+         std::abs(local(1)) <= terrainModel_.footprintHalfLengthY + settings_.engageDistance;
+}
+
+/******************************************************************************************************/
+
 bool TerrainFootholdPlanner::getSwingFootReference(size_t foot, scalar_t time, vector3_t& positionReference) const {
   for (const auto& footstep : footsteps_[foot]) {
     if (time >= footstep.liftOffTime && time <= footstep.touchDownTime) {
+      
+      // Only track footholds near/on the stairs; on the open flat approach let
+      // the swing foot emerge from base tracking (normal base_twist walking).
+      if (!isNearStairs(footstep.touchDownPosition.head<2>()) && !isNearStairs(footstep.liftOffPosition.head<2>())) {
+        return false;
+      }
+
       const scalar_t duration = std::max(footstep.touchDownTime - footstep.liftOffTime, EPS);
       const scalar_t progress =
           std::clamp((time - footstep.liftOffTime) / (settings_.swingReferenceArrivalFraction * duration), 0.0, 1.0);

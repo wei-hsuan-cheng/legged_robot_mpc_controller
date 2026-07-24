@@ -96,6 +96,7 @@ ocs2::humanoid::TerrainFootholdPlannerSettings loadTerrainFootholdPlannerSetting
   settings.capturePointFeedbackGain = node["capture_point_feedback_gain"].as<double>(settings.capturePointFeedbackGain);
   settings.maxCapturePointOffset = node["max_capture_point_offset"].as<double>(settings.maxCapturePointOffset);
   settings.maxBaseHeightAboveSupport = node["max_base_height_above_support"].as<double>(settings.maxBaseHeightAboveSupport);
+  settings.engageDistance = node["engage_distance"].as<double>(settings.engageDistance);
   settings.maxBaseLead = node["max_base_lead"].as<double>(settings.maxBaseLead);
   settings.footholdTrackingWeight = node["tracking_weight"].as<double>(settings.footholdTrackingWeight);
   settings.swingReferenceArrivalFraction = node["swing_reference_arrival_fraction"].as<double>(settings.swingReferenceArrivalFraction);
