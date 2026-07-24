@@ -165,18 +165,26 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_configu
       std::move(base_pose_target_to_target_trajectories),
       parameters_.target.defaultMode);
     if (!parameters_.ocs2.gait.stairClimbingFile.empty()) {
-      const auto stair_config = common::loadStairClimbingConfig(parameters_.ocs2.gait.stairClimbingFile);
-      motion_manager->setStairClimbingConfig(stair_config);
-      // Online terrain-aware walking over the same ground-truth staircase
-      // geometry (terrain_walk target mode).
-      mpc_interface_->getSwitchedModelReferenceManagerPtr()->setTerrainFootholdPlanner(
-        std::make_shared<ocs2::humanoid::TerrainFootholdPlanner>(
-          ocs2::humanoid::buildTerrainModelFromStairs(stair_config),
-          common::loadTerrainFootholdPlannerSettings(parameters_.ocs2.gait.stairClimbingFile)));
+      motion_manager->setStairClimbingConfig(
+        common::loadStairClimbingConfig(parameters_.ocs2.gait.stairClimbingFile));
       RCLCPP_INFO(
         get_node()->get_logger(),
-        "[HumanoidCentroidalMpcController] stair climbing + terrain walk config loaded from %s",
+        "[HumanoidCentroidalMpcController] stair climbing config loaded from %s",
         parameters_.ocs2.gait.stairClimbingFile.c_str());
+    }
+    if (!parameters_.ocs2.gait.terrainWalkingFile.empty()) {
+      // Online terrain-aware walking (terrain_walk target mode): the terrain
+      // model is built from the ground-truth geometry in this file, and the
+      // planner settings come from its terrain_walk section.
+      const auto terrain_geometry = common::loadTerrainStairsGeometry(parameters_.ocs2.gait.terrainWalkingFile);
+      mpc_interface_->getSwitchedModelReferenceManagerPtr()->setTerrainFootholdPlanner(
+        std::make_shared<ocs2::humanoid::TerrainFootholdPlanner>(
+          ocs2::humanoid::buildTerrainModelFromStairs(terrain_geometry),
+          common::loadTerrainFootholdPlannerSettings(parameters_.ocs2.gait.terrainWalkingFile)));
+      RCLCPP_INFO(
+        get_node()->get_logger(),
+        "[HumanoidCentroidalMpcController] terrain walking config loaded from %s",
+        parameters_.ocs2.gait.terrainWalkingFile.c_str());
     }
     motion_manager_ = std::move(motion_manager);
     rclcpp::QoS command_qos(1);

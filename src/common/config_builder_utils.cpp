@@ -28,6 +28,28 @@ ocs2::humanoid::GaitMap loadGaitMap(const std::string& gaitLibraryFile)
   return gaitMap;
 }
 
+namespace
+{
+/// Parses the shared `stairs:` geometry sub-schema (base_pos, yaw, start_offset,
+/// heights, depths, width) into the geometry fields of a StairClimbingConfig.
+void parseStairsGeometry(const YAML::Node& stairs, ocs2::humanoid::StairClimbingConfig& config, const std::string& file)
+{
+  if (!stairs || !stairs["base_pos"] || !stairs["heights"] || !stairs["depths"]) {
+    throw std::runtime_error("[config_builder] stairs geometry needs base_pos, heights and depths: " + file);
+  }
+  const auto basePos = stairs["base_pos"].as<std::vector<double>>();
+  if (basePos.size() != 3) {
+    throw std::runtime_error("[config_builder] stairs.base_pos must have 3 entries: " + file);
+  }
+  config.stairsBasePosition << basePos[0], basePos[1], basePos[2];
+  config.stairsYaw = stairs["yaw"].as<double>(0.0);
+  config.startOffset = stairs["start_offset"].as<double>(0.0);
+  config.stepHeights = stairs["heights"].as<std::vector<double>>();
+  config.stepDepths = stairs["depths"].as<std::vector<double>>();
+  config.stepWidth = stairs["width"].as<double>(config.stepWidth);
+}
+}  // namespace
+
 ocs2::humanoid::StairClimbingConfig loadStairClimbingConfig(const std::string& stairClimbingFile)
 {
   const YAML::Node root = YAML::LoadFile(stairClimbingFile);
@@ -38,22 +60,7 @@ ocs2::humanoid::StairClimbingConfig loadStairClimbingConfig(const std::string& s
   }
 
   ocs2::humanoid::StairClimbingConfig config;
-
-  const YAML::Node stairs = node["stairs"];
-  if (!stairs || !stairs["base_pos"] || !stairs["heights"] || !stairs["depths"]) {
-    throw std::runtime_error(
-      "[config_builder] stair_climbing.stairs needs base_pos, heights and depths: " + stairClimbingFile);
-  }
-  const auto basePos = stairs["base_pos"].as<std::vector<double>>();
-  if (basePos.size() != 3) {
-    throw std::runtime_error("[config_builder] stair_climbing.stairs.base_pos must have 3 entries");
-  }
-  config.stairsBasePosition << basePos[0], basePos[1], basePos[2];
-  config.stairsYaw = stairs["yaw"].as<double>(0.0);
-  config.startOffset = stairs["start_offset"].as<double>(0.0);
-  config.stepHeights = stairs["heights"].as<std::vector<double>>();
-  config.stepDepths = stairs["depths"].as<std::vector<double>>();
-  config.stepWidth = stairs["width"].as<double>(config.stepWidth);
+  parseStairsGeometry(node["stairs"], config, stairClimbingFile);
 
   if (const YAML::Node gait = node["gait"]) {
     config.initialStanceDuration = gait["initial_stance_duration"].as<double>(config.initialStanceDuration);
@@ -79,11 +86,24 @@ ocs2::humanoid::StairClimbingConfig loadStairClimbingConfig(const std::string& s
   return config;
 }
 
-ocs2::humanoid::TerrainFootholdPlannerSettings loadTerrainFootholdPlannerSettings(const std::string& stairClimbingFile)
+ocs2::humanoid::StairClimbingConfig loadTerrainStairsGeometry(const std::string& terrainWalkingFile)
+{
+  const YAML::Node root = YAML::LoadFile(terrainWalkingFile);
+  const YAML::Node node = root["terrain_walk"];
+  if (!node || !node["stairs"]) {
+    throw std::runtime_error(
+      "[config_builder] terrain walking file has no 'terrain_walk.stairs' geometry: " + terrainWalkingFile);
+  }
+  ocs2::humanoid::StairClimbingConfig config;
+  parseStairsGeometry(node["stairs"], config, terrainWalkingFile);
+  return config;
+}
+
+ocs2::humanoid::TerrainFootholdPlannerSettings loadTerrainFootholdPlannerSettings(const std::string& terrainWalkingFile)
 {
   ocs2::humanoid::TerrainFootholdPlannerSettings settings;
 
-  const YAML::Node root = YAML::LoadFile(stairClimbingFile);
+  const YAML::Node root = YAML::LoadFile(terrainWalkingFile);
   const YAML::Node node = root["terrain_walk"];
   if (!node) {
     return settings;  // defaults

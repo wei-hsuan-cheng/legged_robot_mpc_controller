@@ -244,7 +244,7 @@ ros2 topic pub -r 50 /humanoid/walking_velocity_command \
 VX=0.08 ros2 run legged_robot_mpc_controller terrain_walk_test.sh /tmp/terrain_walk.log 90
 ```
 
-It switches to `terrain_walk`, commands `VX` forward until the pelvis passes the top, then zeroes the command and checks the robot stands there. Env overrides: `VX`, `PELVIS_HEIGHT`, `STOP_X`, `EXPECT_MIN_X`, `EXPECT_MIN_Z`, `STAIR_CONFIG` (alternative stair/terrain yaml). Tuning lives in the `terrain_walk:` section of the `config/g1/terrain/stair_climbing/*.yaml` files (foot margins, `max_step_height`, `capture_point_feedback_gain`, `max_base_lead`, `max_base_height_above_support`, `hip_lateral_offset`, `tracking_weight`).
+It switches to `terrain_walk`, commands `VX` forward until the pelvis passes the top, then zeroes the command and checks the robot stands there. Env overrides: `VX`, `PELVIS_HEIGHT`, `STOP_X`, `EXPECT_MIN_X`, `EXPECT_MIN_Z`, `STAIR_CONFIG` (alternative stair/terrain yaml). Tuning lives in the `terrain_walk:` section of the `config/g1/terrain/terrain_walking/*.yaml` files (foot margins, `max_step_height`, `capture_point_feedback_gain`, `max_base_lead`, `max_base_height_above_support`, `hip_lateral_offset`, `tracking_weight`).
 
 Same caveats as `stair_climb` apply (centroidal only; no contact feedback; leave the mode only on flat support).
 
@@ -323,6 +323,7 @@ mrtFreq:=1000                            # integer
 libFolder:=auto_generated/g1             # CppAD codegen output
 mujocoModelFile:=scene.xml               # swap scene: boxes / stairs / slope in description/g1/mujoco
 stairClimbingFile:=stair_climbing_st.yaml | stair_climbing_sos.yaml
+terrainWalkingFile:terrain_walking.yaml
 ```
 
 Useful topics:

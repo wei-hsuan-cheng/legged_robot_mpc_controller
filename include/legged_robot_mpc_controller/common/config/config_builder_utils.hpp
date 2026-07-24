@@ -23,9 +23,14 @@ ocs2::humanoid::GaitMap loadGaitMap(const std::string& gaitLibraryFile);
 /// timing, foothold generation, base reference), see config/g1/stair_climbing.yaml.
 ocs2::humanoid::StairClimbingConfig loadStairClimbingConfig(const std::string& stairClimbingFile);
 
-/// Loads the online terrain-walk planner settings from the optional
-/// `terrain_walk` section of the same file (defaults when absent).
-ocs2::humanoid::TerrainFootholdPlannerSettings loadTerrainFootholdPlannerSettings(const std::string& stairClimbingFile);
+/// Loads the ground-truth terrain geometry for terrain-aware walking from the
+/// `terrain_walk.stairs` section (used to build the terrain model). Only the
+/// geometry fields of StairClimbingConfig are populated.
+ocs2::humanoid::StairClimbingConfig loadTerrainStairsGeometry(const std::string& terrainWalkingFile);
+
+/// Loads the online terrain-walk planner settings from the `terrain_walk`
+/// section (defaults when absent).
+ocs2::humanoid::TerrainFootholdPlannerSettings loadTerrainFootholdPlannerSettings(const std::string& terrainWalkingFile);
 
 inline ocs2::vector_t toVector(const std::vector<double>& values)
 {

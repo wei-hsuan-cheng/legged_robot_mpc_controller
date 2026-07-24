@@ -815,7 +815,12 @@ humanoid_centroidal_mpc_controller:
       stairClimbingFile: {
         type: string,
         default_value: "",
-        description: "YAML file with the fixed-sequence stair climbing parameters, see config/g1/stair_climbing.yaml. Empty disables the stair_climb target mode."
+        description: "YAML file with the fixed-sequence stair climbing parameters, see config/g1/terrain/stair_climbing/. Empty disables the stair_climb target mode."
+      }
+      terrainWalkingFile: {
+        type: string,
+        default_value: "",
+        description: "YAML file with the online terrain-aware walking parameters (terrain geometry + planner settings), see config/g1/terrain/terrain_walking/terrain_walking.yaml. Empty disables the terrain_walk target mode."
       }
       initialModeSequence: {
         type: string_array,

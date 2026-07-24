@@ -1,0 +1,46 @@
+# -----------------------------------------------------------------------------
+# Online terrain-aware walking ("terrain_walk" target mode).
+#
+# Perception-free Phase-1 terrain locomotion: the robot follows plain velocity
+# commands while a TerrainFootholdPlanner selects footholds online over the
+# ground-truth terrain below. Unlike the fixed-sequence stair climbing there is
+# only ONE config file (no sos/st variants) — terrain_walk uses its own gait
+# (the "terrain_walk" entry in config/g1/gait.yaml) and picks footholds online,
+# so the fixed-sequence climb-gait variants do not apply here.
+#
+# Trigger: publish "terrain_walk" on /humanoid/target_mode, then command a
+# velocity on /humanoid/walking_velocity_command.
+#
+# Select via the launch argument:
+#   ros2 launch legged_robot_mpc_controller g1.launch.py \
+#     terrainWalkingFile:=<pkg_share>/config/g1/terrain/terrain_walking/terrain_walking.yaml ...
+# -----------------------------------------------------------------------------
+
+terrain_walk:
+  # Ground-truth terrain geometry (a staircase here). The terrain model is built
+  # from this section, so it MUST match the simulated terrain (stairs.xml /
+  # stairs_params.yaml).
+  stairs:                       # world-frame staircase geometry (0th step frame)
+    base_pos: [0.75, 0.0, 0.0]  # center of the 0th step at ground level
+    yaw: 0.0                    # ascent direction about world +z [rad]
+    start_offset: 0.0           # local +x offset from base_pos to the first riser
+    heights: [0.10, 0.10, 0.10, 0.10, 0.10]   # riser height per step [m]
+    depths:  [0.30, 0.30, 0.30, 0.30, 0.30]   # tread depth per step [m]
+    width: 1.2                                # tread width along local y [m]
+
+  # --- online foothold planner settings ---
+  # Gait timing for this mode is the "terrain_walk" entry in config/g1/gait.yaml
+  # (deliberately slow: 0.9 s swing / 0.8 s double support, matching stair-climb).
+  hip_lateral_offset: 0.13        # |y| of the nominal foothold from the base centerline [m]
+  foot_margin_x: 0.10             # region shrink along local x (half foot length + margin) [m]
+  foot_margin_y: 0.05             # region shrink along local y (half foot width + margin) [m]
+  max_step_height: 0.18           # reject candidate regions further than this in z from the previous foothold [m]
+  capture_point_feedback_gain: 0.27   # sqrt(h/g) velocity feedback on the first upcoming step
+  max_capture_point_offset: 0.10  # clamp on the capture-point foothold offset [m]
+  max_base_height_above_support: 0.68  # cap of the commanded pelvis height above the mean support [m]
+  engage_distance: 0.5            # terrain adaptation engages only within this distance of the stairs [m]
+  max_base_lead: 0.40             # clamp of the base reference lead over the planned support midpoint [m]
+  tracking_weight: 500.0          # swing-foot xy position tracking weight (raised: the executed
+                                  # step was landing short of the planned foothold -> cramped stance)
+  swing_reference_arrival_fraction: 0.5   # xy reference reaches the foothold by mid-swing then holds,
+                                  # front-loading the foot motion so execution reaches the tread

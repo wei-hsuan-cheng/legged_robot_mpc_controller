@@ -69,7 +69,16 @@ def generate_launch_description():
         "stair_climbing",
         "stair_climbing_sos.yaml" # stair_climbing_st.yaml | stair_climbing_sos.yaml
         ])
-    
+
+    terrain_walking_file_default = PathJoinSubstitution([
+        mpc_share,
+        "config",
+        "g1",
+        "terrain",
+        "terrain_walking",
+        "terrain_walking.yaml"
+        ])
+
     ros2_control_xacro = PathJoinSubstitution([mpc_share, "description", "g1", "urdf", "g1.ros2_control.xacro"])
 
     declared_arguments = [
@@ -98,6 +107,7 @@ def generate_launch_description():
         DeclareLaunchArgument("controllersFile", default_value=controllers_file_default),
         DeclareLaunchArgument("gaitLibraryFile", default_value=gait_library_file_default),
         DeclareLaunchArgument("stairClimbingFile", default_value=stair_climbing_file_default),
+        DeclareLaunchArgument("terrainWalkingFile", default_value=terrain_walking_file_default),
         DeclareLaunchArgument(
             "mpcControllerName",
             default_value=mpc_controller_default,

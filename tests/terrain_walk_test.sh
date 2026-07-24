@@ -19,7 +19,7 @@
 #   ros2 run legged_robot_mpc_controller terrain_walk_test.sh [log] [max_walk_s] [startup_wait_s]
 # Env overrides: VX (0.25), PELVIS_HEIGHT (0.72), STOP_X (1.95),
 #                EXPECT_MIN_X (1.85), EXPECT_MIN_Z (1.15), MAX_X (2.45),
-#                STAIR_CONFIG (alternative stair/terrain yaml for stairClimbingFile)
+#                TERRAIN_CONFIG (alternative terrain_walking yaml for terrainWalkingFile)
 # =============================================================================
 set -u
 
@@ -32,7 +32,7 @@ STOP_X="${STOP_X:-1.95}"
 EXPECT_MIN_X="${EXPECT_MIN_X:-1.85}"
 EXPECT_MIN_Z="${EXPECT_MIN_Z:-1.15}"
 MAX_X="${MAX_X:-2.45}"    # walking past this means it walked off the top
-STAIR_CONFIG="${STAIR_CONFIG:-}"
+TERRAIN_CONFIG="${TERRAIN_CONFIG:-}"
 
 if ! command -v ros2 >/dev/null; then
   echo "ERROR: ros2 not found - source your ROS 2 + workspace setup first." >&2
@@ -46,8 +46,8 @@ pkill -f mujoco_ros2_control 2>/dev/null
 sleep 2
 
 EXTRA_ARGS=()
-if [ -n "$STAIR_CONFIG" ]; then
-  EXTRA_ARGS+=("stairClimbingFile:=$STAIR_CONFIG")
+if [ -n "$TERRAIN_CONFIG" ]; then
+  EXTRA_ARGS+=("terrainWalkingFile:=$TERRAIN_CONFIG")
 fi
 ros2 launch legged_robot_mpc_controller g1.launch.py \
   mujoco_headless:=true velocityCommandGui:=false rviz:=false \
