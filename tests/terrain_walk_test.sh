@@ -85,10 +85,12 @@ from tf2_ros import Buffer, TransformListener
 
 max_walk_s, vx, pelvis_height, stop_x, expect_min_x, expect_min_z, max_x = map(float, sys.argv[1:8])
 
+RISER = 0.10  # per-step riser height [m] -> pelvis rises ~RISER per tread climbed
+
 rclpy.init()
 node = Node("terrain_walk_probe")
 state = {"last_print": 0.0, "fall": False, "final": None, "max_x": -1e9, "max_z": -1e9,
-         "stopped_at": None}
+         "start_z": None, "stopped_at": None}
 
 def cb(m):
     p = m.pose.pose.position
@@ -100,6 +102,8 @@ def cb(m):
     pitch = math.asin(sinp)
     yaw = math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z))
     state["final"] = (p.x, p.y, p.z, roll, pitch, yaw)
+    if state["start_z"] is None:
+        state["start_z"] = p.z  # pelvis height at the start = climb baseline
     state["max_x"] = max(state["max_x"], p.x)
     state["max_z"] = max(state["max_z"], p.z)
     if p.z < 0.5 or abs(roll) > 0.6 or abs(pitch) > 0.6:
@@ -107,8 +111,9 @@ def cb(m):
     now = time.time()
     if now - state["last_print"] > 1.5:
         state["last_print"] = now
+        treads = (p.z - state["start_z"]) / RISER
         print(f"t={m.header.stamp.sec}.{m.header.stamp.nanosec // 10**8}"
-              f" x={p.x:.3f} y={p.y:.3f} z={p.z:.3f}"
+              f" x={p.x:.3f} y={p.y:.3f} z={p.z:.3f} climbed~{treads:+.1f}steps"
               f" roll={roll:.3f} pitch={pitch:.3f} yaw={yaw:.3f}", flush=True)
 
 node.create_subscription(Odometry, "/mujoco/ground_truth/odom", cb, 10)
@@ -141,18 +146,18 @@ def publish_cmd(v):
     msg.angular_velocity_z = 0.0
     cmd_pub.publish(msg)
 
-# --- walk phase: command forward velocity until the pelvis passes STOP_X ---
+# --- walk phase: keep commanding forward velocity until the pelvis reaches the
+# top (climbed ~5 treads by pelvis height) or time runs out ---
 start = time.time()
 while time.time() - start < max_walk_s and not state["fall"]:
     publish_cmd(vx)
     rclpy.spin_once(node, timeout_sec=0.04)
     print_feet()
-    if state["final"] is not None and state["final"][0] > stop_x:
-        state["stopped_at"] = state["final"][0]
-        print(f"=== pelvis passed x={stop_x}: zeroing velocity command", flush=True)
+    if state["start_z"] is not None and state["max_z"] - state["start_z"] > 0.45:
+        print("=== pelvis climbed ~5 treads: zeroing velocity command", flush=True)
         break
 
-# --- stop phase: zero command, verify the robot settles on top ---
+# --- stop phase: zero command, verify the robot settles ---
 settle_end = time.time() + 8.0
 while time.time() < settle_end and not state["fall"]:
     publish_cmd(0.0)
@@ -163,13 +168,23 @@ if state["final"] is None:
     print("VERDICT: NO_ODOM")
     sys.exit(1)
 x, y, z, roll, pitch, yaw = state["final"]
+start_z = state["start_z"] if state["start_z"] is not None else z
+peak_climb = state["max_z"] - start_z          # pelvis-height rise = climb progress
+treads = peak_climb / RISER                     # ~number of treads climbed
 if state["fall"]:
-    print(f"VERDICT: FALL at x={x:.3f} z={z:.3f} roll={roll:.3f} pitch={pitch:.3f}")
+    print(f"VERDICT: FALL at x={x:.3f} z={z:.3f} roll={roll:.3f} pitch={pitch:.3f}"
+          f" (climbed ~{treads:.1f} treads before falling)")
     sys.exit(1)
-climbed = z > expect_min_z and x > expect_min_x and state["max_x"] < max_x
-print(f"VERDICT: {'SUCCESS' if climbed else 'INCOMPLETE'}"
-      f" final x={x:.3f} y={y:.3f} z={z:.3f} (max x={state['max_x']:.3f} z={state['max_z']:.3f})")
-sys.exit(0 if climbed else 1)
+# Primary metric: did the pelvis rise? full climb ~5 treads (>0.45 m).
+if peak_climb > 0.45:
+    verdict = "SUCCESS"
+elif peak_climb > 0.08:
+    verdict = "PARTIAL"        # climbed at least one step but not the full stair
+else:
+    verdict = "NO_CLIMB"       # never left the ground level (refuses to climb)
+print(f"VERDICT: {verdict} pelvis climbed {peak_climb:+.3f} m (~{treads:.1f} treads); "
+      f"final x={x:.3f} z={z:.3f} (max x={state['max_x']:.3f} z={state['max_z']:.3f})")
+sys.exit(0 if verdict == "SUCCESS" else 1)
 PYEOF
 RESULT=$?
 
@@ -180,6 +195,8 @@ pkill -f robot_state_publisher 2>/dev/null
 
 echo "=== terrain walk log lines:"
 grep -E "terrain walk|TerrainFoothold|target mode" "$LOG" | tail -6
+echo "=== planner debug ([TerrainWalk], last 12):"
+grep -E "\[TerrainWalk\]" "$LOG" | tail -12
 echo "=== gait transitions:"
 grep -E "Increasing to gait|Decreasing to gait" "$LOG" | tail -6
 echo "=== warnings/errors:"

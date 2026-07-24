@@ -136,6 +136,20 @@ class TerrainFootholdPlanner {
                           feet_array_t<scalar_array_t>& liftOffHeightSequence,
                           feet_array_t<scalar_array_t>& touchDownHeightSequence) const;
 
+  /**
+   * Absolute base (pelvis) reference built from the planned footholds: knots at
+   * initTime and every upcoming touch-down, base = mid-feet xy and
+   * mean-support+crouch z, terrain yaw, zero pitch/roll. Unlike a
+   * velocity-relative reference (which lags with the measured base and stalls
+   * the CoM at the riser), this is an absolute forward+up trajectory in sync
+   * with the feet, so the CoM commits onto each step. Mirrors the working fixed
+   * StairClimbingPlan base generation, but over the online-replanned footholds.
+   */
+  TargetTrajectories getBaseTargetTrajectories(scalar_t initTime,
+                                               scalar_t finalTime,
+                                               const MpcRobotModelBase<scalar_t>& mpcRobotModel,
+                                               const vector_t& defaultJointState) const;
+
   const feet_array_t<std::vector<PlannedFootstep>>& getFootsteps() const { return footsteps_; }
 
  private:

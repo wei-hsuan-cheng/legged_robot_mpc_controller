@@ -170,95 +170,17 @@ void SwitchedModelReferenceManager::modifyReferences(scalar_t initTime,
     auto& planner = *terrainFootholdPlannerPtr_;
     planner.update(modeSchedule, targetTrajectories, computeFeetPositions(initState), initState, initTime, *mpcRobotModelPtr_);
 
-    // Interpret the commanded pelvis height as height-above-support (capped so
-    // the rear leg can still reach during a tread transfer); zero pitch/roll.
-    // The horizontal reference is clamped to a maximum lead over the planned
-    // support midpoint, and the forward momentum reference is damped by that
-    // same lead, so the base reference "arrives over the support and waits":
-    // a velocity command cannot drag the CoM past where the feet can be placed
-    // on the terrain (which otherwise topples the robot over the first riser).
-    
-    const size_t velStart = mpcRobotModelPtr_->getBaseComVelocityStartindex();
-    for (size_t i = 0; i < targetTrajectories.stateTrajectory.size(); i++) {
-      vector_t& targetState = targetTrajectories.stateTrajectory[i];
-      const scalar_t knotTime = targetTrajectories.timeTrajectory[i];
-      vector6_t basePose = mpcRobotModelPtr_->getBasePose(targetState);
-
-      // Away from the stairs, leave the velocity-command base reference untouched
-      // so the robot walks normally (base_twist behavior) on the flat approach;
-      // the terrain adaptation below engages only near/on the stairs.
-      if (!planner.isNearStairs(basePose.head<2>())) {
-        continue;
-      }
-
-      // Anticipated foot position: during a swing, blend the previous foothold
-      // toward the upcoming one by swing progress so the base reference moves
-      // forward AND rises onto the step AS the foot does (using only the
-      // committed touchdown lags the base behind/below the step and pitches the
-      // robot backward off it). Committed positions are used for the lateral
-      // weight-shift target (the actual stance foot).
-      const auto anticipatedFoot = [&](size_t foot, scalar_t t) -> vector3_t {
-        const auto& steps = planner.getFootsteps()[foot];
-        vector3_t pos = steps.empty() ? planner.getPlannedFootPosition(foot, t) : steps.front().liftOffPosition;
-        for (const auto& fs : steps) {
-          if (t >= fs.touchDownTime) {
-            pos = fs.touchDownPosition;
-          } else if (t >= fs.liftOffTime) {
-            const scalar_t prog = std::clamp((t - fs.liftOffTime) / std::max(fs.touchDownTime - fs.liftOffTime, 1e-6), 0.0, 1.0);
-            pos = fs.liftOffPosition + prog * (fs.touchDownPosition - fs.liftOffPosition);
-            break;
-          } else {
-            break;
-          }
-        }
-        return pos;
-      };
-
-      const vector3_t footL = planner.getPlannedFootPosition(0, knotTime);  // committed (stance)
-      const vector3_t footR = planner.getPlannedFootPosition(1, knotTime);
-      const vector3_t supportMidpoint = 0.5 * (anticipatedFoot(0, knotTime) + anticipatedFoot(1, knotTime));
-      const Eigen::Vector2d horizontalOffset = basePose.head<2>() - supportMidpoint.head<2>();
-      const scalar_t maxLead = planner.getMaxBaseLead();
-
-      // Decompose the base lead over the support into forward / lateral (yaw frame).
-      const scalar_t yaw = basePose(3);
-      const Eigen::Vector2d forwardDir(std::cos(yaw), std::sin(yaw));
-      const Eigen::Vector2d lateralDir(-std::sin(yaw), std::cos(yaw));
-      const scalar_t forwardLead = horizontalOffset.dot(forwardDir);
-
-      // Damp the horizontal momentum/velocity reference as the base approaches
-      // its maximum FORWARD lead. A deadzone at half the max lead keeps normal
-      // (flat-ground) walking at full speed and only gates gross overrun, e.g.
-      // when the feet are blocked by a riser: full speed below 0.5*maxLead,
-      // ramping to zero at maxLead.
-      const scalar_t velScale = std::clamp(2.0 * (maxLead - std::max(forwardLead, 0.0)) / maxLead, 0.0, 1.0);
-      targetState(velStart + 0) *= velScale;
-      targetState(velStart + 1) *= velScale;
-
-      // Lateral weight shift: in single support the pelvis reference must move
-      // over the stance foot (a biped cannot stay centered while stepping up
-      // onto a tread). In double support target the support midpoint.
-      const contact_flag_t contacts = modeNumber2StanceLeg(modeSchedule.modeAtTime(knotTime));
-      // Fraction of the way to the stance foot the pelvis reference shifts in
-      // single support. Full shift (0.8) overshot and, coupled with the rise
-      // onto the step, rolled the robot; a partial shift leaves the momentum to
-      // carry the CoM, like normal walking.
-      constexpr scalar_t lateralShiftFraction = 0.6;
-      scalar_t lateralTarget = 0.0;  // signed offset from support midpoint along lateralDir
-      if (contacts[0] && !contacts[1]) {
-        lateralTarget = lateralShiftFraction * (footL.head<2>() - supportMidpoint.head<2>()).dot(lateralDir);
-      } else if (contacts[1] && !contacts[0]) {
-        lateralTarget = lateralShiftFraction * (footR.head<2>() - supportMidpoint.head<2>()).dot(lateralDir);
-      }
-
-      const scalar_t clampedForward = std::clamp(forwardLead, -maxLead, maxLead);
-      basePose.head<2>() = supportMidpoint.head<2>() + clampedForward * forwardDir + lateralTarget * lateralDir;
-
-      basePose(2) = supportMidpoint(2) + std::min(basePose(2), planner.getMaxBaseHeightAboveSupport());
-      basePose(4) = 0.0;
-      basePose(5) = 0.0;
-      mpcRobotModelPtr_->setBasePose(targetState, basePose);
-    }
+    // Replace the base (pelvis) reference with an ABSOLUTE trajectory built from
+    // the feedback-replanned footholds: base = mid-feet xy + mean-support+crouch
+    // z, moving forward and up in sync with the feet (the working fixed-sequence
+    // base motion). The velocity-relative reference lagged with the measured
+    // base and never accumulated forward, stalling the CoM at the riser
+    // (marching-in-place). The default joint reference is carried over from the
+    // incoming (velocity-command) target so arm/joint tracking is unchanged.
+    const vector_t defaultJoints = targetTrajectories.stateTrajectory.empty()
+                                       ? vector_t()
+                                       : mpcRobotModelPtr_->getJointAngles(targetTrajectories.stateTrajectory.front());
+    targetTrajectories = planner.getBaseTargetTrajectories(initTime, finalTime, *mpcRobotModelPtr_, defaultJoints);
 
     feet_array_t<scalar_array_t> liftOffHeightSequence;
     feet_array_t<scalar_array_t> touchDownHeightSequence;
@@ -305,7 +227,24 @@ bool SwitchedModelReferenceManager::getSwingFootholdReference(size_t foot,
     return true;
   }
   if (isTerrainWalkActive() && terrainFootholdPlannerPtr_->getSwingFootReference(foot, time, positionReference)) {
-    trackingWeight = terrainFootholdPlannerPtr_->getFootholdTrackingWeight();
+    // Reach-scaled tracking weight: a foothold that is far ahead (an up-step the
+    // foot cannot reach yet) gets a WEAK weight so the swing foot emerges from
+    // base motion and the base keeps advancing (strong tracking of a far
+    // foothold pins the feet and stalls the robot at the riser). As the base
+    // approaches and the swing reach shrinks, the weight ramps to full so the
+    // foot commits precisely onto the tread.
+    scalar_t weight = terrainFootholdPlannerPtr_->getFootholdTrackingWeight();
+    for (const auto& fs : terrainFootholdPlannerPtr_->getFootsteps()[foot]) {
+      if (time >= fs.liftOffTime && time <= fs.touchDownTime) {
+        const scalar_t reach = (fs.touchDownPosition.head<2>() - fs.liftOffPosition.head<2>()).norm();
+        constexpr scalar_t commitReach = 0.20;  // reach at/below which the foot can commit -> full weight
+        constexpr scalar_t farReach = 0.34;      // reach at/above which the foot cannot reach -> min weight
+        constexpr scalar_t minScale = 0.05;
+        weight *= std::clamp((farReach - reach) / (farReach - commitReach), minScale, 1.0);
+        break;
+      }
+    }
+    trackingWeight = weight;
     return true;
   }
   return false;

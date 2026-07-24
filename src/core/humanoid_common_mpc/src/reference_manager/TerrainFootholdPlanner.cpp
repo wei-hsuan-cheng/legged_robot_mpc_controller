@@ -8,6 +8,7 @@ Online foothold planner over ground-truth terrain, see TerrainFootholdPlanner.h.
 
 #include <algorithm>
 #include <cmath>
+#include <iostream>
 #include <limits>
 
 #include "humanoid_common_mpc/gait/MotionPhaseDefinition.h"
@@ -243,28 +244,53 @@ void TerrainFootholdPlanner::update(const ModeSchedule& modeSchedule,
 
       vector3_t foothold = projectFoothold(nominalXY, previousFoothold(2));
 
-      // Horizontal step-reach limit: a step UP that is too far ahead of the
-      // previous foothold cannot be executed in one swing (the foot lands short,
-      // stacking the feet near the riser into an unstable stance). In that case
-      // take a bounded ground step toward the riser instead, so the next
-      // step-up is a short, reachable up-step (approach, then climb).
-      constexpr scalar_t maxStepReach = 0.16;
-      const scalar_t horizReach = (foothold.head<2>() - previousFoothold.head<2>()).norm();
-      if (foothold(2) > previousFoothold(2) + 1e-3 && horizReach > maxStepReach) {
-        const vector2_t dir = (foothold.head<2>() - previousFoothold.head<2>()) / horizReach;
-        vector2_t groundXY = previousFoothold.head<2>() + maxStepReach * dir;
-        // Keep this intermediate step on the ground right up against the riser
-        // (a small 2 cm gap), so the next step-up onto the tread is within reach.
-        if (terrainModel_.footprintHalfLengthX > 0.0) {
-          vector2_t local = toLocal(groundXY, terrainModel_.footprintCenter, terrainModel_.footprintYaw);
-          const scalar_t nearEdge = -terrainModel_.footprintHalfLengthX;
-          constexpr scalar_t riserGap = 0.02;
-          if (local(0) > nearEdge - riserGap) {
-            local(0) = nearEdge - riserGap;
-            groundXY = toWorld(local, terrainModel_.footprintCenter, terrainModel_.footprintYaw);
+      // Step-up handling. A foot can only land on a tread it can reach in one
+      // swing; the swing HEIGHT is tied to the touchdown height, so an
+      // unreachable up-step would lift the foot to tread height yet land it short
+      // of the tread (floating above the ground -> fall). So: if the target
+      // tread's usable near edge is within reach, commit the up-step there
+      // (minimal reach); otherwise take a bounded GROUND approach step toward the
+      // riser (z=0, foot lands correctly on the ground), and climb once close.
+      // Forward progress toward the riser is provided by the reach-scaled
+      // foothold-tracking weight (weak while far), so the base does not stall.
+      if (foothold(2) > previousFoothold(2) + 1e-3) {
+        constexpr scalar_t maxStepReach = 0.22;  // must exceed 2*foot_margin_x to bridge a riser
+        vector3_t nearEdge = foothold;
+        for (const auto& region : terrainModel_.regions) {
+          if (std::abs(region.height - foothold(2)) > 1e-3) {
+            continue;  // not the target tread
           }
+          const scalar_t usableX = region.halfLengthX - settings_.footMarginX;
+          const scalar_t usableY = region.halfLengthY - settings_.footMarginY;
+          if (usableX >= 0.0 && usableY >= 0.0) {
+            const vector2_t lp = toLocal(previousFoothold.head<2>(), region.center, region.yaw);
+            const vector2_t nearXY = toWorld(
+                vector2_t(std::clamp(lp(0), -usableX, usableX), std::clamp(lp(1), -usableY, usableY)),
+                region.center, region.yaw);
+            nearEdge = vector3_t(nearXY(0), nearXY(1), region.height);
+          }
+          break;
         }
-        foothold = vector3_t(groundXY(0), groundXY(1), terrainModel_.heightAt(groundXY));
+        if ((nearEdge.head<2>() - previousFoothold.head<2>()).norm() <= maxStepReach) {
+          foothold = nearEdge;  // reachable -> commit the up-step onto the tread near edge
+        } else {
+          // Unreachable -> bounded ground approach step toward the riser.
+          const vector2_t dir = (foothold.head<2>() - previousFoothold.head<2>()).normalized();
+          vector2_t stepXY = previousFoothold.head<2>() + maxStepReach * dir;
+          for (const auto& region : terrainModel_.regions) {
+            if (region.height <= previousFoothold(2) + 1e-3) {
+              continue;  // only higher treads can overhang
+            }
+            vector2_t lp = toLocal(stepXY, region.center, region.yaw);
+            if (std::abs(lp(1)) <= region.halfLengthY && lp(0) > -region.halfLengthX - settings_.footMarginX &&
+                lp(0) < region.halfLengthX) {
+              lp(0) = -region.halfLengthX - settings_.footMarginX;
+              stepXY = toWorld(lp, region.center, region.yaw);
+              break;
+            }
+          }
+          foothold = vector3_t(stepXY(0), stepXY(1), terrainModel_.heightAt(stepXY));
+        }
       }
 
       PlannedFootstep footstep;
@@ -276,6 +302,23 @@ void TerrainFootholdPlanner::update(const ModeSchedule& modeSchedule,
 
       previousFoothold = footstep.touchDownPosition;
     }
+  }
+
+  // [debug] throttled: is an up-step being planned, and where is the base?
+  static scalar_t lastDebugTime = -1e9;
+  if (initTime - lastDebugTime > 0.5) {
+    lastDebugTime = initTime;
+    const bool near0 = isNearStairs(currentBasePose.head<2>());
+    std::cout << "[TerrainWalk] t=" << initTime << " baseX=" << currentBasePose(0) << " near=" << near0;
+    for (size_t foot = 0; foot < footsteps_.size(); ++foot) {
+      if (!footsteps_[foot].empty()) {
+        const auto& fs = footsteps_[foot].front();
+        std::cout << " | foot" << foot << " from x=" << fs.liftOffPosition(0) << " -> td=(" << fs.touchDownPosition(0)
+                  << ", z=" << fs.touchDownPosition(2) << ")"
+                  << (fs.touchDownPosition(2) > terrainModel_.groundHeight + 0.02 ? " UP" : "");
+      }
+    }
+    std::cout << std::endl;
   }
 }
 
@@ -333,6 +376,79 @@ bool TerrainFootholdPlanner::getSwingFootReference(size_t foot, scalar_t time, v
     }
   }
   return false;
+}
+
+/******************************************************************************************************/
+
+TargetTrajectories TerrainFootholdPlanner::getBaseTargetTrajectories(scalar_t initTime,
+                                                                    scalar_t finalTime,
+                                                                    const MpcRobotModelBase<scalar_t>& mpcRobotModel,
+                                                                    const vector_t& defaultJointState) const {
+  struct Knot {
+    scalar_t time;
+    vector3_t position;
+  };
+  std::vector<Knot> knots;
+
+  feet_array_t<vector3_t> feet{getPlannedFootPosition(0, initTime), getPlannedFootPosition(1, initTime)};
+  const scalar_t crouch = settings_.maxBaseHeightAboveSupport;
+  const auto baseAboveFeet = [&]() -> vector3_t {
+    vector3_t mid = 0.5 * (feet[0] + feet[1]);
+    mid(2) = 0.5 * (feet[0](2) + feet[1](2)) + crouch;
+    return mid;
+  };
+  knots.push_back({initTime, baseAboveFeet()});
+
+  // Upcoming touch-downs from both feet, in time order.
+  struct Touch {
+    scalar_t time;
+    size_t foot;
+    vector3_t position;
+  };
+  std::vector<Touch> touches;
+  for (size_t foot = 0; foot < footsteps_.size(); ++foot) {
+    for (const auto& fs : footsteps_[foot]) {
+      if (fs.touchDownTime > initTime) {
+        touches.push_back({fs.touchDownTime, foot, fs.touchDownPosition});
+      }
+    }
+  }
+  std::sort(touches.begin(), touches.end(), [](const Touch& a, const Touch& b) { return a.time < b.time; });
+  for (const auto& t : touches) {
+    feet[t.foot] = t.position;
+    knots.push_back({t.time, baseAboveFeet()});
+  }
+  if (knots.back().time < finalTime) {
+    knots.push_back({finalTime, knots.back().position});
+  }
+
+  const scalar_t yaw = terrainModel_.footprintYaw;
+  const size_t stateDim = mpcRobotModel.getStateDim();
+  const size_t inputDim = mpcRobotModel.getInputDim();
+  const size_t velIdx = mpcRobotModel.getBaseComVelocityStartindex();
+
+  scalar_array_t timeTrajectory;
+  vector_array_t stateTrajectory;
+  vector_array_t inputTrajectory;
+  for (size_t k = 0; k < knots.size(); ++k) {
+    vector_t state = vector_t::Zero(stateDim);
+    vector6_t basePose;
+    basePose << knots[k].position, yaw, 0.0, 0.0;  // [x y z yaw pitch roll]
+    mpcRobotModel.setBasePose(state, basePose);
+    if (defaultJointState.size() > 0) {
+      mpcRobotModel.setJointAngles(state, defaultJointState);
+    }
+    if (k + 1 < knots.size()) {
+      const scalar_t dt = std::max(knots[k + 1].time - knots[k].time, EPS);
+      const vector3_t velocity = (knots[k + 1].position - knots[k].position) / dt;
+      state(velIdx) = velocity(0);
+      state(velIdx + 1) = velocity(1);
+    }
+    timeTrajectory.push_back(knots[k].time);
+    stateTrajectory.push_back(std::move(state));
+    inputTrajectory.push_back(vector_t::Zero(inputDim));
+  }
+  return TargetTrajectories(timeTrajectory, stateTrajectory, inputTrajectory);
 }
 
 /******************************************************************************************************/
