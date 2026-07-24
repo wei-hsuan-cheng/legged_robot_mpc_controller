@@ -1,5 +1,5 @@
 # -----------------------------------------------------------------------------
-# Fixed-sequence stair climbing - SINGLE-SUPPORT (one-tread-one-leg) variant.
+# Fixed-sequence stair climbing - Step-Over-Step gait (SOS) (one-tread-one-leg).
 #
 # Same trigger and geometry as stair_climbing.yaml, but the climb uses the
 # human-like alternating gait: each foot lands on the NEXT tread (left on

@@ -136,7 +136,7 @@ ros2 topic pub --once /humanoid/base_pose_command \
 
 ### Fixed-sequence stair climbing (`stair_climb` target mode)
 
-The centroidal MPC provides an example of climbing a staircase with **known ground-truth geometry** using a pre-compiled, fixed sequence: gait (mode schedule), foothold placements, swing lift-off/touch-down heights, and a pelvis reference (zero pitch/roll) are all generated once from [`config/g1/stair_climbing/*.yaml`](./config/g1/stair_climbing) at trigger time. No perception / plane segmentation is involved.
+The centroidal MPC provides an example of climbing a staircase with **known ground-truth geometry** using a pre-compiled, fixed sequence: gait (mode schedule), foothold placements, swing lift-off/touch-down heights, and a pelvis reference (zero pitch/roll) are all generated once from [`config/g1/terrain/stair_climbing/*.yaml`](./config/g1/terrain/stair_climbing/) at trigger time. No perception / plane segmentation is involved.
 
 **1. Put the stairs in the world.** The staircase must exist in three places with *identical* geometry (single source of truth is the semantic params):
 
@@ -144,7 +144,7 @@ The centroidal MPC provides an example of climbing a staircase with **known grou
 |---|---|---|
 | MuJoCo physics | `description/g1/mujoco/stairs.xml` (included by `scene.xml`) | `xacro stairs.xml.xacro stairs_params_file:=stairs_params.yaml -o stairs.xml` |
 | RViz display | stairs links in `description/g1/urdf/g1_29dof_stairs.urdf` | `xacro stairs.urdf.xacro` (see header comment) |
-| Climb plan | `stairs:` section of `config/g1/stair_climbing/*.yaml` | keep in sync by hand |
+| Climb plan | `stairs:` section of `config/g1/terrain/stair_climbing/*.yaml` | keep in sync by hand |
 
 **2. Launch** (headless or with GUI):
 
@@ -155,7 +155,7 @@ ros2 launch legged_robot_mpc_controller g1.launch.py \
   stairClimbingFile:=stair_climbing_ss.yaml
 ```
 
-The controller logs `stair climbing config loaded from config/g1/stair_climbing/*.yaml` on configure (the file path comes from the `stairClimbingFile` launch arg → `ocs2.gait.stairClimbingFile` parameter; an empty path disables the mode).
+The controller logs `stair climbing config loaded from config/g1/terrain/stair_climbing/*.yaml` on configure (the file path comes from the `stairClimbingFile` launch arg → `ocs2.gait.stairClimbingFile` parameter; an empty path disables the mode).
 
 **3. Trigger the climb** once the robot is standing (the plan is anchored at the robot's pose and the solver time at this moment):
 
@@ -200,9 +200,9 @@ feet L=(2.048,0.102,0.535) R=(2.054,-0.144,0.535)
 VERDICT: SUCCESS final x=2.057 y=-0.014 z=1.233 (max x=2.059 z=1.237)
 ```
 
-The success thresholds default to the staircase in `stair_climbing/*.yaml` (pelvis beyond `x=1.85`, above `z=1.15`); override with `EXPECT_MIN_X` / `EXPECT_MIN_Z` env vars for a different staircase. A fall is flagged when the pelvis drops below 0.5 m or |roll|/|pitch| exceeds 0.6 rad.
+The success thresholds default to the staircase in `terrain/stair_climbing/*.yaml` (pelvis beyond `x=1.85`, above `z=1.15`); override with `EXPECT_MIN_X` / `EXPECT_MIN_Z` env vars for a different staircase. A fall is flagged when the pelvis drops below 0.5 m or |roll|/|pitch| exceeds 0.6 rad.
 
-**Tuning knobs that matter** (in `stair_climbing/*.yaml`):
+**Tuning knobs that matter** (in `terrain/stair_climbing/*.yaml`):
 
 - `base.height_above_support` — pelvis height above the *mean* foot support. Keep ≤ ~0.72 for the G1: during a tread transfer the rear-leg extension is `height_above_support + riser/2` and must stay below the ~0.79 m standing height, otherwise the robot tips backwards at the first step.
 - `footholds.tracking_weight` — swing-foot xy tracking. The swing foot lags its reference by ~0.1 m at low weights and will clip the stair nosing.
@@ -244,7 +244,7 @@ ros2 topic pub -r 50 /humanoid/walking_velocity_command \
 VX=0.08 ros2 run legged_robot_mpc_controller terrain_walk_test.sh /tmp/terrain_walk.log 90
 ```
 
-It switches to `terrain_walk`, commands `VX` forward until the pelvis passes the top, then zeroes the command and checks the robot stands there. Env overrides: `VX`, `PELVIS_HEIGHT`, `STOP_X`, `EXPECT_MIN_X`, `EXPECT_MIN_Z`, `STAIR_CONFIG` (alternative stair/terrain yaml). Tuning lives in the `terrain_walk:` section of the `config/g1/stair_climbing/*.yaml` files (foot margins, `max_step_height`, `capture_point_feedback_gain`, `max_base_lead`, `max_base_height_above_support`, `hip_lateral_offset`, `tracking_weight`).
+It switches to `terrain_walk`, commands `VX` forward until the pelvis passes the top, then zeroes the command and checks the robot stands there. Env overrides: `VX`, `PELVIS_HEIGHT`, `STOP_X`, `EXPECT_MIN_X`, `EXPECT_MIN_Z`, `STAIR_CONFIG` (alternative stair/terrain yaml). Tuning lives in the `terrain_walk:` section of the `config/g1/terrain/stair_climbing/*.yaml` files (foot margins, `max_step_height`, `capture_point_feedback_gain`, `max_base_lead`, `max_base_height_above_support`, `hip_lateral_offset`, `tracking_weight`).
 
 Same caveats as `stair_climb` apply (centroidal only; no contact feedback; leave the mode only on flat support).
 
@@ -322,7 +322,7 @@ mpcFreq:=100                             # integer
 mrtFreq:=1000                            # integer
 libFolder:=auto_generated/g1             # CppAD codegen output
 mujocoModelFile:=scene.xml               # swap scene: boxes / stairs / slope in description/g1/mujoco
-stairClimbingFile:=stair_climbing_ds.yaml | stair_climbing_ss.yaml
+stairClimbingFile:=stair_climbing_st.yaml | stair_climbing_sos.yaml
 ```
 
 Useful topics:

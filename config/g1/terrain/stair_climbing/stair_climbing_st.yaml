@@ -1,10 +1,10 @@
 # -----------------------------------------------------------------------------
-# Fixed-sequence stair climbing parameters for the G1 centroidal MPC.
+# Fixed-sequence stair climbing - Step-To gait (ST) (both feet per tread).
 #
 # Trigger: publish "stair_climb" on the target mode topic (/humanoid/target_mode).
 # The plan is anchored at the moment the mode is selected: the robot settles for
 # initial_stance_duration, walks up to the stairs on flat ground (approach
-# strides), then climbs step by step with both feet per tread (step-to gait),
+# strides), then climbs step by step with both feet per tread,
 # and finally holds stance on the top step. Publish "base_twist" to leave the
 # mode (only do this on a flat support!).
 #

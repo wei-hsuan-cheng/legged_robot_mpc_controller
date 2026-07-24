@@ -65,8 +65,9 @@ def generate_launch_description():
         mpc_share,
         "config",
         "g1",
+        "terrain",
         "stair_climbing",
-        "stair_climbing_ss.yaml" # stair_climbing_ds.yaml | stair_climbing_ss.yaml
+        "stair_climbing_sos.yaml" # stair_climbing_st.yaml | stair_climbing_sos.yaml
         ])
     
     ros2_control_xacro = PathJoinSubstitution([mpc_share, "description", "g1", "urdf", "g1.ros2_control.xacro"])
