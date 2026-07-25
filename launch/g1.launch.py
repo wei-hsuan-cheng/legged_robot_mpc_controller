@@ -56,7 +56,7 @@ def generate_launch_description():
     stair_climbing_file_default = PathJoinSubstitution([
         mpc_share, "config", "g1",
         "terrain", "stair_climbing",
-        "stair_climbing_sos.yaml" # stair_climbing_st.yaml | stair_climbing_sos.yaml
+        "stair_climbing.yaml"
         ])
 
     terrain_walking_file_default = PathJoinSubstitution([

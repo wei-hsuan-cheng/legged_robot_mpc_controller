@@ -322,7 +322,7 @@ mpcFreq:=100                             # integer
 mrtFreq:=1000                            # integer
 libFolder:=auto_generated/g1             # CppAD codegen output
 mujocoModelFile:=scene.xml               # swap scene: boxes / stairs / slope in description/g1/mujoco
-stairClimbingFile:=stair_climbing_st.yaml | stair_climbing_sos.yaml
+stairClimbingFile:=stair_climbing.yaml
 terrainWalkingFile:terrain_walking.yaml
 ```
 
