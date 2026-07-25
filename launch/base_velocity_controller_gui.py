@@ -12,9 +12,9 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy
 class Joystick:
     def __init__(self, parent, label, on_change):
         self._on_change = on_change
-        self._canvas = tk.Canvas(parent, width=220, height=220, bg="#303030", highlightthickness=0)
+        self._canvas = tk.Canvas(parent, width=220, height=240, bg="#303030", highlightthickness=0)
         self._cx = 110.0
-        self._cy = 110.0
+        self._cy = 125.0
         self._radius = 85.0
         self._x = 0.0
         self._y = 0.0
@@ -33,7 +33,6 @@ class Joystick:
             self._cx + self._radius,
             self._cy,
             fill="#555555",
-            arrow=tk.LAST,
         )
         self._canvas.create_line(
             self._cx,
@@ -41,9 +40,33 @@ class Joystick:
             self._cx,
             self._cy - self._radius,
             fill="#555555",
+        )
+        self._canvas.create_line(
+            self._cx,
+            self._cy - self._radius + 18,
+            self._cx,
+            self._cy - self._radius,
+            fill="white",
+            width=2,
             arrow=tk.LAST,
         )
-        self._knob = self._canvas.create_oval(98, 98, 122, 122, fill="#4a90e2", outline="")
+        self._canvas.create_line(
+            self._cx + self._radius - 18,
+            self._cy,
+            self._cx + self._radius,
+            self._cy,
+            fill="white",
+            width=2,
+            arrow=tk.LAST,
+        )
+        self._knob = self._canvas.create_oval(
+            self._cx - 12,
+            self._cy - 12,
+            self._cx + 12,
+            self._cy + 12,
+            fill="#4a90e2",
+            outline="",
+        )
         self._canvas.bind("<Button-1>", self._move)
         self._canvas.bind("<B1-Motion>", self._move)
         self._canvas.bind("<ButtonRelease-1>", self._release)
@@ -70,7 +93,7 @@ class Joystick:
     def reset(self):
         self._x = 0.0
         self._y = 0.0
-        self._canvas.coords(self._knob, 98, 98, 122, 122)
+        self._canvas.coords(self._knob, self._cx - 12, self._cy - 12, self._cx + 12, self._cy + 12)
         self._on_change()
 
     @property
@@ -85,9 +108,9 @@ class Joystick:
 class YawRateBar:
     def __init__(self, parent, on_change):
         self._on_change = on_change
-        self._canvas = tk.Canvas(parent, width=220, height=220, bg="#303030", highlightthickness=0)
+        self._canvas = tk.Canvas(parent, width=220, height=240, bg="#303030", highlightthickness=0)
         self._cx = 110.0
-        self._cy = 110.0
+        self._cy = 125.0
         self._half_length = 85.0
         self._value = 0.0
 
@@ -103,7 +126,14 @@ class YawRateBar:
         self._canvas.create_line(self._cx, self._cy - 10, self._cx, self._cy + 10, fill="#555555", width=2)
         self._canvas.create_text(self._cx - self._half_length, self._cy + 26, text="←", fill="white")
         self._canvas.create_text(self._cx + self._half_length, self._cy + 26, text="→", fill="white")
-        self._knob = self._canvas.create_oval(98, 98, 122, 122, fill="#4a90e2", outline="")
+        self._knob = self._canvas.create_oval(
+            self._cx - 12,
+            self._cy - 12,
+            self._cx + 12,
+            self._cy + 12,
+            fill="#4a90e2",
+            outline="",
+        )
 
         self._canvas.bind("<Button-1>", self._move)
         self._canvas.bind("<B1-Motion>", self._move)
@@ -120,7 +150,7 @@ class YawRateBar:
 
     def reset(self):
         self._value = 0.0
-        self._canvas.coords(self._knob, 98, 98, 122, 122)
+        self._canvas.coords(self._knob, self._cx - 12, self._cy - 12, self._cx + 12, self._cy + 12)
         self._on_change()
 
     @property
@@ -150,7 +180,7 @@ class VelocityCommandGui(tk.Tk):
             text="Pelvis height [m]",
             bg="#2c2c2c",
             fg="white",
-        ).pack()
+        ).pack(pady=(0, 12))
         self._height = tk.Scale(
             height_frame,
             from_=1.0,
