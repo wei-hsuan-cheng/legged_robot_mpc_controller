@@ -18,13 +18,13 @@ stair_climbing:
     yaw: 0.0                    # ascent direction about world +z [rad]
     start_offset: 0.0           # local +x offset from base_pos to the first riser
     heights: [0.10, 0.10, 0.10, 0.10, 0.10]   # riser height per step [m]
-    depths:  [0.30, 0.30, 0.30, 0.30, 0.30]   # tread depth per step [m]
+    depths:  [0.315, 0.315, 0.315, 0.315, 0.315]   # tread depth per step [m]
     width: 1.2                                # tread width along local y [m]
 
   gait:
     initial_stance_duration: 2.0  # settle before the first lift-off [s]
-    swing_duration: 0.7           # single-support duration [s] (double-tread stride)
-    stance_duration: 0.5          # double-support duration between swings [s]
+    swing_duration: 0.5           # single-support duration [s] (double-tread stride)
+    stance_duration: 0.15          # double-support duration between swings [s]
     final_stance_duration: 1.0    # settle after the last touch-down [s]
     left_foot_first: true
     both_feet_per_tread: false    # one-tread-one-leg (alternating) climb gait
