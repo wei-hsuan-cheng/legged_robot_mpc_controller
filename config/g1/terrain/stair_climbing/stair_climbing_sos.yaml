@@ -27,7 +27,7 @@ stair_climbing:
     stance_duration: 0.1          # double-support duration between swings [s]
     final_stance_duration: 0.5    # settle after the last touch-down [s]
     left_foot_first: true
-    both_feet_per_tread: false    # one-tread-one-leg (alternating) climb gait
+    both_feet_per_tread: false    # step-over-step (one-tread-one-leg) climb gait
 
   footholds:
     lateral_offset: 0.115     # |y| of each foot from the staircase centerline [m]
