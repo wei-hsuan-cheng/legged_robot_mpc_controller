@@ -27,8 +27,22 @@ class Joystick:
             outline="#808080",
             width=2,
         )
-        self._canvas.create_line(self._cx - self._radius, self._cy, self._cx + self._radius, self._cy, fill="#555555")
-        self._canvas.create_line(self._cx, self._cy - self._radius, self._cx, self._cy + self._radius, fill="#555555")
+        self._canvas.create_line(
+            self._cx - self._radius,
+            self._cy,
+            self._cx + self._radius,
+            self._cy,
+            fill="#555555",
+            arrow=tk.LAST,
+        )
+        self._canvas.create_line(
+            self._cx,
+            self._cy + self._radius,
+            self._cx,
+            self._cy - self._radius,
+            fill="#555555",
+            arrow=tk.LAST,
+        )
         self._knob = self._canvas.create_oval(98, 98, 122, 122, fill="#4a90e2", outline="")
         self._canvas.bind("<Button-1>", self._move)
         self._canvas.bind("<B1-Motion>", self._move)
@@ -68,6 +82,52 @@ class Joystick:
         return self._y
 
 
+class YawRateBar:
+    def __init__(self, parent, on_change):
+        self._on_change = on_change
+        self._canvas = tk.Canvas(parent, width=220, height=220, bg="#303030", highlightthickness=0)
+        self._cx = 110.0
+        self._cy = 110.0
+        self._half_length = 85.0
+        self._value = 0.0
+
+        self._canvas.create_text(110, 14, text="Yaw rate", fill="white", font=("Helvetica", 11, "bold"))
+        self._canvas.create_line(
+            self._cx - self._half_length,
+            self._cy,
+            self._cx + self._half_length,
+            self._cy,
+            fill="#808080",
+            width=4,
+        )
+        self._canvas.create_line(self._cx, self._cy - 10, self._cx, self._cy + 10, fill="#555555", width=2)
+        self._canvas.create_text(self._cx - self._half_length, self._cy + 26, text="←", fill="white")
+        self._canvas.create_text(self._cx + self._half_length, self._cy + 26, text="→", fill="white")
+        self._knob = self._canvas.create_oval(98, 98, 122, 122, fill="#4a90e2", outline="")
+
+        self._canvas.bind("<Button-1>", self._move)
+        self._canvas.bind("<B1-Motion>", self._move)
+        self._canvas.bind("<ButtonRelease-1>", self._release)
+
+    def _move(self, event):
+        knob_x = max(self._cx - self._half_length, min(self._cx + self._half_length, float(event.x)))
+        self._value = -(knob_x - self._cx) / self._half_length
+        self._canvas.coords(self._knob, knob_x - 12, self._cy - 12, knob_x + 12, self._cy + 12)
+        self._on_change()
+
+    def _release(self, _event):
+        self._on_change()
+
+    def reset(self):
+        self._value = 0.0
+        self._canvas.coords(self._knob, 98, 98, 122, 122)
+        self._on_change()
+
+    @property
+    def value(self):
+        return self._value
+
+
 class VelocityCommandGui(tk.Tk):
     def __init__(self, publish):
         super().__init__()
@@ -80,7 +140,7 @@ class VelocityCommandGui(tk.Tk):
 
         self._linear = Joystick(container, "Linear velocity (pelvis frame)", self._changed)
         self._linear._canvas.grid(row=0, column=0, padx=10)
-        self._yaw = Joystick(container, "Yaw rate", self._changed)
+        self._yaw = YawRateBar(container, self._changed)
         self._yaw._canvas.grid(row=0, column=1, padx=10)
 
         height_frame = tk.Frame(container, bg="#2c2c2c")
@@ -129,8 +189,9 @@ class VelocityCommandGui(tk.Tk):
 
     def _publish_periodically(self):
         # Joystick vertical axis = forward (vx); horizontal = lateral (ROS +y is left,
-        # so a right-drag must command negative vy).
-        self._publish(self._linear.y, -self._linear.x, self._height.get(), self._yaw.y)
+        # so a right-drag must command negative vy). The yaw bar is +1 on the
+        # left and -1 on the right, making a right-drag command a right turn.
+        self._publish(self._linear.y, -self._linear.x, self._height.get(), self._yaw.value)
         self.after(20, self._publish_periodically)
 
     def _close(self):
