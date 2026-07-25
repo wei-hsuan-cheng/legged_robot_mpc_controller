@@ -22,10 +22,10 @@ stair_climbing:
     width: 1.2                                # tread width along local y [m]
 
   gait:
-    initial_stance_duration: 2.0  # settle before the first lift-off [s]
+    initial_stance_duration: 0.5  # settle before the first lift-off [s]
     swing_duration: 0.4           # single-support duration [s]
     stance_duration: 0.1          # double-support duration between swings [s]
-    final_stance_duration: 1.0    # settle after the last touch-down [s]
+    final_stance_duration: 0.5    # settle after the last touch-down [s]
     left_foot_first: true
 
   footholds:
