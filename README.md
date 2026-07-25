@@ -146,13 +146,15 @@ The centroidal MPC provides an example of climbing a staircase with **known grou
 | RViz display | stairs links in `description/g1/urdf/g1_29dof_stairs.urdf` | `xacro stairs.urdf.xacro` (see header comment) |
 | Climb plan | `stairs:` section of `config/g1/terrain/stair_climbing/*.yaml` | keep in sync by hand |
 
-**2. Launch** (headless or with GUI):
+**2. Launch**:
 
 ```bash
 ros2 launch legged_robot_mpc_controller g1.launch.py \
   mpcControllerName:=humanoid_centroidal_mpc_controller \
-  mujoco_headless:=true velocityCommandGui:=false \
-  stairClimbingFile:=stair_climbing_ss.yaml
+  mpcFreq:=100 \
+  mrtFreq:=1000 \
+  mujoco_headless:=true \
+  velocityCommandGui:=false
 ```
 
 The controller logs `stair climbing config loaded from config/g1/terrain/stair_climbing/*.yaml` on configure (the file path comes from the `stairClimbingFile` launch arg → `ocs2.gait.stairClimbingFile` parameter; an empty path disables the mode).
@@ -225,7 +227,10 @@ Perception-free *online* terrain locomotion: instead of a pre-scripted sequence,
 # 1. Launch with the viewer (stairs must be in scene.xml / the display URDF as above)
 ros2 launch legged_robot_mpc_controller g1.launch.py \
   mpcControllerName:=humanoid_centroidal_mpc_controller \
-  mujoco_headless:=true velocityCommandGui:=false
+  mpcFreq:=100 \
+  mrtFreq:=1000 \
+  mujoco_headless:=true \
+  velocityCommandGui:=false
 
 # 2. Once standing, select the mode
 ros2 topic pub --once /humanoid/target_mode std_msgs/msg/String "{data: terrain_walk}"
