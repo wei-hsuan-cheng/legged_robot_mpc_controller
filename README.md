@@ -217,7 +217,7 @@ The success thresholds default to the staircase in `terrain/stair_climbing/*.yam
 - Registered for the **centroidal controller only**.
 
 
-### Terrain-aware walking (`terrain_walk` target mode) — WORK IN PROGRESS
+### Terrain-aware walking (`terrain_walk` target mode)
 
 Perception-free *online* terrain locomotion: instead of a pre-scripted sequence, the robot follows a plain **velocity command** while a `TerrainFootholdPlanner` selects footholds each solver cycle over the same ground-truth staircase geometry (Phase 1 of the [T-RO 2023 perceptive-locomotion]([./docs](https://arxiv.org/abs/2208.08373)) roadmap, without the elevation-map / plane-segmentation front end). Each cycle it: extrapolates a nominal foothold under the hip (Raibert heuristic + capture-point velocity feedback), projects it onto the terrain surface, prefers stepping **up** onto a reachable tread (step-up bonus), anchors the stance laterally to the stair centerline, feeds the per-phase support heights to the swing planner, and terrain-adapts the pelvis height (zero pitch/roll) while gating forward momentum so the CoM cannot overrun the feet at a riser.
 
@@ -249,7 +249,7 @@ ros2 topic pub -r 50 /humanoid/walking_velocity_command \
 VX=0.08 ros2 run legged_robot_mpc_controller terrain_walk_test.sh /tmp/terrain_walk.log 90
 ```
 
-It switches to `terrain_walk`, commands `VX` forward until the pelvis passes the top, then zeroes the command and checks the robot stands there. Env overrides: `VX`, `PELVIS_HEIGHT`, `STOP_X`, `EXPECT_MIN_X`, `EXPECT_MIN_Z`, `STAIR_CONFIG` (alternative stair/terrain yaml). Tuning lives in the `terrain_walk:` section of the `config/g1/terrain/terrain_walking/*.yaml` files (foot margins, `max_step_height`, `capture_point_feedback_gain`, `max_base_lead`, `max_base_height_above_support`, `hip_lateral_offset`, `tracking_weight`).
+It switches to `terrain_walk`, commands `VX` forward until the pelvis passes the top, then zeroes the command and checks the robot stands there. The default `VX=0.08` is the validated setting for the default G1 staircase. Env overrides: `VX`, `PELVIS_HEIGHT`, `STOP_X`, `EXPECT_MIN_X`, `EXPECT_MIN_Z`, `TERRAIN_CONFIG` (alternative terrain-walking YAML). Tuning lives in the `terrain_walk:` section of the `config/g1/terrain/terrain_walking/*.yaml` files (foot margins, `max_step_height`, `capture_point_feedback_gain`, `max_base_lead`, `max_base_height_above_support`, `hip_lateral_offset`, `tracking_weight`, and `foothold_commit_lead_time`).
 
 Same caveats as `stair_climb` apply (centroidal only; no contact feedback; leave the mode only on flat support).
 

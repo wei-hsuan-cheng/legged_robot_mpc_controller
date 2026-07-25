@@ -192,6 +192,10 @@ void TerrainFootholdPlanner::update(const ModeSchedule& modeSchedule,
   for (size_t foot = 0; foot < footsteps_.size(); ++foot) {
     footsteps_[foot].clear();
 
+    if (committedFootsteps_[foot] && initTime >= committedFootsteps_[foot]->touchDownTime - EPS) {
+      committedFootsteps_[foot].reset();
+    }
+
     // The stance position before the first planned touch-down: measured foot,
     // snapped down to the terrain surface below it.
     initialFootPosition_[foot] = currentFeetPositions[foot];
@@ -209,6 +213,23 @@ void TerrainFootholdPlanner::update(const ModeSchedule& modeSchedule,
       const scalar_t touchDownTime = phaseEndTime(p);
       if (touchDownTime < initTime) {
         continue;  // swing fully in the past
+      }
+
+      const bool shouldCommit =
+          touchDownTime > initTime + EPS && liftOffTime <= initTime + settings_.footholdCommitLeadTime;
+      const bool matchesCommitment =
+          committedFootsteps_[foot] &&
+          std::abs(committedFootsteps_[foot]->liftOffTime - liftOffTime) < 1e-3 &&
+          std::abs(committedFootsteps_[foot]->touchDownTime - touchDownTime) < 1e-3;
+      if (shouldCommit && matchesCommitment) {
+        // Keep the active swing reference fixed. Re-anchoring it to the
+        // measured in-flight foot every solve makes the reference jump and can
+        // switch its touchdown between the ground and a tread.
+        initialFootPosition_[foot] = committedFootsteps_[foot]->liftOffPosition;
+        footsteps_[foot].push_back(*committedFootsteps_[foot]);
+        previousFoothold = committedFootsteps_[foot]->touchDownPosition;
+        firstStep = false;
+        continue;
       }
 
       // Nominal foothold: below the hip at touch-down (relative extrapolation),
@@ -299,6 +320,9 @@ void TerrainFootholdPlanner::update(const ModeSchedule& modeSchedule,
       footstep.liftOffPosition = previousFoothold;
       footstep.touchDownPosition = foothold;
       footsteps_[foot].push_back(footstep);
+      if (shouldCommit) {
+        committedFootsteps_[foot] = footstep;
+      }
 
       previousFoothold = footstep.touchDownPosition;
     }
@@ -376,79 +400,6 @@ bool TerrainFootholdPlanner::getSwingFootReference(size_t foot, scalar_t time, v
     }
   }
   return false;
-}
-
-/******************************************************************************************************/
-
-TargetTrajectories TerrainFootholdPlanner::getBaseTargetTrajectories(scalar_t initTime,
-                                                                    scalar_t finalTime,
-                                                                    const MpcRobotModelBase<scalar_t>& mpcRobotModel,
-                                                                    const vector_t& defaultJointState) const {
-  struct Knot {
-    scalar_t time;
-    vector3_t position;
-  };
-  std::vector<Knot> knots;
-
-  feet_array_t<vector3_t> feet{getPlannedFootPosition(0, initTime), getPlannedFootPosition(1, initTime)};
-  const scalar_t crouch = settings_.maxBaseHeightAboveSupport;
-  const auto baseAboveFeet = [&]() -> vector3_t {
-    vector3_t mid = 0.5 * (feet[0] + feet[1]);
-    mid(2) = 0.5 * (feet[0](2) + feet[1](2)) + crouch;
-    return mid;
-  };
-  knots.push_back({initTime, baseAboveFeet()});
-
-  // Upcoming touch-downs from both feet, in time order.
-  struct Touch {
-    scalar_t time;
-    size_t foot;
-    vector3_t position;
-  };
-  std::vector<Touch> touches;
-  for (size_t foot = 0; foot < footsteps_.size(); ++foot) {
-    for (const auto& fs : footsteps_[foot]) {
-      if (fs.touchDownTime > initTime) {
-        touches.push_back({fs.touchDownTime, foot, fs.touchDownPosition});
-      }
-    }
-  }
-  std::sort(touches.begin(), touches.end(), [](const Touch& a, const Touch& b) { return a.time < b.time; });
-  for (const auto& t : touches) {
-    feet[t.foot] = t.position;
-    knots.push_back({t.time, baseAboveFeet()});
-  }
-  if (knots.back().time < finalTime) {
-    knots.push_back({finalTime, knots.back().position});
-  }
-
-  const scalar_t yaw = terrainModel_.footprintYaw;
-  const size_t stateDim = mpcRobotModel.getStateDim();
-  const size_t inputDim = mpcRobotModel.getInputDim();
-  const size_t velIdx = mpcRobotModel.getBaseComVelocityStartindex();
-
-  scalar_array_t timeTrajectory;
-  vector_array_t stateTrajectory;
-  vector_array_t inputTrajectory;
-  for (size_t k = 0; k < knots.size(); ++k) {
-    vector_t state = vector_t::Zero(stateDim);
-    vector6_t basePose;
-    basePose << knots[k].position, yaw, 0.0, 0.0;  // [x y z yaw pitch roll]
-    mpcRobotModel.setBasePose(state, basePose);
-    if (defaultJointState.size() > 0) {
-      mpcRobotModel.setJointAngles(state, defaultJointState);
-    }
-    if (k + 1 < knots.size()) {
-      const scalar_t dt = std::max(knots[k + 1].time - knots[k].time, EPS);
-      const vector3_t velocity = (knots[k + 1].position - knots[k].position) / dt;
-      state(velIdx) = velocity(0);
-      state(velIdx + 1) = velocity(1);
-    }
-    timeTrajectory.push_back(knots[k].time);
-    stateTrajectory.push_back(std::move(state));
-    inputTrajectory.push_back(vector_t::Zero(inputDim));
-  }
-  return TargetTrajectories(timeTrajectory, stateTrajectory, inputTrajectory);
 }
 
 /******************************************************************************************************/

@@ -120,6 +120,7 @@ ocs2::humanoid::TerrainFootholdPlannerSettings loadTerrainFootholdPlannerSetting
   settings.maxBaseLead = node["max_base_lead"].as<double>(settings.maxBaseLead);
   settings.footholdTrackingWeight = node["tracking_weight"].as<double>(settings.footholdTrackingWeight);
   settings.swingReferenceArrivalFraction = node["swing_reference_arrival_fraction"].as<double>(settings.swingReferenceArrivalFraction);
+  settings.footholdCommitLeadTime = node["foothold_commit_lead_time"].as<double>(settings.footholdCommitLeadTime);
 
   return settings;
 }

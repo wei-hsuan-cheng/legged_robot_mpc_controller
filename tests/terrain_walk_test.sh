@@ -17,7 +17,7 @@
 #
 # Usage (workspace must be sourced; runs from anywhere):
 #   ros2 run legged_robot_mpc_controller terrain_walk_test.sh [log] [max_walk_s] [startup_wait_s]
-# Env overrides: VX (0.25), PELVIS_HEIGHT (0.72), STOP_X (1.95),
+# Env overrides: VX (0.08), PELVIS_HEIGHT (0.72), STOP_X (1.95),
 #                EXPECT_MIN_X (1.85), EXPECT_MIN_Z (1.15), MAX_X (2.45),
 #                TERRAIN_CONFIG (alternative terrain_walking yaml for terrainWalkingFile)
 # =============================================================================
@@ -26,7 +26,7 @@ set -u
 LOG="${1:-/tmp/terrain_walk_test.log}"
 MAX_WALK="${2:-60}"       # seconds of walking before giving up
 STARTUP_WAIT="${3:-90}"
-VX="${VX:-0.25}"
+VX="${VX:-0.08}"
 PELVIS_HEIGHT="${PELVIS_HEIGHT:-0.72}"
 STOP_X="${STOP_X:-1.95}"
 EXPECT_MIN_X="${EXPECT_MIN_X:-1.85}"

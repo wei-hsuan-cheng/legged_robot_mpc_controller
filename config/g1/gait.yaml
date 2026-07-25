@@ -65,4 +65,4 @@ jump:
 
 terrain_walk:
   modeSequence: [LF, STANCE, RF, STANCE]
-  switchingTimes: [0.0, 0.9, 1.7, 2.6, 3.4]
+  switchingTimes: [0.0, 0.6, 0.7, 1.3, 1.4]

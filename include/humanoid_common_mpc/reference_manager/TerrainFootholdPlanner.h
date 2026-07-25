@@ -24,6 +24,7 @@ treads are horizontal and a humanoid keeps its torso upright.
 
 #pragma once
 
+#include <optional>
 #include <vector>
 
 #include <ocs2_core/reference/ModeSchedule.h>
@@ -76,6 +77,7 @@ struct TerrainFootholdPlannerSettings {
   scalar_t maxBaseLead{0.30};  ///< clamp of the base reference's horizontal lead over the planned support midpoint [m]
   scalar_t footholdTrackingWeight{250.0};    ///< task-space foot cost xy weight during swing
   scalar_t swingReferenceArrivalFraction{0.75};  ///< xy reference reaches the foothold at this swing fraction
+  scalar_t footholdCommitLeadTime{0.10};  ///< latch a touchdown this long before lift-off and keep it through swing [s]
 };
 
 class TerrainFootholdPlanner {
@@ -136,20 +138,6 @@ class TerrainFootholdPlanner {
                           feet_array_t<scalar_array_t>& liftOffHeightSequence,
                           feet_array_t<scalar_array_t>& touchDownHeightSequence) const;
 
-  /**
-   * Absolute base (pelvis) reference built from the planned footholds: knots at
-   * initTime and every upcoming touch-down, base = mid-feet xy and
-   * mean-support+crouch z, terrain yaw, zero pitch/roll. Unlike a
-   * velocity-relative reference (which lags with the measured base and stalls
-   * the CoM at the riser), this is an absolute forward+up trajectory in sync
-   * with the feet, so the CoM commits onto each step. Mirrors the working fixed
-   * StairClimbingPlan base generation, but over the online-replanned footholds.
-   */
-  TargetTrajectories getBaseTargetTrajectories(scalar_t initTime,
-                                               scalar_t finalTime,
-                                               const MpcRobotModelBase<scalar_t>& mpcRobotModel,
-                                               const vector_t& defaultJointState) const;
-
   const feet_array_t<std::vector<PlannedFootstep>>& getFootsteps() const { return footsteps_; }
 
  private:
@@ -161,6 +149,7 @@ class TerrainFootholdPlanner {
 
   feet_array_t<std::vector<PlannedFootstep>> footsteps_;
   feet_array_t<vector3_t> initialFootPosition_;  ///< foot position before the first planned touch-down
+  feet_array_t<std::optional<PlannedFootstep>> committedFootsteps_;
 };
 
 }  // namespace ocs2::humanoid

@@ -29,18 +29,19 @@ terrain_walk:
     width: 1.2                                # tread width along local y [m]
 
   # --- online foothold planner settings ---
-  # Gait timing for this mode is the "terrain_walk" entry in config/g1/gait.yaml
-  # (deliberately slow: 0.9 s swing / 0.8 s double support, matching stair-climb).
-  hip_lateral_offset: 0.13        # |y| of the nominal foothold from the base centerline [m]
+  # Gait timing for this mode is the "terrain_walk" entry in config/g1/gait.yaml.
+  # It matches the fixed-sequence climb: 0.6 s swing / 0.1 s double support.
+  hip_lateral_offset: 0.115       # |y| of the nominal foothold from the base centerline [m]
   foot_margin_x: 0.10             # region shrink along local x (half foot length + margin) [m]
   foot_margin_y: 0.05             # region shrink along local y (half foot width + margin) [m]
   max_step_height: 0.18           # reject candidate regions further than this in z from the previous foothold [m]
   capture_point_feedback_gain: 0.27   # sqrt(h/g) velocity feedback on the first upcoming step
   max_capture_point_offset: 0.10  # clamp on the capture-point foothold offset [m]
-  max_base_height_above_support: 0.72  # cap of the commanded pelvis height above the mean support [m]
-  engage_distance: 0.0            # terrain adaptation engages only within this distance of the stairs [m]
-  max_base_lead: 0.40             # clamp of the base reference lead over the planned support midpoint [m]
-  tracking_weight: 400.0          # swing-foot xy position tracking weight at full commit (scaled DOWN
+  max_base_height_above_support: 0.70  # cap of the commanded pelvis height above the mean support [m]
+  engage_distance: 0.30           # begin terrain adaptation before the first riser [m]
+  max_base_lead: 0.30             # clamp of the base reference lead over the planned support midpoint [m]
+  tracking_weight: 250.0          # swing-foot xy position tracking weight at full commit (scaled DOWN
                                   # for far/unreachable up-steps in the reference manager, up when close)
-  swing_reference_arrival_fraction: 0.5   # xy reference reaches the foothold by mid-swing then holds,
+  swing_reference_arrival_fraction: 0.75  # xy reference reaches the foothold before touch-down then holds,
                                   # front-loading the foot motion so execution reaches the tread
+  foothold_commit_lead_time: 0.10  # latch the touchdown shortly before lift-off and keep it through swing [s]

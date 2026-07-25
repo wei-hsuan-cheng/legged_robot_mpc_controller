@@ -170,17 +170,62 @@ void SwitchedModelReferenceManager::modifyReferences(scalar_t initTime,
     auto& planner = *terrainFootholdPlannerPtr_;
     planner.update(modeSchedule, targetTrajectories, computeFeetPositions(initState), initState, initTime, *mpcRobotModelPtr_);
 
-    // Replace the base (pelvis) reference with an ABSOLUTE trajectory built from
-    // the feedback-replanned footholds: base = mid-feet xy + mean-support+crouch
-    // z, moving forward and up in sync with the feet (the working fixed-sequence
-    // base motion). The velocity-relative reference lagged with the measured
-    // base and never accumulated forward, stalling the CoM at the riser
-    // (marching-in-place). The default joint reference is carried over from the
-    // incoming (velocity-command) target so arm/joint tracking is unchanged.
-    const vector_t defaultJoints = targetTrajectories.stateTrajectory.empty()
-                                       ? vector_t()
-                                       : mpcRobotModelPtr_->getJointAngles(targetTrajectories.stateTrajectory.front());
-    targetTrajectories = planner.getBaseTargetTrajectories(initTime, finalTime, *mpcRobotModelPtr_, defaultJoints);
+    // Keep the velocity-command trajectory on the flat approach. Near the
+    // terrain, constrain its lead over the planned support and adapt its height
+    // using committed swing footholds. This preserves persistent forward intent
+    // instead of rebuilding the reference origin from measured feet every solve.
+    const size_t velStart = mpcRobotModelPtr_->getBaseComVelocityStartindex();
+    for (size_t i = 0; i < targetTrajectories.stateTrajectory.size(); ++i) {
+      vector_t& targetState = targetTrajectories.stateTrajectory[i];
+      const scalar_t knotTime = targetTrajectories.timeTrajectory[i];
+      vector6_t basePose = mpcRobotModelPtr_->getBasePose(targetState);
+
+      if (!planner.isNearStairs(basePose.head<2>())) {
+        continue;
+      }
+
+      const auto anticipatedFoot = [&](size_t foot, scalar_t time) -> vector3_t {
+        vector3_t position = planner.getPlannedFootPosition(foot, time);
+        for (const auto& footstep : planner.getFootsteps()[foot]) {
+          if (time >= footstep.touchDownTime) {
+            position = footstep.touchDownPosition;
+          } else if (time >= footstep.liftOffTime) {
+            const scalar_t duration = std::max(footstep.touchDownTime - footstep.liftOffTime, 1e-6);
+            const scalar_t progress = std::clamp((time - footstep.liftOffTime) / duration, 0.0, 1.0);
+            position = footstep.liftOffPosition + progress * (footstep.touchDownPosition - footstep.liftOffPosition);
+            break;
+          } else {
+            break;
+          }
+        }
+        return position;
+      };
+
+      const vector3_t supportMidpoint =
+          0.5 * (anticipatedFoot(0, knotTime) + anticipatedFoot(1, knotTime));
+      const scalar_t yaw = basePose(3);
+      const Eigen::Vector2d forwardDirection(std::cos(yaw), std::sin(yaw));
+      const Eigen::Vector2d lateralDirection(-std::sin(yaw), std::cos(yaw));
+      const Eigen::Vector2d horizontalOffset = basePose.head<2>() - supportMidpoint.head<2>();
+      const scalar_t forwardLead = horizontalOffset.dot(forwardDirection);
+      const scalar_t lateralLead = horizontalOffset.dot(lateralDirection);
+      const scalar_t maxLead = std::max(planner.getMaxBaseLead(), 1e-6);
+
+      const scalar_t velocityScale =
+          std::clamp(2.0 * (maxLead - std::max(forwardLead, 0.0)) / maxLead, 0.0, 1.0);
+      targetState(velStart) *= velocityScale;
+      targetState(velStart + 1) *= velocityScale;
+
+      basePose.head<2>() =
+          supportMidpoint.head<2>() +
+          std::clamp(forwardLead, -maxLead, maxLead) * forwardDirection +
+          std::clamp(lateralLead, -maxLead, maxLead) * lateralDirection;
+      basePose(2) =
+          supportMidpoint(2) + std::min(basePose(2), planner.getMaxBaseHeightAboveSupport());
+      basePose(4) = 0.0;
+      basePose(5) = 0.0;
+      mpcRobotModelPtr_->setBasePose(targetState, basePose);
+    }
 
     feet_array_t<scalar_array_t> liftOffHeightSequence;
     feet_array_t<scalar_array_t> touchDownHeightSequence;
