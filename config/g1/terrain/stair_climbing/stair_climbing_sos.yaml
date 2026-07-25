@@ -1,16 +1,7 @@
 # -----------------------------------------------------------------------------
-# Fixed-sequence stair climbing - Step-Over-Step gait (SOS) (one-tread-one-leg).
-#
-# Same trigger and geometry as stair_climbing.yaml, but the climb uses the
-# human-like alternating gait: each foot lands on the NEXT tread (left on
-# tread 1, right on tread 2, ...), finishing with the trailing foot joining
-# on the top tread. N+1 climb swings instead of 2N, but each climb swing
-# spans TWO treads (~0.6 m stride, ~0.2 m rise), so timing is slower per
-# swing and the pelvis reference is more crouched.
-#
-# Select via the launch argument:
-#   ros2 launch legged_robot_mpc_controller g1.launch.py \
-#     stairClimbingFile:=<pkg_share>/config/g1/stair_climbing_ss.yaml ...
+# Fixed-sequence stair climbing, supporting both
+# 1. Step-Over-Step gait (SOS) (one-tread-one-leg)
+# 2. Step-To gait (ST) (both feet per tread)
 # -----------------------------------------------------------------------------
 stair_climbing:
   stairs:                       # world-frame staircase geometry (0th step frame)
@@ -23,11 +14,11 @@ stair_climbing:
 
   gait:
     initial_stance_duration: 0.5  # settle before the first lift-off [s]
-    swing_duration: 0.6           # single-support duration [s] (double-tread stride)
-    stance_duration: 0.1          # double-support duration between swings [s]
+    swing_duration: 0.6           # swing (single-support) duration [s]
+    stance_duration: 0.1          # stance (double-support) duration between swings [s]
     final_stance_duration: 0.5    # settle after the last touch-down [s]
     left_foot_first: true
-    both_feet_per_tread: false    # step-over-step (one-tread-one-leg) climb gait
+    both_feet_per_tread: false    # false: step-over-step (one-tread-one-leg) climb gait | true: step-to (both feet per tread) climb gait
 
   footholds:
     lateral_offset: 0.115     # |y| of each foot from the staircase centerline [m]
