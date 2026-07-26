@@ -18,7 +18,6 @@ from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
-    mpc_share = FindPackageShare("legged_robot_mpc_controller")
     mpc_share_dir = get_package_share_directory("legged_robot_mpc_controller")
 
     rviz_default = os.path.join(mpc_share_dir, "config", "rviz", "humanoid.rviz")
@@ -30,7 +29,7 @@ def generate_launch_description():
     # own floating base). Do NOT point this at a URDF that contains a world link /
     # floating_base_joint or static environment (e.g. stairs) — the extra floating
     # joint adds 6 DOF and trips "referenceJointState size does not match nq - 6".
-    urdf_default = PathJoinSubstitution([mpc_share,
+    urdf_default = PathJoinSubstitution([mpc_share_dir,
                                          "description", "g1", "urdf",
                                          "g1_29dof.urdf", # robot-only, pelvis-rooted (MPC/Pinocchio)
                                          ])
@@ -38,34 +37,34 @@ def generate_launch_description():
     # URDF for robot_state_publisher / RViz only: may include the world link and
     # static environment (stairs). RSP skips the floating joint and gets
     # world->pelvis from the sim's ground-truth TF instead.
-    display_urdf_default = PathJoinSubstitution([mpc_share,
+    display_urdf_default = PathJoinSubstitution([mpc_share_dir,
                                                  "description", "g1", "urdf",
                                                  "g1_29dof_stairs.urdf", # g1_29dof.urdf | g1_29dof_stairs.urdf
                                                  ])
 
     controllers_file_default = PathJoinSubstitution([
-        mpc_share, "config", "g1",
+        mpc_share_dir, "config", "g1",
         "ros2_controllers_legacy.yaml" # ros2_controllers.yaml | ros2_controllers_legacy.yaml
         ])
     
     gait_library_file_default = PathJoinSubstitution([
-        mpc_share, "config", "g1",
+        mpc_share_dir, "config", "g1",
         "gait.yaml"
         ])
 
     stair_climbing_file_default = PathJoinSubstitution([
-        mpc_share, "config", "g1",
+        mpc_share_dir, "config", "g1",
         "terrain", "stair_climbing",
         "stair_climbing.yaml"
         ])
 
     terrain_walking_file_default = PathJoinSubstitution([
-        mpc_share, "config", "g1",
+        mpc_share_dir, "config", "g1",
         "terrain", "terrain_walking",
         "terrain_walking.yaml"
         ])
 
-    ros2_control_xacro = PathJoinSubstitution([mpc_share, "description", "g1", "urdf", "g1.ros2_control.xacro"])
+    ros2_control_xacro = PathJoinSubstitution([mpc_share_dir, "description", "g1", "urdf", "g1.ros2_control.xacro"])
 
     declared_arguments = [
         DeclareLaunchArgument("rviz", default_value="true"),
@@ -123,7 +122,7 @@ def generate_launch_description():
     use_fake_hardware = LaunchConfiguration("use_fake_hardware")
     use_sim_time = ParameterValue(use_mujoco_sim, value_type=bool)
     mujoco_model_path = PathJoinSubstitution(
-        [mpc_share, "description", "g1", "mujoco", LaunchConfiguration("mujocoModelFile")]
+        [mpc_share_dir, "description", "g1", "mujoco", LaunchConfiguration("mujocoModelFile")]
     )
 
     # ros2_control hardware description (minimal kinematic chain + G1System block).
