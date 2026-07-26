@@ -1,6 +1,6 @@
 # Legged Robot MPC Controller
 
-ROS 2 controller integration for legged robot MPC using [OCS2](https://github.com/wei-hsuan-cheng/ocs2_ros2.git) and [Pinocchio](https://github.com/stack-of-tasks/pinocchio.git). 
+ROS 2 controller integration for legged robot MPC using [OCS2](https://github.com/wei-hsuan-cheng/ocs2_ros2.git) and [Pinocchio](https://github.com/stack-of-tasks/pinocchio.git). Tested in [MuJoCo](https://mujoco.readthedocs.io/en/stable/overview.html) simulation environment.
 
 The humanoid centroidal MPC & whole-body MPC are migrated from the original implementaion of [`wb_humanoid_mpc`](https://github.com/manumerous/wb_humanoid_mpc.git).
 
