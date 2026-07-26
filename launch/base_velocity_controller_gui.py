@@ -161,40 +161,63 @@ class YawRateBar:
 class VelocityCommandGui(tk.Tk):
     def __init__(self, publish):
         super().__init__()
-        self.title("Humanoid MPC Base Velocity Controller")
+        self.title("Humanoid MPC Base Twist Controller (Pelvis Frame)")
         self.configure(bg="#2c2c2c")
         self._publish = publish
 
         container = tk.Frame(self, bg="#2c2c2c")
         container.pack(padx=16, pady=16)
 
-        self._linear = Joystick(container, "Linear velocity (pelvis frame)", self._changed)
+        self._linear = Joystick(container, "Linear velocity", self._changed)
         self._linear._canvas.grid(row=0, column=0, padx=10)
         self._yaw = YawRateBar(container, self._changed)
         self._yaw._canvas.grid(row=0, column=1, padx=10)
 
         height_frame = tk.Frame(container, bg="#2c2c2c")
         height_frame.grid(row=0, column=2, padx=16, sticky="ns")
+        height_frame.columnconfigure(0, weight=1)
         tk.Label(
             height_frame,
-            text="Pelvis height [m]",
+            text="Height [m]",
             bg="#2c2c2c",
             fg="white",
-        ).pack(pady=(0, 12))
+        ).grid(row=0, column=0)
+        self._height_value = tk.StringVar(value="0.793")
+        tk.Label(
+            height_frame,
+            textvariable=self._height_value,
+            bg="#2c2c2c",
+            fg="white",
+        ).grid(row=1, column=0, pady=(8, 4))
+        tk.Label(
+            height_frame,
+            text="↑",
+            bg="#2c2c2c",
+            fg="white",
+            font=("Helvetica", 12, "bold"),
+        ).grid(row=2, column=0)
         self._height = tk.Scale(
             height_frame,
             from_=1.0,
             to=0.2,
             resolution=0.001,
             orient=tk.VERTICAL,
-            length=180,
-            showvalue=True,
+            length=150,
+            showvalue=False,
             bg="#2c2c2c",
             fg="white",
             highlightthickness=0,
+            command=self._height_changed,
         )
         self._height.set(0.7925)
-        self._height.pack()
+        self._height.grid(row=3, column=0)
+        tk.Label(
+            height_frame,
+            text="↓",
+            bg="#2c2c2c",
+            fg="white",
+            font=("Helvetica", 12, "bold"),
+        ).grid(row=4, column=0)
 
         controls = tk.Frame(self, bg="#2c2c2c")
         controls.pack(pady=(0, 16))
@@ -211,6 +234,9 @@ class VelocityCommandGui(tk.Tk):
 
     def _changed(self):
         return
+
+    def _height_changed(self, value):
+        self._height_value.set(f"{float(value):.3f}")
 
     def _reset(self):
         self._linear.reset()
