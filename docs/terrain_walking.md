@@ -50,7 +50,7 @@ h_b \\
 \end{bmatrix}.
 $$
 
-The scaling and solver-thread low-pass filtering are implemented in [`WalkingVelocityTarget::scaleCommand()` and `evaluate()`](../src/core/humanoid_common_mpc/src/target/WalkingVelocityTarget.cpp#L50-L81). The filter produces
+The scaling and solver-thread low-pass filtering are implemented in [`WalkingVelocityTarget::scaleCommand()`](../src/core/humanoid_common_mpc/src/target/WalkingVelocityTarget.cpp#L50-L81) and [`evaluate()`](../src/core/humanoid_common_mpc/src/target/WalkingVelocityTarget.cpp#L50-L81). The filter produces
 
 $$
 \mathbf c_f[k]
@@ -129,7 +129,7 @@ The available mode mappings are:
 | `LF` | 1 | 0 | left support, right swing |
 | `STANCE` | 1 | 1 | double support |
 
-These mappings are defined by [`ModeNumber` and `modeNumber2StanceLeg()`](../include/humanoid_common_mpc/gait/MotionPhaseDefinition.h#L45-L74).
+These mappings are defined by [`ModeNumber`](../include/humanoid_common_mpc/gait/MotionPhaseDefinition.h#L45-L74) and [`modeNumber2StanceLeg()`](../include/humanoid_common_mpc/gait/MotionPhaseDefinition.h#L45-L74).
 
 ### Terrain-walk template
 
@@ -161,7 +161,7 @@ $$
 T_g = 1.4\ \mathrm{s}.
 $$
 
-The source is the [`terrain_walk` entry in `gait.yaml`](../config/g1/gait.yaml#L66-L68). Mode names are converted to mode numbers when loading the template in [`modeScheduleFromStrings()`](../src/core/humanoid_common_mpc/src/gait/ModeSequenceTemplate.cpp#L86-L99).
+The source is the `terrain_walk` entry in  [`gait.yaml`](../config/g1/gait.yaml#L66-L68). Mode names are converted to mode numbers when loading the template in [`modeScheduleFromStrings()`](../src/core/humanoid_common_mpc/src/gait/ModeSequenceTemplate.cpp#L86-L99).
 
 ### Selecting and tiling the gait
 
@@ -651,3 +651,70 @@ ros2 run legged_robot_mpc_controller terrain_walk_test.sh \
 | Swing-height splines | [`SwingTrajectoryPlanner.cpp`](../src/core/humanoid_common_mpc/src/swing_foot_planner/SwingTrajectoryPlanner.cpp#L85-L191) |
 | Foot tracking cost | [`CentroidalMpcEndEffectorFootCost.cpp`](../src/core/humanoid_centroidal_mpc/src/cost/CentroidalMpcEndEffectorFootCost.cpp#L92-L160) |
 | Mode-dependent OCP constraints | [`CentroidalMpcInterface.cpp`](../src/core/humanoid_centroidal_mpc/src/CentroidalMpcInterface.cpp#L185-L212) |
+
+---
+
+
+## Gap to Practical Deployment and Real-Hardware Testing
+
+The current implementation closes the terrain-walking control loop for a known, static staircase in MuJoCo, but it is not yet a complete perceptive-locomotion or real-hardware pipeline.
+
+
+### Intended complete pipeline
+
+```mermaid
+flowchart TD
+  classDef ready fill:#d8f3dc,stroke:#2d6a4f,color:#1b4332
+  classDef partial fill:#fff3bf,stroke:#b08900,color:#5f4b00
+  classDef missing fill:#ffe3e3,stroke:#c92a2a,color:#7f1d1d
+
+  subgraph Perception["Terrain perception and preprocessing"]
+    P1["Depth / stereo / LiDAR"]:::missing
+    P2["Calibration, time sync,<br/>motion compensation, self-filter"]:::missing
+    P3["Point cloud / elevation map"]:::missing
+    P4["Plane and support-region extraction<br/>normals, friction, confidence"]:::missing
+    P5["Thread-safe terrain snapshot"]:::missing
+    P1 --> P2 --> P3 --> P4 --> P5
+  end
+
+  subgraph CurrentTerrain["Current simulator terrain path"]
+    T1["Known staircase YAML"]:::ready
+    T2["Horizontal rectangular<br/>ground-truth regions"]:::ready
+    T1 --> T2
+  end
+
+  subgraph State["Robot state"]
+    S1["MuJoCo pelvis ground truth<br/>plus joint states"]:::ready
+    S2["IMU + encoders + contact sensing"]:::missing
+    S3["Floating-base and contact estimator"]:::missing
+    S4["ros2_control state interfaces"]:::partial
+    S1 --> S4
+    S2 --> S3 --> S4
+  end
+
+  subgraph Planning["Terrain-walking MPC"]
+    C1["Velocity command and<br/>terrain_walk mode"]:::ready
+    C2["Periodic gait schedule"]:::ready
+    C3["Online foothold planner"]:::ready
+    C4["Support-relative base target<br/>and swing trajectories"]:::ready
+    C5["Centroidal SQP MPC<br/>contact costs and constraints"]:::ready
+    C1 --> C2 --> C3 --> C4 --> C5
+  end
+
+  P5 -.->|required real-world input| C3
+  T2 --> C3
+  S4 --> C3
+  S4 --> C5
+
+  subgraph Execution["Command and safety"]
+    E1["RNEA feedforward plus<br/>joint position/velocity targets"]:::ready
+    E2["Policy, state, map, contact,<br/>and torque safety supervisor"]:::missing
+    E3["G1 ros2_control hardware plugin<br/>and low-level command adapter"]:::missing
+    E4["G1 actuators"]:::missing
+    C5 --> E1 --> E2 --> E3 --> E4
+  end
+
+  E4 -.->|measured motion and contact| S2
+```
+
+Green blocks are implemented for the current MuJoCo staircase case, yellow blocks have an interface or simulator implementation but still need a hardware implementation, and red blocks are required before practical terrain walking on the real robot.
