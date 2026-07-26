@@ -193,8 +193,7 @@ ros2 launch legged_robot_mpc_controller g1.launch.py \
 ros2 topic pub --once /humanoid/target_mode std_msgs/msg/String "{data: terrain_walk}"
 ```
 
-**Automated test** (headless, drives the climb and prints a verdict; exit 0 only on
-`SUCCESS`):
+**Automated test** (headless, drives the climb and prints a verdict; exit 0 only on `SUCCESS`):
 
 ```bash
 VX=0.08 ros2 run legged_robot_mpc_controller terrain_walk_test.sh /tmp/terrain_walk.log 90
