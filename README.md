@@ -9,9 +9,7 @@ The humanoid centroidal MPC & whole-body MPC are migrated from the original impl
 
 - Clone this repo
   ```bash
-  git clone \
-    https://github.com/wei-hsuan-cheng/legged_robot_mpc_controller.git \
-    -b main
+  git clone https://github.com/wei-hsuan-cheng/legged_robot_mpc_controller.git
   ```
 
 - Clone all sub-repo with vcs
@@ -197,7 +195,7 @@ ros2 topic pub --once /humanoid/target_mode std_msgs/msg/String "{data: terrain_
 # Then send base twist command to play with the robot
 ```
 
-**Automated test** (headless, drives the climb and prints a verdict; exit 0 only on `SUCCESS`):
+**Auto-test** (headless, drives the climb and prints a verdict; exit 0 only on `SUCCESS`):
 
 ```bash
 VX=0.08 ros2 run legged_robot_mpc_controller terrain_walk_test.sh /tmp/terrain_walk.log 90
