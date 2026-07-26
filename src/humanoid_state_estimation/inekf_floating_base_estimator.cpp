@@ -1,6 +1,7 @@
 #include "legged_robot_mpc_controller/humanoid_state_estimation/inekf_floating_base_estimator.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <stdexcept>
 
 #include <pinocchio/multibody/model.hpp>
@@ -59,6 +60,11 @@ InekfFloatingBaseEstimator::InekfFloatingBaseEstimator(const Settings& settings)
       settings_.contact_beta1.size() != settings_.contact_frames.size()) {
     throw std::invalid_argument(
       "[InekfFloatingBaseEstimator] contact_beta0/beta1 must have one entry per contact frame");
+  }
+  if (settings_.height_source != "inekf" && settings_.height_source != "kinematic" &&
+      settings_.height_source != "blend" && settings_.height_source != "anchored") {
+    throw std::invalid_argument(
+      "[InekfFloatingBaseEstimator] height_source must be 'inekf', 'kinematic', 'blend' or 'anchored'");
   }
   if (settings_.contact_source != "torque" && settings_.contact_source != "scheduled") {
     throw std::invalid_argument(
@@ -175,6 +181,10 @@ void InekfFloatingBaseEstimator::initialize(
   // so the filter is consistent with the actual foot geometry / terrain start heights
   // instead of assuming a flat ground at z = 0.
   const std::vector<double> ground_heights = contactGroundHeights(base_position, base_orientation, qj_);
+  // Seed the per-contact ground anchors ("anchored" height source) with the same
+  // heights, and mark every contact as fresh so the first stance re-anchors cleanly.
+  contact_ground_anchor_ = ground_heights;
+  contact_was_in_stance_.assign(contact_frame_ids_.size(), false);
   estimator_->init(imu_position, quat_xyzw, qj_, ground_heights);
   initialized_ = true;
 }
@@ -204,14 +214,12 @@ FloatingBaseEstimate InekfFloatingBaseEstimator::update(
     joint_velocities, joint_efforts, &foot_contacts);
 }
 
-bool InekfFloatingBaseEstimator::kinematicBaseHeight(
+void InekfFloatingBaseEstimator::contactHeightsRelativeToBase(
   const Eigen::Quaterniond& base_orientation,
-  const std::vector<bool>* foot_contacts,
-  double& height_out)
+  std::vector<double>& relative_heights_out)
 {
   // FK with the base at the world origin: oMf[contact].z is then the contact height
-  // relative to the base. Putting that contact on the ground plane requires
-  // base_z = ground_z - contact_z_relative.
+  // relative to the base, expressed in a world-aligned frame.
   Eigen::VectorXd q(model_.nq);
   q.head<3>().setZero();
   q.segment<4>(3) = Eigen::Vector4d(
@@ -219,20 +227,65 @@ bool InekfFloatingBaseEstimator::kinematicBaseHeight(
   q.tail(num_estimator_joints_) = qj_;
 
   pinocchio::forwardKinematics(model_, data_, q);
+  relative_heights_out.resize(contact_frame_ids_.size());
+  for (size_t contact = 0; contact < contact_frame_ids_.size(); ++contact) {
+    pinocchio::updateFramePlacement(model_, data_, contact_frame_ids_[contact]);
+    relative_heights_out[contact] = data_.oMf[contact_frame_ids_[contact]].translation().z();
+  }
+}
+
+bool InekfFloatingBaseEstimator::isContactInStance(
+  size_t contact, const std::vector<bool>* foot_contacts) const
+{
+  if (foot_contacts == nullptr) {
+    return true;  // no contact information: treat every configured contact as support
+  }
+  const int64_t foot = settings_.contact_foot_indices[contact];
+  if (foot < 0 || static_cast<size_t>(foot) >= foot_contacts->size()) {
+    return false;
+  }
+  return (*foot_contacts)[static_cast<size_t>(foot)];
+}
+
+bool InekfFloatingBaseEstimator::kinematicBaseHeight(
+  const Eigen::Quaterniond& base_orientation,
+  const std::vector<bool>* foot_contacts,
+  double inekf_base_height,
+  double& height_out)
+{
+  contactHeightsRelativeToBase(base_orientation, contact_relative_heights_);
+
+  const bool anchored = (settings_.height_source == "anchored");
+  if (contact_ground_anchor_.size() != contact_frame_ids_.size()) {
+    contact_ground_anchor_.assign(contact_frame_ids_.size(), settings_.height_ground_z);
+    contact_was_in_stance_.assign(contact_frame_ids_.size(), false);
+  }
 
   double sum = 0.0;
   int count = 0;
   for (size_t contact = 0; contact < contact_frame_ids_.size(); ++contact) {
-    // Only stance contacts anchor the base; swing feet carry no ground information.
-    if (foot_contacts != nullptr) {
-      const int64_t foot = settings_.contact_foot_indices[contact];
-      if (foot < 0 || static_cast<size_t>(foot) >= foot_contacts->size() ||
-          !(*foot_contacts)[static_cast<size_t>(foot)]) {
-        continue;
+    const bool in_stance = isContactInStance(contact, foot_contacts);
+
+    if (anchored && in_stance && !contact_was_in_stance_[contact]) {
+      // Touchdown: the world height the filter believes this contact landed at.
+      const double measured = inekf_base_height + contact_relative_heights_[contact];
+      // Only re-anchor on a genuine terrain change. Re-anchoring every touchdown would
+      // fold the filter's own height noise into the reference and destroy the noise
+      // rejection this term exists to provide; the deadband keeps flat ground pinned to
+      // its exact anchor while still capturing a real step.
+      if (std::abs(measured - contact_ground_anchor_[contact]) >
+          settings_.height_anchor_update_threshold) {
+        contact_ground_anchor_[contact] = measured;
       }
     }
-    pinocchio::updateFramePlacement(model_, data_, contact_frame_ids_[contact]);
-    sum += settings_.height_ground_z - data_.oMf[contact_frame_ids_[contact]].translation().z();
+    contact_was_in_stance_[contact] = in_stance;
+
+    if (!in_stance) {
+      continue;  // swing feet carry no ground information
+    }
+    const double ground =
+      anchored ? contact_ground_anchor_[contact] : settings_.height_ground_z;
+    sum += ground - contact_relative_heights_[contact];
     ++count;
   }
 
@@ -300,10 +353,11 @@ FloatingBaseEstimate InekfFloatingBaseEstimator::updateImpl(
   // the stance-foot kinematics rather than drift with the filter.
   if (settings_.height_source != "inekf") {
     double kinematic_height = 0.0;
-    if (kinematicBaseHeight(estimate.orientation, foot_contacts, kinematic_height)) {
+    if (kinematicBaseHeight(
+        estimate.orientation, foot_contacts, estimate.position.z(), kinematic_height)) {
       if (settings_.height_source == "kinematic") {
         estimate.position.z() = kinematic_height;
-      } else {  // "blend"
+      } else {  // "blend" and "anchored" both fuse with the filter height
         const double w = std::clamp(settings_.height_kinematic_weight, 0.0, 1.0);
         estimate.position.z() = (1.0 - w) * estimate.position.z() + w * kinematic_height;
       }

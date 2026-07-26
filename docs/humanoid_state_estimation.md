@@ -210,12 +210,30 @@ Measured stair/terrain behaviour with the InEKF driving the MPC (ground truth sh
 
 So **flat-ground closed-loop walking works, stairs do not**, and terrain walking is additionally limited by a pre-existing issue visible on ground truth alone.
 
-The fix, not yet implemented, is a **per-contact, time-varying ground height** $z_{\text{ground},i}(t)$ instead of one constant. Two sources are possible:
+A per-contact, time-varying ground height is available as `height.source: anchored`. Each contact records the estimated world height at which it touched down and holds it through stance, so the kinematic term enforces consistency *within* a stance phase without fighting a real terrain change, and no terrain map is needed:
 
-1. **The InEKF's own contact landmarks** (preferred): when a foot touches down the filter anchors it in the world and holds it through stance; that anchor *is* the estimator's belief about the local ground. Using it makes the kinematic term enforce only intra-stance consistency — killing the FK/measurement noise — while never fighting a real terrain change. Fully proprioceptive, no map required.
-2. **The terrain model**: `TerrainFootholdPlanner::heightAt(x, y)`, which the stair/terrain modes already build. More accurate where a trustworthy map exists, but it makes the estimator depend on perception or surveyed geometry.
+$$
+z^{\text{base}}_{\text{kin}} = \frac{1}{|\mathcal S|}\sum_{i\in\mathcal S}\Big(z_{\text{anchor},i} - \big[{}^{B}p_{C_i}\big]_z\Big),
+\qquad
+z_{\text{anchor},i} \leftarrow z^{\text{base}}_{\text{InEKF}} + \big[{}^{B}p_{C_i}\big]_z
+\ \text{ at touchdown.}
+$$
 
-The measurements above motivate this directly: `blend` supplies precision but not terrain awareness, `inekf` supplies terrain awareness but not precision, and the per-contact anchor is what provides both.
+Re-anchoring at *every* touchdown folds the filter's own height noise into the reference and destroys the noise rejection this term exists to provide (measured: flat-ground height error 1.8 mm → 6.9 mm, and the robot fell). A deadband therefore gates the update: a contact re-anchors only when the measured landing height differs from its current anchor by more than `height.anchorUpdateThreshold` (default 0.05 m — above the ~0.03 m filter noise, well below a 0.17 m riser). See [`kinematicBaseHeight()`](../src/humanoid_state_estimation/inekf_floating_base_estimator.cpp).
+
+**Measured outcome — this does not yet make stairs work:**
+
+| test (InEKF driving) | `blend` (default) | `anchored` + deadband |
+|---|---|---|
+| flat closed-loop | ✅ 2.12 m, height 1.8 mm mean / 6.6 mm max | ✅ 2.11 m, 3.5 mm mean / 45.6 mm max |
+| stair climb | ❌ FALL at x = 0.837 | ❌ FALL at x = 0.558 |
+| terrain walk | ❌ 0 treads (GT: ~4.9) | ❌ 1.2 treads |
+
+The anchor *value* is correct; the problem is that it changes **discontinuously**. When a foot lands on a riser the reported height steps ~0.17 m within one control tick, and the centroidal MPC receives that as a step input to its dominant momentum state. The same effect shows up on flat ground as the 45.6 mm peak against a 3.5 mm mean. `blend` therefore remains the default, and `anchored` is opt-in.
+
+The next step is to introduce the terrain correction **continuously** — ramping the anchor change across the stance phase or slew-limiting the fused height — so the correct value is reached without the transient. Option (a), per-contact heights from `TerrainFootholdPlanner::heightAt(x, y)`, remains the alternative where a trustworthy terrain map exists.
+
+Note also that height is tracked **incrementally**: each anchor inherits the filter's estimate at touchdown, so absolute error accumulates across steps, and terrain changes smaller than the deadband are treated as flat.
 
 ### Hardware notes
 

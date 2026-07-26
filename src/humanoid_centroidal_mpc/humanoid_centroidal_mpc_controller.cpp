@@ -239,6 +239,7 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_configu
       settings.height_source = se.height.source;
       settings.height_kinematic_weight = se.height.kinematicWeight;
       settings.height_ground_z = se.height.groundZ;
+      settings.height_anchor_update_threshold = se.height.anchorUpdateThreshold;
       settings.lpf_gyro_cutoff = se.lpf.gyroCutoff;
       settings.lpf_gyro_accel_cutoff = se.lpf.gyroAccelCutoff;
       settings.lpf_lin_accel_cutoff = se.lpf.linAccelCutoff;

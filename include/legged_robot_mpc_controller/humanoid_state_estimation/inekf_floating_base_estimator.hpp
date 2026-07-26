@@ -67,11 +67,22 @@ public:
     // is a large fraction of the 0.08 m swing height and destabilizes contact timing.
     // Fusing the InEKF height with the height implied by the stance-foot kinematics
     // (feet on z = 0) keeps the observation consistent with what the MPC assumes.
-    // "inekf" = raw filter height, "kinematic" = stance-foot height only,
-    // "blend" = complementary filter between the two.
+    // "inekf"     = raw filter height.
+    // "kinematic" = stance-foot height against a flat plane at height_ground_z.
+    // "blend"     = complementary filter between the two (flat ground only).
+    // "anchored"  = per-contact, time-varying ground height: each contact records the
+    //               estimated world height where it touched down and keeps it through
+    //               stance, so the kinematic term enforces consistency *within* a
+    //               stance phase without fighting a real terrain change. Valid on
+    //               stairs and slopes, and needs no terrain map.
     std::string height_source{"inekf"};
     double height_kinematic_weight{0.0};  //!< blend weight on the kinematic height, [0, 1]
-    double height_ground_z{0.0};          //!< assumed ground plane height [m]
+    double height_ground_z{0.0};          //!< flat-plane height [m] for "kinematic"/"blend"
+    //! "anchored" only: a touchdown re-anchors a contact just when the measured landing
+    //! height differs from its current anchor by more than this [m]. It must exceed the
+    //! filter's height noise (~0.03 m) so flat ground keeps its exact, noise-free anchor,
+    //! and stay well below a stair riser (0.17 m) so real steps are still captured.
+    double height_anchor_update_threshold{0.05};
 
     // Low-pass filter cutoff frequencies [Hz].
     double lpf_gyro_cutoff{250.0};
@@ -139,12 +150,24 @@ private:
     const Eigen::Quaterniond& base_orientation,
     const Eigen::VectorXd& estimator_joint_positions);
 
-  /// Base height that places the stance contact frames on the assumed ground plane,
-  /// given the current orientation and joint angles. Returns false when no contact is
-  /// active (nothing to anchor to), in which case the InEKF height is kept.
+  /// Contact heights relative to the base (base at the origin, current orientation and
+  /// joint angles), i.e. [^B p_Ci]_z for every configured contact frame.
+  void contactHeightsRelativeToBase(
+    const Eigen::Quaterniond& base_orientation,
+    std::vector<double>& relative_heights_out);
+
+  /// True when the given contact frame is in stance (all contacts count as stance when
+  /// no external contact vector is supplied).
+  bool isContactInStance(size_t contact, const std::vector<bool>* foot_contacts) const;
+
+  /// Base height that places the stance contacts on their ground reference: a flat plane
+  /// at height_ground_z for "kinematic"/"blend", or the per-contact touchdown anchor for
+  /// "anchored". Returns false when no contact is active (nothing to anchor to), in which
+  /// case the InEKF height is kept. Also refreshes the touchdown anchors.
   bool kinematicBaseHeight(
     const Eigen::Quaterniond& base_orientation,
     const std::vector<bool>* foot_contacts,
+    double inekf_base_height,
     double& height_out);
 
   FloatingBaseEstimate updateImpl(
@@ -174,6 +197,13 @@ private:
   std::vector<int> controller_to_estimator_qj_index_;
 
   Eigen::VectorXd qj_, dqj_, tauj_;
+
+  // Per-contact ground reference for height_source == "anchored": the estimated world
+  // height at which each contact last touched down, held for the duration of stance.
+  std::vector<double> contact_ground_anchor_;
+  std::vector<bool> contact_was_in_stance_;
+  std::vector<double> contact_relative_heights_;
+
   bool initialized_{false};
 };
 

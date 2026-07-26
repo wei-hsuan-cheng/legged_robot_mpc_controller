@@ -209,9 +209,9 @@ humanoid_centroidal_mpc_controller:
       source: {
         type: string,
         default_value: "blend",
-        description: "Base-height conditioning. The centroidal MPC references swing/stance foot targets to an ABSOLUTE ground plane (terrainHeight is forced to 0), so a base-height error shifts every foot height relative to that plane 1:1 - a few cm is a large fraction of the 0.08 m swing height and breaks contact timing. 'inekf' uses the raw filter height, 'kinematic' uses the height implied by the stance feet resting on the ground plane, 'blend' is a complementary mix.",
+        description: "Base-height conditioning. The centroidal MPC references foot targets to a ground plane, so a base-height error shifts every foot height relative to it 1:1 - a few cm is a large fraction of the 0.08 m swing height and breaks contact timing. inekf = raw filter height (noisy). kinematic/blend = stance feet on a FLAT plane at groundZ (precise, flat ground only). anchored = per-contact, time-varying ground height recorded at each touchdown (precise AND valid on stairs/slopes, no terrain map needed).",
         validation: {
-          one_of<>: [["inekf", "kinematic", "blend"]]
+          one_of<>: [["inekf", "kinematic", "blend", "anchored"]]
         }
       }
       kinematicWeight: {
@@ -219,6 +219,12 @@ humanoid_centroidal_mpc_controller:
         default_value: 0.9,
         description: "Weight on the kinematic (stance-foot) height when height.source is 'blend'; 1.0 = pure kinematic",
         validation: { bounds<>: [0.0, 1.0] }
+      }
+      anchorUpdateThreshold: {
+        type: double,
+        default_value: 0.05,
+        description: "anchored only: a touchdown re-anchors a contact just when the measured landing height differs from its current anchor by more than this [m]. Must exceed the filter height noise (~0.03 m) so flat ground keeps a noise-free anchor, and stay below a stair riser (0.17 m) so real steps are captured.",
+        validation: { gt_eq: [0.0] }
       }
       groundZ: {
         type: double,
