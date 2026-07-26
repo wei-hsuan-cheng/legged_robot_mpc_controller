@@ -153,6 +153,8 @@ ros2 launch legged_robot_mpc_controller g1.launch.py \
 
 # Trigger the target mode
 ros2 topic pub --once /humanoid/target_mode std_msgs/msg/String "{data: terrain_walk}"
+
+# Then the stair climbing motion starts automatically
 ```
 
 **Auto-test**:
@@ -169,8 +171,8 @@ ros2 run legged_robot_mpc_controller stair_climbing_test.sh
 
 ### Terrain-aware walking (`terrain_walk` target mode) (*centroidal MPC only*)
 
-Perception-free *online* terrain locomotion: 
-Instead of a pre-scripted sequence, the robot follows a plain **velocity command** while a `TerrainFootholdPlanner` selects footholds each solver cycle over the same ground-truth staircase geometry (implementation of the [T-RO 2023 perceptive-locomotion](https://arxiv.org/abs/2208.08373) pipeline, without the elevation-map / plane-segmentation integrated). 
+Perception-free *online* terrain locomotion:
+Instead of a pre-scripted sequence, the robot follows a plain **velocity command** while a `TerrainFootholdPlanner` selects footholds each solver cycle over the same ground-truth staircase geometry (implementation of the [T-RO 2023 perceptive-locomotion](https://arxiv.org/abs/2208.08373) pipeline, without the elevation-map / plane-segmentation integrated).
 
 Each cycle it:
 1. Extrapolates a nominal foothold under the hip (Raibert heuristic + capture-point velocity feedback)
@@ -191,6 +193,8 @@ ros2 launch legged_robot_mpc_controller g1.launch.py \
 
 # Trigger the target mode
 ros2 topic pub --once /humanoid/target_mode std_msgs/msg/String "{data: terrain_walk}"
+
+# Then send base twist command to play with the robot
 ```
 
 **Automated test** (headless, drives the climb and prints a verdict; exit 0 only on `SUCCESS`):
