@@ -59,6 +59,15 @@ InekfFloatingBaseEstimator::InekfFloatingBaseEstimator(const Settings& settings)
     throw std::invalid_argument(
       "[InekfFloatingBaseEstimator] contact_beta0/beta1 must have one entry per contact frame");
   }
+  if (settings_.contact_source != "torque" && settings_.contact_source != "scheduled") {
+    throw std::invalid_argument(
+      "[InekfFloatingBaseEstimator] contact_source must be 'torque' or 'scheduled'");
+  }
+  if (settings_.contact_source == "scheduled" &&
+      settings_.contact_foot_indices.size() != settings_.contact_frames.size()) {
+    throw std::invalid_argument(
+      "[InekfFloatingBaseEstimator] scheduled contact source requires one foot index per contact frame");
+  }
 
   // Build a Pinocchio floating-base model from the same URDF the estimator uses, to
   // remap the controller's joint ordering into the estimator's Pinocchio joint order
@@ -176,6 +185,32 @@ FloatingBaseEstimate InekfFloatingBaseEstimator::update(
   const std::vector<double>& joint_velocities,
   const std::vector<double>& joint_efforts)
 {
+  return updateImpl(
+    imu_gyro_body, imu_linear_acceleration_body, joint_positions,
+    joint_velocities, joint_efforts, nullptr);
+}
+
+FloatingBaseEstimate InekfFloatingBaseEstimator::update(
+  const Eigen::Vector3d& imu_gyro_body,
+  const Eigen::Vector3d& imu_linear_acceleration_body,
+  const std::vector<double>& joint_positions,
+  const std::vector<double>& joint_velocities,
+  const std::vector<double>& joint_efforts,
+  const std::vector<bool>& foot_contacts)
+{
+  return updateImpl(
+    imu_gyro_body, imu_linear_acceleration_body, joint_positions,
+    joint_velocities, joint_efforts, &foot_contacts);
+}
+
+FloatingBaseEstimate InekfFloatingBaseEstimator::updateImpl(
+  const Eigen::Vector3d& imu_gyro_body,
+  const Eigen::Vector3d& imu_linear_acceleration_body,
+  const std::vector<double>& joint_positions,
+  const std::vector<double>& joint_velocities,
+  const std::vector<double>& joint_efforts,
+  const std::vector<bool>* foot_contacts)
+{
   FloatingBaseEstimate estimate;
   if (!initialized_) {
     return estimate;
@@ -185,7 +220,23 @@ FloatingBaseEstimate InekfFloatingBaseEstimator::update(
   remapToEstimatorOrder(joint_velocities, dqj_);
   remapToEstimatorOrder(joint_efforts, tauj_);
 
-  estimator_->update(imu_gyro_body, imu_linear_acceleration_body, qj_, dqj_, tauj_);
+  if (foot_contacts != nullptr) {
+    std::vector<std::pair<int, bool>> contact_state;
+    contact_state.reserve(settings_.contact_frames.size());
+    for (size_t contact = 0; contact < settings_.contact_frames.size(); ++contact) {
+      const int64_t foot = settings_.contact_foot_indices[contact];
+      if (foot < 0 || static_cast<size_t>(foot) >= foot_contacts->size()) {
+        throw std::invalid_argument(
+          "[InekfFloatingBaseEstimator] contact_foot_indices contains an invalid foot index");
+      }
+      contact_state.emplace_back(
+        static_cast<int>(contact), (*foot_contacts)[static_cast<size_t>(foot)]);
+    }
+    estimator_->update(
+      imu_gyro_body, imu_linear_acceleration_body, qj_, dqj_, tauj_, contact_state);
+  } else {
+    estimator_->update(imu_gyro_body, imu_linear_acceleration_body, qj_, dqj_, tauj_);
+  }
 
   // The InEKF estimates the IMU frame; convert back to the pelvis (floating-base) frame.
   const Eigen::Vector3d imu_position = estimator_->getBasePositionEstimate();

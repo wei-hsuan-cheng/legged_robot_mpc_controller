@@ -381,6 +381,8 @@ humanoid_centroidal_mpc_controller:
         contact: 0.01
         contactPosition: 0.002
       contact:
+        source: scheduled
+        footIndices: [0, 0, 1, 1]
         forceCovarianceAlpha: 10.0
       lpf:
         linAccelCutoff: 30.0

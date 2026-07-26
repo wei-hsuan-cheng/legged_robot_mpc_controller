@@ -1,6 +1,7 @@
 #ifndef LEGGED_ROBOT_MPC_CONTROLLER__HUMANOID_STATE_ESTIMATION__INEKF_FLOATING_BASE_ESTIMATOR_HPP_
 #define LEGGED_ROBOT_MPC_CONTROLLER__HUMANOID_STATE_ESTIMATION__INEKF_FLOATING_BASE_ESTIMATOR_HPP_
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
@@ -56,6 +57,8 @@ public:
     double contact_force_covariance_alpha{100.0};
     double contact_probability_threshold{0.5};
     bool dynamic_contact_estimation{false};
+    std::string contact_source{"torque"};             //!< "torque" or externally supplied "scheduled"
+    std::vector<int64_t> contact_foot_indices;        //!< foot index for each point-contact frame
 
     // Low-pass filter cutoff frequencies [Hz].
     double lpf_gyro_cutoff{250.0};
@@ -83,6 +86,15 @@ public:
     const std::vector<double>& joint_positions,
     const std::vector<double>& joint_velocities,
     const std::vector<double>& joint_efforts);
+
+  /// One estimator step using externally supplied per-foot contact states.
+  FloatingBaseEstimate update(
+    const Eigen::Vector3d& imu_gyro_body,
+    const Eigen::Vector3d& imu_linear_acceleration_body,
+    const std::vector<double>& joint_positions,
+    const std::vector<double>& joint_velocities,
+    const std::vector<double>& joint_efforts,
+    const std::vector<bool>& foot_contacts);
 
   /// Forget the initialization so the next initialize() re-seeds the filter (e.g. on re-activation).
   void reset() { initialized_ = false; }
@@ -113,6 +125,14 @@ private:
     const Eigen::Vector3d& base_position,
     const Eigen::Quaterniond& base_orientation,
     const Eigen::VectorXd& estimator_joint_positions);
+
+  FloatingBaseEstimate updateImpl(
+    const Eigen::Vector3d& imu_gyro_body,
+    const Eigen::Vector3d& imu_linear_acceleration_body,
+    const std::vector<double>& joint_positions,
+    const std::vector<double>& joint_velocities,
+    const std::vector<double>& joint_efforts,
+    const std::vector<bool>* foot_contacts);
 
   Settings settings_;
   std::unique_ptr<legged_state_estimator::LeggedStateEstimator> estimator_;

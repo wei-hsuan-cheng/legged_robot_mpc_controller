@@ -229,6 +229,8 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_configu
       settings.contact_force_covariance_alpha = se.contact.forceCovarianceAlpha;
       settings.contact_probability_threshold = se.contact.probabilityThreshold;
       settings.dynamic_contact_estimation = se.contact.dynamicEstimation;
+      settings.contact_source = se.contact.source;
+      settings.contact_foot_indices = se.contact.footIndices;
       settings.lpf_gyro_cutoff = se.lpf.gyroCutoff;
       settings.lpf_gyro_accel_cutoff = se.lpf.gyroAccelCutoff;
       settings.lpf_lin_accel_cutoff = se.lpf.linAccelCutoff;
@@ -243,9 +245,9 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_configu
       RCLCPP_INFO(
         get_node()->get_logger(),
         "[HumanoidCentroidalMpcController] InEKF state estimator enabled | imu=%s contacts=%zu joints=%d | "
-        "update_rate=%u Hz sampling_time=%.6f s | drives_control=%s",
+        "update_rate=%u Hz sampling_time=%.6f s | contact_source=%s | drives_control=%s",
         se.imuFrame.c_str(), se.contactFrames.size(), state_estimator_->numEstimatorJoints(),
-        get_update_rate(), settings.sampling_time,
+        get_update_rate(), settings.sampling_time, se.contact.source.c_str(),
         (parameters_.floatingBase.source == "state_estimator") ? "yes" : "no");
     }
   } catch (const std::exception& e) {
@@ -621,7 +623,19 @@ void HumanoidCentroidalMpcController::update_state_estimator(const rclcpp::Time&
       time.seconds() + std::max(0.0, parameters_.stateEstimator.warmupSeconds);
   }
 
-  last_estimate_ = state_estimator_->update(gyro, accel, joint_pos, joint_vel, joint_eff);
+  if (parameters_.stateEstimator.contact.source == "scheduled") {
+    const auto reference_manager = mpc_interface_->getSwitchedModelReferenceManagerPtr();
+    if (!reference_manager) {
+      return;
+    }
+    const auto contact_flags = reference_manager->getContactFlags(time.seconds());
+    last_estimate_ = state_estimator_->update(
+      gyro, accel, joint_pos, joint_vel, joint_eff,
+      std::vector<bool>{contact_flags[0], contact_flags[1]});
+  } else {
+    last_estimate_ = state_estimator_->update(
+      gyro, accel, joint_pos, joint_vel, joint_eff);
+  }
 
 
   // Publish the estimate as odometry for evaluation against the GT body frame.

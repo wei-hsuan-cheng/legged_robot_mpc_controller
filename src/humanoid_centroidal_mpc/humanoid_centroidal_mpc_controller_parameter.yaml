@@ -206,6 +206,19 @@ humanoid_centroidal_mpc_controller:
       contactPosition: { type: double, default_value: 0.01, description: "Contact position measurement noise" }
       contactRotation: { type: double, default_value: 0.01, description: "Contact rotation measurement noise (surface contacts)" }
     contact:
+      source: {
+        type: string,
+        default_value: "scheduled",
+        description: "Contact source for InEKF kinematic updates: scheduled uses the MPC gait schedule; torque uses the estimator library contact classifier",
+        validation: {
+          one_of<>: [["scheduled", "torque"]]
+        }
+      }
+      footIndices: {
+        type: int_array,
+        default_value: [0, 0, 1, 1],
+        description: "Foot index for each contactFrames entry; G1 maps left heel/toe to 0 and right heel/toe to 1"
+      }
       beta0: {
         type: double_array,
         default_value: [-20.0, -20.0, -20.0, -20.0],
