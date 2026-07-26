@@ -11,7 +11,7 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy
 
 
 KNOB_IDLE_COLOR = "#4a90e2"
-KNOB_ACTIVE_COLOR = "#477fbd"
+KNOB_ACTIVE_COLOR = "#4a90e2"
 KNOB_IDLE_HALF_SIZE = 12.0
 KNOB_ACTIVE_HALF_SIZE = 14.0
 TITLE_FONT = ("Helvetica", 11, "bold")
