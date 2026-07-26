@@ -59,6 +59,11 @@ std::optional<size_t> interface_offset(
   return static_cast<size_t>(std::distance(interface_names.begin(), it));
 }
 
+bool uses_state_estimator(const std::string& source)
+{
+  return source.rfind("state_estimator", 0) == 0;
+}
+
 }  // namespace
 
 HumanoidCentroidalMpcController::~HumanoidCentroidalMpcController()
@@ -209,7 +214,7 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_configu
 
     // Optional InEKF floating-base state estimator.
     if (parameters_.stateEstimator.enabled ||
-        parameters_.floatingBase.source == "state_estimator") {
+        uses_state_estimator(parameters_.floatingBase.source)) {
       const auto& se = parameters_.stateEstimator;
       state_estimation::InekfFloatingBaseEstimator::Settings settings;
       settings.urdf_path = parameters_.paths.urdfFile;
@@ -248,7 +253,7 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_configu
         "update_rate=%u Hz sampling_time=%.6f s | contact_source=%s | drives_control=%s",
         se.imuFrame.c_str(), se.contactFrames.size(), state_estimator_->numEstimatorJoints(),
         get_update_rate(), settings.sampling_time, se.contact.source.c_str(),
-        (parameters_.floatingBase.source == "state_estimator") ? "yes" : "no");
+        uses_state_estimator(parameters_.floatingBase.source) ? "yes" : "no");
     }
   } catch (const std::exception& e) {
     RCLCPP_ERROR(
@@ -367,7 +372,7 @@ HumanoidCentroidalMpcController::state_interface_configuration() const
   }
 
   const bool estimator_active = parameters_.stateEstimator.enabled ||
-    parameters_.floatingBase.source == "state_estimator";
+    uses_state_estimator(parameters_.floatingBase.source);
   // The GT body interfaces are still claimed with the estimator active, to bootstrap
   // the filter at activation and to publish a GT reference for comparison.
   const bool need_gt_interfaces =
@@ -713,49 +718,57 @@ ocs2::SystemObservation HumanoidCentroidalMpcController::build_observation(const
   const bool warmed_up = estimator_warmup_end_time_ >= 0.0 &&
     time.seconds() >= estimator_warmup_end_time_;
   const bool use_estimate =
-    parameters_.floatingBase.source == "state_estimator" && last_estimate_.valid && warmed_up;
+    uses_state_estimator(parameters_.floatingBase.source) && last_estimate_.valid && warmed_up;
   if (use_estimate && !estimator_driving_control_) {
     estimator_driving_control_ = true;
     RCLCPP_INFO(
       get_node()->get_logger(),
       "[HumanoidCentroidalMpcController] state estimator warm-up complete; the InEKF estimate now drives control.");
   }
+  const std::string& base_name = parameters_.floatingBase.stateInterfaceName;
+  const auto px = get_state_interface_value(base_name, "position.x");
+  const auto py = get_state_interface_value(base_name, "position.y");
+  const auto pz = get_state_interface_value(base_name, "position.z");
+  const auto qw = get_state_interface_value(base_name, "orientation.w");
+  const auto qx = get_state_interface_value(base_name, "orientation.x");
+  const auto qy = get_state_interface_value(base_name, "orientation.y");
+  const auto qz = get_state_interface_value(base_name, "orientation.z");
+  const auto lvx = get_state_interface_value(base_name, "linear_velocity.x");
+  const auto lvy = get_state_interface_value(base_name, "linear_velocity.y");
+  const auto lvz = get_state_interface_value(base_name, "linear_velocity.z");
+  const auto avx = get_state_interface_value(base_name, "angular_velocity.x");
+  const auto avy = get_state_interface_value(base_name, "angular_velocity.y");
+  const auto avz = get_state_interface_value(base_name, "angular_velocity.z");
+  if (!px || !py || !pz || !qw || !qx || !qy || !qz || !lvx || !lvy || !lvz || !avx || !avy ||
+      !avz) {
+    RCLCPP_ERROR_THROTTLE(
+      get_node()->get_logger(),
+      *get_node()->get_clock(),
+      2000,
+      "[HumanoidCentroidalMpcController] missing floating-base interfaces; holding last observation.");
+    return observation;
+  }
+  base_position = ocs2::vector3_t(*px, *py, *pz);
+  base_orientation = Eigen::Quaterniond(*qw, *qx, *qy, *qz);
+  // The GT twist is body-local; rotate the linear part into the world frame.
+  const Eigen::Quaterniond gt_orientation =
+    base_orientation.norm() < 1e-12 ? Eigen::Quaterniond::Identity() : base_orientation.normalized();
+  linear_velocity_world = gt_orientation * ocs2::vector3_t(*lvx, *lvy, *lvz);
+  angular_velocity_local = ocs2::vector3_t(*avx, *avy, *avz);
+
   if (use_estimate) {
-    base_position = last_estimate_.position;
-    base_orientation = last_estimate_.orientation;
-    linear_velocity_world = last_estimate_.linear_velocity_world;
-    angular_velocity_local = last_estimate_.angular_velocity_local;
-  } else {
-    const std::string& base_name = parameters_.floatingBase.stateInterfaceName;
-    const auto px = get_state_interface_value(base_name, "position.x");
-    const auto py = get_state_interface_value(base_name, "position.y");
-    const auto pz = get_state_interface_value(base_name, "position.z");
-    const auto qw = get_state_interface_value(base_name, "orientation.w");
-    const auto qx = get_state_interface_value(base_name, "orientation.x");
-    const auto qy = get_state_interface_value(base_name, "orientation.y");
-    const auto qz = get_state_interface_value(base_name, "orientation.z");
-    const auto lvx = get_state_interface_value(base_name, "linear_velocity.x");
-    const auto lvy = get_state_interface_value(base_name, "linear_velocity.y");
-    const auto lvz = get_state_interface_value(base_name, "linear_velocity.z");
-    const auto avx = get_state_interface_value(base_name, "angular_velocity.x");
-    const auto avy = get_state_interface_value(base_name, "angular_velocity.y");
-    const auto avz = get_state_interface_value(base_name, "angular_velocity.z");
-    if (!px || !py || !pz || !qw || !qx || !qy || !qz || !lvx || !lvy || !lvz || !avx || !avy ||
-        !avz) {
-      RCLCPP_ERROR_THROTTLE(
-        get_node()->get_logger(),
-        *get_node()->get_clock(),
-        2000,
-        "[HumanoidCentroidalMpcController] missing floating-base interfaces; holding last observation.");
-      return observation;
+    if (parameters_.floatingBase.source == "state_estimator" ||
+        parameters_.floatingBase.source == "state_estimator_pose") {
+      base_position = last_estimate_.position;
+      base_orientation = last_estimate_.orientation;
     }
-    base_position = ocs2::vector3_t(*px, *py, *pz);
-    base_orientation = Eigen::Quaterniond(*qw, *qx, *qy, *qz);
-    // The GT twist is body-local; rotate the linear part into the world frame.
-    const Eigen::Quaterniond ori =
-      base_orientation.norm() < 1e-12 ? Eigen::Quaterniond::Identity() : base_orientation.normalized();
-    linear_velocity_world = ori * ocs2::vector3_t(*lvx, *lvy, *lvz);
-    angular_velocity_local = ocs2::vector3_t(*avx, *avy, *avz);
+    if (parameters_.floatingBase.source == "state_estimator" ||
+        parameters_.floatingBase.source == "state_estimator_linear_velocity") {
+      linear_velocity_world = last_estimate_.linear_velocity_world;
+    }
+    if (parameters_.floatingBase.source == "state_estimator") {
+      angular_velocity_local = last_estimate_.angular_velocity_local;
+    }
   }
 
   if (base_orientation.norm() < 1e-12) {

@@ -363,7 +363,7 @@ humanoid_centroidal_mpc_controller:
       statusLogPeriod: 2.0
 
     floatingBase:
-      source: $(var floatingBaseSource) # state_interfaces (GT) | state_estimator (InEKF); set via the floatingBaseSource launch arg
+      source: $(var floatingBaseSource) # state_interfaces | state_estimator; hybrid state_estimator_* values are diagnostic only
       stateInterfaceName: pelvis
       odometryTopic: /mujoco/ground_truth/odom
       baseFrame: pelvis

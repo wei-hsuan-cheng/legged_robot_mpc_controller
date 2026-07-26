@@ -134,6 +134,11 @@ class Probe(Node):
         self.gt_history = deque(maxlen=20)
         self.samples = []
         self.fall = False
+        self.fall_info = None
+        self.phase = "startup"
+        self.min_gt_z = float("inf")
+        self.max_gt_roll = 0.0
+        self.max_gt_pitch = 0.0
         self.est_diverged = False
         self.bad_estimate_count = 0
         self.publisher = self.create_publisher(
@@ -151,8 +156,23 @@ class Probe(Node):
         stamp = msg.header.stamp.sec + 1.0e-9 * msg.header.stamp.nanosec
         self.gt_history.append((stamp, msg))
         roll, pitch, _ = rpy(msg.pose.pose.orientation)
-        if msg.pose.pose.position.z < 0.5 or abs(roll) > 0.6 or abs(pitch) > 0.6:
+        self.min_gt_z = min(self.min_gt_z, msg.pose.pose.position.z)
+        self.max_gt_roll = max(self.max_gt_roll, abs(roll))
+        self.max_gt_pitch = max(self.max_gt_pitch, abs(pitch))
+        if (
+            msg.pose.pose.position.z < 0.5
+            or abs(roll) > 0.6
+            or abs(pitch) > 0.6
+        ):
             self.fall = True
+            if self.fall_info is None:
+                self.fall_info = (
+                    self.phase,
+                    stamp,
+                    msg.pose.pose.position.z,
+                    roll,
+                    pitch,
+                )
 
     def _est_callback(self, msg):
         self.est = msg
@@ -202,7 +222,8 @@ class Probe(Node):
         self.publisher.publish(msg)
 
 
-def run_phase(node, duration, command_x, command_y=0.0, command_yaw=0.0):
+def run_phase(node, phase, duration, command_x, command_y=0.0, command_yaw=0.0):
+    node.phase = phase
     end = time.monotonic() + duration
     while time.monotonic() < end and not node.fall and not node.est_diverged:
         node.command(command_x, command_y, command_yaw)
@@ -212,7 +233,7 @@ def run_phase(node, duration, command_x, command_y=0.0, command_yaw=0.0):
 rclpy.init()
 node = Probe()
 
-run_phase(node, stance_seconds, 0.0)
+run_phase(node, "stance", stance_seconds, 0.0)
 if node.gt is None or node.est is None:
     print("VERDICT: NO_ODOM")
     node.destroy_node()
@@ -221,7 +242,7 @@ if node.gt is None or node.est is None:
 
 with open(log_path, "r", encoding="utf-8", errors="replace") as stream:
     handed_off = "state estimator warm-up complete" in stream.read()
-if floating_base_source == "state_estimator" and not handed_off:
+if floating_base_source.startswith("state_estimator") and not handed_off:
     print("VERDICT: NO_HANDOFF")
     node.destroy_node()
     rclpy.shutdown()
@@ -230,11 +251,11 @@ if floating_base_source == "state_estimator" and not handed_off:
 start_x = node.gt.pose.pose.position.x
 start_y = node.gt.pose.pose.position.y
 start_yaw = rpy(node.gt.pose.pose.orientation)[2]
-run_phase(node, walk_seconds, vx, vy, yaw_rate)
+run_phase(node, "motion", walk_seconds, vx, vy, yaw_rate)
 end_x = node.gt.pose.pose.position.x if node.gt is not None else start_x
 end_y = node.gt.pose.pose.position.y if node.gt is not None else start_y
 end_yaw = rpy(node.gt.pose.pose.orientation)[2] if node.gt is not None else start_yaw
-run_phase(node, settle_seconds, 0.0)
+run_phase(node, "settle", settle_seconds, 0.0)
 
 if node.samples:
     mean = lambda key: sum(s[key] for s in node.samples) / len(node.samples)
@@ -273,6 +294,18 @@ print(
     f" directional_progress={directional_progress:.3f}"
     f" yaw_change={yaw_change:.3f}rad final_z={final_z:.3f}"
 )
+print(
+    f"GT_LIMITS: min_z={node.min_gt_z:.3f}"
+    f" max_roll={math.degrees(node.max_gt_roll):.2f}deg"
+    f" max_pitch={math.degrees(node.max_gt_pitch):.2f}deg"
+)
+if node.fall_info is not None:
+    phase, stamp, z, roll, pitch = node.fall_info
+    print(
+        f"FIRST_FALL: phase={phase} stamp={stamp:.3f} z={z:.3f}"
+        f" roll={math.degrees(roll):.2f}deg"
+        f" pitch={math.degrees(pitch):.2f}deg"
+    )
 
 if node.est_diverged:
     verdict = "EST_DIVERGED"

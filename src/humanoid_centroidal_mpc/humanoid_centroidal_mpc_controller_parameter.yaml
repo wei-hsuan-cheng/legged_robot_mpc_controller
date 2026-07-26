@@ -132,9 +132,9 @@ humanoid_centroidal_mpc_controller:
     source: {
       type: string,
       default_value: "state_interfaces",
-      description: "Floating-base state source. state_interfaces = MuJoCo GT body; state_estimator = InEKF; mujoco_ground_truth_odom is a topic fallback.",
+      description: "Floating-base state source. state_interfaces = MuJoCo GT body; state_estimator = full InEKF; state_estimator_pose and state_estimator_linear_velocity are diagnostic hybrid sources; mujoco_ground_truth_odom is a topic fallback.",
       validation: {
-        one_of<>: [["mujoco_ground_truth_odom", "state_interfaces", "state_estimator"]]
+        one_of<>: [["mujoco_ground_truth_odom", "state_interfaces", "state_estimator", "state_estimator_pose", "state_estimator_linear_velocity"]]
       }
     }
 
