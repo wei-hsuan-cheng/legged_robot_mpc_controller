@@ -88,7 +88,7 @@ The humanoid centroidal MPC & whole-body MPC are migrated from the original impl
 
 ## Run MuJoCo Example
 
-Launch humanoid robot:
+**Launch the humanoid robot**:
 ```bash
 ros2 launch legged_robot_mpc_controller g1.launch.py \
   mpcControllerName:=humanoid_centroidal_mpc_controller \
@@ -101,7 +101,7 @@ ros2 launch legged_robot_mpc_controller g1.launch.py \
 
 ### Base targets
 
-Base twist command:
+**Base twist command**:
 ```bash
 # Select twist tracking
 ros2 topic pub --once /humanoid/target_mode \
@@ -114,7 +114,7 @@ ros2 topic pub -r 50 /humanoid/walking_velocity_command \
     desired_pelvis_height: 0.7925, angular_velocity_z: 0.0}"
 ```
 
-Base pose command:
+**Base pose command**:
 
 > WORK IN PROGRESS
 
