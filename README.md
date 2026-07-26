@@ -175,7 +175,7 @@ Instead of a pre-scripted sequence, the robot follows a plain **velocity command
 Each cycle it:
 1. Extrapolates a nominal foothold under the hip (Raibert heuristic + capture-point velocity feedback)
 2. Projects it onto the terrain surface, prefers stepping **up** onto a reachable tread (step-up bonus)
-3. Anchors the stance laterally to the stair centerline, 
+3. Anchors the stance laterally to the stair centerline
 4. Feeds the per-phase support heights to the swing planner, and terrain-adapts the pelvis height (zero pitch/roll) while gating forward momentum so the CoM cannot overrun the feet at a riser.
 
 **Run example:**
