@@ -318,16 +318,17 @@ Robot-specific values:
 
 ## Floating-Base State
 
-`mujoco_ros2_control` exposes the MuJoCo floating-base body (`pelvis`) through read-only `ros2_control` state interfaces under the sensor prefix `pelvis`.
-The MPC controller reads these state interfaces directly for its observation, so floating-base feedback does not depend on a ROS topic subscription.
+The floating-base feedback source is selected by `floatingBase.source`:
 
-The ground-truth odometry topic and TF are still published when `gt_enabled:=true`, but they are for RViz and other ROS consumers:
+- **`state_interfaces` (ground truth):** `mujoco_ros2_control` exposes the MuJoCo floating-base body (`pelvis`) through read-only `ros2_control` state interfaces under the sensor prefix `pelvis`, and the MPC reads them directly. The exported pelvis pose is in the world frame; the exported twist is body-local and converted before writing the OCS2 observation.
+- **`state_estimator` (InEKF, work in progress):** a proprioceptive contact-aided Invariant EKF fuses the pelvis IMU, joint encoders, and torque-based contact estimation to produce the base pose and velocity, aiming to remove the ground-truth dependence (the same wiring transfers to hardware). **Open-loop it is accurate** (roll/pitch < 0.15°, height ~1.4 cm, body velocity ~0.025 m/s vs GT), but **closed-loop it is not yet stable** — driving the MPC with the estimate currently makes the robot fall. Keep `source: state_interfaces` and set `stateEstimator.enabled: true` to run the filter in parallel and publish `/humanoid/state_estimate/odom` for comparison. See [`docs/humanoid_state_estimation.md`](./docs/humanoid_state_estimation.md).
+
+The ground-truth odometry topic and TF are still published when `gt_enabled:=true` for RViz, other ROS consumers, and as a reference for evaluating the estimator:
 
 ```bash
 ros2 topic echo /mujoco/ground_truth/odom
+ros2 topic echo /humanoid/state_estimate/odom   # when stateEstimator.enabled
 ```
-
-The exported pelvis pose is represented in the world frame. The exported pelvis twist is represented in the pelvis/body-local frame and converted in the MPC controller before writing the OCS2 observation.
 
 
 ## Acknowledgements

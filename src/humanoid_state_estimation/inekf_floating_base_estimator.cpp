@@ -1,0 +1,212 @@
+#include "legged_robot_mpc_controller/humanoid_state_estimation/inekf_floating_base_estimator.hpp"
+
+#include <stdexcept>
+
+#include <pinocchio/multibody/model.hpp>
+#include <pinocchio/multibody/data.hpp>
+#include <pinocchio/multibody/joint/joint-free-flyer.hpp>
+#include <pinocchio/parsers/urdf.hpp>
+#include <pinocchio/algorithm/frames.hpp>
+#include <pinocchio/algorithm/kinematics.hpp>
+#include <pinocchio/algorithm/joint-configuration.hpp>
+
+namespace legged_robot_mpc_controller::state_estimation
+{
+
+namespace
+{
+
+legged_state_estimator::LeggedStateEstimatorSettings toLibrarySettings(
+  const InekfFloatingBaseEstimator::Settings& s)
+{
+  legged_state_estimator::LeggedStateEstimatorSettings out;
+  out.urdf_path = s.urdf_path;
+  out.imu_frame = s.imu_frame;
+  out.contact_frames = s.contact_frames;
+
+  out.contact_estimator_settings.beta0 = s.contact_beta0;
+  out.contact_estimator_settings.beta1 = s.contact_beta1;
+  out.contact_estimator_settings.contact_force_covariance_alpha = s.contact_force_covariance_alpha;
+  out.contact_estimator_settings.contact_probability_threshold = s.contact_probability_threshold;
+
+  out.inekf_noise_params.setGyroscopeNoise(s.gyroscope_noise);
+  out.inekf_noise_params.setAccelerometerNoise(s.accelerometer_noise);
+  out.inekf_noise_params.setGyroscopeBiasNoise(s.gyroscope_bias_noise);
+  out.inekf_noise_params.setAccelerometerBiasNoise(s.accelerometer_bias_noise);
+  out.inekf_noise_params.setContactNoise(s.contact_noise);
+
+  out.dynamic_contact_estimation = s.dynamic_contact_estimation;
+  out.contact_position_noise = s.contact_position_noise;
+  out.contact_rotation_noise = s.contact_rotation_noise;
+  out.sampling_time = s.sampling_time;
+
+  out.lpf_gyro_cutoff_frequency = s.lpf_gyro_cutoff;
+  out.lpf_gyro_accel_cutoff_frequency = s.lpf_gyro_accel_cutoff;
+  out.lpf_lin_accel_cutoff_frequency = s.lpf_lin_accel_cutoff;
+  out.lpf_dqJ_cutoff_frequency = s.lpf_dqJ_cutoff;
+  out.lpf_ddqJ_cutoff_frequency = s.lpf_ddqJ_cutoff;
+  out.lpf_tauJ_cutoff_frequency = s.lpf_tauJ_cutoff;
+  return out;
+}
+
+}  // namespace
+
+InekfFloatingBaseEstimator::InekfFloatingBaseEstimator(const Settings& settings)
+: settings_(settings)
+{
+  if (settings_.contact_beta0.size() != settings_.contact_frames.size() ||
+      settings_.contact_beta1.size() != settings_.contact_frames.size()) {
+    throw std::invalid_argument(
+      "[InekfFloatingBaseEstimator] contact_beta0/beta1 must have one entry per contact frame");
+  }
+
+  // Build a Pinocchio floating-base model from the same URDF the estimator uses, to
+  // remap the controller's joint ordering into the estimator's Pinocchio joint order
+  // and to compute the contact-frame heights that seed the InEKF landmarks.
+  pinocchio::urdf::buildModel(settings_.urdf_path, pinocchio::JointModelFreeFlyer(), model_);
+  data_ = pinocchio::Data(model_);
+  num_estimator_joints_ = static_cast<int>(model_.nq) - 7;  // free-flyer base occupies 7 config dims
+  if (num_estimator_joints_ < 0) {
+    throw std::runtime_error("[InekfFloatingBaseEstimator] URDF has no actuated joints");
+  }
+
+  controller_to_estimator_qj_index_.assign(settings_.controller_joint_names.size(), -1);
+  for (size_t i = 0; i < settings_.controller_joint_names.size(); ++i) {
+    const std::string& name = settings_.controller_joint_names[i];
+    if (!model_.existJointName(name)) {
+      throw std::invalid_argument(
+        "[InekfFloatingBaseEstimator] controller joint '" + name + "' not found in estimator URDF");
+    }
+    const auto joint_id = model_.getJointId(name);
+    // Config index of this joint minus the 7 base dims gives its slot in the qJ vector.
+    controller_to_estimator_qj_index_[i] = static_cast<int>(model_.idx_qs[joint_id]) - 7;
+  }
+
+  contact_frame_ids_.reserve(settings_.contact_frames.size());
+  for (const std::string& frame : settings_.contact_frames) {
+    if (!model_.existFrame(frame)) {
+      throw std::invalid_argument(
+        "[InekfFloatingBaseEstimator] contact frame '" + frame + "' not found in estimator URDF");
+    }
+    contact_frame_ids_.push_back(model_.getFrameId(frame));
+  }
+
+  // Fixed IMU-in-base transform: the IMU frame is rigidly attached to the floating
+  // base (pelvis) root, so its placement in the base frame is configuration-independent.
+  if (!model_.existFrame(settings_.imu_frame)) {
+    throw std::invalid_argument(
+      "[InekfFloatingBaseEstimator] imu frame '" + settings_.imu_frame + "' not found in estimator URDF");
+  }
+  {
+    const Eigen::VectorXd q_neutral = pinocchio::neutral(model_);  // base at origin, joints 0
+    pinocchio::forwardKinematics(model_, data_, q_neutral);
+    const auto imu_frame_id = model_.getFrameId(settings_.imu_frame);
+    pinocchio::updateFramePlacement(model_, data_, imu_frame_id);
+    base_to_imu_translation_ = data_.oMf[imu_frame_id].translation();
+    base_to_imu_rotation_ = data_.oMf[imu_frame_id].rotation();
+  }
+
+  qj_ = Eigen::VectorXd::Zero(num_estimator_joints_);
+  dqj_ = Eigen::VectorXd::Zero(num_estimator_joints_);
+  tauj_ = Eigen::VectorXd::Zero(num_estimator_joints_);
+
+  estimator_ = std::make_unique<legged_state_estimator::LeggedStateEstimator>(
+    toLibrarySettings(settings_));
+}
+
+void InekfFloatingBaseEstimator::remapToEstimatorOrder(
+  const std::vector<double>& controller_values, Eigen::VectorXd& estimator_vector) const
+{
+  estimator_vector.setZero();
+  for (size_t i = 0; i < controller_to_estimator_qj_index_.size() && i < controller_values.size(); ++i) {
+    const int idx = controller_to_estimator_qj_index_[i];
+    if (idx >= 0 && idx < estimator_vector.size()) {
+      estimator_vector(idx) = controller_values[i];
+    }
+  }
+}
+
+std::vector<double> InekfFloatingBaseEstimator::contactGroundHeights(
+  const Eigen::Vector3d& base_position,
+  const Eigen::Quaterniond& base_orientation,
+  const Eigen::VectorXd& estimator_joint_positions)
+{
+  Eigen::VectorXd q(model_.nq);
+  q.head<3>() = base_position;
+  q.segment<4>(3) = Eigen::Vector4d(
+    base_orientation.x(), base_orientation.y(), base_orientation.z(), base_orientation.w());
+  q.tail(num_estimator_joints_) = estimator_joint_positions;
+
+  pinocchio::forwardKinematics(model_, data_, q);
+  std::vector<double> heights;
+  heights.reserve(contact_frame_ids_.size());
+  for (const auto frame_id : contact_frame_ids_) {
+    pinocchio::updateFramePlacement(model_, data_, frame_id);
+    heights.push_back(data_.oMf[frame_id].translation().z());
+  }
+  return heights;
+}
+
+void InekfFloatingBaseEstimator::initialize(
+  const Eigen::Vector3d& base_position,
+  const Eigen::Quaterniond& base_orientation,
+  const std::vector<double>& joint_positions)
+{
+  remapToEstimatorOrder(joint_positions, qj_);
+
+  // The InEKF tracks the IMU frame; convert the incoming pelvis pose to the IMU frame.
+  const Eigen::Matrix3d base_rotation = base_orientation.toRotationMatrix();
+  const Eigen::Matrix3d imu_rotation = base_rotation * base_to_imu_rotation_;
+  const Eigen::Vector3d imu_position = base_position + base_rotation * base_to_imu_translation_;
+  const Eigen::Quaterniond imu_quat(imu_rotation);
+  const Eigen::Vector4d quat_xyzw(imu_quat.x(), imu_quat.y(), imu_quat.z(), imu_quat.w());
+
+  // Seed each contact landmark at its true world height (from FK at the seed pose),
+  // so the filter is consistent with the actual foot geometry / terrain start heights
+  // instead of assuming a flat ground at z = 0.
+  const std::vector<double> ground_heights = contactGroundHeights(base_position, base_orientation, qj_);
+  estimator_->init(imu_position, quat_xyzw, qj_, ground_heights);
+  initialized_ = true;
+}
+
+FloatingBaseEstimate InekfFloatingBaseEstimator::update(
+  const Eigen::Vector3d& imu_gyro_body,
+  const Eigen::Vector3d& imu_linear_acceleration_body,
+  const std::vector<double>& joint_positions,
+  const std::vector<double>& joint_velocities,
+  const std::vector<double>& joint_efforts)
+{
+  FloatingBaseEstimate estimate;
+  if (!initialized_) {
+    return estimate;
+  }
+
+  remapToEstimatorOrder(joint_positions, qj_);
+  remapToEstimatorOrder(joint_velocities, dqj_);
+  remapToEstimatorOrder(joint_efforts, tauj_);
+
+  estimator_->update(imu_gyro_body, imu_linear_acceleration_body, qj_, dqj_, tauj_);
+
+  // The InEKF estimates the IMU frame; convert back to the pelvis (floating-base) frame.
+  const Eigen::Vector3d imu_position = estimator_->getBasePositionEstimate();
+  const Eigen::Matrix3d imu_rotation = estimator_->getBaseRotationEstimate();
+  const Eigen::Vector3d imu_linear_velocity_world = estimator_->getBaseLinearVelocityEstimateWorld();
+  const Eigen::Vector3d imu_angular_velocity_local = estimator_->getBaseAngularVelocityEstimateLocal();
+
+  const Eigen::Matrix3d base_rotation = imu_rotation * base_to_imu_rotation_.transpose();
+  const Eigen::Vector3d base_position = imu_position - base_rotation * base_to_imu_translation_;
+  // Rigid-body lever-arm correction for the linear velocity: v_base = v_imu + w x (p_base - p_imu).
+  const Eigen::Vector3d angular_velocity_world = imu_rotation * imu_angular_velocity_local;
+  const Eigen::Vector3d lever = base_position - imu_position;
+  const Eigen::Vector3d base_linear_velocity_world =
+    imu_linear_velocity_world + angular_velocity_world.cross(lever);
+
+  estimate.position = base_position;
+  estimate.orientation = Eigen::Quaterniond(base_rotation);
+  estimate.linear_velocity_world = base_linear_velocity_world;
+  estimate.angular_velocity_local = base_to_imu_rotation_ * imu_angular_velocity_local;
+  estimate.valid = true;
+  return estimate;
+}
+
+}  // namespace legged_robot_mpc_controller::state_estimation

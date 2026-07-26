@@ -42,6 +42,7 @@ find_package(ament_cmake REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(Boost REQUIRED COMPONENTS system filesystem log log_setup)
 find_package(yaml-cpp REQUIRED)
+find_package(legged_state_estimator REQUIRED)
 
 foreach(dependency IN ITEMS ${THIS_PACKAGE_INCLUDE_DEPENDS})
   find_package(${dependency} REQUIRED)
@@ -153,6 +154,7 @@ add_library(${PROJECT_NAME} SHARED
   src/common/heading_reference.cpp
   src/common/ros2_procedural_mpc_motion_manager.cpp
   src/common/target/mpc_targets_parser.cpp
+  src/humanoid_state_estimation/inekf_floating_base_estimator.cpp
   src/humanoid_centroidal_mpc/centroidal_mpc_config_builder.cpp
   src/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller.cpp
   src/humanoid_wb_mpc/humanoid_wb_mpc_controller.cpp
@@ -173,6 +175,7 @@ target_link_libraries(${PROJECT_NAME}
     humanoid_centroidal_mpc_controller_parameters
     legged_robot_humanoid_wb_core
     legged_robot_humanoid_centroidal_core
+    legged_state_estimator::legged_state_estimator
     yaml-cpp
 )
 ament_target_dependencies(${PROJECT_NAME} PUBLIC ${THIS_PACKAGE_INCLUDE_DEPENDS})

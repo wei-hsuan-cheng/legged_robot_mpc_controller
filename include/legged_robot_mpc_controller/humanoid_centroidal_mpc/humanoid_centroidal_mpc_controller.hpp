@@ -30,6 +30,7 @@
 
 #include "legged_robot_mpc_controller/common/heading_reference.hpp"
 #include "legged_robot_mpc_controller/common/yaw_unwrapper.hpp"
+#include "legged_robot_mpc_controller/humanoid_state_estimation/inekf_floating_base_estimator.hpp"
 #include "legged_robot_mpc_controller/common/ros2_procedural_mpc_motion_manager.hpp"
 #include "legged_robot_mpc_controller/humanoid_centroidal_mpc_controller_parameters.hpp"
 #include "legged_robot_mpc_controller/visualization/performance_visualization.hpp"
@@ -82,6 +83,8 @@ private:
     const std::string& prefix_name,
     const std::string& interface_name) const;
   ocs2::SystemObservation build_observation(const rclcpp::Time& time);
+  // Runs the InEKF state estimator each control tick (bootstraps from GT, publishes its odom).
+  void update_state_estimator(const rclcpp::Time& time);
   ocs2::TargetTrajectories current_observation_to_reset_trajectory(
     const ocs2::SystemObservation& observation);
   void start_solver_thread(const ocs2::SystemObservation& initial_observation);
@@ -114,6 +117,17 @@ private:
   // Observation velocity low-pass state (see build_observation).
   vector_t filtered_generalized_velocity_;
   double last_visualization_time_{-1.0};
+
+  // Optional InEKF floating-base estimator. When enabled it runs in parallel and
+  // publishes its odometry; when floatingBase.source == "state_estimator" its
+  // output drives the observation instead of the MuJoCo ground-truth body frame.
+  std::unique_ptr<state_estimation::InekfFloatingBaseEstimator> state_estimator_;
+  state_estimation::FloatingBaseEstimate last_estimate_;
+  rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr state_estimate_odom_publisher_;
+  double last_estimate_publish_time_{-1.0};
+  // Filter convergence window: the estimate only drives control after this time.
+  double estimator_warmup_end_time_{-1.0};
+  bool estimator_driving_control_{false};
 
   std::jthread solver_thread_;
   std::atomic_bool terminate_solver_thread_{false};

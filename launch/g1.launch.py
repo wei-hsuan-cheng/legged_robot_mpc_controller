@@ -87,6 +87,11 @@ def generate_launch_description():
             default_value=lib_folder_default,
             description="Writable folder for generated or cached CppAD libraries",
         ),
+        DeclareLaunchArgument(
+            "floatingBaseSource", default_value="state_interfaces",
+            description="Floating-base feedback source for the centroidal MPC: "
+                        "state_interfaces (MuJoCo ground truth) | state_estimator (InEKF). "
+                        "The InEKF always runs in parallel and publishes /humanoid/state_estimate/odom."),
         DeclareLaunchArgument("mpcFreq", default_value="100", description="MPC update frequency (should be integer) (100 for centroidal, 50 for whole-body)"),
         DeclareLaunchArgument("mrtFreq", default_value="1000", description="MRT update frequency (should be integer)"),
         DeclareLaunchArgument("controllersFile", default_value=controllers_file_default),

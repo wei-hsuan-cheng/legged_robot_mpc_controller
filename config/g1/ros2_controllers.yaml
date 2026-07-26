@@ -363,10 +363,28 @@ humanoid_centroidal_mpc_controller:
       statusLogPeriod: 2.0
 
     floatingBase:
-      source: state_interfaces
+      source: $(var floatingBaseSource) # state_interfaces (GT) | state_estimator (InEKF); set via the floatingBaseSource launch arg
       stateInterfaceName: pelvis
       odometryTopic: /mujoco/ground_truth/odom
       baseFrame: pelvis
+
+    # InEKF runs in parallel and publishes /humanoid/state_estimate/odom for
+    # comparison against GT. It only drives control when floatingBase.source is
+    # switched to "state_estimator". Tuned so the observable, balance-critical states
+    # match GT: roll/pitch < 0.2 deg, height ~1.7 cm, body velocity ~0.03 m/s.
+    stateEstimator:
+      enabled: true
+      # The pelvis accelerometer swings +-5 m/s^2 while standing (stiff PD/contact
+      # vibration), so trust it far less and low-pass it hard; lean on the contact
+      # height-anchor instead.
+      noise:
+        accelerometer: 1.5
+        contact: 0.01
+        contactPosition: 0.002
+      contact:
+        forceCovarianceAlpha: 10.0
+      lpf:
+        linAccelCutoff: 30.0
 
     ocs2:
       interface:

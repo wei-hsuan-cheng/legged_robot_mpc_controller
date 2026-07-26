@@ -206,6 +206,48 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_configu
       mpc_interface_->getPinocchioInterface(),
       mpc_interface_->getMpcRobotModel(),
       visualization::makePerformanceVisualizationSettings(parameters_));
+
+    // Optional InEKF floating-base state estimator.
+    if (parameters_.stateEstimator.enabled ||
+        parameters_.floatingBase.source == "state_estimator") {
+      const auto& se = parameters_.stateEstimator;
+      state_estimation::InekfFloatingBaseEstimator::Settings settings;
+      settings.urdf_path = parameters_.paths.urdfFile;
+      settings.imu_frame = se.imuFrame;
+      settings.contact_frames = se.contactFrames;
+      settings.controller_joint_names = parameters_.robot.jointNames;
+      settings.sampling_time = 1.0 / std::max(1.0, static_cast<double>(get_update_rate()));
+      settings.gyroscope_noise = se.noise.gyroscope;
+      settings.accelerometer_noise = se.noise.accelerometer;
+      settings.gyroscope_bias_noise = se.noise.gyroscopeBias;
+      settings.accelerometer_bias_noise = se.noise.accelerometerBias;
+      settings.contact_noise = se.noise.contact;
+      settings.contact_position_noise = se.noise.contactPosition;
+      settings.contact_rotation_noise = se.noise.contactRotation;
+      settings.contact_beta0 = se.contact.beta0;
+      settings.contact_beta1 = se.contact.beta1;
+      settings.contact_force_covariance_alpha = se.contact.forceCovarianceAlpha;
+      settings.contact_probability_threshold = se.contact.probabilityThreshold;
+      settings.dynamic_contact_estimation = se.contact.dynamicEstimation;
+      settings.lpf_gyro_cutoff = se.lpf.gyroCutoff;
+      settings.lpf_gyro_accel_cutoff = se.lpf.gyroAccelCutoff;
+      settings.lpf_lin_accel_cutoff = se.lpf.linAccelCutoff;
+      settings.lpf_dqJ_cutoff = se.lpf.dqJCutoff;
+      settings.lpf_ddqJ_cutoff = se.lpf.ddqJCutoff;
+      settings.lpf_tauJ_cutoff = se.lpf.tauJCutoff;
+
+      state_estimator_ =
+        std::make_unique<state_estimation::InekfFloatingBaseEstimator>(settings);
+      state_estimate_odom_publisher_ =
+        get_node()->create_publisher<nav_msgs::msg::Odometry>(se.odomTopic, rclcpp::SystemDefaultsQoS());
+      RCLCPP_INFO(
+        get_node()->get_logger(),
+        "[HumanoidCentroidalMpcController] InEKF state estimator enabled | imu=%s contacts=%zu joints=%d | "
+        "update_rate=%u Hz sampling_time=%.6f s | drives_control=%s",
+        se.imuFrame.c_str(), se.contactFrames.size(), state_estimator_->numEstimatorJoints(),
+        get_update_rate(), settings.sampling_time,
+        (parameters_.floatingBase.source == "state_estimator") ? "yes" : "no");
+    }
   } catch (const std::exception& e) {
     RCLCPP_ERROR(
       get_node()->get_logger(),
@@ -236,6 +278,13 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_activat
   heading_reference_.reset();
   yaw_unwrapper_.reset();
   filtered_generalized_velocity_.resize(0);
+  if (state_estimator_) {
+    state_estimator_->reset();
+    last_estimate_ = state_estimation::FloatingBaseEstimate{};
+    last_estimate_publish_time_ = -1.0;
+    estimator_warmup_end_time_ = -1.0;  // set on the first estimator tick
+    estimator_driving_control_ = false;
+  }
   initial_observation_state_ = mpc_interface_->getInitialState();
   const auto initial_observation = build_observation(get_node()->now());
   const vector_t q_hold = control_model_->getJointAngles(initial_observation.state);
@@ -315,15 +364,45 @@ HumanoidCentroidalMpcController::state_interface_configuration() const
     }
   }
 
-  if (parameters_.floatingBase.source == "state_interfaces") {
+  const bool estimator_active = parameters_.stateEstimator.enabled ||
+    parameters_.floatingBase.source == "state_estimator";
+  // The GT body interfaces are still claimed with the estimator active, to bootstrap
+  // the filter at activation and to publish a GT reference for comparison.
+  const bool need_gt_interfaces =
+    parameters_.floatingBase.source == "state_interfaces" || estimator_active;
+
+  if (need_gt_interfaces || estimator_active) {
     if (config.type == controller_interface::interface_configuration_type::NONE) {
       config.type = controller_interface::interface_configuration_type::INDIVIDUAL;
     }
+  }
+
+  if (need_gt_interfaces) {
     const auto floating_base_interfaces = floating_base_state_interface_names();
     config.names.insert(
       config.names.end(),
       floating_base_interfaces.begin(),
       floating_base_interfaces.end());
+  }
+
+  if (estimator_active) {
+    // Joint torques for the torque-based contact estimator (unless already claimed
+    // through robot.stateInterfaces).
+    const bool effort_already_claimed = std::find(
+      parameters_.robot.stateInterfaces.begin(),
+      parameters_.robot.stateInterfaces.end(),
+      hardware_interface::HW_IF_EFFORT) != parameters_.robot.stateInterfaces.end();
+    if (!effort_already_claimed) {
+      for (const auto& joint_name : parameters_.robot.jointNames) {
+        config.names.emplace_back(joint_name + "/" + hardware_interface::HW_IF_EFFORT);
+      }
+    }
+    // Pelvis IMU raw gyro + accelerometer.
+    const std::string& imu = parameters_.stateEstimator.imuInterfaceName;
+    for (const char* axis : {"x", "y", "z"}) {
+      config.names.emplace_back(imu + "/angular_velocity." + axis);
+      config.names.emplace_back(imu + "/linear_acceleration." + axis);
+    }
   }
 
   return config;
@@ -341,6 +420,8 @@ controller_interface::return_type HumanoidCentroidalMpcController::update_and_wr
   if (!mpc_interface_ || !control_model_) {
     return controller_interface::return_type::ERROR;
   }
+
+  update_state_estimator(time);
 
   const auto observation = build_observation(time);
   JointActionCommand command;
@@ -478,6 +559,102 @@ bool HumanoidCentroidalMpcController::read_joint_state(vector_t& q, vector_t& v)
   return true;
 }
 
+void HumanoidCentroidalMpcController::update_state_estimator(const rclcpp::Time& time)
+{
+  if (!state_estimator_) {
+    return;
+  }
+
+  // Joint states in the controller's jointNames order (torque optional -> 0).
+  const auto& joint_names = parameters_.robot.jointNames;
+  std::vector<double> joint_pos(joint_names.size());
+  std::vector<double> joint_vel(joint_names.size());
+  std::vector<double> joint_eff(joint_names.size(), 0.0);
+  for (size_t i = 0; i < joint_names.size(); ++i) {
+    const auto p = get_state_interface_value(joint_names[i], hardware_interface::HW_IF_POSITION);
+    const auto v = get_state_interface_value(joint_names[i], hardware_interface::HW_IF_VELOCITY);
+    if (!p || !v) {
+      return;  // joints not ready yet
+    }
+    joint_pos[i] = *p;
+    joint_vel[i] = *v;
+    if (const auto e = get_state_interface_value(joint_names[i], hardware_interface::HW_IF_EFFORT)) {
+      joint_eff[i] = *e;
+    }
+  }
+
+  // Raw pelvis IMU (body-local gyro + accelerometer).
+  const std::string& imu = parameters_.stateEstimator.imuInterfaceName;
+  const auto gx = get_state_interface_value(imu, "angular_velocity.x");
+  const auto gy = get_state_interface_value(imu, "angular_velocity.y");
+  const auto gz = get_state_interface_value(imu, "angular_velocity.z");
+  const auto ax = get_state_interface_value(imu, "linear_acceleration.x");
+  const auto ay = get_state_interface_value(imu, "linear_acceleration.y");
+  const auto az = get_state_interface_value(imu, "linear_acceleration.z");
+  if (!gx || !gy || !gz || !ax || !ay || !az) {
+    return;  // IMU not ready yet
+  }
+  const Eigen::Vector3d gyro(*gx, *gy, *gz);
+  const Eigen::Vector3d accel(*ax, *ay, *az);
+
+  // Bootstrap the filter from the MuJoCo ground-truth body pose on the first tick.
+  if (!state_estimator_->initialized()) {
+    const std::string& base = parameters_.floatingBase.stateInterfaceName;
+    const auto px = get_state_interface_value(base, "position.x");
+    const auto py = get_state_interface_value(base, "position.y");
+    const auto pz = get_state_interface_value(base, "position.z");
+    const auto qw = get_state_interface_value(base, "orientation.w");
+    const auto qx = get_state_interface_value(base, "orientation.x");
+    const auto qy = get_state_interface_value(base, "orientation.y");
+    const auto qz = get_state_interface_value(base, "orientation.z");
+    if (!px || !py || !pz || !qw || !qx || !qy || !qz) {
+      return;
+    }
+    Eigen::Quaterniond quat(*qw, *qx, *qy, *qz);
+    if (quat.norm() < 1e-9) {
+      quat = Eigen::Quaterniond::Identity();
+    }
+    state_estimator_->initialize(
+      Eigen::Vector3d(*px, *py, *pz), quat.normalized(), joint_pos);
+    // Start the convergence window from the first estimator tick.
+    estimator_warmup_end_time_ =
+      time.seconds() + std::max(0.0, parameters_.stateEstimator.warmupSeconds);
+  }
+
+  last_estimate_ = state_estimator_->update(gyro, accel, joint_pos, joint_vel, joint_eff);
+
+
+  // Publish the estimate as odometry for evaluation against the GT body frame.
+  if (state_estimate_odom_publisher_ && last_estimate_.valid) {
+    const double t = time.seconds();
+    const double period = 1.0 / std::max(1.0, parameters_.stateEstimator.publishRate);
+    if (last_estimate_publish_time_ < 0.0 || t - last_estimate_publish_time_ >= period) {
+      last_estimate_publish_time_ = t;
+      nav_msgs::msg::Odometry odom;
+      odom.header.stamp = time;
+      odom.header.frame_id = parameters_.stateEstimator.odomFrame;
+      odom.child_frame_id = parameters_.floatingBase.baseFrame;
+      odom.pose.pose.position.x = last_estimate_.position.x();
+      odom.pose.pose.position.y = last_estimate_.position.y();
+      odom.pose.pose.position.z = last_estimate_.position.z();
+      odom.pose.pose.orientation.w = last_estimate_.orientation.w();
+      odom.pose.pose.orientation.x = last_estimate_.orientation.x();
+      odom.pose.pose.orientation.y = last_estimate_.orientation.y();
+      odom.pose.pose.orientation.z = last_estimate_.orientation.z();
+      // Twist in the body frame (odometry child-frame convention).
+      const Eigen::Vector3d v_body =
+        last_estimate_.orientation.conjugate() * last_estimate_.linear_velocity_world;
+      odom.twist.twist.linear.x = v_body.x();
+      odom.twist.twist.linear.y = v_body.y();
+      odom.twist.twist.linear.z = v_body.z();
+      odom.twist.twist.angular.x = last_estimate_.angular_velocity_local.x();
+      odom.twist.twist.angular.y = last_estimate_.angular_velocity_local.y();
+      odom.twist.twist.angular.z = last_estimate_.angular_velocity_local.z();
+      state_estimate_odom_publisher_->publish(odom);
+    }
+  }
+}
+
 ocs2::SystemObservation HumanoidCentroidalMpcController::build_observation(const rclcpp::Time& time)
 {
   const auto& info = mpc_interface_->getCentroidalModelInfo();
@@ -496,35 +673,77 @@ ocs2::SystemObservation HumanoidCentroidalMpcController::build_observation(const
     observation.mode = reference_manager->getModeSchedule().modeAtTime(observation.time);
   }
 
-  // Floating base from ros2_control state interfaces (world-frame pose, body-local twist).
-  const std::string& base_name = parameters_.floatingBase.stateInterfaceName;
-  const auto px = get_state_interface_value(base_name, "position.x");
-  const auto py = get_state_interface_value(base_name, "position.y");
-  const auto pz = get_state_interface_value(base_name, "position.z");
-  const auto qw = get_state_interface_value(base_name, "orientation.w");
-  const auto qx = get_state_interface_value(base_name, "orientation.x");
-  const auto qy = get_state_interface_value(base_name, "orientation.y");
-  const auto qz = get_state_interface_value(base_name, "orientation.z");
-  const auto lvx = get_state_interface_value(base_name, "linear_velocity.x");
-  const auto lvy = get_state_interface_value(base_name, "linear_velocity.y");
-  const auto lvz = get_state_interface_value(base_name, "linear_velocity.z");
-  const auto avx = get_state_interface_value(base_name, "angular_velocity.x");
-  const auto avy = get_state_interface_value(base_name, "angular_velocity.y");
-  const auto avz = get_state_interface_value(base_name, "angular_velocity.z");
-
   vector_t q_joint;
   vector_t v_joint;
-  if (!px || !py || !pz || !qw || !qx || !qy || !qz || !lvx || !lvy || !lvz || !avx || !avy ||
-      !avz || !read_joint_state(q_joint, v_joint)) {
+  if (!read_joint_state(q_joint, v_joint)) {
     RCLCPP_ERROR_THROTTLE(
       get_node()->get_logger(),
       *get_node()->get_clock(),
       2000,
-      "[HumanoidCentroidalMpcController] missing state interfaces; holding last observation state.");
+      "[HumanoidCentroidalMpcController] missing joint state interfaces; holding last observation.");
     return observation;
   }
 
-  Eigen::Quaterniond base_orientation(*qw, *qx, *qy, *qz);
+  // Floating-base state: world-frame position/orientation/linear velocity and
+  // body-local angular velocity, from either the InEKF estimate or the GT body.
+  ocs2::vector3_t base_position;
+  Eigen::Quaterniond base_orientation;
+  ocs2::vector3_t linear_velocity_world;
+  ocs2::vector3_t angular_velocity_local;
+
+  // The InEKF is seeded with zero velocity and unknown IMU biases, so its first
+  // seconds carry phantom base velocity. The centroidal state is normalized
+  // momentum (A(q) v / m), so that error enters the dominant state directly and
+  // destabilizes the robot. Keep using the state-interface base until the filter
+  // has converged.
+  const bool warmed_up = estimator_warmup_end_time_ >= 0.0 &&
+    time.seconds() >= estimator_warmup_end_time_;
+  const bool use_estimate =
+    parameters_.floatingBase.source == "state_estimator" && last_estimate_.valid && warmed_up;
+  if (use_estimate && !estimator_driving_control_) {
+    estimator_driving_control_ = true;
+    RCLCPP_INFO(
+      get_node()->get_logger(),
+      "[HumanoidCentroidalMpcController] state estimator warm-up complete; the InEKF estimate now drives control.");
+  }
+  if (use_estimate) {
+    base_position = last_estimate_.position;
+    base_orientation = last_estimate_.orientation;
+    linear_velocity_world = last_estimate_.linear_velocity_world;
+    angular_velocity_local = last_estimate_.angular_velocity_local;
+  } else {
+    const std::string& base_name = parameters_.floatingBase.stateInterfaceName;
+    const auto px = get_state_interface_value(base_name, "position.x");
+    const auto py = get_state_interface_value(base_name, "position.y");
+    const auto pz = get_state_interface_value(base_name, "position.z");
+    const auto qw = get_state_interface_value(base_name, "orientation.w");
+    const auto qx = get_state_interface_value(base_name, "orientation.x");
+    const auto qy = get_state_interface_value(base_name, "orientation.y");
+    const auto qz = get_state_interface_value(base_name, "orientation.z");
+    const auto lvx = get_state_interface_value(base_name, "linear_velocity.x");
+    const auto lvy = get_state_interface_value(base_name, "linear_velocity.y");
+    const auto lvz = get_state_interface_value(base_name, "linear_velocity.z");
+    const auto avx = get_state_interface_value(base_name, "angular_velocity.x");
+    const auto avy = get_state_interface_value(base_name, "angular_velocity.y");
+    const auto avz = get_state_interface_value(base_name, "angular_velocity.z");
+    if (!px || !py || !pz || !qw || !qx || !qy || !qz || !lvx || !lvy || !lvz || !avx || !avy ||
+        !avz) {
+      RCLCPP_ERROR_THROTTLE(
+        get_node()->get_logger(),
+        *get_node()->get_clock(),
+        2000,
+        "[HumanoidCentroidalMpcController] missing floating-base interfaces; holding last observation.");
+      return observation;
+    }
+    base_position = ocs2::vector3_t(*px, *py, *pz);
+    base_orientation = Eigen::Quaterniond(*qw, *qx, *qy, *qz);
+    // The GT twist is body-local; rotate the linear part into the world frame.
+    const Eigen::Quaterniond ori =
+      base_orientation.norm() < 1e-12 ? Eigen::Quaterniond::Identity() : base_orientation.normalized();
+    linear_velocity_world = ori * ocs2::vector3_t(*lvx, *lvy, *lvz);
+    angular_velocity_local = ocs2::vector3_t(*avx, *avy, *avz);
+  }
+
   if (base_orientation.norm() < 1e-12) {
     base_orientation = Eigen::Quaterniond::Identity();
   } else {
@@ -535,15 +754,15 @@ ocs2::SystemObservation HumanoidCentroidalMpcController::build_observation(const
 
   // Generalized coordinates and velocities in the pinocchio (centroidal) convention.
   vector_t q_pinocchio(gen_coordinates_dim);
-  q_pinocchio.head<3>() = ocs2::vector3_t(*px, *py, *pz);
+  q_pinocchio.head<3>() = base_position;
   q_pinocchio.segment<3>(3) = euler_zyx;
   q_pinocchio.tail(joint_dim) = q_joint;
 
   vector_t v_pinocchio(gen_coordinates_dim);
-  v_pinocchio.head<3>() = base_orientation * ocs2::vector3_t(*lvx, *lvy, *lvz);
+  v_pinocchio.head<3>() = linear_velocity_world;
   v_pinocchio.segment<3>(3) =
     ocs2::getEulerAnglesZyxDerivativesFromLocalAngularVelocity<ocs2::scalar_t>(
-    euler_zyx, ocs2::vector3_t(*avx, *avy, *avz));
+    euler_zyx, angular_velocity_local);
   v_pinocchio.tail(joint_dim) = v_joint;
 
   // Low-pass the generalized velocities: raw simulator velocity dither at node 0 keeps

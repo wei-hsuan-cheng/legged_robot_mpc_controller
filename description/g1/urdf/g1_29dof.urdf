@@ -618,6 +618,38 @@
     <child link="imu_in_pelvis"/>
   </joint>
 
+  <!-- Foot contact frames for the InEKF state estimator. The InEKF library requires
+       exactly 4 point contacts, so each flat foot contributes a heel and a toe point
+       (as in the MIT Humanoid whole-body work). They sit on the sole (z = -0.035 from
+       the ankle-roll link, matching the MPC's contact height) at +-0.07 m fore/aft
+       inside the foot rectangle. Distinct "_est" names avoid colliding with the
+       frames the MPC adds programmatically (foot_l_contact / foot_r_contact). -->
+  <link name="foot_l_heel_est"></link>
+  <joint name="foot_l_heel_est_joint" type="fixed">
+    <origin xyz="-0.035 0 -0.035" rpy="0 0 0"/>
+    <parent link="left_ankle_roll_link"/>
+    <child link="foot_l_heel_est"/>
+  </joint>
+  <link name="foot_l_toe_est"></link>
+  <joint name="foot_l_toe_est_joint" type="fixed">
+    <origin xyz="0.105 0 -0.035" rpy="0 0 0"/>
+    <parent link="left_ankle_roll_link"/>
+    <child link="foot_l_toe_est"/>
+  </joint>
+
+  <link name="foot_r_heel_est"></link>
+  <joint name="foot_r_heel_est_joint" type="fixed">
+    <origin xyz="-0.035 0 -0.035" rpy="0 0 0"/>
+    <parent link="right_ankle_roll_link"/>
+    <child link="foot_r_heel_est"/>
+  </joint>
+  <link name="foot_r_toe_est"></link>
+  <joint name="foot_r_toe_est_joint" type="fixed">
+    <origin xyz="0.105 0 -0.035" rpy="0 0 0"/>
+    <parent link="right_ankle_roll_link"/>
+    <child link="foot_r_toe_est"/>
+  </joint>
+
   <!-- d435 -->
   <link name="d435_link"></link>
   <joint name="d435_joint" type="fixed">

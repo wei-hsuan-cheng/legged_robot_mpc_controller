@@ -132,9 +132,9 @@ humanoid_centroidal_mpc_controller:
     source: {
       type: string,
       default_value: "state_interfaces",
-      description: "Floating-base state source. Prefer state_interfaces for control; mujoco_ground_truth_odom is a topic fallback.",
+      description: "Floating-base state source. state_interfaces = MuJoCo GT body; state_estimator = InEKF; mujoco_ground_truth_odom is a topic fallback.",
       validation: {
-        one_of<>: [["mujoco_ground_truth_odom", "state_interfaces"]]
+        one_of<>: [["mujoco_ground_truth_odom", "state_interfaces", "state_estimator"]]
       }
     }
 
@@ -155,6 +155,77 @@ humanoid_centroidal_mpc_controller:
       default_value: "pelvis",
       description: "Floating-base body frame used as the MPC base (URDF root / MuJoCo free-joint body)"
     }
+
+  stateEstimator:
+    enabled: {
+      type: bool,
+      default_value: false,
+      description: "Run the InEKF floating-base estimator in parallel (publishes its odom; drives control only when floatingBase.source == state_estimator)"
+    }
+    imuInterfaceName: {
+      type: string,
+      default_value: "pelvis_imu",
+      description: "ros2_control sensor prefix exposing IMU orientation/angular_velocity/linear_acceleration"
+    }
+    imuFrame: {
+      type: string,
+      default_value: "imu_in_pelvis",
+      description: "URDF frame of the IMU used by the estimator"
+    }
+    contactFrames: {
+      type: string_array,
+      default_value: ["foot_l_heel_est", "foot_l_toe_est", "foot_r_heel_est", "foot_r_toe_est"],
+      description: "URDF contact frames fused by the InEKF. The library requires exactly 4 point contacts, so each flat foot contributes a heel + toe point. Distinct '_est' names avoid a Pinocchio frame collision with the MPC's foot_l/r_contact frames."
+    }
+    odomTopic: {
+      type: string,
+      default_value: "/humanoid/state_estimate/odom",
+      description: "nav_msgs/Odometry topic for the InEKF estimate (published for evaluation vs GT)"
+    }
+    odomFrame: {
+      type: string,
+      default_value: "world",
+      description: "Header frame of the published estimate odometry"
+    }
+    publishRate: {
+      type: double,
+      default_value: 100.0,
+      description: "Rate [Hz] at which the estimate odometry is published"
+    }
+    warmupSeconds: {
+      type: double,
+      default_value: 3.0,
+      description: "Convergence window [s] after activation during which the MPC keeps using the ground-truth/state-interface base even if floatingBase.source is state_estimator. The InEKF is seeded with zero velocity and unknown IMU biases, so its first ~2 s carry ~0.15 m/s of phantom base velocity; feeding that to the momentum-based centroidal MPC destabilizes the robot. On hardware this corresponds to holding the robot at a known pose until the filter converges."
+    }
+    noise:
+      gyroscope: { type: double, default_value: 0.01, description: "InEKF gyroscope noise std-dev" }
+      accelerometer: { type: double, default_value: 0.1, description: "InEKF accelerometer noise std-dev" }
+      gyroscopeBias: { type: double, default_value: 1.0e-5, description: "InEKF gyroscope bias noise std-dev" }
+      accelerometerBias: { type: double, default_value: 1.0e-4, description: "InEKF accelerometer bias noise std-dev" }
+      contact: { type: double, default_value: 0.1, description: "InEKF contact noise std-dev" }
+      contactPosition: { type: double, default_value: 0.01, description: "Contact position measurement noise" }
+      contactRotation: { type: double, default_value: 0.01, description: "Contact rotation measurement noise (surface contacts)" }
+    contact:
+      beta0: {
+        type: double_array,
+        default_value: [-20.0, -20.0, -20.0, -20.0],
+        description: "Logistic-regression bias per contact (torque-based contact estimator); one entry per contactFrame"
+      }
+      beta1: {
+        type: double_array,
+        default_value: [0.7, 0.7, 0.7, 0.7],
+        description: "Logistic-regression slope per contact; one entry per contactFrame"
+      }
+      forceCovarianceAlpha: { type: double, default_value: 100.0, description: "Contact force covariance scaling" }
+      probabilityThreshold: { type: double, default_value: 0.5, description: "Contact on/off probability threshold" }
+      dynamicEstimation: { type: bool, default_value: false, description: "Use full dynamics (true) or equilibrium (false) for contact estimation" }
+    lpf:
+      gyroCutoff: { type: double, default_value: 250.0, description: "LPF cutoff [Hz] for gyro" }
+      gyroAccelCutoff: { type: double, default_value: 250.0, description: "LPF cutoff [Hz] for gyro-derived angular acceleration" }
+      linAccelCutoff: { type: double, default_value: 250.0, description: "LPF cutoff [Hz] for linear acceleration" }
+      dqJCutoff: { type: double, default_value: 10.0, description: "LPF cutoff [Hz] for joint velocities" }
+      ddqJCutoff: { type: double, default_value: 5.0, description: "LPF cutoff [Hz] for joint accelerations" }
+      tauJCutoff: { type: double, default_value: 10.0, description: "LPF cutoff [Hz] for joint torques" }
 
   ocs2:
     interface:
