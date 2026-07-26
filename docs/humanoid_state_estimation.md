@@ -196,12 +196,26 @@ The kinematic term assumes the stance feet rest on a **flat plane at `height.gro
 
 Options on non-flat terrain:
 
-| setting | flat ground | stairs / slopes |
+| setting | flat ground | stairs (measured) |
 |---|---|---|
-| `height.source: blend` (default) | best (1.8 mm) | **wrong by the step height** |
-| `height.source: inekf` | noisier (~6.6 mm mean, 33 mm peak) | terrain-agnostic: each contact re-anchors where it lands |
+| `height.source: blend` (default) | ✅ walks, 1.8 mm height error | ❌ falls at the first riser (x = 0.84): the anchor insists the base is a step-height too low |
+| `height.source: inekf` | ❌ too noisy (~6.6 mm mean, 33 mm peak) — this is what broke closed-loop walking originally | ❌ falls on the flat approach (x = 0.34), before reaching the stairs |
 
-The principled fix, not yet implemented, is a **per-contact ground height** $z_{\text{ground},i} = h_{\text{terrain}}(x_{C_i}, y_{C_i})$ taken from the `TerrainFootholdPlanner` the terrain modes already build, which keeps the kinematic anchor's precision while remaining valid on stairs.
+Measured stair/terrain behaviour with the InEKF driving the MPC (ground truth shown for reference):
+
+| scenario | ground truth | InEKF (`blend`) |
+|---|---|---|
+| stair climb | ✅ SUCCESS, reaches z = 1.205 m | ❌ FALL at x = 0.837, pitch 34.7° |
+| terrain walk | ❌ FALL after ~4.9 treads (pre-existing, estimator not involved) | ❌ FALL at x = 0.783, 0 treads |
+
+So **flat-ground closed-loop walking works, stairs do not**, and terrain walking is additionally limited by a pre-existing issue visible on ground truth alone.
+
+The fix, not yet implemented, is a **per-contact, time-varying ground height** $z_{\text{ground},i}(t)$ instead of one constant. Two sources are possible:
+
+1. **The InEKF's own contact landmarks** (preferred): when a foot touches down the filter anchors it in the world and holds it through stance; that anchor *is* the estimator's belief about the local ground. Using it makes the kinematic term enforce only intra-stance consistency — killing the FK/measurement noise — while never fighting a real terrain change. Fully proprioceptive, no map required.
+2. **The terrain model**: `TerrainFootholdPlanner::heightAt(x, y)`, which the stair/terrain modes already build. More accurate where a trustworthy map exists, but it makes the estimator depend on perception or surveyed geometry.
+
+The measurements above motivate this directly: `blend` supplies precision but not terrain awareness, `inekf` supplies terrain awareness but not precision, and the per-contact anchor is what provides both.
 
 ### Hardware notes
 
