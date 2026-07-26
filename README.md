@@ -140,7 +140,7 @@ ros2 topic pub --once /humanoid/base_pose_command \
 
 The centroidal MPC provides an example of climbing a staircase with **known ground-truth geometry** using a pre-compiled, fixed sequence: gait (mode schedule), foothold placements, swing lift-off/touch-down heights, and a pelvis reference (zero pitch/roll) are all generated once from [`config/g1/terrain/stair_climbing/*.yaml`](./config/g1/terrain/stair_climbing/) at trigger time. No perception / plane segmentation is involved.
 
-**Run example:**
+**Run example**:
 
 ```bash
 # Launch
@@ -178,7 +178,7 @@ Each cycle it:
 3. Anchors the stance laterally to the stair centerline
 4. Feeds the per-phase support heights to the swing planner, and terrain-adapts the pelvis height (zero pitch/roll) while gating forward momentum so the CoM cannot overrun the feet at a riser.
 
-**Run example:**
+**Run example**:
 
 ```bash
 # Launch
