@@ -279,6 +279,13 @@ def generate_launch_description():
         executable="base_velocity_controller_gui.py",
         name="base_velocity_controller_gui",
         output="screen",
+        parameters=[
+            {
+                "max_linear_velocity_y": 2.4,
+                "max_linear_velocity_y": 1.2,
+                "max_yaw_rate": 1.0,
+            }
+        ],
         condition=IfCondition(LaunchConfiguration("velocityCommandGui")),
     )
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import math
 import threading
 import tkinter as tk
 
@@ -11,6 +12,8 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy
 
 KNOB_IDLE_COLOR = "#4a90e2"
 KNOB_ACTIVE_COLOR = "#ffffff"
+TITLE_FONT = ("Helvetica", 11, "bold")
+VALUE_FONT = ("Helvetica", 11)
 
 
 class Joystick:
@@ -18,12 +21,19 @@ class Joystick:
         self._on_change = on_change
         self._canvas = tk.Canvas(parent, width=220, height=240, bg="#303030", highlightthickness=0)
         self._cx = 110.0
-        self._cy = 125.0
+        self._cy = 137.0
         self._radius = 85.0
         self._x = 0.0
         self._y = 0.0
         self._dragging = False
-        self._canvas.create_text(110, 14, text=label, fill="white", font=("Helvetica", 11, "bold"))
+        self._canvas.create_text(110, 14, text=label, fill="white", font=TITLE_FONT)
+        self._readout = self._canvas.create_text(
+            110,
+            35,
+            text="(vₓ, vᵧ) = (0.00, 0.00)",
+            fill="white",
+            font=VALUE_FONT,
+        )
         self._canvas.create_oval(
             self._cx - self._radius,
             self._cy - self._radius,
@@ -115,6 +125,12 @@ class Joystick:
         self._canvas.itemconfigure(self._knob, fill=KNOB_IDLE_COLOR)
         self._on_change()
 
+    def set_readout(self, velocity_x, velocity_y):
+        self._canvas.itemconfigure(
+            self._readout,
+            text=f"(vₓ, vᵧ) = ({velocity_x:+.2f}, {velocity_y:+.2f})",
+        )
+
     @property
     def x(self):
         return self._x
@@ -129,13 +145,20 @@ class YawRateBar:
         self._on_change = on_change
         self._canvas = tk.Canvas(parent, width=220, height=240, bg="#303030", highlightthickness=0)
         self._cx = 110.0
-        self._cy = 125.0
+        self._cy = 137.0
         self._half_length = 85.0
         self._value = 0.0
         self._knob_x = self._cx
         self._dragging = False
 
-        self._canvas.create_text(110, 14, text="Yaw rate", fill="white", font=("Helvetica", 11, "bold"))
+        self._canvas.create_text(110, 14, text="Yaw rate [deg/s]", fill="white", font=TITLE_FONT)
+        self._readout = self._canvas.create_text(
+            110,
+            35,
+            text="ω_z = 0.0",
+            fill="white",
+            font=VALUE_FONT,
+        )
         self._canvas.create_line(
             self._cx - self._half_length,
             self._cy,
@@ -201,6 +224,9 @@ class YawRateBar:
         self._canvas.coords(self._knob, self._cx - 12, self._cy - 12, self._cx + 12, self._cy + 12)
         self._canvas.itemconfigure(self._knob, fill=KNOB_IDLE_COLOR)
         self._on_change()
+
+    def set_readout(self, yaw_rate_degrees):
+        self._canvas.itemconfigure(self._readout, text=f"ω_z = {yaw_rate_degrees:+.1f}")
 
     @property
     def value(self):
@@ -314,16 +340,25 @@ class HeightBar:
 
 
 class VelocityCommandGui(tk.Tk):
-    def __init__(self, publish):
+    def __init__(
+        self,
+        publish,
+        max_linear_velocity_x,
+        max_linear_velocity_y,
+        max_yaw_rate,
+    ):
         super().__init__()
         self.title("Humanoid MPC Base Twist Controller (Pelvis Frame)")
         self.configure(bg="#2c2c2c")
         self._publish = publish
+        self._max_linear_velocity_x = max_linear_velocity_x
+        self._max_linear_velocity_y = max_linear_velocity_y
+        self._max_yaw_rate = max_yaw_rate
 
         container = tk.Frame(self, bg="#2c2c2c")
         container.pack(padx=16, pady=16)
 
-        self._linear = Joystick(container, "Linear velocity", self._changed)
+        self._linear = Joystick(container, "Linear velocity [m/s]", self._changed)
         self._linear._canvas.grid(row=0, column=0, padx=10)
         self._yaw = YawRateBar(container, self._changed)
         self._yaw._canvas.grid(row=0, column=1, padx=10)
@@ -336,13 +371,15 @@ class VelocityCommandGui(tk.Tk):
             text="Height [m]",
             bg="#2c2c2c",
             fg="white",
+            font=TITLE_FONT,
         ).grid(row=0, column=0)
-        self._height_value = tk.StringVar(value="0.793")
+        self._height_value = tk.StringVar(value="z = 0.792")
         tk.Label(
             height_frame,
             textvariable=self._height_value,
             bg="#2c2c2c",
             fg="white",
+            font=VALUE_FONT,
         ).grid(row=1, column=0, pady=(8, 4))
         tk.Label(
             height_frame,
@@ -365,46 +402,20 @@ class VelocityCommandGui(tk.Tk):
         controls = tk.Frame(self, bg="#2c2c2c")
         controls.pack(pady=(0, 16))
         tk.Button(controls, text="Center", command=self._reset, width=10).pack(side=tk.LEFT, padx=6)
-        status_text = tk.Text(
-            controls,
-            width=55,
-            height=1,
-            wrap=tk.NONE,
-            bg="#2c2c2c",
-            fg="#cccccc",
-            borderwidth=0,
-            highlightthickness=0,
-            padx=0,
-            pady=0,
-            takefocus=False,
-        )
-        status_text.tag_configure("math", foreground="#cccccc", font=("Times", 11, "italic"))
-        status_text.tag_configure(
-            "subscript",
-            foreground="#cccccc",
-            font=("Times", 8, "italic"),
-            offset=-3,
-        )
-        status_text.tag_configure("body", foreground="#cccccc")
-        for base, subscript, suffix in (
-            ("v", "x", ", "),
-            ("v", "y", ", and "),
-            ("ω", "z", " normalized to the configured MPC limits"),
-        ):
-            status_text.insert(tk.END, base, "math")
-            status_text.insert(tk.END, subscript, "subscript")
-            status_text.insert(tk.END, suffix, "body")
-        status_text.configure(state=tk.DISABLED)
-        status_text.pack(side=tk.LEFT, padx=6)
 
         self.protocol("WM_DELETE_WINDOW", self._close)
+        self._changed()
         self.after(20, self._publish_periodically)
 
     def _changed(self):
-        return
+        velocity_x = self._linear.y * self._max_linear_velocity_x
+        velocity_y = -self._linear.x * self._max_linear_velocity_y
+        yaw_rate_degrees = math.degrees(self._yaw.value * self._max_yaw_rate)
+        self._linear.set_readout(velocity_x, velocity_y)
+        self._yaw.set_readout(yaw_rate_degrees)
 
     def _height_changed(self, value):
-        self._height_value.set(f"{float(value):.3f}")
+        self._height_value.set(f"z = {float(value):.3f}")
 
     def _reset(self):
         self._linear.reset()
@@ -425,6 +436,12 @@ class VelocityCommandGui(tk.Tk):
 class PublisherNode(Node):
     def __init__(self):
         super().__init__("base_velocity_controller_gui")
+        self.declare_parameter("max_linear_velocity_x", 2.4)
+        self.declare_parameter("max_linear_velocity_y", 1.2)
+        self.declare_parameter("max_yaw_rate", 1.0)
+        self.max_linear_velocity_x = float(self.get_parameter("max_linear_velocity_x").value)
+        self.max_linear_velocity_y = float(self.get_parameter("max_linear_velocity_y").value)
+        self.max_yaw_rate = float(self.get_parameter("max_yaw_rate").value)
         qos = QoSProfile(depth=25, reliability=ReliabilityPolicy.BEST_EFFORT)
         self._publisher = self.create_publisher(
             WalkingVelocityCommand,
@@ -446,7 +463,12 @@ def main():
     node = PublisherNode()
     ros_thread = threading.Thread(target=rclpy.spin, args=(node,), daemon=True)
     ros_thread.start()
-    app = VelocityCommandGui(node.publish_command)
+    app = VelocityCommandGui(
+        node.publish_command,
+        node.max_linear_velocity_x,
+        node.max_linear_velocity_y,
+        node.max_yaw_rate,
+    )
     try:
         app.mainloop()
     finally:
