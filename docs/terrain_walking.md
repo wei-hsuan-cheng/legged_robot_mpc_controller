@@ -9,7 +9,7 @@ The important distinction is:
 
 Therefore, `terrain_walk` is not the fixed foothold sequence used by `stair_climb`.
 
-## Runtime Pipeline
+## Runtime Pipeline (High Level)
 
 At each MPC update:
 
@@ -22,6 +22,19 @@ At each MPC update:
 7. Planned lift-off and touchdown heights generate the swing-foot vertical splines.
 8. The mode schedule activates the corresponding stance or swing constraints, while the planned swing position enters the foot tracking cost.
 9. OCS2 solves the resulting switched optimal control problem. The complete process repeats with the next observation.
+
+```mermaid
+flowchart TD
+  A["1. Filter command"] --> B["2. Build MPC target"]
+  B --> C["3. Select gait"]
+  C --> D["4. Tile contact schedule"]
+  D --> E["5. Plan footholds"]
+  E --> F["6. Adapt base target"]
+  F --> G["7. Build swing splines"]
+  G --> H["8. Apply costs/constraints"]
+  H --> I["9. Solve OCP"]
+  I -.->|next observation| A
+```
 
 The target mode string is converted to `TargetMode::TerrainWalk` in the [motion-manager adapter](../src/common/ros2_procedural_mpc_motion_manager.cpp#L54-L72). The solver-thread pipeline is selected in [`ProceduralMpcMotionManager::preSolverRun()`](../src/core/humanoid_common_mpc/src/reference_manager/ProceduralMpcMotionManager.cpp#L132-L179).
 
