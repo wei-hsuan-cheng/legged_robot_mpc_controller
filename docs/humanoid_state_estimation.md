@@ -72,7 +72,7 @@ with $\mathbf g=(0,0,-9.81)^{\mathsf T}$. The "invariant" property is that the e
 
 While foot $i$ is in stance, the InEKF assumes its contact point is **fixed in the world**. The forward-kinematic contact position relative to the base, $\mathbf f_i(\mathbf q)$, provides a measurement whose residual constrains base position, velocity, and (together with gravity) the full pose. Crucially the filter does **not** assume flat ground: a foot re-anchors at whatever height it lands, so stairs and uneven terrain are handled natively without any terrain model — the terrain model remains a *planner-only* concern.
 
-Contact state per foot is estimated from the joint torques by logistic regression inside the library, so no external contact schedule is required (though the gait schedule could be injected as a more deterministic alternative).
+Contact state per foot may come from the joint torques (logistic regression inside the library) or, as configured by default, from the **MPC gait schedule** (`stateEstimator.contact.source: scheduled`), which is deterministic and matches the MIT Humanoid approach.
 
 The InEKF requires exactly **four point contacts**, so each flat foot contributes a **heel and a toe** point (as in the MIT Humanoid whole-body work). These are added to the URDF at the sole, offset from the ankle-roll link, with names distinct from the MPC's own contact frames to avoid a Pinocchio frame-name collision: [`foot_l_heel_est` … `foot_r_toe_est`](../description/g1/urdf/g1_29dof.urdf#L627-L654).
 
@@ -140,24 +140,72 @@ With the tuned configuration, the InEKF estimate tracks GT on exactly the states
 
 Roll/pitch stay well under a quarter degree and body velocity within ~3 cm/s consistently; the height sits 1.4–2.8 cm low (run-to-run, from contact-estimation noise).
 
-### Status: open-loop verified; closed-loop stable but not yet walking
+### Status: closed-loop WORKING
 
-- **Open-loop (`floatingBaseSource:=state_interfaces`, the default):** GT drives control and the InEKF runs alongside. The numbers above are reproducible. ✅
-- **Closed-loop (`floatingBaseSource:=state_estimator`):** the estimate drives the MPC. The robot **no longer falls or diverges** (see the warm-up section below), and the estimate stays accurate *while driving* — roll 0.03°, pitch 0.08°, height error 9.5 mm, body velocity error 0.014 m/s over 704 samples. But the robot **crouches (z ≈ 0.65 versus the commanded 0.79) and does not walk forward**, with the gait selector flapping `stance ↔ slow_walk`. ⚠️
+- **Open-loop (`floatingBaseSource:=state_interfaces`):** GT drives control, InEKF runs alongside. ✅
+- **Closed-loop (`floatingBaseSource:=state_estimator`):** the estimate drives the MPC; the robot walks. `state_estimator_closed_loop_test.sh` reports **VERDICT: SUCCESS** — 2.18 m of directional progress, final pelvis height 0.778 m, GT minimum height 0.764 m (no sag), gait progressing `stance -> slow_walk -> walk -> stance`, MPC at ~95 Hz / ~55 % utilization. ✅
 
-The remaining problem is therefore **not estimator accuracy** — the filter tracks ground truth well while in the loop, and the MPC solver is healthy (~57 % utilization at 96 Hz, no errors). It is a controller/gait interaction: the base velocity and momentum reconstructed from the estimate differ enough from the ground-truth-driven case to keep the gait scheduler oscillating and the base sagging.
+Closed-loop estimate accuracy vs GT (2154 samples): roll 0.22° mean / 0.66° max, pitch 0.47° / 1.90°, **height 1.8 mm mean / 6.6 mm max**, body velocity 0.025 m/s mean, yaw drift 0.05°.
 
-Next steps to chase it:
+### Why base height was the failure channel
 
-1. Feed the MPC's **scheduled gait contacts** (`SwitchedModelReferenceManager::getContactFlags`) into the filter instead of torque-based contact detection (the MIT Humanoid approach: "contact states … assumed to match the pre-specified gait"). This removes contact-detection noise from the velocity/momentum estimate.
-2. Add hysteresis / a longer dwell time to the gait selector so it cannot flap on noisy measured velocity.
-3. Re-check the observation velocity low-pass (`control.observationVelocityFilterCutoffHz`) for the estimator path — it was tuned for the ground-truth signal.
+Channel-isolation testing (feeding one estimated channel at a time, the rest from GT) showed linear velocity, orientation, and x/y all **pass**, while **height alone fails** — with a height error of only 6.6 mm mean / 33.6 mm max. The mechanism is in
+[`adaptToCurrentGroundHeight()`](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L86-L96):
+
+```cpp
+scalar_t terrainHeight = computeGroundHeightEstimate(...);
+terrainHeight = 0.0;   // terrain assumed flat at ABSOLUTE z = 0
+```
+
+Swing and stance foot targets are referenced to an **absolute** ground plane, but the MPC computes foot positions by forward kinematics **from the estimated base**. A base-height error $\delta$ therefore shifts every foot height by $\delta$ relative to that plane, one-for-one:
+
+$$
+z^{\text{foot}}_{\text{MPC}} = z^{\text{base}}_{\text{est}} + \big(z^{\text{foot}} - z^{\text{base}}\big)_{\text{FK}}
+= z^{\text{foot}}_{\text{true}} + \delta .
+$$
+
+With `swingHeight` = 0.08 m and `touchDownHeightOffset` = −0.001 m, a 33 mm error is ~40 % of the swing height and 33× the touchdown offset, so touchdown timing and stance penetration go wrong and contact breaks. By contrast $x,y$ errors are harmless (footholds are planned relative to the base, with no absolute $x,y$ reference) and velocity errors are damped. **Height is the only channel rigidly coupled to the absolute ground plane.**
+
+### Fix: kinematic height fusion
+
+Rather than filtering the symptom, the estimated height is made consistent with the same plane the MPC assumes. From the stance contact frames and joint angles, the base height that places the stance feet on the ground plane is
+
+$$
+z^{\text{base}}_{\text{kin}}
+= \frac{1}{|\mathcal{S}|}\sum_{i \in \mathcal{S}}
+\Big( z_{\text{ground}} - \big[\,{}^{B}\!p_{C_i}(\theta, q_J)\,\big]_z \Big),
+$$
+
+where $\mathcal{S}$ are the **stance** contacts (swing feet carry no ground information) and ${}^{B}p_{C_i}$ is the contact position from FK with the base at the origin. It is fused with the filter height as
+
+$$
+z^{\text{base}} = (1-w)\, z^{\text{base}}_{\text{InEKF}} + w\, z^{\text{base}}_{\text{kin}} .
+$$
+
+See [`kinematicBaseHeight()`](../src/humanoid_state_estimation/inekf_floating_base_estimator.cpp#L206-L243) and the fusion in [`updateImpl()`](../src/humanoid_state_estimation/inekf_floating_base_estimator.cpp#L300-L318). Configured by `stateEstimator.height.source` (`inekf` | `kinematic` | `blend`, default **blend**), `height.kinematicWeight` (default 0.9) and `height.groundZ`. This is purely proprioceptive — no ground truth — and reduced the closed-loop height error from ~6.6 mm/33.6 mm to **1.8 mm/6.6 mm**, which is what made closed-loop walking work.
 
 ### The warm-up window (why the estimate must not drive control immediately)
 
 The original closed-loop failure was a **filter initialization transient**, not tuning and not the height bias. The InEKF is seeded with zero velocity and unknown IMU biases, so its first ~2 s carry roughly **±0.15 m/s of phantom base velocity**. Because the centroidal state is normalized momentum $h = A(q)\,v/m$, that velocity error enters the *dominant* state directly; the MPC fights a base it believes is sliding, and the robot fell at t ≈ 2 s while standing, before any walking command — with the height estimate still accurate to 3–14 mm at the moment of the fall.
 
 `stateEstimator.warmupSeconds` (default 3.0 s) keeps the MPC on the state-interface base until the filter converges, then hands over ([warm-up gate](../src/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller.cpp#L686-L700)). Measured at hand-off, the phantom velocity has fallen to ~0.01–0.03 m/s and the robot no longer destabilizes. On hardware this corresponds to holding the robot at a known pose until the filter has converged.
+
+## Terrain limitation of the kinematic height anchor
+
+The kinematic term assumes the stance feet rest on a **flat plane at `height.groundZ`** (0 by default), which matches the controller's own `terrainHeight = 0.0`. That holds for flat-ground walking but **not** on stairs or sloped terrain: standing on a riser of height $h$, the formula reports the base as $h$ too low, because it credits the leg extension to a plane at 0 rather than at $h$. With `kinematicWeight = 0.9`, a 0.17 m riser yields roughly 0.15 m of height error — far worse than the 33 mm that destabilizes flat walking.
+
+Options on non-flat terrain:
+
+| setting | flat ground | stairs / slopes |
+|---|---|---|
+| `height.source: blend` (default) | best (1.8 mm) | **wrong by the step height** |
+| `height.source: inekf` | noisier (~6.6 mm mean, 33 mm peak) | terrain-agnostic: each contact re-anchors where it lands |
+
+The principled fix, not yet implemented, is a **per-contact ground height** $z_{\text{ground},i} = h_{\text{terrain}}(x_{C_i}, y_{C_i})$ taken from the `TerrainFootholdPlanner` the terrain modes already build, which keeps the kinematic anchor's precision while remaining valid on stairs.
+
+### Hardware notes
+
+All inputs are proprioceptive — IMU (roll/pitch), joint encoders, and contact state — so the method transfers directly to hardware; this is classic kinematic leg odometry. Expect a few mm more error than in simulation: the G1's 10 mm urethane foot pad compresses under load, plus joint backlash, link flex and encoder offsets, so ~5–10 mm rather than 1.8 mm. `height.groundZ` must be set to the height of the plane the robot actually stands on.
 
 ## Files
 

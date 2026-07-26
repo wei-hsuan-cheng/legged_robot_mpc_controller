@@ -132,9 +132,9 @@ humanoid_centroidal_mpc_controller:
     source: {
       type: string,
       default_value: "state_interfaces",
-      description: "Floating-base state source. state_interfaces = MuJoCo GT body; state_estimator = full InEKF; state_estimator_pose, state_estimator_position, state_estimator_position_xy, state_estimator_height, state_estimator_orientation, and state_estimator_linear_velocity are diagnostic hybrid sources; mujoco_ground_truth_odom is a topic fallback.",
+      description: "Floating-base feedback source. state_interfaces = simulator/hardware body state (ground truth in MuJoCo); state_estimator = proprioceptive InEKF (IMU + encoders + contacts); mujoco_ground_truth_odom is a topic fallback.",
       validation: {
-        one_of<>: [["mujoco_ground_truth_odom", "state_interfaces", "state_estimator", "state_estimator_pose", "state_estimator_position", "state_estimator_position_xy", "state_estimator_height", "state_estimator_orientation", "state_estimator_linear_velocity"]]
+        one_of<>: [["mujoco_ground_truth_odom", "state_interfaces", "state_estimator"]]
       }
     }
 
@@ -205,6 +205,26 @@ humanoid_centroidal_mpc_controller:
       contact: { type: double, default_value: 0.1, description: "InEKF contact noise std-dev" }
       contactPosition: { type: double, default_value: 0.01, description: "Contact position measurement noise" }
       contactRotation: { type: double, default_value: 0.01, description: "Contact rotation measurement noise (surface contacts)" }
+    height:
+      source: {
+        type: string,
+        default_value: "blend",
+        description: "Base-height conditioning. The centroidal MPC references swing/stance foot targets to an ABSOLUTE ground plane (terrainHeight is forced to 0), so a base-height error shifts every foot height relative to that plane 1:1 - a few cm is a large fraction of the 0.08 m swing height and breaks contact timing. 'inekf' uses the raw filter height, 'kinematic' uses the height implied by the stance feet resting on the ground plane, 'blend' is a complementary mix.",
+        validation: {
+          one_of<>: [["inekf", "kinematic", "blend"]]
+        }
+      }
+      kinematicWeight: {
+        type: double,
+        default_value: 0.9,
+        description: "Weight on the kinematic (stance-foot) height when height.source is 'blend'; 1.0 = pure kinematic",
+        validation: { bounds<>: [0.0, 1.0] }
+      }
+      groundZ: {
+        type: double,
+        default_value: 0.0,
+        description: "Assumed ground-plane height [m] the stance feet rest on; must match the plane the MPC references (terrainHeight = 0)"
+      }
     contact:
       source: {
         type: string,

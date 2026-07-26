@@ -60,6 +60,19 @@ public:
     std::string contact_source{"torque"};             //!< "torque" or externally supplied "scheduled"
     std::vector<int64_t> contact_foot_indices;        //!< foot index for each point-contact frame
 
+    // Base-height conditioning. The centroidal MPC references swing/stance foot
+    // targets to an ABSOLUTE ground plane (terrainHeight is forced to 0 in
+    // SwitchedModelReferenceManager::adaptToCurrentGroundHeight), so any base-height
+    // error shifts every foot height relative to that plane 1:1 - a few centimetres
+    // is a large fraction of the 0.08 m swing height and destabilizes contact timing.
+    // Fusing the InEKF height with the height implied by the stance-foot kinematics
+    // (feet on z = 0) keeps the observation consistent with what the MPC assumes.
+    // "inekf" = raw filter height, "kinematic" = stance-foot height only,
+    // "blend" = complementary filter between the two.
+    std::string height_source{"inekf"};
+    double height_kinematic_weight{0.0};  //!< blend weight on the kinematic height, [0, 1]
+    double height_ground_z{0.0};          //!< assumed ground plane height [m]
+
     // Low-pass filter cutoff frequencies [Hz].
     double lpf_gyro_cutoff{250.0};
     double lpf_gyro_accel_cutoff{250.0};
@@ -125,6 +138,14 @@ private:
     const Eigen::Vector3d& base_position,
     const Eigen::Quaterniond& base_orientation,
     const Eigen::VectorXd& estimator_joint_positions);
+
+  /// Base height that places the stance contact frames on the assumed ground plane,
+  /// given the current orientation and joint angles. Returns false when no contact is
+  /// active (nothing to anchor to), in which case the InEKF height is kept.
+  bool kinematicBaseHeight(
+    const Eigen::Quaterniond& base_orientation,
+    const std::vector<bool>* foot_contacts,
+    double& height_out);
 
   FloatingBaseEstimate updateImpl(
     const Eigen::Vector3d& imu_gyro_body,

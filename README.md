@@ -316,20 +316,38 @@ Robot-specific values:
 - [`config/g1/initial_pose.yaml`](./config/g1/initial_pose.yaml) sets the simulation start pose consumed by the `ros2_control` xacro.
 
 
-## Floating-Base State
+## Floating-Base State (ground truth vs. state estimator)
 
-The floating-base feedback source is selected by `floatingBase.source`:
-
-- **`state_interfaces` (ground truth):** `mujoco_ros2_control` exposes the MuJoCo floating-base body (`pelvis`) through read-only `ros2_control` state interfaces under the sensor prefix `pelvis`, and the MPC reads them directly. The exported pelvis pose is in the world frame; the exported twist is body-local and converted before writing the OCS2 observation.
-- **`state_estimator` (InEKF, work in progress):** a proprioceptive contact-aided Invariant EKF fuses the pelvis IMU, joint encoders, and torque-based contact estimation to produce the base pose and velocity, aiming to remove the ground-truth dependence (the same wiring transfers to hardware). **Open-loop it is accurate** (roll/pitch < 0.15°, height ~1.4 cm, body velocity ~0.025 m/s vs GT), but **closed-loop it is not yet stable** — driving the MPC with the estimate currently makes the robot fall. Keep `source: state_interfaces` and set `stateEstimator.enabled: true` to run the filter in parallel and publish `/humanoid/state_estimate/odom` for comparison. See [`docs/humanoid_state_estimation.md`](./docs/humanoid_state_estimation.md).
-
-The ground-truth odometry topic and TF are still published when `gt_enabled:=true` for RViz, other ROS consumers, and as a reference for evaluating the estimator:
+The floating-base feedback source is chosen with the **`floatingBaseSource`** launch argument (centroidal MPC):
 
 ```bash
-ros2 topic echo /mujoco/ground_truth/odom
-ros2 topic echo /humanoid/state_estimate/odom   # when stateEstimator.enabled
+# (default) simulator/hardware body state - MuJoCo ground truth in simulation
+ros2 launch legged_robot_mpc_controller g1.launch.py \
+  mpcControllerName:=humanoid_centroidal_mpc_controller \
+  floatingBaseSource:=state_interfaces
+
+# proprioceptive InEKF drives the MPC: IMU + joint encoders + scheduled contacts,
+# no ground-truth body in the control loop
+ros2 launch legged_robot_mpc_controller g1.launch.py \
+  mpcControllerName:=humanoid_centroidal_mpc_controller \
+  floatingBaseSource:=state_estimator
 ```
 
+| `floatingBaseSource` | Feedback used by the MPC |
+|---|---|
+| `state_interfaces` *(default)* | Body pose/twist from `ros2_control` state interfaces (MuJoCo ground truth in simulation; the robot's own base state on hardware). |
+| `state_estimator` | Contact-aided **InEKF** estimate (pose, world linear velocity, body angular velocity). Ground truth is used only for the brief filter warm-up and for evaluation. |
+
+The estimator can also run **in parallel** while ground truth drives control, which is the way to compare it against GT without risking the robot — set `stateEstimator.enabled: true` and keep `floatingBaseSource:=state_interfaces`. Either way it publishes its estimate for evaluation:
+
+```bash
+ros2 topic echo /mujoco/ground_truth/odom        # ground truth (also used for RViz/TF)
+ros2 topic echo /humanoid/state_estimate/odom    # InEKF estimate
+```
+
+**Closed-loop status:** verified on flat ground — `tests/state_estimator_closed_loop_test.sh` reports `VERDICT: SUCCESS` (2.1 m of walking, height error 1.8 mm, roll/pitch < 0.6°, body-velocity error 0.026 m/s). Backward, lateral and turning motions all match the ground-truth-driven behaviour. Note the default scene has a staircase in front of the robot, so plain forward walking runs into it and falls **with ground truth as well** — flat-ground tests command motion away from the stairs.
+
+See [`docs/humanoid_state_estimation.md`](./docs/humanoid_state_estimation.md) for the equations, implementation and the terrain limitation of the kinematic height anchor.
 
 ## Acknowledgements
 

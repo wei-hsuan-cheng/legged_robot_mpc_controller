@@ -236,6 +236,9 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_configu
       settings.dynamic_contact_estimation = se.contact.dynamicEstimation;
       settings.contact_source = se.contact.source;
       settings.contact_foot_indices = se.contact.footIndices;
+      settings.height_source = se.height.source;
+      settings.height_kinematic_weight = se.height.kinematicWeight;
+      settings.height_ground_z = se.height.groundZ;
       settings.lpf_gyro_cutoff = se.lpf.gyroCutoff;
       settings.lpf_gyro_accel_cutoff = se.lpf.gyroAccelCutoff;
       settings.lpf_lin_accel_cutoff = se.lpf.linAccelCutoff;
@@ -757,29 +760,12 @@ ocs2::SystemObservation HumanoidCentroidalMpcController::build_observation(const
   angular_velocity_local = ocs2::vector3_t(*avx, *avy, *avz);
 
   if (use_estimate) {
-    if (parameters_.floatingBase.source == "state_estimator" ||
-        parameters_.floatingBase.source == "state_estimator_pose" ||
-        parameters_.floatingBase.source == "state_estimator_position") {
-      base_position = last_estimate_.position;
-    }
-    if (parameters_.floatingBase.source == "state_estimator_position_xy") {
-      base_position.head<2>() = last_estimate_.position.head<2>();
-    }
-    if (parameters_.floatingBase.source == "state_estimator_height") {
-      base_position.z() = last_estimate_.position.z();
-    }
-    if (parameters_.floatingBase.source == "state_estimator" ||
-        parameters_.floatingBase.source == "state_estimator_pose" ||
-        parameters_.floatingBase.source == "state_estimator_orientation") {
-      base_orientation = last_estimate_.orientation;
-    }
-    if (parameters_.floatingBase.source == "state_estimator" ||
-        parameters_.floatingBase.source == "state_estimator_linear_velocity") {
-      linear_velocity_world = last_estimate_.linear_velocity_world;
-    }
-    if (parameters_.floatingBase.source == "state_estimator") {
-      angular_velocity_local = last_estimate_.angular_velocity_local;
-    }
+    // Full InEKF feedback: pose, world linear velocity and body angular velocity all
+    // come from the estimator, so the control loop no longer reads the ground-truth body.
+    base_position = last_estimate_.position;
+    base_orientation = last_estimate_.orientation;
+    linear_velocity_world = last_estimate_.linear_velocity_world;
+    angular_velocity_local = last_estimate_.angular_velocity_local;
   }
 
   if (base_orientation.norm() < 1e-12) {

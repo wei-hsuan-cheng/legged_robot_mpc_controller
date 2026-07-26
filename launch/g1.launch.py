@@ -90,13 +90,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "floatingBaseSource", default_value="state_interfaces",
             description="Floating-base feedback source for the centroidal MPC: "
-                        "state_interfaces (MuJoCo ground truth) | state_estimator (full InEKF) | "
-                        "state_estimator_pose (diagnostic hybrid) | "
-                        "state_estimator_position (diagnostic hybrid) | "
-                        "state_estimator_position_xy (diagnostic hybrid) | "
-                        "state_estimator_height (diagnostic hybrid) | "
-                        "state_estimator_orientation (diagnostic hybrid) | "
-                        "state_estimator_linear_velocity (diagnostic hybrid). "
+                        "state_interfaces (simulator/hardware body state) | state_estimator (proprioceptive InEKF). "
                         "The InEKF always runs in parallel and publishes /humanoid/state_estimate/odom."),
         DeclareLaunchArgument("mpcFreq", default_value="100", description="MPC update frequency (should be integer) (100 for centroidal, 50 for whole-body)"),
         DeclareLaunchArgument("mrtFreq", default_value="1000", description="MRT update frequency (should be integer)"),

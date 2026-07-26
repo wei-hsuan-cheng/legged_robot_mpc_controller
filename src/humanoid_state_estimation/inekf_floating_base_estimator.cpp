@@ -1,5 +1,6 @@
 #include "legged_robot_mpc_controller/humanoid_state_estimation/inekf_floating_base_estimator.hpp"
 
+#include <algorithm>
 #include <stdexcept>
 
 #include <pinocchio/multibody/model.hpp>
@@ -203,6 +204,45 @@ FloatingBaseEstimate InekfFloatingBaseEstimator::update(
     joint_velocities, joint_efforts, &foot_contacts);
 }
 
+bool InekfFloatingBaseEstimator::kinematicBaseHeight(
+  const Eigen::Quaterniond& base_orientation,
+  const std::vector<bool>* foot_contacts,
+  double& height_out)
+{
+  // FK with the base at the world origin: oMf[contact].z is then the contact height
+  // relative to the base. Putting that contact on the ground plane requires
+  // base_z = ground_z - contact_z_relative.
+  Eigen::VectorXd q(model_.nq);
+  q.head<3>().setZero();
+  q.segment<4>(3) = Eigen::Vector4d(
+    base_orientation.x(), base_orientation.y(), base_orientation.z(), base_orientation.w());
+  q.tail(num_estimator_joints_) = qj_;
+
+  pinocchio::forwardKinematics(model_, data_, q);
+
+  double sum = 0.0;
+  int count = 0;
+  for (size_t contact = 0; contact < contact_frame_ids_.size(); ++contact) {
+    // Only stance contacts anchor the base; swing feet carry no ground information.
+    if (foot_contacts != nullptr) {
+      const int64_t foot = settings_.contact_foot_indices[contact];
+      if (foot < 0 || static_cast<size_t>(foot) >= foot_contacts->size() ||
+          !(*foot_contacts)[static_cast<size_t>(foot)]) {
+        continue;
+      }
+    }
+    pinocchio::updateFramePlacement(model_, data_, contact_frame_ids_[contact]);
+    sum += settings_.height_ground_z - data_.oMf[contact_frame_ids_[contact]].translation().z();
+    ++count;
+  }
+
+  if (count == 0) {
+    return false;
+  }
+  height_out = sum / static_cast<double>(count);
+  return true;
+}
+
 FloatingBaseEstimate InekfFloatingBaseEstimator::updateImpl(
   const Eigen::Vector3d& imu_gyro_body,
   const Eigen::Vector3d& imu_linear_acceleration_body,
@@ -254,6 +294,22 @@ FloatingBaseEstimate InekfFloatingBaseEstimator::updateImpl(
 
   estimate.position = base_position;
   estimate.orientation = Eigen::Quaterniond(base_rotation);
+
+  // Base-height conditioning (see Settings::height_source). The MPC references foot
+  // targets to an absolute ground plane, so the observation's height must agree with
+  // the stance-foot kinematics rather than drift with the filter.
+  if (settings_.height_source != "inekf") {
+    double kinematic_height = 0.0;
+    if (kinematicBaseHeight(estimate.orientation, foot_contacts, kinematic_height)) {
+      if (settings_.height_source == "kinematic") {
+        estimate.position.z() = kinematic_height;
+      } else {  // "blend"
+        const double w = std::clamp(settings_.height_kinematic_weight, 0.0, 1.0);
+        estimate.position.z() = (1.0 - w) * estimate.position.z() + w * kinematic_height;
+      }
+    }
+  }
+
   estimate.linear_velocity_world = base_linear_velocity_world;
   estimate.angular_velocity_local = base_to_imu_rotation_ * imu_angular_velocity_local;
   estimate.valid = true;
