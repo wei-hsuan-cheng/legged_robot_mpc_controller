@@ -194,12 +194,14 @@ Let the filtered command be $\mathbf c_f=[v_x,v_y,h_b,\dot\psi]^{\mathsf T}$. Th
 $$
 \mathrm{moving}
 =
-\left(|v_x|>0.03\right)
-\lor\left(|v_y|>0.03\right)
-\lor\left(|\dot\psi|>0.05\right).
+\Big\{ |v_x|>0.03 \Big\}
+\lor \Big\{ |v_y|>0.03 \Big\}
+\lor \Big\{ |\dot\psi|>0.05 \Big\}.
 $$
 
-It selects `terrain_walk` while moving and `stance` otherwise. This bypasses the normal speed-dependent gait finite-state machine so the stair gait retains its long swing and double-support intervals: [`ProceduralMpcMotionManager.cpp`](../src/core/humanoid_common_mpc/src/reference_manager/ProceduralMpcMotionManager.cpp#L169-L203).
+It selects `terrain_walk` while moving and `stance` otherwise. 
+
+This bypasses the normal speed-dependent gait finite-state machine so the stair gait retains its long swing and double-support intervals: [`ProceduralMpcMotionManager.cpp`](../src/core/humanoid_common_mpc/src/reference_manager/ProceduralMpcMotionManager.cpp#L169-L203).
 
 For template switching times $\tau_j$, the event times of cycle $k$ are
 
