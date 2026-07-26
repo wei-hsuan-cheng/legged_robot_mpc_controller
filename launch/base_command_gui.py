@@ -397,7 +397,7 @@ class HeightBar:
         return self._value
 
 
-class VelocityCommandGui(tk.Tk):
+class baseCommandGui(tk.Tk):
     def __init__(
         self,
         publish,
@@ -406,7 +406,7 @@ class VelocityCommandGui(tk.Tk):
         max_yaw_rate,
     ):
         super().__init__()
-        self.title("Humanoid MPC Base Twist Controller (Pelvis Frame)")
+        self.title("Humanoid MPC Base Command GUI (Pelvis Frame)")
         self.configure(bg="#2c2c2c")
         self._publish = publish
         self._max_linear_velocity_x = max_linear_velocity_x
@@ -493,7 +493,7 @@ class VelocityCommandGui(tk.Tk):
 
 class PublisherNode(Node):
     def __init__(self):
-        super().__init__("base_velocity_controller_gui")
+        super().__init__("base_command_gui")
         self.declare_parameter("max_linear_velocity_x", 2.4)
         self.declare_parameter("max_linear_velocity_y", 1.2)
         self.declare_parameter("max_yaw_rate", 1.0)
@@ -521,7 +521,7 @@ def main():
     node = PublisherNode()
     ros_thread = threading.Thread(target=rclpy.spin, args=(node,), daemon=True)
     ros_thread.start()
-    app = VelocityCommandGui(
+    app = baseCommandGui(
         node.publish_command,
         node.max_linear_velocity_x,
         node.max_linear_velocity_y,

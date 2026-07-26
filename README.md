@@ -95,7 +95,7 @@ ros2 launch legged_robot_mpc_controller g1.launch.py \
   mpcFreq:=100 \
   mrtFreq:=1000 \
   mujoco_headless:=true \
-  velocityCommandGui:=true
+  baseCommandGui:=true
 ```
 
 
@@ -147,7 +147,7 @@ ros2 launch legged_robot_mpc_controller g1.launch.py \
   mpcFreq:=100 \
   mrtFreq:=1000 \
   mujoco_headless:=true \
-  velocityCommandGui:=false
+  baseCommandGui:=false
 
 # Trigger the target mode
 ros2 topic pub --once /humanoid/target_mode std_msgs/msg/String "{data: terrain_walk}"
@@ -187,7 +187,7 @@ ros2 launch legged_robot_mpc_controller g1.launch.py \
   mpcFreq:=100 \
   mrtFreq:=1000 \
   mujoco_headless:=true \
-  velocityCommandGui:=true
+  baseCommandGui:=true
 
 # Trigger the target mode
 ros2 topic pub --once /humanoid/target_mode std_msgs/msg/String "{data: terrain_walk}"
@@ -256,7 +256,7 @@ Both channels are soft costs balanced against the rest of the MPC; raise the com
 Useful launch args:
 
 ```bash
-velocityCommandGui:=true | false
+baseCommandGui:=true | false
 spawnMpcController:=true | false         # false is only for environment smoke tests; the robot will not balance
 mpcControllerName:=humanoid_centroidal_mpc_controller | humanoid_wb_mpc_controller
 use_mujoco_sim:=true | false             # false: plain ros2_control_node (fake hardware)
