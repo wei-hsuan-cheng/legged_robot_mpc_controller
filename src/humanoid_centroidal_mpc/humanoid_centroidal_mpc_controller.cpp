@@ -758,8 +758,19 @@ ocs2::SystemObservation HumanoidCentroidalMpcController::build_observation(const
 
   if (use_estimate) {
     if (parameters_.floatingBase.source == "state_estimator" ||
-        parameters_.floatingBase.source == "state_estimator_pose") {
+        parameters_.floatingBase.source == "state_estimator_pose" ||
+        parameters_.floatingBase.source == "state_estimator_position") {
       base_position = last_estimate_.position;
+    }
+    if (parameters_.floatingBase.source == "state_estimator_position_xy") {
+      base_position.head<2>() = last_estimate_.position.head<2>();
+    }
+    if (parameters_.floatingBase.source == "state_estimator_height") {
+      base_position.z() = last_estimate_.position.z();
+    }
+    if (parameters_.floatingBase.source == "state_estimator" ||
+        parameters_.floatingBase.source == "state_estimator_pose" ||
+        parameters_.floatingBase.source == "state_estimator_orientation") {
       base_orientation = last_estimate_.orientation;
     }
     if (parameters_.floatingBase.source == "state_estimator" ||

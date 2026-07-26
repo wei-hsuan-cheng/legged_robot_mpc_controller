@@ -272,7 +272,9 @@ if node.samples:
         f" mean_vxyz=({mean('vx'):.4f},{mean('vy'):.4f},{mean('vz'):.4f})m/s"
         f" max_vxyz=({maximum('vx'):.4f},{maximum('vy'):.4f},{maximum('vz'):.4f})m/s"
         f" mean_z={mean('z'):.4f}m"
+        f" max_z={maximum('z'):.4f}m"
         f" mean_xy={mean('xy'):.4f}m"
+        f" max_xy={maximum('xy'):.4f}m"
         f" mean_yaw={math.degrees(mean('yaw')):.3f}deg"
     )
 
