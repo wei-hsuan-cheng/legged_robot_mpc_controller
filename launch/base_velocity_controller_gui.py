@@ -11,7 +11,9 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy
 
 
 KNOB_IDLE_COLOR = "#4a90e2"
-KNOB_ACTIVE_COLOR = "#ffffff"
+KNOB_ACTIVE_COLOR = "#477fbd"
+KNOB_IDLE_HALF_SIZE = 12.0
+KNOB_ACTIVE_HALF_SIZE = 14.0
 TITLE_FONT = ("Helvetica", 11, "bold")
 VALUE_FONT = ("Helvetica", 11)
 
@@ -26,6 +28,7 @@ class Joystick:
         self._x = 0.0
         self._y = 0.0
         self._dragging = False
+        self._hovering = False
         self._canvas.create_text(110, 14, text=label, fill="white", font=TITLE_FONT)
         self._readout = self._canvas.create_text(
             110,
@@ -75,21 +78,47 @@ class Joystick:
             arrow=tk.LAST,
         )
         self._knob = self._canvas.create_oval(
-            self._cx - 12,
-            self._cy - 12,
-            self._cx + 12,
-            self._cy + 12,
+            self._cx - KNOB_IDLE_HALF_SIZE,
+            self._cy - KNOB_IDLE_HALF_SIZE,
+            self._cx + KNOB_IDLE_HALF_SIZE,
+            self._cy + KNOB_IDLE_HALF_SIZE,
             fill=KNOB_IDLE_COLOR,
-            activefill=KNOB_ACTIVE_COLOR,
             outline="",
         )
+        self._canvas.tag_bind(self._knob, "<Enter>", self._hover_enter)
+        self._canvas.tag_bind(self._knob, "<Leave>", self._hover_leave)
         self._canvas.bind("<Button-1>", self._press)
         self._canvas.bind("<B1-Motion>", self._drag)
         self._canvas.bind("<ButtonRelease-1>", self._release)
 
+    def _hover_enter(self, _event):
+        self._hovering = True
+        self._update_knob_visual()
+
+    def _hover_leave(self, _event):
+        self._hovering = False
+        self._update_knob_visual()
+
+    def _update_knob_visual(self):
+        active = self._dragging or self._hovering
+        half_size = KNOB_ACTIVE_HALF_SIZE if active else KNOB_IDLE_HALF_SIZE
+        knob_x = self._cx + self._x * self._radius
+        knob_y = self._cy - self._y * self._radius
+        self._canvas.coords(
+            self._knob,
+            knob_x - half_size,
+            knob_y - half_size,
+            knob_x + half_size,
+            knob_y + half_size,
+        )
+        self._canvas.itemconfigure(
+            self._knob,
+            fill=KNOB_ACTIVE_COLOR if active else KNOB_IDLE_COLOR,
+        )
+
     def _press(self, event):
         self._dragging = True
-        self._canvas.itemconfigure(self._knob, fill=KNOB_ACTIVE_COLOR)
+        self._update_knob_visual()
         self._move(event)
 
     def _drag(self, event):
@@ -103,26 +132,19 @@ class Joystick:
         scale = min(1.0, self._radius / norm)
         self._x = max(-1.0, min(1.0, dx * scale / self._radius))
         self._y = max(-1.0, min(1.0, -dy * scale / self._radius))
-        self._canvas.coords(
-            self._knob,
-            self._cx + dx * scale - 12,
-            self._cy + dy * scale - 12,
-            self._cx + dx * scale + 12,
-            self._cy + dy * scale + 12,
-        )
+        self._update_knob_visual()
         self._on_change()
 
     def _release(self, _event):
         self._dragging = False
-        self._canvas.itemconfigure(self._knob, fill=KNOB_IDLE_COLOR)
+        self._update_knob_visual()
         self._on_change()
 
     def reset(self):
         self._x = 0.0
         self._y = 0.0
         self._dragging = False
-        self._canvas.coords(self._knob, self._cx - 12, self._cy - 12, self._cx + 12, self._cy + 12)
-        self._canvas.itemconfigure(self._knob, fill=KNOB_IDLE_COLOR)
+        self._update_knob_visual()
         self._on_change()
 
     def set_readout(self, velocity_x, velocity_y):
@@ -150,6 +172,7 @@ class YawRateBar:
         self._value = 0.0
         self._knob_x = self._cx
         self._dragging = False
+        self._hovering = False
 
         self._canvas.create_text(110, 14, text="Yaw rate [deg/s]", fill="white", font=TITLE_FONT)
         self._readout = self._canvas.create_text(
@@ -171,18 +194,42 @@ class YawRateBar:
         self._canvas.create_text(self._cx - self._half_length, self._cy + 26, text="←", fill="white")
         self._canvas.create_text(self._cx + self._half_length, self._cy + 26, text="→", fill="white")
         self._knob = self._canvas.create_oval(
-            self._cx - 12,
-            self._cy - 12,
-            self._cx + 12,
-            self._cy + 12,
+            self._cx - KNOB_IDLE_HALF_SIZE,
+            self._cy - KNOB_IDLE_HALF_SIZE,
+            self._cx + KNOB_IDLE_HALF_SIZE,
+            self._cy + KNOB_IDLE_HALF_SIZE,
             fill=KNOB_IDLE_COLOR,
-            activefill=KNOB_ACTIVE_COLOR,
             outline="",
         )
 
+        self._canvas.tag_bind(self._knob, "<Enter>", self._hover_enter)
+        self._canvas.tag_bind(self._knob, "<Leave>", self._hover_leave)
         self._canvas.bind("<Button-1>", self._press)
         self._canvas.bind("<B1-Motion>", self._drag)
         self._canvas.bind("<ButtonRelease-1>", self._release)
+
+    def _hover_enter(self, _event):
+        self._hovering = True
+        self._update_knob_visual()
+
+    def _hover_leave(self, _event):
+        self._hovering = False
+        self._update_knob_visual()
+
+    def _update_knob_visual(self):
+        active = self._dragging or self._hovering
+        half_size = KNOB_ACTIVE_HALF_SIZE if active else KNOB_IDLE_HALF_SIZE
+        self._canvas.coords(
+            self._knob,
+            self._knob_x - half_size,
+            self._cy - half_size,
+            self._knob_x + half_size,
+            self._cy + half_size,
+        )
+        self._canvas.itemconfigure(
+            self._knob,
+            fill=KNOB_ACTIVE_COLOR if active else KNOB_IDLE_COLOR,
+        )
 
     def _press(self, event):
         event_x = float(event.x)
@@ -196,7 +243,7 @@ class YawRateBar:
             return
 
         self._dragging = True
-        self._canvas.itemconfigure(self._knob, fill=KNOB_ACTIVE_COLOR)
+        self._update_knob_visual()
         self._move(event)
 
     def _drag(self, event):
@@ -207,22 +254,21 @@ class YawRateBar:
         knob_x = max(self._cx - self._half_length, min(self._cx + self._half_length, float(event.x)))
         self._knob_x = knob_x
         self._value = -(knob_x - self._cx) / self._half_length
-        self._canvas.coords(self._knob, knob_x - 12, self._cy - 12, knob_x + 12, self._cy + 12)
+        self._update_knob_visual()
         self._on_change()
 
     def _release(self, _event):
         if not self._dragging:
             return
         self._dragging = False
-        self._canvas.itemconfigure(self._knob, fill=KNOB_IDLE_COLOR)
+        self._update_knob_visual()
         self._on_change()
 
     def reset(self):
         self._value = 0.0
         self._knob_x = self._cx
         self._dragging = False
-        self._canvas.coords(self._knob, self._cx - 12, self._cy - 12, self._cx + 12, self._cy + 12)
-        self._canvas.itemconfigure(self._knob, fill=KNOB_IDLE_COLOR)
+        self._update_knob_visual()
         self._on_change()
 
     def set_readout(self, yaw_rate_degrees):
@@ -245,6 +291,7 @@ class HeightBar:
         self._center = 0.7925
         self._value = self._center
         self._dragging = False
+        self._hovering = False
 
         self._canvas.create_line(
             self._x,
@@ -270,10 +317,11 @@ class HeightBar:
             self._x + 10,
             knob_y + 8,
             fill=KNOB_IDLE_COLOR,
-            activefill=KNOB_ACTIVE_COLOR,
             outline="",
         )
 
+        self._canvas.tag_bind(self._knob, "<Enter>", self._hover_enter)
+        self._canvas.tag_bind(self._knob, "<Leave>", self._hover_leave)
         self._canvas.bind("<Button-1>", self._press)
         self._canvas.bind("<B1-Motion>", self._drag)
         self._canvas.bind("<ButtonRelease-1>", self._release)
@@ -286,6 +334,31 @@ class HeightBar:
         ratio = (y - self._top) / (self._bottom - self._top)
         return self._maximum - ratio * (self._maximum - self._minimum)
 
+    def _hover_enter(self, _event):
+        self._hovering = True
+        self._update_knob_visual()
+
+    def _hover_leave(self, _event):
+        self._hovering = False
+        self._update_knob_visual()
+
+    def _update_knob_visual(self):
+        active = self._dragging or self._hovering
+        half_width = 12.0 if active else 10.0
+        half_height = 10.0 if active else 8.0
+        knob_y = self._value_to_y(self._value)
+        self._canvas.coords(
+            self._knob,
+            self._x - half_width,
+            knob_y - half_height,
+            self._x + half_width,
+            knob_y + half_height,
+        )
+        self._canvas.itemconfigure(
+            self._knob,
+            fill=KNOB_ACTIVE_COLOR if active else KNOB_IDLE_COLOR,
+        )
+
     def _press(self, event):
         event_x = float(event.x)
         event_y = float(event.y)
@@ -296,7 +369,7 @@ class HeightBar:
             return
 
         self._dragging = True
-        self._canvas.itemconfigure(self._knob, fill=KNOB_ACTIVE_COLOR)
+        self._update_knob_visual()
         self._move(event)
 
     def _drag(self, event):
@@ -306,33 +379,18 @@ class HeightBar:
     def _move(self, event):
         knob_y = max(self._top, min(self._bottom, float(event.y)))
         self._value = round(self._y_to_value(knob_y), 3)
-        knob_y = self._value_to_y(self._value)
-        self._canvas.coords(
-            self._knob,
-            self._x - 10,
-            knob_y - 8,
-            self._x + 10,
-            knob_y + 8,
-        )
+        self._update_knob_visual()
         self._on_change(self._value)
 
     def _release(self, _event):
         if not self._dragging:
             return
         self._dragging = False
-        self._canvas.itemconfigure(self._knob, fill=KNOB_IDLE_COLOR)
+        self._update_knob_visual()
 
     def set(self, value):
         self._value = max(self._minimum, min(self._maximum, float(value)))
-        knob_y = self._value_to_y(self._value)
-        self._canvas.coords(
-            self._knob,
-            self._x - 10,
-            knob_y - 8,
-            self._x + 10,
-            knob_y + 8,
-        )
-        self._canvas.itemconfigure(self._knob, fill=KNOB_IDLE_COLOR)
+        self._update_knob_visual()
         self._on_change(self._value)
 
     def get(self):
