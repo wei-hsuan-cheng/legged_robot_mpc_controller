@@ -198,7 +198,7 @@ Options on non-flat terrain:
 
 | setting | flat ground | stairs (measured) |
 |---|---|---|
-| `height.source: blend` (default) | ✅ walks, 1.8 mm height error | ❌ falls at the first riser (x = 0.84): the anchor insists the base is a step-height too low |
+| `height.source: blend` | ✅ walks, 1.8 mm height error | ❌ falls at the first riser (x = 0.84): the anchor insists the base is a step-height too low |
 | `height.source: inekf` | ❌ too noisy (~6.6 mm mean, 33 mm peak) — this is what broke closed-loop walking originally | ❌ falls on the flat approach (x = 0.34), before reaching the stairs |
 
 Measured stair/terrain behaviour with the InEKF driving the MPC (ground truth shown for reference):
@@ -229,7 +229,7 @@ Re-anchoring at *every* touchdown folds the filter's own height noise into the r
 | stair climb | ❌ FALL at x = 0.837 | ❌ FALL at x = 0.558 |
 | terrain walk | ❌ 0 treads (GT: ~4.9) | ❌ 1.2 treads |
 
-The anchor *value* is correct; the problem is that it changes **discontinuously**. When a foot lands on a riser the reported height steps ~0.17 m within one control tick, and the centroidal MPC receives that as a step input to its dominant momentum state. The same effect shows up on flat ground as the 45.6 mm peak against a 3.5 mm mean. `blend` therefore remains the default, and `anchored` is opt-in.
+The anchor *value* is correct; the problem is that it changes **discontinuously**. When a foot lands on a riser the reported height steps ~0.17 m within one control tick, and the centroidal MPC receives that as a step input to its dominant momentum state. The same effect shows up on flat ground as the 45.6 mm peak against a 3.5 mm mean. `anchored` is the default (it is the terrain-aware formulation and still passes flat ground); `blend` remains available and is marginally more accurate on guaranteed-flat ground.
 
 The next step is to introduce the terrain correction **continuously** — ramping the anchor change across the stance phase or slew-limiting the fused height — so the correct value is reached without the transient. Option (a), per-contact heights from `TerrainFootholdPlanner::heightAt(x, y)`, remains the alternative where a trustworthy terrain map exists.
 

@@ -208,7 +208,7 @@ humanoid_centroidal_mpc_controller:
     height:
       source: {
         type: string,
-        default_value: "blend",
+        default_value: "anchored",
         description: "Base-height conditioning. The centroidal MPC references foot targets to a ground plane, so a base-height error shifts every foot height relative to it 1:1 - a few cm is a large fraction of the 0.08 m swing height and breaks contact timing. inekf = raw filter height (noisy). kinematic/blend = stance feet on a FLAT plane at groundZ (precise, flat ground only). anchored = per-contact, time-varying ground height recorded at each touchdown (precise AND valid on stairs/slopes, no terrain map needed).",
         validation: {
           one_of<>: [["inekf", "kinematic", "blend", "anchored"]]
