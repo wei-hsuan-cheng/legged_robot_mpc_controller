@@ -11,17 +11,9 @@ Therefore, `terrain_walk` is not the fixed foothold sequence used by `stair_clim
 
 ## Runtime Pipeline (High Level)
 
-At each MPC update:
-
-1. The latest normalized walking command is bounded, scaled to physical units, and low-pass filtered.
-2. The filtered command generates a base/momentum target trajectory over the MPC horizon.
-3. The motion manager selects the `terrain_walk` gait while the command is moving, or `stance` when it is stopped.
-4. The gait template is tiled in time to form the horizon's contact mode schedule.
-5. The terrain foothold planner uses the current base state, current foot positions, target trajectory, terrain model, and contact schedule to plan touchdown positions.
-6. Near the stairs, the base reference is bounded relative to the planned support polygon and its height is adapted to the support height.
-7. Planned lift-off and touchdown heights generate the swing-foot vertical splines.
-8. The mode schedule activates the corresponding stance or swing constraints, while the planned swing position enters the foot tracking cost.
-9. OCS2 solves the resulting switched optimal control problem. The complete process repeats with the next observation.
+<table>
+<tr>
+<td width="36%" valign="top">
 
 ```mermaid
 flowchart TD
@@ -35,6 +27,25 @@ flowchart TD
   H --> I["9. Solve OCP"]
   I -.->|next observation| A
 ```
+
+</td>
+<td width="64%" valign="top">
+
+At each MPC update:
+
+1. The latest normalized walking command is bounded, scaled to physical units, and low-pass filtered.
+2. The filtered command generates a base/momentum target trajectory over the MPC horizon.
+3. The motion manager selects the `terrain_walk` gait while the command is moving, or `stance` when it is stopped.
+4. The gait template is tiled in time to form the horizon's contact mode schedule.
+5. The terrain foothold planner uses the current base state, current foot positions, target trajectory, terrain model, and contact schedule to plan touchdown positions.
+6. Near the stairs, the base reference is bounded relative to the planned support polygon and its height is adapted to the support height.
+7. Planned lift-off and touchdown heights generate the swing-foot vertical splines.
+8. The mode schedule activates the corresponding stance or swing constraints, while the planned swing position enters the foot tracking cost.
+9. OCS2 solves the resulting switched optimal control problem. The complete process repeats with the next observation.
+
+</td>
+</tr>
+</table>
 
 The target mode string is converted to `TargetMode::TerrainWalk` in the [motion-manager adapter](../src/common/ros2_procedural_mpc_motion_manager.cpp#L54-L72). The solver-thread pipeline is selected in [`ProceduralMpcMotionManager::preSolverRun()`](../src/core/humanoid_common_mpc/src/reference_manager/ProceduralMpcMotionManager.cpp#L132-L179).
 
