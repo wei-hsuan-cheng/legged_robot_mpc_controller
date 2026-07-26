@@ -9,6 +9,10 @@ from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy
 
 
+KNOB_IDLE_COLOR = "#4a90e2"
+KNOB_ACTIVE_COLOR = "#ffffff"
+
+
 class Joystick:
     def __init__(self, parent, label, on_change):
         self._on_change = on_change
@@ -18,6 +22,7 @@ class Joystick:
         self._radius = 85.0
         self._x = 0.0
         self._y = 0.0
+        self._dragging = False
         self._canvas.create_text(110, 14, text=label, fill="white", font=("Helvetica", 11, "bold"))
         self._canvas.create_oval(
             self._cx - self._radius,
@@ -64,12 +69,22 @@ class Joystick:
             self._cy - 12,
             self._cx + 12,
             self._cy + 12,
-            fill="#4a90e2",
+            fill=KNOB_IDLE_COLOR,
+            activefill=KNOB_ACTIVE_COLOR,
             outline="",
         )
-        self._canvas.bind("<Button-1>", self._move)
-        self._canvas.bind("<B1-Motion>", self._move)
+        self._canvas.bind("<Button-1>", self._press)
+        self._canvas.bind("<B1-Motion>", self._drag)
         self._canvas.bind("<ButtonRelease-1>", self._release)
+
+    def _press(self, event):
+        self._dragging = True
+        self._canvas.itemconfigure(self._knob, fill=KNOB_ACTIVE_COLOR)
+        self._move(event)
+
+    def _drag(self, event):
+        if self._dragging:
+            self._move(event)
 
     def _move(self, event):
         dx = float(event.x) - self._cx
@@ -88,12 +103,16 @@ class Joystick:
         self._on_change()
 
     def _release(self, _event):
+        self._dragging = False
+        self._canvas.itemconfigure(self._knob, fill=KNOB_IDLE_COLOR)
         self._on_change()
 
     def reset(self):
         self._x = 0.0
         self._y = 0.0
+        self._dragging = False
         self._canvas.coords(self._knob, self._cx - 12, self._cy - 12, self._cx + 12, self._cy + 12)
+        self._canvas.itemconfigure(self._knob, fill=KNOB_IDLE_COLOR)
         self._on_change()
 
     @property
@@ -113,6 +132,8 @@ class YawRateBar:
         self._cy = 125.0
         self._half_length = 85.0
         self._value = 0.0
+        self._knob_x = self._cx
+        self._dragging = False
 
         self._canvas.create_text(110, 14, text="Yaw rate", fill="white", font=("Helvetica", 11, "bold"))
         self._canvas.create_line(
@@ -131,30 +152,164 @@ class YawRateBar:
             self._cy - 12,
             self._cx + 12,
             self._cy + 12,
-            fill="#4a90e2",
+            fill=KNOB_IDLE_COLOR,
+            activefill=KNOB_ACTIVE_COLOR,
             outline="",
         )
 
-        self._canvas.bind("<Button-1>", self._move)
-        self._canvas.bind("<B1-Motion>", self._move)
+        self._canvas.bind("<Button-1>", self._press)
+        self._canvas.bind("<B1-Motion>", self._drag)
         self._canvas.bind("<ButtonRelease-1>", self._release)
+
+    def _press(self, event):
+        event_x = float(event.x)
+        event_y = float(event.y)
+        knob_hit = (event_x - self._knob_x) ** 2 + (event_y - self._cy) ** 2 <= 16.0 ** 2
+        bar_hit = (
+            self._cx - self._half_length <= event_x <= self._cx + self._half_length
+            and abs(event_y - self._cy) <= 8.0
+        )
+        if not (knob_hit or bar_hit):
+            return
+
+        self._dragging = True
+        self._canvas.itemconfigure(self._knob, fill=KNOB_ACTIVE_COLOR)
+        self._move(event)
+
+    def _drag(self, event):
+        if self._dragging:
+            self._move(event)
 
     def _move(self, event):
         knob_x = max(self._cx - self._half_length, min(self._cx + self._half_length, float(event.x)))
+        self._knob_x = knob_x
         self._value = -(knob_x - self._cx) / self._half_length
         self._canvas.coords(self._knob, knob_x - 12, self._cy - 12, knob_x + 12, self._cy + 12)
         self._on_change()
 
     def _release(self, _event):
+        if not self._dragging:
+            return
+        self._dragging = False
+        self._canvas.itemconfigure(self._knob, fill=KNOB_IDLE_COLOR)
         self._on_change()
 
     def reset(self):
         self._value = 0.0
+        self._knob_x = self._cx
+        self._dragging = False
         self._canvas.coords(self._knob, self._cx - 12, self._cy - 12, self._cx + 12, self._cy + 12)
+        self._canvas.itemconfigure(self._knob, fill=KNOB_IDLE_COLOR)
         self._on_change()
 
     @property
     def value(self):
+        return self._value
+
+
+class HeightBar:
+    def __init__(self, parent, on_change):
+        self._on_change = on_change
+        self._canvas = tk.Canvas(parent, width=48, height=150, bg="#2c2c2c", highlightthickness=0)
+        self._x = 24.0
+        self._top = 10.0
+        self._bottom = 140.0
+        self._minimum = 0.2
+        self._maximum = 1.0
+        self._center = 0.7925
+        self._value = self._center
+        self._dragging = False
+
+        self._canvas.create_line(
+            self._x,
+            self._top,
+            self._x,
+            self._bottom,
+            fill="#808080",
+            width=4,
+        )
+        center_y = self._value_to_y(self._center)
+        self._canvas.create_line(
+            self._x - 10,
+            center_y,
+            self._x + 10,
+            center_y,
+            fill="#555555",
+            width=2,
+        )
+        knob_y = self._value_to_y(self._value)
+        self._knob = self._canvas.create_rectangle(
+            self._x - 10,
+            knob_y - 8,
+            self._x + 10,
+            knob_y + 8,
+            fill=KNOB_IDLE_COLOR,
+            activefill=KNOB_ACTIVE_COLOR,
+            outline="",
+        )
+
+        self._canvas.bind("<Button-1>", self._press)
+        self._canvas.bind("<B1-Motion>", self._drag)
+        self._canvas.bind("<ButtonRelease-1>", self._release)
+
+    def _value_to_y(self, value):
+        ratio = (self._maximum - value) / (self._maximum - self._minimum)
+        return self._top + ratio * (self._bottom - self._top)
+
+    def _y_to_value(self, y):
+        ratio = (y - self._top) / (self._bottom - self._top)
+        return self._maximum - ratio * (self._maximum - self._minimum)
+
+    def _press(self, event):
+        event_x = float(event.x)
+        event_y = float(event.y)
+        knob_y = self._value_to_y(self._value)
+        knob_hit = abs(event_x - self._x) <= 14.0 and abs(event_y - knob_y) <= 12.0
+        bar_hit = abs(event_x - self._x) <= 8.0 and self._top <= event_y <= self._bottom
+        if not (knob_hit or bar_hit):
+            return
+
+        self._dragging = True
+        self._canvas.itemconfigure(self._knob, fill=KNOB_ACTIVE_COLOR)
+        self._move(event)
+
+    def _drag(self, event):
+        if self._dragging:
+            self._move(event)
+
+    def _move(self, event):
+        knob_y = max(self._top, min(self._bottom, float(event.y)))
+        self._value = round(self._y_to_value(knob_y), 3)
+        knob_y = self._value_to_y(self._value)
+        self._canvas.coords(
+            self._knob,
+            self._x - 10,
+            knob_y - 8,
+            self._x + 10,
+            knob_y + 8,
+        )
+        self._on_change(self._value)
+
+    def _release(self, _event):
+        if not self._dragging:
+            return
+        self._dragging = False
+        self._canvas.itemconfigure(self._knob, fill=KNOB_IDLE_COLOR)
+
+    def set(self, value):
+        self._value = max(self._minimum, min(self._maximum, float(value)))
+        knob_y = self._value_to_y(self._value)
+        self._canvas.coords(
+            self._knob,
+            self._x - 10,
+            knob_y - 8,
+            self._x + 10,
+            knob_y + 8,
+        )
+        self._canvas.itemconfigure(self._knob, fill=KNOB_IDLE_COLOR)
+        self._on_change(self._value)
+
+    def get(self):
         return self._value
 
 
@@ -196,21 +351,9 @@ class VelocityCommandGui(tk.Tk):
             fg="white",
             font=("Helvetica", 12, "bold"),
         ).grid(row=2, column=0)
-        self._height = tk.Scale(
-            height_frame,
-            from_=1.0,
-            to=0.2,
-            resolution=0.001,
-            orient=tk.VERTICAL,
-            length=150,
-            showvalue=False,
-            bg="#2c2c2c",
-            fg="white",
-            highlightthickness=0,
-            command=self._height_changed,
-        )
+        self._height = HeightBar(height_frame, self._height_changed)
         self._height.set(0.7925)
-        self._height.grid(row=3, column=0)
+        self._height._canvas.grid(row=3, column=0)
         tk.Label(
             height_frame,
             text="↓",
@@ -222,12 +365,37 @@ class VelocityCommandGui(tk.Tk):
         controls = tk.Frame(self, bg="#2c2c2c")
         controls.pack(pady=(0, 16))
         tk.Button(controls, text="Center", command=self._reset, width=10).pack(side=tk.LEFT, padx=6)
-        tk.Label(
+        status_text = tk.Text(
             controls,
-            text="v_x, v_y, yaw are normalized to the configured MPC limits",
+            width=55,
+            height=1,
+            wrap=tk.NONE,
             bg="#2c2c2c",
             fg="#cccccc",
-        ).pack(side=tk.LEFT, padx=6)
+            borderwidth=0,
+            highlightthickness=0,
+            padx=0,
+            pady=0,
+            takefocus=False,
+        )
+        status_text.tag_configure("math", foreground="#cccccc", font=("Times", 11, "italic"))
+        status_text.tag_configure(
+            "subscript",
+            foreground="#cccccc",
+            font=("Times", 8, "italic"),
+            offset=-3,
+        )
+        status_text.tag_configure("body", foreground="#cccccc")
+        for base, subscript, suffix in (
+            ("v", "x", ", "),
+            ("v", "y", ", and "),
+            ("ω", "z", " normalized to the configured MPC limits"),
+        ):
+            status_text.insert(tk.END, base, "math")
+            status_text.insert(tk.END, subscript, "subscript")
+            status_text.insert(tk.END, suffix, "body")
+        status_text.configure(state=tk.DISABLED)
+        status_text.pack(side=tk.LEFT, padx=6)
 
         self.protocol("WM_DELETE_WINDOW", self._close)
         self.after(20, self._publish_periodically)
