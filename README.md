@@ -170,7 +170,7 @@ ros2 run legged_robot_mpc_controller stair_climbing_test.sh
 ### Terrain-aware walking (`terrain_walk` target mode) (*centroidal MPC only*)
 
 Perception-free *online* terrain locomotion: 
-Instead of a pre-scripted sequence, the robot follows a plain **velocity command** while a `TerrainFootholdPlanner` selects footholds each solver cycle over the same ground-truth staircase geometry (implementation of the [T-RO 2023 perceptive-locomotion]([./docs](https://arxiv.org/abs/2208.08373)) pipeline, without the elevation-map / plane-segmentation integrated). 
+Instead of a pre-scripted sequence, the robot follows a plain **velocity command** while a `TerrainFootholdPlanner` selects footholds each solver cycle over the same ground-truth staircase geometry (implementation of the [T-RO 2023 perceptive-locomotion](https://arxiv.org/abs/2208.08373) pipeline, without the elevation-map / plane-segmentation integrated). 
 
 Each cycle it:
 1. Extrapolates a nominal foothold under the hip (Raibert heuristic + capture-point velocity feedback)
