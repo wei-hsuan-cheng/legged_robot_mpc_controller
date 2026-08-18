@@ -254,6 +254,7 @@ controller_interface::CallbackReturn HumanoidWbMpcController::on_activate(
   }
 
   heading_reference_.reset();
+  motion_manager_->requestVelocityTargetFilterReset();
   yaw_unwrapper_.reset();
   initial_observation_state_ = mpc_interface_->getInitialState();
   const auto initial_observation = build_observation(get_node()->now());

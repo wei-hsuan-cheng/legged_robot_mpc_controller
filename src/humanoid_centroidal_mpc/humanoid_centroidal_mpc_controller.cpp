@@ -287,6 +287,7 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_activat
   }
 
   heading_reference_.reset();
+  motion_manager_->requestVelocityTargetFilterReset();
   yaw_unwrapper_.reset();
   filtered_generalized_velocity_.resize(0);
   if (state_estimator_) {

@@ -115,17 +115,12 @@ vector6_t TargetTrajectoriesCalculatorBase::getCurrentBasePoseTarget(const vecto
 /******************************************************************************************************/
 /******************************************************************************************************/
 
-vector4_t TargetTrajectoriesCalculatorBase::filterAndTransformVelCommandToLocal(const vector4_t& commandedVelLocal,
-                                                                                const scalar_t& currentEulerZ,
-                                                                                scalar_t filterAlpha) const {
-  static vector4_t commVelFiltered = vector4_t::Zero();
+vector4_t TargetTrajectoriesCalculatorBase::transformVelCommandToGlobal(const vector4_t& commandedVelLocal,
+                                                                        const scalar_t& currentEulerZ) const {
+  vector4_t globalTargetVel = commandedVelLocal;
 
-  commVelFiltered = commVelFiltered * filterAlpha + commandedVelLocal * (1 - filterAlpha);
-
-  vector4_t globalTargetVel = commVelFiltered;
-
-  globalTargetVel(0) = std::cos(currentEulerZ) * commVelFiltered[0] - std::sin(currentEulerZ) * commVelFiltered[1];
-  globalTargetVel(1) = std::sin(currentEulerZ) * commVelFiltered[0] + std::cos(currentEulerZ) * commVelFiltered[1];
+  globalTargetVel(0) = std::cos(currentEulerZ) * commandedVelLocal[0] - std::sin(currentEulerZ) * commandedVelLocal[1];
+  globalTargetVel(1) = std::sin(currentEulerZ) * commandedVelLocal[0] + std::cos(currentEulerZ) * commandedVelLocal[1];
 
   return globalTargetVel;
 }

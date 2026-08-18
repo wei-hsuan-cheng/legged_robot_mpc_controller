@@ -99,9 +99,8 @@ class TargetTrajectoriesCalculatorBase {
 
   vector6_t getDeltaBaseTarget(const vector4_t& commadLinePoseTarget, const vector6_t& currentPoseTarget) const;
 
-  vector4_t filterAndTransformVelCommandToLocal(const vector4_t& commandedVelLocal,
-                                                const scalar_t& currentEulerZ,
-                                                scalar_t filterAlpha) const;
+  vector4_t transformVelCommandToGlobal(const vector4_t& commandedVelLocal,
+                                        const scalar_t& currentEulerZ) const;
 
   vector6_t integrateTargetBasePose(const vector6_t& currentPose,
                                     const vector3_t& averageVel,

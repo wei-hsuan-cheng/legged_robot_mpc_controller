@@ -35,6 +35,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <ocs2_core/reference/TargetTrajectories.h>
 
+#include <atomic>
+
 #include "humanoid_common_mpc/command/TargetTrajectoriesCalculatorBase.h"
 #include "humanoid_common_mpc/command/WalkingVelocityCommand.h"
 #include "humanoid_common_mpc/reference_manager/BreakFrequencyAlphaFilter.h"
@@ -72,6 +74,9 @@ class WalkingVelocityTarget {
   /// Must only be called from the solver thread (owns the filter state).
   Output evaluate(scalar_t initTime, scalar_t finalTime, const vector_t& initState);
 
+  /// Request a filter reset. The solver thread applies it using the latest command.
+  void requestFilterReset();
+
  private:
   WalkingVelocityCommand scaleCommand(WalkingVelocityCommand command) const;
 
@@ -84,6 +89,7 @@ class WalkingVelocityTarget {
 
   mutable std::mutex commandMutex_;
   WalkingVelocityCommand command_;
+  std::atomic_bool filterResetRequested_{true};
 };
 
 }  // namespace ocs2::humanoid

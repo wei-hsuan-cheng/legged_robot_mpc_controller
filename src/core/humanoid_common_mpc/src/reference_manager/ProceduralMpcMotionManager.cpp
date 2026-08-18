@@ -76,6 +76,14 @@ void ProceduralMpcMotionManager::setVelocityCommand(const WalkingVelocityCommand
 /******************************************************************************************************/
 /******************************************************************************************************/
 
+void ProceduralMpcMotionManager::requestVelocityTargetFilterReset() {
+  walkingVelocityTarget_.requestFilterReset();
+}
+
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+
 void ProceduralMpcMotionManager::setBasePoseCommand(const BasePoseCommand& command) {
   basePoseTarget_.setCommand(command);
 }
@@ -86,6 +94,9 @@ void ProceduralMpcMotionManager::setBasePoseCommand(const BasePoseCommand& comma
 
 void ProceduralMpcMotionManager::setTargetMode(TargetMode mode) {
   const TargetMode previousMode = targetMode_.load(std::memory_order_acquire);
+  if (mode != previousMode) {
+    walkingVelocityTarget_.requestFilterReset();
+  }
   if (mode == TargetMode::BasePose && previousMode != TargetMode::BasePose) {
     basePoseTarget_.requestCurrentPoseLatch();
   }

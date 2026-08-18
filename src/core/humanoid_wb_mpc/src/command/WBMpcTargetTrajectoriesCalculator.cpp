@@ -103,7 +103,7 @@ TargetTrajectories WBMpcTargetTrajectoriesCalculator::commandedVelocityToTargetT
   // velocity profile.
 
   vector_t currentPoseTarget = getCurrentBasePoseTarget(initState);
-  vector4_t commVelTargetGlobal = filterAndTransformVelCommandToLocal(commandedVelocities, currentPoseTarget(3), 0.8);
+  vector4_t commVelTargetGlobal = transformVelCommandToGlobal(commandedVelocities, currentPoseTarget(3));
 
   // // Adapt desired base height from velocity command
   // currentPoseTarget[2] = commVelTargetGlobal[2];
