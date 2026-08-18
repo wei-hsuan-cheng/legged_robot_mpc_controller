@@ -30,6 +30,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "humanoid_wb_mpc/command/WBMpcTargetTrajectoriesCalculator.h"
 
+#include <array>
 #include <ocs2_core/misc/LoadData.h>
 
 #include <boost/proto/proto_fwd.hpp>
@@ -98,52 +99,30 @@ TargetTrajectories WBMpcTargetTrajectoriesCalculator::commandedBasePoseToTargetT
 TargetTrajectories WBMpcTargetTrajectoriesCalculator::commandedVelocityToTargetTrajectories(const vector4_t& commandedVelocities,
                                                                                             scalar_t initTime,
                                                                                             const vector_t& initState) {
-  // This function constructs a target trajectory that interpolates between the current momentum and desired momentum for the first part
-  // of the horizon while applying the desired momentum fully to the latter half. All position targets are obtained integrating said
-  // velocity profile.
-
-  vector_t currentPoseTarget = getCurrentBasePoseTarget(initState);
-  vector4_t commVelTargetGlobal = transformVelCommandToGlobal(commandedVelocities, currentPoseTarget(3));
-
-  // // Adapt desired base height from velocity command
-  // currentPoseTarget[2] = commVelTargetGlobal[2];
-
-  vector6_t targetBaseVel;
-  targetBaseVel << commVelTargetGlobal(0), commVelTargetGlobal(1), 0.0, commVelTargetGlobal(3), 0.0, 0.0;
-
-  /////////////////////////
-  // Intermediate Target //
-  /////////////////////////
-
-  scalar_t intermediateTargetTime = 0.7 * mpcHorizon_;
-  vector6_t baseVel = mpcRobotModelPtr_->getBaseComVelocity(initState);
-  vector3_t averageVel;
-  averageVel(0) = (baseVel[0] + commVelTargetGlobal[0]) / 2;
-  averageVel(1) = (baseVel[1] + commVelTargetGlobal[1]) / 2;
-  averageVel(2) = (baseVel[5] + commVelTargetGlobal[3]) / 2;
-
-  currentPoseTarget[2] = commVelTargetGlobal[2];
-  vector6_t intermediateTargetPose = integrateTargetBasePose(currentPoseTarget, averageVel, commVelTargetGlobal(2), intermediateTargetTime);
-
-  //////////////////
-  // Final Target //
-  //////////////////
-
-  averageVel(0) = (commVelTargetGlobal[0]);
-  averageVel(1) = (commVelTargetGlobal[1]);
-  averageVel(2) = (commVelTargetGlobal[3]);
-
-  vector6_t finalTargetPose =
-      integrateTargetBasePose(intermediateTargetPose, averageVel, commVelTargetGlobal(2), (mpcHorizon_ - intermediateTargetTime));
+  // Re-anchor every horizon at the current pose, then integrate only the
+  // pelvis-frame command. Estimator velocity remains feedback to the MPC but
+  // no longer contaminates the reference trajectory.
+  vector6_t currentPoseTarget = getCurrentBasePoseTarget(initState);
+  currentPoseTarget(2) = commandedVelocities(2);
+  const scalar_t intermediateTargetTime = 0.7 * mpcHorizon_;
+  const vector6_t intermediateTargetPose =
+      integrateBodyTwistTargetBasePose(currentPoseTarget, commandedVelocities, intermediateTargetTime);
+  const vector6_t finalTargetPose =
+      integrateBodyTwistTargetBasePose(currentPoseTarget, commandedVelocities, mpcHorizon_);
 
   // desired time trajectory
   const scalar_array_t timeTrajectory{initTime, initTime + intermediateTargetTime, initTime + mpcHorizon_};
 
   // desired state trajectory
   vector_array_t stateTrajectory(3, vector_t::Zero(mpcRobotModelPtr_->getStateDim()));
-  stateTrajectory[0] << currentPoseTarget, targetJointState_, targetBaseVel, vector_t::Zero(mpcRobotModelPtr_->getJointDim());
-  stateTrajectory[1] << intermediateTargetPose, targetJointState_, targetBaseVel, vector_t::Zero(mpcRobotModelPtr_->getJointDim());
-  stateTrajectory[2] << finalTargetPose, targetJointState_, targetBaseVel, vector_t::Zero(mpcRobotModelPtr_->getJointDim());
+  const std::array<vector6_t, 3> poses{currentPoseTarget, intermediateTargetPose, finalTargetPose};
+  for (size_t i = 0; i < poses.size(); ++i) {
+    const vector4_t velocityWorld = transformVelCommandToGlobal(commandedVelocities, poses[i](3));
+    vector6_t targetBaseVelocity;
+    targetBaseVelocity << velocityWorld(0), velocityWorld(1), 0.0, velocityWorld(3), 0.0, 0.0;
+    stateTrajectory[i] << poses[i], targetJointState_, targetBaseVelocity,
+        vector_t::Zero(mpcRobotModelPtr_->getJointDim());
+  }
 
   // desired input trajectory (just right dimensions, they are not used)
   const vector_array_t inputTrajectory(3, vector_t::Zero(mpcRobotModelPtr_->getInputDim()));

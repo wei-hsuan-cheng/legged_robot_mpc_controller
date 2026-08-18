@@ -144,14 +144,19 @@ void ProceduralMpcMotionManager::preSolverRun(scalar_t initTime,
                                               scalar_t finalTime,
                                               const vector_t& initState,
                                               const ReferenceManagerInterface& referenceManager) {
-  if (getTargetMode() == TargetMode::StairClimb) {
+  const TargetMode targetMode = getTargetMode();
+  switchedModelReferenceManagerPtr_->setBaseTrackingMode(
+      targetMode == TargetMode::BasePose ? SwitchedModelReferenceManager::BaseTrackingMode::AbsolutePose
+                                         : SwitchedModelReferenceManager::BaseTrackingMode::RelativeTwist);
+
+  if (targetMode == TargetMode::StairClimb) {
     switchedModelReferenceManagerPtr_->setTerrainWalkActive(false);
     runStairClimbing(initTime, initState);
     return;
   }
   // Terrain-aware walking rides the velocity-command path below; the online
   // foothold planner in the reference manager does the terrain adaptation.
-  switchedModelReferenceManagerPtr_->setTerrainWalkActive(getTargetMode() == TargetMode::TerrainWalk);
+  switchedModelReferenceManagerPtr_->setTerrainWalkActive(targetMode == TargetMode::TerrainWalk);
   if (activeStairClimbingPlan_) {
     // Left stair climbing mode: drop the plan so the swing planner reverts to
     // flat ground and the gait FSM takes over again from stance.
@@ -164,7 +169,7 @@ void ProceduralMpcMotionManager::preSolverRun(scalar_t initTime,
   }
 
   vector4_t filteredVelCommand;
-  if (getTargetMode() == TargetMode::BasePose) {
+  if (targetMode == TargetMode::BasePose) {
     BasePoseTarget::Output target = basePoseTarget_.evaluate(initTime, finalTime, initState);
     switchedModelReferenceManagerPtr_->setTargetTrajectories(std::move(target.targetTrajectories));
     filteredVelCommand = target.motionCommand;
@@ -177,7 +182,7 @@ void ProceduralMpcMotionManager::preSolverRun(scalar_t initTime,
   static GaitModeStateConfig currentCfg = gaitModeStates_[currentGaitMode_];
   vector6_t baseVelocity = mpcRobotModelPtr_->getBaseComVelocity(initState);
 
-  if (getTargetMode() == TargetMode::TerrainWalk) {
+  if (targetMode == TargetMode::TerrainWalk) {
     // Terrain-aware walking uses a fixed, deliberately slow gait with generous
     // double support (the "terrain_walk" entry in gait.yaml, matching the
     // stair-climb swing/stance timing) instead of the velocity-based gait FSM,

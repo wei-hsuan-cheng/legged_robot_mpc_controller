@@ -151,7 +151,6 @@ target_compile_definitions(legged_robot_humanoid_centroidal_core PUBLIC BOOST_MP
 
 add_library(${PROJECT_NAME} SHARED
   src/common/config_builder_utils.cpp
-  src/common/heading_reference.cpp
   src/common/ros2_procedural_mpc_motion_manager.cpp
   src/common/target/mpc_targets_parser.cpp
   src/humanoid_state_estimation/inekf_floating_base_estimator.cpp

@@ -28,7 +28,6 @@
 #include <humanoid_centroidal_mpc/command/CentroidalMpcTargetTrajectoriesCalculator.h>
 #include <humanoid_centroidal_mpc/common/CentroidalMpcRobotModel.h>
 
-#include "legged_robot_mpc_controller/common/heading_reference.hpp"
 #include "legged_robot_mpc_controller/common/yaw_unwrapper.hpp"
 #include "legged_robot_mpc_controller/humanoid_state_estimation/inekf_floating_base_estimator.hpp"
 #include "legged_robot_mpc_controller/common/ros2_procedural_mpc_motion_manager.hpp"
@@ -109,8 +108,6 @@ private:
   std::unique_ptr<ocs2::MPC_MRT_Interface> mrt_interface_;
   std::unique_ptr<visualization::PerformanceVisualization> performance_visualization_;
 
-  // Heading hold for velocity-commanded walking; only touched from the solver thread.
-  common::HeadingReference heading_reference_;
   // Keeps the observed yaw continuous across the +-pi wrap (update thread only).
   common::YawUnwrapper yaw_unwrapper_;
 

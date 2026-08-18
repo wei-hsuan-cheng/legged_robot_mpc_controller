@@ -49,10 +49,10 @@ namespace ocs2::humanoid {
  * It consolidates the three command-conditioning stages that used to be spread
  * across the ROS callback and the motion manager: scale the bounded command to
  * physical units, low-pass filter it, and generate the reference trajectory
- * through the injected per-model calculator (which also applies the heading
- * hold). evaluate() returns both the TargetTrajectories for the reference
- * manager and the conditioned command vector consumed by the gait selector, so
- * scaling and filtering happen exactly once per solver step.
+ * through the injected per-model calculator. evaluate() returns both the
+ * TargetTrajectories for the reference manager and the conditioned command
+ * vector consumed by the gait selector, so scaling and filtering happen exactly
+ * once per solver step.
  */
 class WalkingVelocityTarget {
  public:
@@ -62,7 +62,7 @@ class WalkingVelocityTarget {
 
   struct Output {
     TargetTrajectories targetTrajectories;
-    vector4_t conditionedCommand;  //!< scaled + filtered [v_x, v_y, pelvis_height, v_yaw]
+    vector4_t conditionedCommand;  //!< scaled + filtered [v_x, v_y, pelvis_height, yaw_rate]
   };
 
   WalkingVelocityTarget(const ReferenceConfig& referenceConfig, Generator generator);

@@ -64,7 +64,8 @@ class WBMpcTargetTrajectoriesCalculator : public TargetTrajectoriesCalculatorBas
 
   /**
    * Converts desired velocities to TargetTrajectories.
-   * @param [in] commandedVelocities : [v_x, v_y, v_yaw] defined in pelvis frame
+   * @param [in] commandedVelocities : [v_x, v_y, pelvis_height, yaw_rate],
+   *                                    with the planar twist in the pelvis frame
    * @param [in] observation : the current observation
    */
   TargetTrajectories commandedVelocityToTargetTrajectories(const vector4_t& commandedVelocities,

@@ -49,6 +49,8 @@ namespace ocs2::humanoid {
  */
 class SwitchedModelReferenceManager : public ReferenceManager {
  public:
+  enum class BaseTrackingMode { RelativeTwist, AbsolutePose };
+
   SwitchedModelReferenceManager(std::shared_ptr<GaitSchedule> gaitSchedulePtr,
                                 std::shared_ptr<SwingTrajectoryPlanner> swingTrajectoryPtr,
                                 const PinocchioInterface& pinocchioInterface,
@@ -69,6 +71,18 @@ class SwitchedModelReferenceManager : public ReferenceManager {
   bool isInContact(scalar_t time, size_t contactIndex) const { return getContactFlags(time)[contactIndex]; };
 
   void setArmSwingReferenceActive(bool armSwingReferenceActive) { armSwingReferenceActive_ = armSwingReferenceActive; }
+
+  /**
+   * Selects how the base tracking cost interprets the target trajectory.
+   * RelativeTwist ignores the unobservable world x/y/yaw pose error and tracks
+   * horizontal motion in the target heading frame. AbsolutePose retains full
+   * world-frame pose tracking for explicit base-pose commands.
+   */
+  void setBaseTrackingMode(BaseTrackingMode mode) { baseTrackingMode_.setBuffer(mode); }
+  BaseTrackingMode getBaseTrackingMode() const { return baseTrackingMode_.get(); }
+  bool usesRelativeBaseTwistTracking() const {
+    return getBaseTrackingMode() == BaseTrackingMode::RelativeTwist;
+  }
 
   /**
    * External joint-target channel (command_type "joint", mirroring the
@@ -167,6 +181,7 @@ class SwitchedModelReferenceManager : public ReferenceManager {
   BufferedValue<TargetTrajectories> externalJointTargets_{TargetTrajectories()};
   BufferedValue<FrameRelationTargets> externalFrameRelationTargets_{FrameRelationTargets()};
   BufferedValue<std::shared_ptr<const StairClimbingPlan>> stairClimbingPlan_{nullptr};
+  BufferedValue<BaseTrackingMode> baseTrackingMode_{BaseTrackingMode::RelativeTwist};
 
   // Terrain-aware walking: planner mutated only in modifyReferences (solver
   // thread, pre-solve); read-only during the solve, same pattern as the swing planner.

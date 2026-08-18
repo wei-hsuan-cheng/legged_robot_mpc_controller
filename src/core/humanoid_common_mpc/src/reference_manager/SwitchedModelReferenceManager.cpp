@@ -151,6 +151,7 @@ void SwitchedModelReferenceManager::modifyReferences(scalar_t initTime,
   externalFrameRelationTargets_.updateFromBuffer();
   stairClimbingPlan_.updateFromBuffer();
   terrainWalkActive_.updateFromBuffer();
+  baseTrackingMode_.updateFromBuffer();
 
   const auto timeHorizon = finalTime - initTime;
   modeSchedule = gaitSchedulePtr_->getModeSchedule(initTime - timeHorizon, finalTime + timeHorizon);

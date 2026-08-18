@@ -86,35 +86,28 @@ where $\mathcal F$ is the configured command filter. Scaling and filtering are p
 
 ### Base target trajectory
 
-For centroidal MPC, the conditioned horizontal velocity and yaw rate define
+For centroidal MPC, the conditioned command defines the pelvis-frame planar twist
 
 $$
-\mathbf v_b^{\mathrm{ref}} =
+\boldsymbol\xi_b^{\mathrm{cmd}} =
 \begin{bmatrix}
 v_x^{\mathrm{ref}} &
 v_y^{\mathrm{ref}} &
-0 &
-0 &
-0 &
 \dot{\psi}^{\mathrm{ref}}
 \end{bmatrix}^{\mathsf T}.
 $$
 
-The desired normalized centroidal momentum is formed as
+At every MPC update the target is re-anchored at the latest estimated pose $\hat{\mathbf T}_{WB}(t_0)$ and propagated only over the finite horizon with the $SE(2)$ exponential map,
 
 $$
-\mathbf h^{\mathrm{ref}} =
-\begin{bmatrix}
-v_x^{\mathrm{ref}} &
-v_y^{\mathrm{ref}} &
-0 &
-0 &
-0 &
-\dot{\psi}^{\mathrm{ref}}/m
-\end{bmatrix}^{\mathsf T},
+\mathbf T_{WB}^{\mathrm{ref}}(t_0+\tau)
+=
+\hat{\mathbf T}_{WB}(t_0)
+\operatorname{Exp}_{SE(2)}\!\left(\tau\boldsymbol\xi_b^{\mathrm{cmd}}\right),
+\qquad 0\leq\tau\leq T_{\mathrm{MPC}}.
 $$
 
-where $m$ is the total robot mass. The initial, intermediate, and final base poses are obtained by integrating the velocity target. The knot times are
+The measured base velocity is not blended into this reference, so velocity-estimation noise remains feedback to the MPC initial state instead of moving the target itself. At each knot, the commanded horizontal velocity is rotated by that knot's target yaw to form the world-aligned normalized linear-momentum target, while the yaw-rate target retains the centroidal model's existing normalization. The knot times are
 
 $$
 t_0=t_{\mathrm{init}},\qquad
@@ -122,7 +115,7 @@ t_1=t_{\mathrm{init}}+0.7T_{\mathrm{MPC}},\qquad
 t_2=t_{\mathrm{init}}+T_{\mathrm{MPC}}.
 $$
 
-The implementation is in [`commandedVelocityToTargetTrajectories()`](../src/core/humanoid_centroidal_mpc/src/command/CentroidalMpcTargetTrajectoriesCalculator.cpp#L104-L174).
+For `base_twist`, `terrain_walk`, and `stair_climb`, the base tracking cost ignores the unobservable global $x$, $y$, and yaw pose errors, but retains pelvis height, roll, pitch, and body-frame motion tracking. Explicit `base_pose` commands select full pose tracking. The command-only integration is implemented in [`integrateBodyTwistTargetBasePose()`](../src/core/humanoid_common_mpc/src/command/TargetTrajectoriesCalculatorBase.cpp#L132-L160) and [`commandedVelocityToTargetTrajectories()`](../src/core/humanoid_centroidal_mpc/src/command/CentroidalMpcTargetTrajectoriesCalculator.cpp#L104-L141), while the mode-dependent invariant residual is implemented in [`BaseMotionTrackingCost.cpp`](../src/core/humanoid_common_mpc/src/cost/BaseMotionTrackingCost.cpp#L24-L119).
 
 ## Gait Sequence
 
