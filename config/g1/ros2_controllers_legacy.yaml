@@ -407,20 +407,48 @@ humanoid_centroidal_mpc_controller:
     # switched to "state_estimator".
     stateEstimator:
       enabled: true
+      imuInterfaceName: pelvis_imu
+      imuFrame: imu_in_pelvis
+      contactFrames:
+        [foot_l_heel_est, foot_l_toe_est, foot_r_heel_est, foot_r_toe_est]
+      odomTopic: /humanoid/state_estimate/odom
+      odomFrame: world
+      publishRate: 100.0
+      warmupSeconds: 3.0
       # The pelvis accelerometer swings +-5 m/s^2 while standing (stiff PD/contact
       # vibration), so trust it far less and low-pass it hard; lean on the contact
       # height-anchor instead. Removes the ~4 cm height droop.
       noise:
+        gyroscope: 0.01
         accelerometer: 1.5
+        gyroscopeBias: 1.0e-5
+        accelerometerBias: 1.0e-4
         contact: 0.01
         contactPosition: 0.002
+        contactRotation: 0.01
+      height:
+        source: anchored
+        kinematicWeight: 0.9
+        anchorUpdateThreshold: 0.05
+        groundZ: 0.0
       contact:
         source: scheduled
         footIndices:
           [0, 0, 1, 1]
+        beta0:
+          [-20.0, -20.0, -20.0, -20.0]
+        beta1:
+          [0.7, 0.7, 0.7, 0.7]
         forceCovarianceAlpha: 10.0
+        probabilityThreshold: 0.5
+        dynamicEstimation: false
       lpf:
+        gyroCutoff: 250.0
+        gyroAccelCutoff: 250.0
         linAccelCutoff: 30.0
+        dqJCutoff: 10.0
+        ddqJCutoff: 5.0
+        tauJCutoff: 10.0
 
     ocs2:
       interface:
