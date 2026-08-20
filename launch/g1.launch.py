@@ -88,7 +88,7 @@ def generate_launch_description():
             description="Writable folder for generated or cached CppAD libraries",
         ),
         DeclareLaunchArgument(
-            "floatingBaseSource", default_value="ground_truth_state",
+            "floatingBaseSource", default_value="state_estimator",
             description="Floating-base feedback source for the centroidal MPC: "
                         "ground_truth_state (simulator/hardware body state) | state_estimator (proprioceptive InEKF). "
                         "The InEKF always runs in parallel and publishes /humanoid/state_estimate/odom."),

@@ -57,7 +57,9 @@ humanoid_wb_mpc_controller:
 
     control:
       # DIAGNOSTIC: smooth simulator velocity dither out of the MPC observation.
-      observationVelocityFilterCutoffHz: 30.0
+      # Suppress estimator velocity noise before it enters normalized centroidal momentum.
+      # 12 Hz preserves the walking bandwidth while softening the GT-to-InEKF handoff.
+      observationVelocityFilterCutoffHz: 12.0
       policyTimeOffset: 0.005
       # Legacy WB MPC stand/balance feedback around the optimized policy.
       mpcJointKp:
@@ -414,7 +416,8 @@ humanoid_centroidal_mpc_controller:
       odomTopic: /humanoid/state_estimate/odom
       odomFrame: world
       publishRate: 100.0
-      warmupSeconds: 3.0
+      # Allow IMU biases and contact-aided velocity to settle before closing the loop.
+      warmupSeconds: 5.0
       # The pelvis accelerometer swings +-5 m/s^2 while standing (stiff PD/contact
       # vibration), so trust it far less and low-pass it hard; lean on the contact
       # height-anchor instead. Removes the ~4 cm height droop.
@@ -443,9 +446,9 @@ humanoid_centroidal_mpc_controller:
         probabilityThreshold: 0.5
         dynamicEstimation: false
       lpf:
-        gyroCutoff: 250.0
-        gyroAccelCutoff: 250.0
-        linAccelCutoff: 30.0
+        gyroCutoff: 80.0
+        gyroAccelCutoff: 50.0
+        linAccelCutoff: 15.0
         dqJCutoff: 10.0
         ddqJCutoff: 5.0
         tauJCutoff: 10.0
@@ -559,8 +562,8 @@ humanoid_centroidal_mpc_controller:
             [0.02, 0.06, 4.0, 0.02, 0.01, 0.01,
              0.02, 0.06, 4.0, 0.02, 0.01, 0.01,
              2.0, 0.5, 0.5,
-             10.0, 20.0, 2.0, 2.0,
-             10.0, 20.0, 2.0, 2.0]
+             30.0, 30.0, 10.0, 20.0,
+             30.0, 30.0, 10.0, 20.0]
         qFinal:
           centroidalMomentum:
             [25.0, 25.0, 25.0, 25.0, 25.0, 25.0]
@@ -570,8 +573,8 @@ humanoid_centroidal_mpc_controller:
             [0.02, 0.06, 8.0, 0.02, 0.01, 0.01,
              0.02, 0.06, 8.0, 0.02, 0.01, 0.01,
              2.0, 0.5, 0.5,
-             10.0, 20.0, 2.0, 2.0,
-             10.0, 20.0, 2.0, 2.0]
+             50.0, 50.0, 15.0, 30.0,
+             50.0, 50.0, 15.0, 30.0]
         r:
           # [left fx, fy, fz, mx, my, mz, right fx, fy, fz, mx, my, mz]
           contactWrenches:
