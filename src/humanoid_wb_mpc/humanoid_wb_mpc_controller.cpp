@@ -331,7 +331,7 @@ controller_interface::InterfaceConfiguration HumanoidWbMpcController::state_inte
     }
   }
 
-  if (parameters_.floatingBase.source == "state_interfaces") {
+  if (parameters_.floatingBase.source == "ground_truth_state") {
     if (config.type == controller_interface::interface_configuration_type::NONE) {
       config.type = controller_interface::interface_configuration_type::INDIVIDUAL;
     }
@@ -581,7 +581,7 @@ ocs2::SystemObservation HumanoidWbMpcController::build_observation(const rclcpp:
     }
   }
 
-  if (parameters_.floatingBase.source == "state_interfaces") {
+  if (parameters_.floatingBase.source == "ground_truth_state") {
     read_floating_base_state(observation);
   } else if (has_odometry) {
     model.setBasePosition(

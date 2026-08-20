@@ -88,7 +88,7 @@ humanoid_wb_mpc_controller:
       # Direct MuJoCo body state exposed through ros2_control state interfaces.
       # The odometry topic/TF publisher remains enabled for visualization and
       # other ROS nodes.
-      source: state_interfaces # state_interfaces (from state interface) | mujoco_ground_truth_odom (from topic)
+      source: ground_truth_state # ground_truth_state (from state interface) | mujoco_ground_truth_odom (from topic)
       stateInterfaceName: pelvis
       odometryTopic: /mujoco/ground_truth/odom
       baseFrame: pelvis
@@ -363,7 +363,7 @@ humanoid_centroidal_mpc_controller:
       statusLogPeriod: 2.0
 
     floatingBase:
-      source: $(var floatingBaseSource) # state_interfaces | state_estimator; hybrid state_estimator_* values are diagnostic only
+      source: $(var floatingBaseSource) # ground_truth_state | state_estimator; hybrid state_estimator_* values are diagnostic only
       stateInterfaceName: pelvis
       odometryTopic: /mujoco/ground_truth/odom
       baseFrame: pelvis

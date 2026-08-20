@@ -117,7 +117,7 @@ The filter is seeded once, on the first tick, from the MuJoCo GT body pose (on h
 
 Whether the estimate **drives control** is a single switch:
 
-- `floatingBase.source: state_interfaces` — GT body drives the MPC; the InEKF (if `enabled`) runs only for comparison.
+- `floatingBase.source: ground_truth_state` — GT body drives the MPC; the InEKF (if `enabled`) runs only for comparison.
 - `floatingBase.source: state_estimator` — the InEKF estimate replaces the GT body in the observation: [`use_estimate` branch](../src/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller.cpp#L686-L719).
 
 ## Configuration and Tuning
@@ -142,7 +142,7 @@ Roll/pitch stay well under a quarter degree and body velocity within ~3 cm/s con
 
 ### Status: closed-loop WORKING
 
-- **Open-loop (`floatingBaseSource:=state_interfaces`):** GT drives control, InEKF runs alongside. ✅
+- **Open-loop (`floatingBaseSource:=ground_truth_state`):** GT drives control, InEKF runs alongside. ✅
 - **Closed-loop (`floatingBaseSource:=state_estimator`):** the estimate drives the MPC; the robot walks. `state_estimator_closed_loop_test.sh` reports **VERDICT: SUCCESS** — 2.18 m of directional progress, final pelvis height 0.778 m, GT minimum height 0.764 m (no sag), gait progressing `stance -> slow_walk -> walk -> stance`, MPC at ~95 Hz / ~55 % utilization. ✅
 
 Closed-loop estimate accuracy vs GT (2154 samples): roll 0.22° mean / 0.66° max, pitch 0.47° / 1.90°, **height 1.8 mm mean / 6.6 mm max**, body velocity 0.025 m/s mean, yaw drift 0.05°.

@@ -324,7 +324,7 @@ The floating-base feedback source is chosen with the **`floatingBaseSource`** la
 # (default) simulator/hardware body state - MuJoCo ground truth in simulation
 ros2 launch legged_robot_mpc_controller g1.launch.py \
   mpcControllerName:=humanoid_centroidal_mpc_controller \
-  floatingBaseSource:=state_interfaces
+  floatingBaseSource:=ground_truth_state
 
 # proprioceptive InEKF drives the MPC: IMU + joint encoders + scheduled contacts,
 # no ground-truth body in the control loop
@@ -335,10 +335,10 @@ ros2 launch legged_robot_mpc_controller g1.launch.py \
 
 | `floatingBaseSource` | Feedback used by the MPC |
 |---|---|
-| `state_interfaces` *(default)* | Body pose/twist from `ros2_control` state interfaces (MuJoCo ground truth in simulation; the robot's own base state on hardware). |
+| `ground_truth_state` *(default)* | Body pose/twist from `ros2_control` state interfaces (MuJoCo ground truth in simulation; the robot's own base state on hardware). |
 | `state_estimator` | Contact-aided **InEKF** estimate (pose, world linear velocity, body angular velocity). Ground truth is used only for the brief filter warm-up and for evaluation. |
 
-The estimator can also run **in parallel** while ground truth drives control, which is the way to compare it against GT without risking the robot — set `stateEstimator.enabled: true` and keep `floatingBaseSource:=state_interfaces`. Either way it publishes its estimate for evaluation:
+The estimator can also run **in parallel** while ground truth drives control, which is the way to compare it against GT without risking the robot — set `stateEstimator.enabled: true` and keep `floatingBaseSource:=ground_truth_state`. Either way it publishes its estimate for evaluation:
 
 ```bash
 ros2 topic echo /mujoco/ground_truth/odom        # ground truth (also used for RViz/TF)

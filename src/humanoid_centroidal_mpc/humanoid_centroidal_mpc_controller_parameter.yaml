@@ -131,10 +131,10 @@ humanoid_centroidal_mpc_controller:
   floatingBase:
     source: {
       type: string,
-      default_value: "state_interfaces",
-      description: "Floating-base feedback source. state_interfaces = simulator/hardware body state (ground truth in MuJoCo); state_estimator = proprioceptive InEKF (IMU + encoders + contacts); mujoco_ground_truth_odom is a topic fallback.",
+      default_value: "ground_truth_state",
+      description: "Floating-base feedback source. ground_truth_state = simulator/hardware body state (ground truth in MuJoCo); state_estimator = proprioceptive InEKF (IMU + encoders + contacts); mujoco_ground_truth_odom is a topic fallback.",
       validation: {
-        one_of<>: [["mujoco_ground_truth_odom", "state_interfaces", "state_estimator"]]
+        one_of<>: [["mujoco_ground_truth_odom", "ground_truth_state", "state_estimator"]]
       }
     }
 

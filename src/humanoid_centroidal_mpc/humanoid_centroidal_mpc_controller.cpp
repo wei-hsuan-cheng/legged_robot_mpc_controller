@@ -372,7 +372,7 @@ HumanoidCentroidalMpcController::state_interface_configuration() const
   // The GT body interfaces are still claimed with the estimator active, to bootstrap
   // the filter at activation and to publish a GT reference for comparison.
   const bool need_gt_interfaces =
-    parameters_.floatingBase.source == "state_interfaces" || estimator_active;
+    parameters_.floatingBase.source == "ground_truth_state" || estimator_active;
 
   if (need_gt_interfaces || estimator_active) {
     if (config.type == controller_interface::interface_configuration_type::NONE) {
