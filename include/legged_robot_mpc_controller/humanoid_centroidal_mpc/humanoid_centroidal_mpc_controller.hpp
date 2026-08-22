@@ -89,7 +89,10 @@ private:
   void update_state_estimator(const rclcpp::Time& time);
   void log_state_estimator_validation(const rclcpp::Time& time);
   // Samples one row of the Phase-0 state diagnostics log (no-op when disabled).
-  void record_diagnostics_state(const rclcpp::Time& time, const ocs2::SystemObservation& observation);
+  void record_diagnostics_state(
+    const rclcpp::Time& time,
+    const ocs2::SystemObservation& observation,
+    const JointActionCommand& command);
   ocs2::TargetTrajectories current_observation_to_reset_trajectory(
     const ocs2::SystemObservation& observation);
   void start_solver_thread(const ocs2::SystemObservation& initial_observation);

@@ -63,14 +63,35 @@ contact_flag_t SwitchedModelReferenceManager::getContactFlags(scalar_t time) con
 /******************************************************************************************************/
 
 scalar_t SwitchedModelReferenceManager::getPhaseVariable(scalar_t time) const {
-  const auto it = std::upper_bound(modeSchedule_.eventTimes.begin(), modeSchedule_.eventTimes.end(), time);
-  scalar_t nextEventTime = *it;
-  scalar_t prevEventTime = *(it - 1);
+  // This feeds the arm-swing reference through getDesiredState(), so it runs on
+  // every solver iteration. It used to dereference unconditionally: *it is out of
+  // bounds when `time` is past the last event (it == end()), and *(it - 1) is out
+  // of bounds when `time` precedes the first (it == begin()). Both happen in
+  // normal operation, because the cost is evaluated across a horizon that can
+  // extend beyond the schedule that was planned for it. The values read were
+  // whatever happened to be adjacent in memory, which could make the phase
+  // variable - and hence the commanded arm angles - jump arbitrarily.
+  const auto& eventTimes = modeSchedule_.eventTimes;
+  if (eventTimes.empty()) {
+    return 0.0;
+  }
+  const auto it = std::upper_bound(eventTimes.begin(), eventTimes.end(), time);
+  if (it == eventTimes.begin() || it == eventTimes.end()) {
+    // Outside the planned schedule there is no meaningful phase; report the start
+    // of the cycle rather than extrapolating from out-of-range samples.
+    return 0.0;
+  }
+  const scalar_t nextEventTime = *it;
+  const scalar_t prevEventTime = *(it - 1);
+  const scalar_t cycleDuration = nextEventTime - prevEventTime;
+  if (!(cycleDuration > 0.0)) {
+    return 0.0;  // coincident events: no phase to interpolate, and no division
+  }
 
   if (modeSchedule_.modeAtTime(time) == LF) {
-    return (0.5 * (time - prevEventTime) / (nextEventTime - prevEventTime));
+    return (0.5 * (time - prevEventTime) / cycleDuration);
   } else if (modeSchedule_.modeAtTime(time) == RF) {
-    return (0.5 + 0.5 * (time - prevEventTime) / (nextEventTime - prevEventTime));
+    return (0.5 + 0.5 * (time - prevEventTime) / cycleDuration);
   } else {
     if (modeSchedule_.modeAtTime(prevEventTime - 0.01) == LF) {
       return 0.5;

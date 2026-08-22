@@ -84,12 +84,14 @@ CentroidalMpcDiagnostics::CentroidalMpcDiagnostics(
   Settings settings,
   const ocs2::humanoid::CentroidalMpcInterface & mpc_interface,
   const ocs2::PinocchioInterface & pinocchio_interface,
-  std::vector<std::string> contact_frames)
+  std::vector<std::string> contact_frames,
+  std::vector<std::string> joint_names)
 : settings_(std::move(settings)),
   mpc_interface_(&mpc_interface),
   pinocchio_(pinocchio_interface),
   info_(mpc_interface.getCentroidalModelInfo()),
-  contact_frames_(std::move(contact_frames))
+  contact_frames_(std::move(contact_frames)),
+  joint_names_(std::move(joint_names))
 {
   if (!settings_.enabled) {
     return;
@@ -186,6 +188,25 @@ void CentroidalMpcDiagnostics::buildStateSchema()
   c.emplace_back("height_kinematic");
   c.emplace_back("height_kinematic_valid");
   c.emplace_back("height_reported");
+
+  // Measured and commanded joint state. Both are needed to tell a jittering
+  // command apart from a smooth command the low-level PD is ringing around;
+  // the measured signal alone looks the same either way.
+  for (const auto & joint : joint_names_) {
+    c.emplace_back("q_" + joint);
+  }
+  for (const auto & joint : joint_names_) {
+    c.emplace_back("dq_" + joint);
+  }
+  for (const auto & joint : joint_names_) {
+    c.emplace_back("qcmd_" + joint);
+  }
+  for (const auto & joint : joint_names_) {
+    c.emplace_back("dqcmd_" + joint);
+  }
+  for (const auto & joint : joint_names_) {
+    c.emplace_back("tau_" + joint);
+  }
 }
 
 void CentroidalMpcDiagnostics::buildCostSchema()
@@ -197,6 +218,17 @@ void CentroidalMpcDiagnostics::buildCostSchema()
   c.emplace_back("advance_ms");
   c.emplace_back("running_cost_total");
   c.emplace_back("terminal_cost_total");
+
+  // Solver health: did the optimizer actually solve the problem it was given?
+  c.emplace_back("solver_merit");
+  c.emplace_back("solver_cost");
+  c.emplace_back("solver_dynamics_violation_sse");
+  c.emplace_back("solver_equality_sse");
+  c.emplace_back("solver_dual_feasibility_sse");
+  c.emplace_back("solver_equality_lagrangian");
+  c.emplace_back("solver_inequality_lagrangian");
+  c.emplace_back("solver_iterations");
+  c.emplace_back("policy_updated");
 
   // The state the terms are evaluated at and the reference they compare against,
   // so a term's value can be read together with the error that produced it.
@@ -391,6 +423,25 @@ void CentroidalMpcDiagnostics::recordState(
   put(row, k, filter.kinematic_height_valid);
   put(row, k, filter.reported_height);
 
+  // Joint block. sample.joint_* are in the MPC ordering and cover only the MPC
+  // joints; the commanded vectors are in robot.jointNames order. They coincide
+  // for this robot, but write defensively so a mismatch leaves NaN rather than
+  // silently shifting the columns.
+  const auto n_joints = static_cast<Eigen::Index>(joint_names_.size());
+  const auto put_joint_block = [&](const ocs2::vector_t & values, bool valid) {
+      for (Eigen::Index i = 0; i < n_joints; ++i) {
+        if (valid && i < values.size()) {
+          row[k] = values[i];
+        }
+        ++k;
+      }
+    };
+  put_joint_block(sample.joint_positions, sample.joint_valid);
+  put_joint_block(sample.joint_velocities, sample.joint_valid);
+  put_joint_block(sample.commanded_positions, sample.command_valid);
+  put_joint_block(sample.commanded_velocities, sample.command_valid);
+  put_joint_block(sample.commanded_torques, sample.command_valid);
+
   if (k != state_log_.width()) {
     schema_mismatch_ = true;
   }
@@ -398,7 +449,8 @@ void CentroidalMpcDiagnostics::recordState(
 }
 
 void CentroidalMpcDiagnostics::recordCost(
-  const ocs2::SystemObservation & observation, double advance_ms)
+  const ocs2::SystemObservation & observation, double advance_ms,
+  const SolverHealth & health)
 {
   if (!settings_.enabled || !settings_.logCost || !cost_log_.isOpen() || problem_ == nullptr) {
     return;
@@ -458,6 +510,20 @@ void CentroidalMpcDiagnostics::recordCost(
   put(row, k, advance_ms);
   put(row, k, running_total);
   put(row, k, terminal_total);
+
+  if (health.valid) {
+    put(row, k, health.merit);
+    put(row, k, health.cost);
+    put(row, k, health.dynamics_violation_sse);
+    put(row, k, health.equality_constraints_sse);
+    put(row, k, health.dual_feasibilities_sse);
+    put(row, k, health.equality_lagrangian);
+    put(row, k, health.inequality_lagrangian);
+    put(row, k, static_cast<double>(health.iterations));
+    put(row, k, health.policy_updated);
+  } else {
+    k += 9;  // leave the solver block as NaN
+  }
 
   // Centroidal state layout: [normalized momentum (6), base pose (6), joints].
   for (Eigen::Index i = 0; i < 12 && i < x.size(); ++i) {

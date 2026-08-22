@@ -279,7 +279,7 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_configu
       diagnostics_settings.bufferRows = static_cast<std::size_t>(std::max<int64_t>(log.bufferRows, 16));
       diagnostics_ = std::make_unique<CentroidalMpcDiagnostics>(
         diagnostics_settings, *mpc_interface_, *control_pinocchio_,
-        parameters_.stateEstimator.contactFrames);
+        parameters_.stateEstimator.contactFrames, parameters_.robot.jointNames);
       RCLCPP_INFO(
         get_node()->get_logger(),
         "[HumanoidCentroidalMpcController] diagnostics logging enabled | prefix=%s | "
@@ -523,7 +523,6 @@ controller_interface::return_type HumanoidCentroidalMpcController::update_and_wr
   update_state_estimator(time);
 
   const auto observation = build_observation(time);
-  record_diagnostics_state(time, observation);
   JointActionCommand command;
   if (mrt_interface_ && mrt_interface_->initialPolicyReceived()) {
     command = compute_mpc_joint_action(observation);
@@ -535,6 +534,10 @@ controller_interface::return_type HumanoidCentroidalMpcController::update_and_wr
   }
 
   write_joint_action_command(command.policy_position, command.policy_velocity, command.feedforward);
+
+  // After the command exists, so the log carries the measured and the commanded
+  // joint state from the same tick.
+  record_diagnostics_state(time, observation, command);
 
   // 10 Hz hand-off: copying the policy trajectory every RT update starves the solver.
   if (performance_visualization_ && mrt_interface_ && mrt_interface_->initialPolicyReceived() &&
@@ -906,7 +909,9 @@ void HumanoidCentroidalMpcController::log_state_estimator_validation(
 }
 
 void HumanoidCentroidalMpcController::record_diagnostics_state(
-  const rclcpp::Time& time, const ocs2::SystemObservation& observation)
+  const rclcpp::Time& time,
+  const ocs2::SystemObservation& observation,
+  const JointActionCommand& command)
 {
   if (!diagnostics_) {
     return;
@@ -971,6 +976,11 @@ void HumanoidCentroidalMpcController::record_diagnostics_state(
   // The joint state is shared by both momentum evaluations, so the two differ
   // only in the floating-base feedback - which is the comparison we want.
   sample.joint_valid = read_joint_state(sample.joint_positions, sample.joint_velocities);
+
+  sample.commanded_positions = command.policy_position;
+  sample.commanded_velocities = command.policy_velocity;
+  sample.commanded_torques = command.feedforward;
+  sample.command_valid = command.policy_position.size() > 0;
 
   diagnostics_->recordState(sample, last_estimate_, state_estimator_->diagnostics());
 }
@@ -1192,6 +1202,7 @@ void HumanoidCentroidalMpcController::solver_worker()
     previous_start = iteration_start;
 
     double advance_ms = 0.0;
+    bool policy_updated = false;
     try {
       mrt_interface_->advanceMpc();
       const auto iteration_end = Clock::now();
@@ -1203,7 +1214,8 @@ void HumanoidCentroidalMpcController::solver_worker()
       // no longer being swapped; republish it for the control loop.
       publish_mode_schedule();
 
-      if (!mrt_interface_->updatePolicy()) {
+      policy_updated = mrt_interface_->updatePolicy();
+      if (!policy_updated) {
         RCLCPP_WARN_THROTTLE(
           get_node()->get_logger(),
           *get_node()->get_clock(),
@@ -1233,8 +1245,31 @@ void HumanoidCentroidalMpcController::solver_worker()
           have_observation = true;
         }
       }
+      CentroidalMpcDiagnostics::SolverHealth health;
+      if (mpc_solver_) {
+        // Read on the solver thread, between iterations, where the solver is
+        // idle. These say whether the returned solution actually satisfies the
+        // dynamics and the constraints - a converged-but-wrong problem and a
+        // non-converging solver look identical from the cost alone.
+        try {
+          const auto& performance = mpc_solver_->getSolverPtr()->getPerformanceIndeces();
+          health.merit = performance.merit;
+          health.cost = performance.cost;
+          health.dynamics_violation_sse = performance.dynamicsViolationSSE;
+          health.equality_constraints_sse = performance.equalityConstraintsSSE;
+          health.dual_feasibilities_sse = performance.dualFeasibilitiesSSE;
+          health.equality_lagrangian = performance.equalityLagrangian;
+          health.inequality_lagrangian = performance.inequalityLagrangian;
+          health.iterations =
+            static_cast<int>(mpc_solver_->getSolverPtr()->getIterationsLog().size());
+          health.policy_updated = policy_updated;
+          health.valid = true;
+        } catch (const std::exception&) {
+          health.valid = false;  // no solution yet
+        }
+      }
       if (have_observation) {
-        diagnostics_->recordCost(cost_observation, advance_ms);
+        diagnostics_->recordCost(cost_observation, advance_ms, health);
       }
     }
 

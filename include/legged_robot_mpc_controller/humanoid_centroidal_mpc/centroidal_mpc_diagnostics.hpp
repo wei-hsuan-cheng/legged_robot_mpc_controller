@@ -75,7 +75,8 @@ public:
     Settings settings,
     const ocs2::humanoid::CentroidalMpcInterface & mpc_interface,
     const ocs2::PinocchioInterface & pinocchio_interface,
-    std::vector<std::string> contact_frames);
+    std::vector<std::string> contact_frames,
+    std::vector<std::string> joint_names);
 
   ~CentroidalMpcDiagnostics();
 
@@ -110,6 +111,17 @@ public:
     ocs2::vector_t joint_positions;
     ocs2::vector_t joint_velocities;
     bool joint_valid{false};
+
+    //! What the controller actually commanded this tick, in robot.jointNames
+    //! order. Logged alongside the measured state because "the arm is jittering"
+    //! has two quite different causes that look identical in the measured signal:
+    //! a jittering command that the joint is tracking faithfully, or a smooth
+    //! command that the low-level PD is ringing around. Only the pair separates
+    //! them.
+    ocs2::vector_t commanded_positions;
+    ocs2::vector_t commanded_velocities;
+    ocs2::vector_t commanded_torques;
+    bool command_valid{false};
   };
 
   /**
@@ -123,10 +135,38 @@ public:
     const state_estimation::InekfFloatingBaseEstimator::Diagnostics & filter);
 
   /**
+   * Whether the optimizer actually solved the problem it was given.
+   *
+   * A cost breakdown says which term dominates, but not whether the solution
+   * respects the dynamics and the constraints. Those are different failures with
+   * different fixes: a solver that is not converging needs more iterations or a
+   * better warm start; a converged solution that still falls over means the
+   * problem being solved is the wrong problem. Without these, the two are easy
+   * to confuse.
+   */
+  struct SolverHealth
+  {
+    bool valid{false};
+    double merit{0.0};
+    double cost{0.0};
+    //! Sum of squared defects between the shooting nodes. Large means the
+    //! predicted trajectory is not a trajectory of the model at all.
+    double dynamics_violation_sse{0.0};
+    double equality_constraints_sse{0.0};
+    double dual_feasibilities_sse{0.0};
+    double equality_lagrangian{0.0};
+    double inequality_lagrangian{0.0};
+    int iterations{0};
+    bool policy_updated{true};
+  };
+
+  /**
    * Evaluate and log the per-cost-term breakdown at the given observation.
    * Called from the solver thread, between MPC iterations.
    */
-  void recordCost(const ocs2::SystemObservation & observation, double advance_ms);
+  void recordCost(
+    const ocs2::SystemObservation & observation, double advance_ms,
+    const SolverHealth & health);
 
   /**
    * True if a row was ever filled with a number of values other than the number
@@ -168,6 +208,7 @@ private:
   std::vector<std::string> terminal_cost_names_;
 
   std::vector<std::string> contact_frames_;
+  std::vector<std::string> joint_names_;
 
   DiagnosticsCsvLogger state_log_;
   DiagnosticsCsvLogger cost_log_;

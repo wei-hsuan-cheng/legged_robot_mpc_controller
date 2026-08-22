@@ -546,6 +546,137 @@ def analyse_fall(state: Table, fall_time: float, lead: float) -> None:
     print("  belongs in the filter or in the controller.")
 
 
+def analyse_joints(state: Table, top: int = 12) -> None:
+    """Per-joint jitter, and whether the command or the tracking is responsible.
+
+    "The arm jitters" has two causes that are indistinguishable in the measured
+    angle alone: the MPC is commanding a jittery reference and the joint is
+    following it faithfully, or the reference is smooth and the low-level PD is
+    ringing around it. Logging both lets them be separated:
+
+      cmd jitter  high-frequency content of the commanded angle
+      meas jitter high-frequency content of the measured angle
+      ratio       meas / cmd. Near 1 means the joint is tracking a jittery
+                  command (fix the reference). Much greater than 1 means the
+                  command is smooth and the joint is ringing (fix the PD gains,
+                  or the model the feedforward torque comes from).
+    """
+    joints = [c[2:] for c in state.columns if c.startswith("q_")]
+    if not joints:
+        print()
+        print("  (no joint columns in this log - it predates joint-level logging)")
+        return
+
+    section("JOINT JITTER")
+
+    def hf(name: str) -> float:
+        """RMS of the second difference: content at the sampling rate, with the
+        smooth motion underneath differenced away."""
+        if name not in state:
+            return float("nan")
+        values = finite(state.col(name))
+        if values.size < 8:
+            return float("nan")
+        return float(np.sqrt(np.mean(np.diff(values, 2) ** 2)) / np.sqrt(6.0))
+
+    rows = []
+    for joint in joints:
+        meas = hf(f"q_{joint}")
+        cmd = hf(f"qcmd_{joint}")
+        tau = f"tau_{joint}"
+        tau_rms = rms(state.col(tau)) if tau in state else float("nan")
+        tau_jitter = hf(tau)
+        ratio = meas / cmd if (np.isfinite(cmd) and cmd > 1e-12) else float("nan")
+        rows.append((joint, meas, cmd, ratio, tau_rms, tau_jitter))
+
+    rows.sort(key=lambda r: (r[1] if np.isfinite(r[1]) else -1.0), reverse=True)
+
+    print(f"  {'joint':<28} {'meas jitter':>12} {'cmd jitter':>11} {'ratio':>7} "
+          f"{'tau RMS':>9} {'tau jitter':>11}")
+    for joint, meas, cmd, ratio, tau_rms, tau_jitter in rows[:top]:
+        print(f"  {joint[:28]:<28} {meas:12.3e} {cmd:11.3e} {ratio:7.2f} "
+              f"{tau_rms:9.3f} {tau_jitter:11.3e}")
+
+    arms = [r for r in rows if any(k in r[0] for k in
+                                   ("shoulder", "elbow", "wrist"))]
+    legs = [r for r in rows if any(k in r[0] for k in
+                                   ("hip", "knee", "ankle"))]
+    for label, group in (("arm", arms), ("leg", legs)):
+        values = [r[1] for r in group if np.isfinite(r[1])]
+        commands = [r[2] for r in group if np.isfinite(r[2])]
+        if values:
+            print(f"\n  {label} joints: mean measured jitter {np.mean(values):.3e}, "
+                  f"mean commanded jitter "
+                  f"{np.mean(commands) if commands else float('nan'):.3e}")
+
+    print("\n  Jitter units are rad (or Nm for tau) of per-sample high-frequency")
+    print("  content. Compare arms against legs in the same run: the legs carry the")
+    print("  load and see contact impacts, so some content there is physical. Arms")
+    print("  in free space have no such excuse.")
+
+
+def analyse_solver(cost: Table, fall_time: float | None) -> None:
+    """Did the optimizer solve the problem, or fail to?
+
+    This is the fork the whole diagnosis turns on. If the defects and constraint
+    violations stay small while the robot falls, the solver is doing its job and
+    the problem being posed is the wrong problem - a formulation error, and no
+    amount of solver tuning or extra iterations will help. If they blow up first,
+    it is the opposite.
+    """
+    if "solver_dynamics_violation_sse" not in cost:
+        print()
+        print("  (no solver-health columns - log predates them)")
+        return
+
+    section("SOLVER HEALTH (formulation error vs optimizer failure)")
+    fields = [
+        ("merit", "solver_merit"),
+        ("cost", "solver_cost"),
+        ("dynamics violation SSE", "solver_dynamics_violation_sse"),
+        ("equality constr. SSE", "solver_equality_sse"),
+        ("dual feasibility SSE", "solver_dual_feasibility_sse"),
+    ]
+    print(f"  {'quantity':<26} {'median':>12} {'p95':>12} {'max':>12}")
+    for label, col in fields:
+        values = finite(cost.col(col))
+        if values.size == 0:
+            continue
+        print(f"  {label:<26} {np.median(values):12.4e} "
+              f"{np.percentile(values, 95):12.4e} {values.max():12.4e}")
+
+    if "policy_updated" in cost:
+        updated = finite(cost.col("policy_updated"))
+        if updated.size:
+            failures = int(np.sum(updated < 0.5))
+            print(f"\n  policy updates: {updated.size - failures} ok, {failures} failed")
+
+    if fall_time is None:
+        return
+
+    # The decisive comparison: solver health well before the fall against the
+    # window immediately preceding it.
+    t = cost.col("t")
+    before = (t < fall_time - 5.0)
+    approach = (t >= fall_time - 3.0) & (t < fall_time)
+    after = (t >= fall_time)
+    if not (before.any() and approach.any()):
+        return
+    print(f"\n  Around the fall at t = {fall_time:.2f} s:")
+    print(f"  {'quantity':<26} {'>5s before':>13} {'last 3s':>13} {'after':>13}")
+    for label, col in fields:
+        values = cost.col(col)
+        def med(mask):
+            v = finite(values[mask])
+            return float(np.median(v)) if v.size else float("nan")
+        print(f"  {label:<26} {med(before):13.4e} {med(approach):13.4e} "
+              f"{med(after):13.4e}")
+    print("\n  If the defect and constraint columns are flat from 'before' to")
+    print("  'last 3s', the optimizer was still solving the problem correctly while")
+    print("  balance was already being lost - which puts the fault in the cost,")
+    print("  constraints or reference, not in the solver.")
+
+
 def analyse_cost(cost: Table) -> None:
     section("COST BREAKDOWN (which term actually decides the posture)")
     run_cols = [c for c in cost.columns if c.startswith("run_")]
@@ -765,7 +896,9 @@ def main() -> int | str:
     analyse_accuracy(state)
     analyse_height(state)
     analyse_contacts(state, contacts)
+    analyse_joints(state)
     if cost is not None and not cost.empty:
+        analyse_solver(cost, fall_time)
         analyse_cost(cost)
 
     if args.plot:
