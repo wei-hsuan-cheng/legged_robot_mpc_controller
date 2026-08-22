@@ -243,8 +243,8 @@ SEQUENCES: dict[str, list[Phase]] = {
     # Long forward walk, only safe on a scene without obstacles.
     "walk_far": [
         Phase("settle", 12.0),
-        Phase("ramp", 6.0, vx=0.1, ramp=True),
-        Phase("hold", 120.0, vx=0.1),
+        Phase("ramp", 6.0, vx=0.25, ramp=True),
+        Phase("hold", 120.0, vx=0.25),
         Phase("stop", 12.0),
     ],
 }

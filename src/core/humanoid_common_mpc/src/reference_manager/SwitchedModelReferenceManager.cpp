@@ -311,12 +311,13 @@ void SwitchedModelReferenceManager::updateCaptureFootholds(scalar_t initTime, co
     if (it != eventTimes.end()) {
       timeToTouchdown = std::max(*it - initTime, 0.0);
     }
-    // Bound the extrapolation: exp() of a long horizon turns a small velocity
-    // error into an unreachable foothold, and the clamp below would then saturate
-    // every step and destroy the feedback. Measured: a 0.4 s horizon is worse
-    // than none at all.
-    timeToTouchdown = std::min(timeToTouchdown, captureFootPlacement_.projectionHorizon);
+    timeToTouchdown = std::min(timeToTouchdown, 1.0);  // guard against a stale schedule
   }
+  // Bound the DCM extrapolation separately: exp() of a long horizon turns a small
+  // velocity error into an unreachable foothold, and the clamp below would then
+  // saturate every step and destroy the feedback. Measured: a 0.4 s horizon is
+  // worse than none at all.
+  const scalar_t dcmHorizon = std::min(timeToTouchdown, captureFootPlacement_.projectionHorizon);
 
   for (size_t foot = 0; foot < captureFoothold_.size(); ++foot) {
     if (contactFlags[foot]) {
@@ -324,21 +325,31 @@ void SwitchedModelReferenceManager::updateCaptureFootholds(scalar_t initTime, co
     }
     // Foot 0 is the left foot, so it sits on the positive lateral side.
     const scalar_t side = (foot == 0) ? 1.0 : -1.0;
-    const vector2_t nominal = basePose.head<2>() + side * halfWidth * lateralDirection;
+
+    // The nominal foothold has to sit under where the BASE WILL BE when the foot
+    // lands, not under where it is now. Using the current base position biases
+    // every foothold backwards by v * timeToTouchdown - about 0.08 m at 0.2 m/s
+    // over a 0.4 s swing - so the robot is perpetually stepping short and pitches
+    // forward, and the error grows with speed. That matches the measured failure:
+    // pitch creeping up through a walk and diverging sooner the faster it goes.
+    const vector2_t baseAtTouchdown = basePose.head<2>() + comVelocity * timeToTouchdown;
+    const vector2_t nominal = baseAtTouchdown + side * halfWidth * lateralDirection;
 
     // Propagate the capture point about the supporting foot to the moment this
     // foot lands: xi_td = p_stance + (xi_now - p_stance) * exp(omega * dt).
     const size_t stanceFoot = 1 - foot;
     const vector2_t stancePosition = feetPositions[stanceFoot].head<2>();
-    const scalar_t growth = std::exp(omega * timeToTouchdown);
+    const scalar_t growth = std::exp(omega * dcmHorizon);
     const vector2_t capturePointAtTouchdown =
         stancePosition + (capturePoint - stancePosition) * growth;
 
     // The correction is what turns a fixed step into feedback: how far the
-    // predicted capture point sits from where the foot would nominally go.
+    // predicted capture point sits from where the base will be when the foot
+    // lands. Measured against the same predicted base as the nominal, so the two
+    // do not double-count the forward travel.
     // Clamped so a transient cannot command a step the leg cannot reach.
     vector2_t correction =
-        captureFootPlacement_.gain * (capturePointAtTouchdown - basePose.head<2>());
+        captureFootPlacement_.gain * (capturePointAtTouchdown - baseAtTouchdown);
     const scalar_t limit = captureFootPlacement_.maxAdjustment;
     correction.x() = std::clamp(correction.x(), -limit, limit);
     correction.y() = std::clamp(correction.y(), -limit, limit);
