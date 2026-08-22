@@ -92,6 +92,18 @@ def generate_launch_description():
             description="Floating-base feedback source for the centroidal MPC: "
                         "ground_truth_state (simulator/hardware body state) | state_estimator (proprioceptive InEKF). "
                         "The InEKF always runs in parallel and publishes /humanoid/state_estimate/odom."),
+        DeclareLaunchArgument(
+            "baseCommandGui", default_value="true",
+            description="Spawn the Tk base-command GUI. Set false for headless/scripted runs, which would otherwise open a window on the operator's display.",
+        ),
+        DeclareLaunchArgument(
+            "diagnosticsLog", default_value="false",
+            description="Write the per-tick CSV diagnostics (estimator internals + per-cost-term breakdown) for a tuning/diagnosis run",
+        ),
+        DeclareLaunchArgument(
+            "diagnosticsLogPrefix", default_value="/tmp/centroidal_mpc_diag_%t",
+            description="Output path prefix for the diagnostics CSVs; '_state.csv'/'_cost.csv' are appended and '%t' expands to the run start time",
+        ),
         DeclareLaunchArgument("mpcFreq", default_value="100", description="MPC update frequency (should be integer) (100 for centroidal, 50 for whole-body)"),
         DeclareLaunchArgument("mrtFreq", default_value="1000", description="MRT update frequency (should be integer)"),
         DeclareLaunchArgument("controllersFile", default_value=controllers_file_default),
@@ -283,6 +295,7 @@ def generate_launch_description():
         executable="base_command_gui.py",
         name="base_command_gui",
         output="screen",
+        condition=IfCondition(LaunchConfiguration("baseCommandGui")),
         parameters=[
             {
                 "max_linear_velocity_y": 2.4,
@@ -290,7 +303,6 @@ def generate_launch_description():
                 "max_yaw_rate": 1.0,
             }
         ],
-        condition=IfCondition(LaunchConfiguration("baseCommandGui")),
     )
 
     rviz_node = Node(

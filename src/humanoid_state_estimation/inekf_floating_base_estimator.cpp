@@ -42,6 +42,13 @@ legged_state_estimator::LeggedStateEstimatorSettings toLibrarySettings(
   out.contact_rotation_noise = s.contact_rotation_noise;
   out.sampling_time = s.sampling_time;
 
+  out.initial_attitude_noise = s.initial_attitude_noise;
+  out.initial_velocity_noise = s.initial_velocity_noise;
+  out.initial_position_noise = s.initial_position_noise;
+  out.initial_gyroscope_bias_noise = s.initial_gyroscope_bias_noise;
+  out.initial_accelerometer_bias_noise = s.initial_accelerometer_bias_noise;
+  out.estimate_imu_bias = s.estimate_imu_bias;
+
   out.lpf_gyro_cutoff_frequency = s.lpf_gyro_cutoff;
   out.lpf_gyro_accel_cutoff_frequency = s.lpf_gyro_accel_cutoff;
   out.lpf_lin_accel_cutoff_frequency = s.lpf_lin_accel_cutoff;
@@ -128,6 +135,22 @@ InekfFloatingBaseEstimator::InekfFloatingBaseEstimator(const Settings& settings)
 
   estimator_ = std::make_unique<legged_state_estimator::LeggedStateEstimator>(
     toLibrarySettings(settings_));
+
+  allocateDiagnostics();
+}
+
+void InekfFloatingBaseEstimator::allocateDiagnostics()
+{
+  const size_t n = contact_frame_ids_.size();
+  diagnostics_.contact_innovation.assign(n, Eigen::Vector3d::Zero());
+  diagnostics_.contact_innovation_std.assign(n, Eigen::Vector3d::Zero());
+  diagnostics_.contact_corrected.assign(n, false);
+  diagnostics_.contact_added.assign(n, false);
+  diagnostics_.contact_removed.assign(n, false);
+  diagnostics_.contact_in_stance.assign(n, false);
+  diagnostics_.contact_landmark_position.assign(n, Eigen::Vector3d::Zero());
+  diagnostics_.contact_landmark_valid.assign(n, false);
+  diagnostics_.contact_ground_anchor.assign(n, 0.0);
 }
 
 void InekfFloatingBaseEstimator::remapToEstimatorOrder(
@@ -296,6 +319,83 @@ bool InekfFloatingBaseEstimator::kinematicBaseHeight(
   return true;
 }
 
+void InekfFloatingBaseEstimator::collectDiagnostics(const std::vector<bool>* foot_contacts)
+{
+  const size_t n = contact_frame_ids_.size();
+  Diagnostics& d = diagnostics_;
+
+  std::fill(d.contact_innovation.begin(), d.contact_innovation.end(), Eigen::Vector3d::Zero());
+  std::fill(d.contact_innovation_std.begin(), d.contact_innovation_std.end(), Eigen::Vector3d::Zero());
+  std::fill(d.contact_corrected.begin(), d.contact_corrected.end(), false);
+  std::fill(d.contact_added.begin(), d.contact_added.end(), false);
+  std::fill(d.contact_removed.begin(), d.contact_removed.end(), false);
+
+  const auto& correction = estimator_->getLastCorrection();
+  d.correction_applied = correction.applied;
+  d.correction_dim = correction.dim;
+  d.nis = correction.nis;
+  d.nis_per_dof = correction.dim > 0 ? correction.nis / static_cast<double>(correction.dim) : 0.0;
+
+  // The innovation is stacked 3 elements per corrected contact, in the order the
+  // contacts appear in contact_ids; scatter it back onto the contact indexing.
+  for (size_t k = 0; k < correction.contact_ids.size(); ++k) {
+    const int id = correction.contact_ids[k];
+    if (id < 0 || static_cast<size_t>(id) >= n) {
+      continue;
+    }
+    const auto segment = static_cast<Eigen::Index>(3 * k);
+    if (segment + 3 <= correction.innovation.size()) {
+      d.contact_innovation[static_cast<size_t>(id)] = correction.innovation.segment<3>(segment);
+      d.contact_innovation_std[static_cast<size_t>(id)] =
+        correction.innovation_std.segment<3>(segment);
+    }
+    d.contact_corrected[static_cast<size_t>(id)] = true;
+  }
+  for (const int id : correction.added_contact_ids) {
+    if (id >= 0 && static_cast<size_t>(id) < n) {
+      d.contact_added[static_cast<size_t>(id)] = true;
+    }
+  }
+  for (const int id : correction.removed_contact_ids) {
+    if (id >= 0 && static_cast<size_t>(id) < n) {
+      d.contact_removed[static_cast<size_t>(id)] = true;
+    }
+  }
+
+  // Landmark positions the filter currently holds, for the contacts still augmented.
+  const auto& inekf = estimator_->getInEKF();
+  const auto& augmented = inekf.getEstimatedContactPositions();
+  std::fill(d.contact_landmark_valid.begin(), d.contact_landmark_valid.end(), false);
+  for (const auto& [id, index] : augmented) {
+    if (id < 0 || static_cast<size_t>(id) >= n) {
+      continue;
+    }
+    d.contact_landmark_position[static_cast<size_t>(id)] = inekf.getState().getVector(index);
+    d.contact_landmark_valid[static_cast<size_t>(id)] = true;
+  }
+  d.num_augmented_contacts = estimator_->getNumAugmentedContacts();
+
+  for (size_t contact = 0; contact < n; ++contact) {
+    d.contact_in_stance[contact] = isContactInStance(contact, foot_contacts);
+  }
+
+  d.attitude_std = estimator_->getAttitudeStdDev();
+  d.velocity_std = estimator_->getVelocityStdDev();
+  d.position_std = estimator_->getPositionStdDev();
+  d.gyroscope_bias_std = estimator_->getGyroscopeBiasStdDev();
+  d.accelerometer_bias_std = estimator_->getAccelerometerBiasStdDev();
+
+  d.gyroscope_bias = estimator_->getIMUGyroBiasEstimate();
+  d.accelerometer_bias = estimator_->getIMULinearAccelerationBiasEstimate();
+  d.estimating_bias = inekf.getEstimateBias();
+
+  if (d.contact_ground_anchor.size() == contact_ground_anchor_.size()) {
+    d.contact_ground_anchor = contact_ground_anchor_;
+  }
+
+  d.valid = true;
+}
+
 FloatingBaseEstimate InekfFloatingBaseEstimator::updateImpl(
   const Eigen::Vector3d& imu_gyro_body,
   const Eigen::Vector3d& imu_linear_acceleration_body,
@@ -351,10 +451,19 @@ FloatingBaseEstimate InekfFloatingBaseEstimator::updateImpl(
   // Base-height conditioning (see Settings::height_source). The MPC references foot
   // targets to an absolute ground plane, so the observation's height must agree with
   // the stance-foot kinematics rather than drift with the filter.
+  // Keep the filter's own height before it is blended away: the blend happens
+  // outside the filter, so the internal height keeps drifting uncorrected and the
+  // touchdown anchors are derived from it. Only this value exposes that drift.
+  diagnostics_.inekf_height = estimate.position.z();
+  diagnostics_.kinematic_height_valid = false;
+  diagnostics_.kinematic_height = 0.0;
+
   if (settings_.height_source != "inekf") {
     double kinematic_height = 0.0;
     if (kinematicBaseHeight(
         estimate.orientation, foot_contacts, estimate.position.z(), kinematic_height)) {
+      diagnostics_.kinematic_height = kinematic_height;
+      diagnostics_.kinematic_height_valid = true;
       if (settings_.height_source == "kinematic") {
         estimate.position.z() = kinematic_height;
       } else {  // "blend" and "anchored" both fuse with the filter height
@@ -363,10 +472,13 @@ FloatingBaseEstimate InekfFloatingBaseEstimator::updateImpl(
       }
     }
   }
+  diagnostics_.reported_height = estimate.position.z();
 
   estimate.linear_velocity_world = base_linear_velocity_world;
   estimate.angular_velocity_local = base_to_imu_rotation_ * imu_angular_velocity_local;
   estimate.valid = true;
+
+  collectDiagnostics(foot_contacts);
   return estimate;
 }
 

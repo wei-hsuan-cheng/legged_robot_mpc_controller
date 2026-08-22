@@ -14,6 +14,7 @@
 #include <hardware_interface/loaned_command_interface.hpp>
 #include <hardware_interface/loaned_state_interface.hpp>
 #include <nav_msgs/msg/odometry.hpp>
+#include <realtime_tools/realtime_buffer.h>
 #include <ocs2_core/Types.h>
 #include <ocs2_core/reference/TargetTrajectories.h>
 #include <ocs2_mpc/MPC_BASE.h>
@@ -25,10 +26,12 @@
 #include <rclcpp_lifecycle/state.hpp>
 
 #include <humanoid_centroidal_mpc/CentroidalMpcInterface.h>
+#include <humanoid_common_mpc/gait/MotionPhaseDefinition.h>
 #include <humanoid_centroidal_mpc/command/CentroidalMpcTargetTrajectoriesCalculator.h>
 #include <humanoid_centroidal_mpc/common/CentroidalMpcRobotModel.h>
 
 #include "legged_robot_mpc_controller/common/yaw_unwrapper.hpp"
+#include "legged_robot_mpc_controller/humanoid_centroidal_mpc/centroidal_mpc_diagnostics.hpp"
 #include "legged_robot_mpc_controller/humanoid_state_estimation/inekf_floating_base_estimator.hpp"
 #include "legged_robot_mpc_controller/common/ros2_procedural_mpc_motion_manager.hpp"
 #include "legged_robot_mpc_controller/humanoid_centroidal_mpc_controller_parameters.hpp"
@@ -85,6 +88,8 @@ private:
   // Runs the InEKF state estimator each control tick (bootstraps from GT, publishes its odom).
   void update_state_estimator(const rclcpp::Time& time);
   void log_state_estimator_validation(const rclcpp::Time& time);
+  // Samples one row of the Phase-0 state diagnostics log (no-op when disabled).
+  void record_diagnostics_state(const rclcpp::Time& time, const ocs2::SystemObservation& observation);
   ocs2::TargetTrajectories current_observation_to_reset_trajectory(
     const ocs2::SystemObservation& observation);
   void start_solver_thread(const ocs2::SystemObservation& initial_observation);
@@ -112,6 +117,33 @@ private:
   // Keeps the observed yaw continuous across the +-pi wrap (update thread only).
   common::YawUnwrapper yaw_unwrapper_;
 
+  /**
+   * Control-thread snapshot of the solver's mode schedule.
+   *
+   * The reference manager stores its ModeSchedule in an ocs2::BufferedValue,
+   * whose contract is explicit that get() is NOT thread-safe with respect to
+   * updateFromBuffer() - and updateFromBuffer() runs on the solver thread inside
+   * preSolverRun(), i.e. during advanceMpc(). Calling getContactFlags() or
+   * getModeSchedule() straight from the 1 kHz control loop therefore reads two
+   * std::vectors while they may be being move-assigned. The visible consequence
+   * is a wrong contact flag handed to the InEKF, which adds or drops a landmark
+   * at the wrong instant - exactly the profile of a rare unreproducible fall.
+   *
+   * The solver thread publishes the schedule after each iteration completes,
+   * when reading it from that thread is safe, and the control loop reads this
+   * snapshot instead. RealtimeBuffer's reader never blocks: if the writer holds
+   * the lock it returns the previous snapshot, which is the right trade here
+   * since the schedule changes far more slowly than the control period.
+   */
+  realtime_tools::RealtimeBuffer<ocs2::ModeSchedule> mode_schedule_buffer_;
+
+  /// Contact flags at `time` from the snapshot above. Control-thread safe.
+  ocs2::contact_flag_t contact_flags_at(double time);
+  /// Mode at `time` from the snapshot above. Control-thread safe.
+  size_t mode_at(double time);
+  /// Publish the solver's current mode schedule. Solver thread only.
+  void publish_mode_schedule();
+
   // Observation velocity low-pass state (see build_observation).
   vector_t filtered_generalized_velocity_;
   double last_visualization_time_{-1.0};
@@ -130,6 +162,20 @@ private:
   Eigen::Vector3d previous_gyroscope_bias_{Eigen::Vector3d::Zero()};
   Eigen::Vector3d previous_accelerometer_bias_{Eigen::Vector3d::Zero()};
   bool estimator_bias_validation_initialized_{false};
+
+  // Phase-0 instrumentation. Null unless diagnostics.log.enabled is set; the
+  // control thread feeds its state log and the solver thread feeds its cost log.
+  std::unique_ptr<CentroidalMpcDiagnostics> diagnostics_;
+  // Scratch for the diagnostics sample, kept alive so the control thread does
+  // not allocate a joint vector per tick.
+  CentroidalMpcDiagnostics::StateSample diagnostics_sample_;
+  // Latest observation handed to the solver thread for the cost breakdown. The
+  // control thread only ever try_locks this: a diagnostic is never worth
+  // blocking the control loop for, and a one-tick-stale observation changes
+  // nothing about which cost term dominates.
+  std::mutex diagnostics_observation_mutex_;
+  ocs2::SystemObservation diagnostics_observation_;
+  bool diagnostics_observation_valid_{false};
 
   std::jthread solver_thread_;
   std::atomic_bool terminate_solver_thread_{false};

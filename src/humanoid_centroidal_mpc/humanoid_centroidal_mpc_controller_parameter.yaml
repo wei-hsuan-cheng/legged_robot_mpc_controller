@@ -128,6 +128,41 @@ humanoid_centroidal_mpc_controller:
       }
     }
 
+    log:
+      enabled: {
+        type: bool,
+        default_value: false,
+        description: "Write per-tick CSV diagnostics. Two files are produced: <pathPrefix>_state.csv from the control thread (InEKF covariance, innovations, NIS, contact transitions, estimate-vs-ground-truth error, and the centroidal momentum recomputed from BOTH feedback sources through the same A_G(q)) and <pathPrefix>_cost.csv from the solver thread (per-cost-term values at the current observation plus the reference they track). Sampling happens in the control loop but formatting and file I/O happen on a writer thread, so the control loop only memcpys into a preallocated ring."
+      }
+      pathPrefix: {
+        type: string,
+        default_value: "/tmp/centroidal_mpc_diag_%t",
+        description: "Output path prefix; '_state.csv' and '_cost.csv' are appended. A '%t' is replaced by the local start time so consecutive runs do not overwrite the log they are meant to be compared against."
+      }
+      stateRate: {
+        type: double,
+        default_value: 200.0,
+        description: "Sampling rate [Hz] of the control-thread state log. Must be high enough to resolve a single touchdown (a swing phase is a few hundred ms), so do not go below ~100 Hz.",
+        validation: { gt: [0.0] }
+      }
+      logCost: {
+        type: bool,
+        default_value: true,
+        description: "Also produce the solver-thread per-cost-term log"
+      }
+      costRate: {
+        type: double,
+        default_value: 50.0,
+        description: "Maximum sampling rate [Hz] of the cost log; capped in practice by the MPC iteration rate",
+        validation: { gt: [0.0] }
+      }
+      bufferRows: {
+        type: int,
+        default_value: 8192,
+        description: "Ring capacity in rows for each log. Sized so a stalled disk write cannot force samples to be dropped; a non-zero dropped-row count is reported on deactivation.",
+        validation: { gt: [15] }
+      }
+
   floatingBase:
     source: {
       type: string,
@@ -229,6 +264,42 @@ humanoid_centroidal_mpc_controller:
       contact: { type: double, default_value: 0.1, description: "InEKF contact noise std-dev" }
       contactPosition: { type: double, default_value: 0.01, description: "Contact position measurement noise" }
       contactRotation: { type: double, default_value: 0.01, description: "Contact rotation measurement noise (surface contacts)" }
+    initialCovariance:
+      attitude: {
+        type: double,
+        default_value: 0.01,
+        description: "Initial attitude std-dev [rad]. The InEKF state defaults to P = I(15), i.e. 1 rad of attitude uncertainty, 1 m/s of velocity and 1 m of position - even when the filter is seeded from an exactly known pose. The first contact correction, whose noise is millimetres, then yanks the state; that transient is easily mistaken for slow bias convergence. Seeded from ground truth: keep tight. On hardware: tight roll/pitch (gravity is observable at rest), loose yaw/xy (a gauge freedom).",
+        validation: { gt: [0.0] }
+      }
+      velocity: {
+        type: double,
+        default_value: 0.01,
+        description: "Initial base linear velocity std-dev [m/s]",
+        validation: { gt: [0.0] }
+      }
+      position: {
+        type: double,
+        default_value: 0.01,
+        description: "Initial base position std-dev [m]",
+        validation: { gt: [0.0] }
+      }
+      gyroscopeBias: {
+        type: double,
+        default_value: 0.01,
+        description: "Initial gyroscope bias std-dev [rad/s]. Must be non-zero for bias estimation to do anything: the kinematic measurement Jacobian has no bias columns, so the bias is observable ONLY through its cross-covariance with the attitude/velocity/position block.",
+        validation: { gt: [0.0] }
+      }
+      accelerometerBias: {
+        type: double,
+        default_value: 0.1,
+        description: "Initial accelerometer bias std-dev [m/s^2]; see gyroscopeBias",
+        validation: { gt: [0.0] }
+      }
+    estimateImuBias: {
+      type: bool,
+      default_value: true,
+      description: "Estimate the IMU biases. When false the bias block is decoupled from the rest of the covariance every propagation, freezing the bias at its seeded value."
+    }
     height:
       source: {
         type: string,

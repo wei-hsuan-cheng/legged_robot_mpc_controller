@@ -1,0 +1,611 @@
+#!/usr/bin/env python3
+"""Analyse the Phase-0 diagnostics CSVs written by the centroidal MPC controller.
+
+Usage:
+    python3 analyze_diagnostics.py /tmp/centroidal_mpc_diag_20260822_143000
+    python3 analyze_diagnostics.py <prefix> --plot          # also write PNGs
+    python3 analyze_diagnostics.py <prefix> --phase 2       # steady state only
+
+The prefix is the path WITHOUT the '_state.csv' / '_cost.csv' suffix, i.e. exactly
+what was passed as diagnosticsLogPrefix (with %t already expanded - the resolved
+path is printed in the controller's activation log line).
+
+Depends only on numpy (and matplotlib for --plot), both of which are already in
+the ROS container; deliberately no pandas, which is not.
+
+What this reports, and why each number is the one to look at:
+
+  Filter consistency (NIS).  Closeness to ground truth does not tell you whether
+  a filter is trustworthy; a filter can track well while believing its own error
+  is far smaller than it really is. NIS = r' S^-1 r compares the innovation
+  actually seen against the covariance the filter predicted for it, and for a
+  consistent filter it is chi-squared with `dim` degrees of freedom. NIS/dof well
+  below 1 means the measurement noise is overstated (good data being ignored);
+  well above 1 means the filter is over-confident. Four heel/toe landmarks
+  treated as independent when they are rigidly linked is precisely a mechanism
+  for the second.
+
+  Height architecture.  The kinematic blend is applied OUTSIDE the filter, so
+  height_inekf keeps drifting uncorrected while height_reported looks fine - and
+  the touchdown anchors are computed from height_inekf, so its drift compounds
+  into them. The drift rate of (height_inekf - height_reported) over a long run
+  is the number that decides whether this has to become an in-filter pseudo-
+  measurement.
+
+  Momentum injection.  The centroidal state is normalized momentum, so estimator
+  error enters the dominant state directly. hbar_err is the momentum difference
+  produced by feeding the estimate instead of ground truth through the SAME
+  A_G(q) with the same joint state, which isolates the estimator's own
+  contribution from any model difference.
+
+  Cost balance.  A summed cost says nothing about which term decides the posture
+  the solver picks. The ranked per-term table does, and the leg-torque vs base-z
+  comparison is the specific question behind the untracked height command.
+"""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import sys
+from pathlib import Path
+
+try:
+    import numpy as np
+except ImportError:  # pragma: no cover
+    sys.exit("needs numpy: pip3 install numpy")
+
+
+# --------------------------------------------------------------------------
+# loading
+# --------------------------------------------------------------------------
+
+class Table:
+    """Column-oriented float view of a CSV. Empty fields become NaN."""
+
+    def __init__(self, columns: list[str], data: "np.ndarray"):
+        self.columns = columns
+        self._index = {name: i for i, name in enumerate(columns)}
+        self.data = data  # shape (rows, len(columns))
+
+    @classmethod
+    def read(cls, path: Path) -> "Table":
+        with path.open(newline="") as fh:
+            reader = csv.reader(fh)
+            try:
+                header = next(reader)
+            except StopIteration:
+                return cls([], np.zeros((0, 0)))
+            rows = []
+            width = len(header)
+            for line in reader:
+                if not line:
+                    continue
+                # A short final line is a partially flushed row from a run that
+                # was killed rather than deactivated; pad it instead of failing.
+                if len(line) < width:
+                    line = line + [""] * (width - len(line))
+                elif len(line) > width:
+                    line = line[:width]
+                rows.append([float(v) if v not in ("", "nan") else np.nan for v in line])
+        data = np.asarray(rows, dtype=float) if rows else np.zeros((0, width))
+        return cls(header, data)
+
+    def __len__(self) -> int:
+        return self.data.shape[0]
+
+    def __contains__(self, name: str) -> bool:
+        return name in self._index
+
+    def has(self, *names: str) -> bool:
+        return all(n in self._index for n in names)
+
+    def col(self, name: str) -> "np.ndarray":
+        return self.data[:, self._index[name]]
+
+    def select(self, mask: "np.ndarray") -> "Table":
+        return Table(self.columns, self.data[mask])
+
+    @property
+    def empty(self) -> bool:
+        return self.data.shape[0] == 0
+
+
+# --------------------------------------------------------------------------
+# statistics
+# --------------------------------------------------------------------------
+
+def chi2_bounds(dof: int) -> tuple[float, float]:
+    """Two-sided 95% interval for chi2(dof), Wilson-Hilferty approximation.
+
+    Avoids a scipy dependency; accurate to well under a percent for dof >= 3,
+    which is the only regime here (3 per corrected contact).
+    """
+    if dof <= 0:
+        return (float("nan"), float("nan"))
+    z = 1.959963984540054
+    a = 2.0 / (9.0 * dof)
+    lo = dof * (1.0 - a - z * np.sqrt(a)) ** 3
+    hi = dof * (1.0 - a + z * np.sqrt(a)) ** 3
+    return (float(max(lo, 0.0)), float(hi))
+
+
+def finite(values: "np.ndarray") -> "np.ndarray":
+    return values[np.isfinite(values)]
+
+
+def rms(values: "np.ndarray") -> float:
+    v = finite(values)
+    return float(np.sqrt(np.mean(v**2))) if v.size else float("nan")
+
+
+def peak_abs(values: "np.ndarray") -> float:
+    v = finite(values)
+    return float(np.max(np.abs(v))) if v.size else float("nan")
+
+
+def nanmean(values: "np.ndarray") -> float:
+    v = finite(values)
+    return float(np.mean(v)) if v.size else float("nan")
+
+
+def nanstd(values: "np.ndarray") -> float:
+    v = finite(values)
+    return float(np.std(v)) if v.size else float("nan")
+
+
+def drift_rate(time: "np.ndarray", values: "np.ndarray") -> float:
+    """Least-squares slope [unit/s] - the honest way to state a drift."""
+    mask = np.isfinite(time) & np.isfinite(values)
+    if mask.sum() < 10:
+        return float("nan")
+    return float(np.polyfit(time[mask], values[mask], 1)[0])
+
+
+def last_finite(values: "np.ndarray") -> float:
+    v = finite(values)
+    return float(v[-1]) if v.size else float("nan")
+
+
+def section(title: str) -> None:
+    print()
+    print("=" * 78)
+    print(title)
+    print("=" * 78)
+
+
+# --------------------------------------------------------------------------
+# analyses
+# --------------------------------------------------------------------------
+
+PHASE_NAMES = {
+    0: "0 pre-init (estimator not seeded)",
+    1: "1 warm-up  (ground truth drives control)",
+    2: "2 closed   (the estimate drives control)",
+}
+
+
+def describe_phases(state: Table) -> None:
+    section("RUN SEGMENTS")
+    t = state.col("t")
+    phase = state.col("phase")
+    present = sorted({int(p) for p in finite(phase)})
+    for p in present:
+        mask = phase == p
+        label = PHASE_NAMES.get(p, f"{p} unknown")
+        print(f"  {label:<42} {t[mask].min():8.2f} -> {t[mask].max():8.2f} s "
+              f"({int(mask.sum())} samples)")
+    if 2 not in present:
+        print("  NOTE: the estimate never drove control in this run (no phase-2")
+        print("  samples). Either floatingBase.source is not state_estimator, or the")
+        print("  run ended inside the warm-up window.")
+
+
+def analyse_consistency(state: Table) -> None:
+    section("FILTER CONSISTENCY (the question closeness-to-GT cannot answer)")
+    if not state.has("corr_applied", "corr_dim", "nis"):
+        print("  correction columns absent")
+        return
+
+    applied_mask = state.col("corr_applied") > 0.5
+    if not applied_mask.any():
+        print("  No corrections fired in this segment. Either no contact was ever")
+        print("  indicated, or the contact bookkeeping never augmented a landmark.")
+        return
+
+    sub = state.select(applied_mask)
+    print(f"  corrections applied : {len(sub)} / {len(state)} samples "
+          f"({100.0 * len(sub) / len(state):.1f}%)")
+
+    dims = sub.col("corr_dim")
+    for dof in sorted({int(d) for d in finite(dims)}):
+        nis = finite(sub.col("nis")[dims == dof])
+        if nis.size == 0:
+            continue
+        lo, hi = chi2_bounds(dof)
+        above = float(np.mean(nis > hi))
+        below = float(np.mean(nis < lo))
+        print(f"\n  dim={dof:2d} ({dof // 3} contacts corrected), {nis.size} samples")
+        print(f"    chi2 95% band      : [{lo:8.2f}, {hi:8.2f}]")
+        print(f"    NIS mean / median  : {nis.mean():8.2f} / {np.median(nis):8.2f}"
+              f"   (consistent filter: ~{dof})")
+        print(f"    NIS/dof mean       : {nis.mean() / dof:8.2f}"
+              f"   (consistent filter: ~1.0)")
+        print(f"    above band         : {100 * above:6.1f}%   "
+              f"(>5% => OVER-CONFIDENT: P too small / measurements double-counted)")
+        print(f"    below band         : {100 * below:6.1f}%   "
+              f"(>5% => noise OVERSTATED: good data being ignored)")
+
+    print("\n  Reading it: heel and toe of one foot are rigidly linked but are fed to")
+    print("  the filter as two independent stationary landmarks. That over-counts the")
+    print("  information per foot and shows up here as NIS above the band. If it does,")
+    print("  the fix is the contact model (one landmark per foot, or an inflated N),")
+    print("  not a finer sweep of contactPosition.")
+
+
+def analyse_covariance(state: Table) -> None:
+    section("COVARIANCE AND BIAS")
+    blocks = [("attitude  [rad]", "P_att_std"),
+              ("velocity  [m/s]", "P_vel_std"),
+              ("position  [m]", "P_pos_std"),
+              ("gyro bias [rad/s]", "P_bg_std"),
+              ("acc bias  [m/s^2]", "P_ba_std")]
+    print(f"  {'block':<18} {'mean sigma (x, y, z)':<40} final z")
+    for label, prefix in blocks:
+        cols = [f"{prefix}_{a}" for a in "xyz"]
+        if not state.has(*cols):
+            continue
+        means = [nanmean(state.col(c)) for c in cols]
+        print(f"  {label:<18} ({means[0]:.3e}, {means[1]:.3e}, {means[2]:.3e})"
+              f"    {last_finite(state.col(cols[2])):.3e}")
+
+    if "estimating_bias" in state:
+        enabled = last_finite(state.col("estimating_bias")) > 0.5
+        print(f"\n  bias estimation enabled : {enabled}")
+    for label, prefix in (("gyro bias  [rad/s]", "bias_gyro"),
+                          ("accel bias [m/s^2]", "bias_accel")):
+        cols = [f"{prefix}_{a}" for a in "xyz"]
+        if not state.has(*cols):
+            continue
+        final = [last_finite(state.col(c)) for c in cols]
+        spread = [float(np.ptp(finite(state.col(c))) if finite(state.col(c)).size else np.nan)
+                  for c in cols]
+        print(f"  {label} final=({final[0]:+.3e}, {final[1]:+.3e}, {final[2]:+.3e})"
+              f"  range=({spread[0]:.2e}, {spread[1]:.2e}, {spread[2]:.2e})")
+        if max((s for s in spread if np.isfinite(s)), default=0.0) == 0.0:
+            print("    ^ range is exactly zero: this bias state is NOT being estimated.")
+            print("      The measurement Jacobian has no bias columns, so the bias can")
+            print("      only be observed through its cross-covariance with the")
+            print("      attitude/velocity/position block.")
+
+
+def analyse_accuracy(state: Table) -> None:
+    section("ESTIMATE vs GROUND TRUTH")
+    groups = [("position   [m]", "err_p"),
+              ("orientation[rad]", "err_rpy"),
+              ("lin vel W  [m/s]", "err_v_world"),
+              ("ang vel B  [rad/s]", "err_w_local")]
+    print(f"  {'signal':<20} {'RMS (x, y, z)':<40} peak |.|")
+    for label, prefix in groups:
+        cols = [f"{prefix}_{a}" for a in "xyz"]
+        if not state.has(*cols):
+            continue
+        r = [rms(state.col(c)) for c in cols]
+        p = max(peak_abs(state.col(c)) for c in cols)
+        print(f"  {label:<20} ({r[0]:.4f}, {r[1]:.4f}, {r[2]:.4f})"
+              f"{'':<13} {p:.4f}")
+
+    axes = ("lin_x", "lin_y", "lin_z", "ang_x", "ang_y", "ang_z")
+    mom_cols = [f"hbar_err_{a}" for a in axes]
+    if state.has(*mom_cols) and finite(state.col(mom_cols[0])).size:
+        print("\n  Normalized momentum injected by using the estimate instead of GT")
+        print("  (same A_G(q), same joint state - the estimator's own contribution to")
+        print("  the dominant MPC state):")
+        for col in mom_cols:
+            print(f"    {col:<18} RMS={rms(state.col(col)):.5f}   "
+                  f"peak={peak_abs(state.col(col)):.5f}")
+    else:
+        print("\n  (momentum columns are empty: the joint state or the GT body was")
+        print("   unavailable on the logged ticks)")
+
+
+def analyse_height(state: Table) -> None:
+    section("HEIGHT CONDITIONING (the blend happens OUTSIDE the filter)")
+    if not state.has("height_inekf", "height_reported", "t"):
+        print("  height columns absent")
+        return
+
+    t = state.col("t")
+    inekf = state.col("height_inekf")
+    reported = state.col("height_reported")
+    gap = inekf - reported
+    rate = drift_rate(t, gap)
+    duration = float(np.nanmax(t) - np.nanmin(t))
+
+    print(f"  run duration                : {duration:.1f} s")
+    print(f"  reported height  mean/std   : {nanmean(reported):.4f} / {nanstd(reported):.4f} m")
+    print(f"  filter height    mean/std   : {nanmean(inekf):.4f} / {nanstd(inekf):.4f} m")
+    print(f"  (filter - reported) drift   : {rate:+.5f} m/s  => {rate * 60:+.3f} m/min")
+    print(f"  (filter - reported) final   : {last_finite(gap):+.4f} m")
+
+    anchors = [c for c in state.columns if c.endswith("_ground_anchor")]
+    if anchors:
+        print("\n  Touchdown anchors (computed FROM the filter height, so filter drift")
+        print("  compounds into them):")
+        for col in anchors:
+            print(f"    {col:<36} final={last_finite(state.col(col)):+.4f} m  "
+                  f"drift={drift_rate(t, state.col(col)):+.5f} m/s")
+
+    if duration < 40 and np.isfinite(rate) and abs(rate) > 1e-4:
+        print(f"\n  NOTE: this run is only {duration:.0f} s long. At {rate:+.5f} m/s the")
+        print(f"  gap would reach {abs(rate) * 60:.3f} m after a minute. Run 60 s+ before")
+        print("  drawing a conclusion about drift.")
+
+    if state.has("gt_p_z"):
+        err = reported - state.col("gt_p_z")
+        print(f"\n  reported height error vs GT : RMS={rms(err):.4f} m  "
+              f"peak={peak_abs(err):.4f} m")
+
+
+def analyse_contacts(state: Table, contacts: list[str]) -> None:
+    section("CONTACT BOOKKEEPING")
+    if "num_augmented_contacts" in state:
+        values = finite(state.col("num_augmented_contacts"))
+        print("  landmarks augmented in the filter state:")
+        for n in sorted({int(v) for v in values}):
+            share = 100.0 * float(np.mean(values == n))
+            print(f"    {n} landmarks : {share:5.1f}% of samples")
+
+    print(f"\n  {'contact':<20} {'stance %':>9} {'added':>7} {'removed':>8} "
+          f"{'innov RMS [m]':>14} {'|innov|/sigma':>14}")
+    for name in contacts:
+        stance_col = f"{name}_in_stance"
+        if stance_col not in state:
+            continue
+        stance = state.col(stance_col)
+        added = int(np.nansum(state.col(f"{name}_added"))) if f"{name}_added" in state else 0
+        removed = int(np.nansum(state.col(f"{name}_removed"))) if f"{name}_removed" in state else 0
+
+        innov_cols = [f"{name}_innov_{a}" for a in "xyz"]
+        std_cols = [f"{name}_innov_std_{a}" for a in "xyz"]
+        innov_rms = ratio_mean = float("nan")
+        if state.has(f"{name}_corrected", *innov_cols, *std_cols):
+            mask = state.col(f"{name}_corrected") > 0.5
+            if mask.any():
+                sub = state.select(mask)
+                innov = np.column_stack([sub.col(c) for c in innov_cols])
+                sigma = np.column_stack([sub.col(c) for c in std_cols])
+                innov_rms = rms(innov.ravel())
+                with np.errstate(divide="ignore", invalid="ignore"):
+                    ratio = np.abs(innov) / sigma
+                ratio_mean = nanmean(ratio.ravel())
+        print(f"  {name:<20} {100 * nanmean(stance):8.1f}% {added:7d} {removed:8d} "
+              f"{innov_rms:14.5f} {ratio_mean:14.2f}")
+
+    print("\n  |innov|/sigma is the per-axis normalized innovation. Persistently > 1")
+    print("  means the filter's predicted innovation covariance is too small for the")
+    print("  motion the foot actually undergoes - e.g. a flat foot rolling through")
+    print("  heel-strike and toe-off, which a position-only correction can only")
+    print("  absorb into the base pose and velocity.")
+
+    landmark_cols = [c for c in state.columns if c.endswith("_landmark_z")]
+    if landmark_cols:
+        print("\n  Landmark height spread within the run (the 'foot stretch' the filter")
+        print("  has to absorb somewhere):")
+        for col in landmark_cols:
+            values = finite(state.col(col))
+            values = values[values != 0.0]
+            if values.size == 0:
+                continue
+            print(f"    {col:<36} std={values.std():.5f} m  "
+                  f"range={np.ptp(values):.5f} m")
+
+
+def analyse_cost(cost: Table) -> None:
+    section("COST BREAKDOWN (which term actually decides the posture)")
+    run_cols = [c for c in cost.columns if c.startswith("run_")]
+    term_cols = [c for c in cost.columns if c.startswith("term_")]
+
+    for label, cols, tag in (("RUNNING", run_cols, "run_"),
+                             ("TERMINAL", term_cols, "term_")):
+        if not cols:
+            continue
+        means = [(c, nanmean(cost.col(c))) for c in cols]
+        means = [(c, m) for c, m in means if np.isfinite(m)]
+        means.sort(key=lambda kv: kv[1], reverse=True)
+        total = sum(m for _, m in means)
+        print(f"\n  {label} terms, ranked by mean value ({len(cost)} samples):")
+        print(f"    {'term':<52} {'mean':>12} {'share':>8}")
+        for name, value in means:
+            share = 100.0 * value / total if total else float("nan")
+            print(f"    {name[len(tag):][:52]:<52} {value:12.4f} {share:7.1f}%")
+
+    # The specific question behind the untracked height command: reaching a lower
+    # base-z costs stance knee torque, and if that term is an order of magnitude
+    # heavier than the base-z tracking error then raising the base-z weight cannot
+    # move the posture - which is what was observed.
+    torque = [c for c in run_cols if "torque" in c.lower()]
+    base = [c for c in run_cols + term_cols
+            if "base" in c.lower() or "motiontracking" in c.lower()]
+    if torque and base:
+        print("\n  Leg-torque vs base-tracking (the height-command question):")
+        for col in torque + base:
+            print(f"    {col:<52} mean={nanmean(cost.col(col)):10.4f}")
+        print("    If the torque term dominates, raising the base-z weight will not")
+        print("    move the posture. Decisive test: set legTorqueCost.scaling to 0.0")
+        print("    and rerun the same stance case.")
+
+    if cost.has("x_base_z", "ref_base_z"):
+        err = cost.col("x_base_z") - cost.col("ref_base_z")
+        print(f"\n  base z: actual mean={nanmean(cost.col('x_base_z')):.4f} m  "
+              f"reference mean={nanmean(cost.col('ref_base_z')):.4f} m  "
+              f"error RMS={rms(err):.4f} m")
+
+    ang = [f"x_hbar_ang_{a}" for a in "xyz"]
+    ref_ang = [f"ref_hbar_ang_{a}" for a in "xyz"]
+    if cost.has(*ang, *ref_ang):
+        print("\n  Angular momentum, actual vs reference. The arm-swing reference")
+        print("  commands the very momentum the momentum reference asks to be zero;")
+        print("  a large actual against a ~0 reference is that conflict showing up:")
+        for a, r in zip(ang, ref_ang):
+            print(f"    {a:<18} RMS={rms(cost.col(a)):.5f}     "
+                  f"{r:<18} RMS={rms(cost.col(r)):.5f}")
+
+    if "advance_ms" in cost:
+        values = finite(cost.col("advance_ms"))
+        if values.size:
+            print(f"\n  MPC advance time: mean={values.mean():.2f} ms  "
+                  f"p95={np.percentile(values, 95):.2f} ms  max={values.max():.2f} ms")
+
+
+# --------------------------------------------------------------------------
+# plots
+# --------------------------------------------------------------------------
+
+def make_plots(state: Table, cost: Table | None, prefix: Path) -> None:
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+    except ImportError:
+        print("  (matplotlib not installed; skipping plots)")
+        return
+
+    t = state.col("t")
+    fig, axes = plt.subplots(4, 1, figsize=(13, 14), sharex=True)
+
+    ax = axes[0]
+    for a in "xyz":
+        col = f"err_v_world_{a}"
+        if col in state:
+            ax.plot(t, state.col(col), lw=0.8, label=f"e_v {a}")
+    ax.set_ylabel("lin vel error [m/s]")
+    ax.legend(ncol=3, fontsize=8)
+    ax.grid(alpha=0.3)
+
+    ax = axes[1]
+    if state.has("corr_applied", "nis_per_dof"):
+        mask = state.col("corr_applied") > 0.5
+        ax.plot(t[mask], state.col("nis_per_dof")[mask], lw=0.6, label="NIS / dof")
+        ax.axhline(1.0, color="k", ls="--", lw=0.8, label="consistent (1.0)")
+        ax.set_yscale("log")
+    ax.set_ylabel("NIS / dof")
+    ax.legend(fontsize=8)
+    ax.grid(alpha=0.3)
+
+    ax = axes[2]
+    for col, label in (("height_inekf", "filter height"),
+                       ("height_reported", "reported (blended)"),
+                       ("gt_p_z", "ground truth")):
+        if col in state:
+            ax.plot(t, state.col(col), lw=0.8, label=label)
+    ax.set_ylabel("base height [m]")
+    ax.legend(fontsize=8)
+    ax.grid(alpha=0.3)
+
+    ax = axes[3]
+    if "contact_left" in state:
+        ax.plot(t, state.col("contact_left"), lw=0.8, label="left")
+    if "contact_right" in state:
+        ax.plot(t, state.col("contact_right") * 0.9, lw=0.8, label="right")
+    if "phase" in state:
+        ax.plot(t, state.col("phase") / 2.0, lw=0.8, ls="--", label="phase/2")
+    ax.set_ylabel("contact / phase")
+    ax.set_xlabel("t [s]")
+    ax.legend(fontsize=8)
+    ax.grid(alpha=0.3)
+
+    out = prefix.with_name(prefix.name + "_state.png")
+    fig.tight_layout()
+    fig.savefig(out, dpi=110)
+    print(f"  wrote {out}")
+
+    if cost is not None and not cost.empty:
+        run_cols = [c for c in cost.columns if c.startswith("run_")]
+        if run_cols:
+            ranked = sorted(((c, nanmean(cost.col(c))) for c in run_cols),
+                            key=lambda kv: (kv[1] if np.isfinite(kv[1]) else -np.inf),
+                            reverse=True)[:8]
+            fig2, ax2 = plt.subplots(figsize=(13, 6))
+            ct = cost.col("t")
+            for name, _ in ranked:
+                ax2.plot(ct, cost.col(name), lw=0.8, label=name[4:][:40])
+            ax2.set_yscale("symlog", linthresh=1e-4)
+            ax2.set_xlabel("t [s]")
+            ax2.set_ylabel("cost term value")
+            ax2.legend(fontsize=7, ncol=2)
+            ax2.grid(alpha=0.3)
+            out2 = prefix.with_name(prefix.name + "_cost.png")
+            fig2.tight_layout()
+            fig2.savefig(out2, dpi=110)
+            print(f"  wrote {out2}")
+
+
+# --------------------------------------------------------------------------
+
+def main() -> int | str:
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("prefix", type=Path,
+                        help="log path prefix, without _state.csv / _cost.csv")
+    parser.add_argument("--phase", type=int, default=None,
+                        help="restrict the state analysis to one phase "
+                             "(0 pre-init, 1 warm-up, 2 estimate driving control)")
+    parser.add_argument("--from-time", type=float, default=None)
+    parser.add_argument("--to-time", type=float, default=None)
+    parser.add_argument("--plot", action="store_true", help="also write PNG summaries")
+    args = parser.parse_args()
+
+    state_path = args.prefix.with_name(args.prefix.name + "_state.csv")
+    cost_path = args.prefix.with_name(args.prefix.name + "_cost.csv")
+
+    if not state_path.exists():
+        return f"no such file: {state_path}"
+    state = Table.read(state_path)
+    if state.empty:
+        return f"{state_path} has a header but no rows"
+
+    cost = Table.read(cost_path) if cost_path.exists() else None
+
+    t = state.col("t")
+    print(f"state log : {state_path}  ({len(state)} rows, "
+          f"{np.nanmax(t) - np.nanmin(t):.1f} s)")
+    if cost is not None:
+        print(f"cost  log : {cost_path}  ({len(cost)} rows)")
+
+    describe_phases(state)
+
+    if args.phase is not None:
+        state = state.select(state.col("phase").astype(int) == args.phase)
+        print(f"\n  [restricted to phase {args.phase}: {len(state)} samples]")
+    if args.from_time is not None:
+        state = state.select(state.col("t") >= args.from_time)
+        if cost is not None and not cost.empty:
+            cost = cost.select(cost.col("t") >= args.from_time)
+    if args.to_time is not None:
+        state = state.select(state.col("t") <= args.to_time)
+        if cost is not None and not cost.empty:
+            cost = cost.select(cost.col("t") <= args.to_time)
+    if state.empty:
+        return "no samples left after filtering"
+
+    contacts = sorted({c[: -len("_in_stance")]
+                       for c in state.columns if c.endswith("_in_stance")})
+
+    analyse_consistency(state)
+    analyse_covariance(state)
+    analyse_accuracy(state)
+    analyse_height(state)
+    analyse_contacts(state, contacts)
+    if cost is not None and not cost.empty:
+        analyse_cost(cost)
+
+    if args.plot:
+        section("PLOTS")
+        make_plots(state, cost, args.prefix)
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

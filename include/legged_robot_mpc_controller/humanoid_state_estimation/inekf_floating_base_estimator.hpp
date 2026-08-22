@@ -51,6 +51,23 @@ public:
     double contact_position_noise{0.01};
     double contact_rotation_noise{0.01};
 
+    // Initial InEKF covariance: how much the pose passed to initialize() is
+    // trusted. The library default is P = I(15) - 1 rad of attitude uncertainty,
+    // 1 m/s of velocity, 1 m of position - even when seeded from ground truth,
+    // so the first contact correction (millimetre noise) yanks the state. The
+    // resulting transient is easily mistaken for slow bias convergence.
+    double initial_attitude_noise{1.0e-2};            //!< [rad]
+    double initial_velocity_noise{1.0e-2};            //!< [m/s]
+    double initial_position_noise{1.0e-2};            //!< [m]
+    double initial_gyroscope_bias_noise{1.0e-2};      //!< [rad/s]
+    double initial_accelerometer_bias_noise{1.0e-1};  //!< [m/s^2]
+
+    //! Estimate the IMU biases. The bias is observable only through its
+    //! cross-covariance with the attitude/velocity/position block (the kinematic
+    //! measurement Jacobian has no bias columns), so the initial bias covariance
+    //! above must be non-zero for this to have any effect.
+    bool estimate_imu_bias{true};
+
     // Torque-based contact estimator (logistic regression), one entry per contact.
     std::vector<double> contact_beta0;
     std::vector<double> contact_beta1;
@@ -91,6 +108,74 @@ public:
     double lpf_dqJ_cutoff{10.0};
     double lpf_ddqJ_cutoff{5.0};
     double lpf_tauJ_cutoff{10.0};
+  };
+
+  /**
+   * Per-update view of the filter's internals, for offline diagnosis.
+   *
+   * The estimate alone cannot distinguish a filter that is confident and right
+   * from one that is confident and wrong. These are the quantities that can:
+   * the covariance it reports for itself, the innovation it saw relative to the
+   * covariance it predicted for that innovation (NIS), the contact bookkeeping
+   * that drives both, and the two competing height sources that the reported
+   * height is blended from.
+   *
+   * All per-contact vectors are indexed by contact frame (settings.contactFrames
+   * order) and are sized once at construction, so filling them allocates nothing.
+   */
+  struct Diagnostics
+  {
+    bool valid{false};
+
+    // --- last InEKF measurement update -------------------------------------
+    bool correction_applied{false};   //!< a correction actually fired this tick
+    int correction_dim{0};            //!< stacked measurement dimension (3 per corrected contact)
+    double nis{0.0};                  //!< normalized innovation squared, r' S^-1 r
+    //! NIS divided by its degrees of freedom. A consistent filter sits near 1;
+    //! persistently below 1 means the measurement noise is overstated, above
+    //! means the filter is over-confident (the signature of double-counting
+    //! rigidly-linked heel/toe landmarks as independent measurements).
+    double nis_per_dof{0.0};
+
+    //! Per-contact innovation r and its predicted std sqrt(diag(S)), world frame.
+    //! Zero for contacts that did not take part in this correction.
+    std::vector<Eigen::Vector3d> contact_innovation;
+    std::vector<Eigen::Vector3d> contact_innovation_std;
+    std::vector<bool> contact_corrected;   //!< contact contributed to this correction
+    std::vector<bool> contact_added;       //!< contact was augmented this tick (touchdown)
+    std::vector<bool> contact_removed;     //!< contact was marginalized this tick (liftoff)
+    std::vector<bool> contact_in_stance;   //!< scheduled/detected contact flag fed to the filter
+
+    //! World position the filter holds for each augmented contact landmark. A
+    //! stance-phase drift here is the "foot stretch" a position-only correction
+    //! has to absorb into the base pose when the real foot rolls.
+    std::vector<Eigen::Vector3d> contact_landmark_position;
+    std::vector<bool> contact_landmark_valid;
+
+    int num_augmented_contacts{0};
+
+    // --- covariance ---------------------------------------------------------
+    Eigen::Vector3d attitude_std{Eigen::Vector3d::Zero()};
+    Eigen::Vector3d velocity_std{Eigen::Vector3d::Zero()};
+    Eigen::Vector3d position_std{Eigen::Vector3d::Zero()};
+    Eigen::Vector3d gyroscope_bias_std{Eigen::Vector3d::Zero()};
+    Eigen::Vector3d accelerometer_bias_std{Eigen::Vector3d::Zero()};
+
+    // --- bias ---------------------------------------------------------------
+    Eigen::Vector3d gyroscope_bias{Eigen::Vector3d::Zero()};
+    Eigen::Vector3d accelerometer_bias{Eigen::Vector3d::Zero()};
+    bool estimating_bias{false};
+
+    // --- height conditioning ------------------------------------------------
+    //! The filter's own base height, BEFORE the kinematic blend. The blend is
+    //! applied outside the filter, so this keeps drifting uncorrected even while
+    //! the reported height looks good - and the touchdown anchors are computed
+    //! from it, so its drift compounds into them.
+    double inekf_height{0.0};
+    double kinematic_height{0.0};
+    bool kinematic_height_valid{false};
+    double reported_height{0.0};      //!< what the MPC actually receives
+    std::vector<double> contact_ground_anchor;
   };
 
   explicit InekfFloatingBaseEstimator(const Settings& settings);
@@ -138,6 +223,12 @@ public:
     return estimator_ ? estimator_->getIMUGyroBiasEstimate() : Eigen::Vector3d::Zero();
   }
 
+  /// Filter internals from the most recent update(); see Diagnostics.
+  const Diagnostics & diagnostics() const { return diagnostics_; }
+
+  /// Contact frame names, matching the per-contact ordering used in Diagnostics.
+  const std::vector<std::string> & contactFrames() const { return settings_.contact_frames; }
+
 private:
   /// Fill an estimator-order joint vector from a controller-order one (unmapped joints stay 0).
   void remapToEstimatorOrder(const std::vector<double>& controller_values, Eigen::VectorXd& estimator_vector) const;
@@ -169,6 +260,13 @@ private:
     const std::vector<bool>* foot_contacts,
     double inekf_base_height,
     double& height_out);
+
+  /// Size every per-contact Diagnostics vector once, so update() never allocates.
+  void allocateDiagnostics();
+
+  /// Copy the filter internals for this tick into diagnostics_. Called from
+  /// updateImpl() after the InEKF has run and the height terms are known.
+  void collectDiagnostics(const std::vector<bool>* foot_contacts);
 
   FloatingBaseEstimate updateImpl(
     const Eigen::Vector3d& imu_gyro_body,
@@ -203,6 +301,8 @@ private:
   std::vector<double> contact_ground_anchor_;
   std::vector<bool> contact_was_in_stance_;
   std::vector<double> contact_relative_heights_;
+
+  Diagnostics diagnostics_;
 
   bool initialized_{false};
 };

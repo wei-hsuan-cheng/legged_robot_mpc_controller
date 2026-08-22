@@ -363,6 +363,18 @@ humanoid_centroidal_mpc_controller:
 
     diagnostics:
       statusLogPeriod: 2.0
+      # Phase-0 instrumentation. Off by default; turn on for a tuning/diagnosis run.
+      # Produces <pathPrefix>_state.csv (control thread: InEKF covariance, NIS,
+      # per-contact innovations, contact transitions, estimate-vs-GT error, and the
+      # centroidal momentum from BOTH feedback sources through the same A_G(q)) and
+      # <pathPrefix>_cost.csv (solver thread: per-cost-term values + the reference).
+      log:
+        enabled: $(var diagnosticsLog)
+        pathPrefix: $(var diagnosticsLogPrefix)
+        stateRate: 200.0
+        logCost: true
+        costRate: 50.0
+        bufferRows: 8192
 
     floatingBase:
       source: $(var floatingBaseSource) # ground_truth_state | state_estimator; hybrid state_estimator_* values are diagnostic only

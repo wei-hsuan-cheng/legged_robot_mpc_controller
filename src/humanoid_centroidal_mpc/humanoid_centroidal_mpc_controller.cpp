@@ -106,6 +106,12 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_configu
   // Build the centroidal MPC problem from ROS 2 parameters. The first run generates and
   // compiles the CppAD model libraries into paths.libFolder, which can take several
   // minutes; subsequent runs load the cached libraries.
+  //
+  // This block covers several independent subsystems, so the failure is reported
+  // with the stage it happened in. Attributing every exception here to the MPC
+  // interface (as this used to) sends you looking in the wrong subsystem: an
+  // estimator or reference-manager failure would be reported as an MPC failure.
+  const char* configure_stage = "building the centroidal MPC interface";
   try {
     mpc_interface_ =
       std::make_unique<ocs2::humanoid::CentroidalMpcInterface>(buildCentroidalMpcConfig(parameters_));
@@ -124,6 +130,7 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_configu
     fixed_joint_kp_ = make_vector(parameters_.control.fixedJointKp, fixed_joint_dim, 100.0, "control.fixedJointKp");
     fixed_joint_kd_ = make_vector(parameters_.control.fixedJointKd, fixed_joint_dim, 1.0, "control.fixedJointKd");
 
+    configure_stage = "building the target-trajectories calculator / reference manager";
     const auto reference_config = common::buildReferenceConfig(parameters_);
     if (parameters_.ocs2.gait.gaitLibraryFile.empty()) {
       throw std::invalid_argument("[HumanoidCentroidalMpcController] ocs2.gait.gaitLibraryFile is empty.");
@@ -207,6 +214,7 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_configu
       visualization::makePerformanceVisualizationSettings(parameters_));
 
     // Optional InEKF floating-base state estimator.
+    configure_stage = "building the InEKF floating-base estimator";
     if (parameters_.stateEstimator.enabled ||
         uses_state_estimator(parameters_.floatingBase.source)) {
       const auto& se = parameters_.stateEstimator;
@@ -221,6 +229,12 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_configu
       settings.gyroscope_bias_noise = se.noise.gyroscopeBias;
       settings.accelerometer_bias_noise = se.noise.accelerometerBias;
       settings.contact_noise = se.noise.contact;
+      settings.initial_attitude_noise = se.initialCovariance.attitude;
+      settings.initial_velocity_noise = se.initialCovariance.velocity;
+      settings.initial_position_noise = se.initialCovariance.position;
+      settings.initial_gyroscope_bias_noise = se.initialCovariance.gyroscopeBias;
+      settings.initial_accelerometer_bias_noise = se.initialCovariance.accelerometerBias;
+      settings.estimate_imu_bias = se.estimateImuBias;
       settings.contact_position_noise = se.noise.contactPosition;
       settings.contact_rotation_noise = se.noise.contactRotation;
       settings.contact_beta0 = se.contact.beta0;
@@ -253,11 +267,42 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_configu
         get_update_rate(), settings.sampling_time, se.contact.source.c_str(),
         uses_state_estimator(parameters_.floatingBase.source) ? "yes" : "no");
     }
+    configure_stage = "building the diagnostics logger";
+    const auto& log = parameters_.diagnostics.log;
+    if (log.enabled) {
+      CentroidalMpcDiagnostics::Settings diagnostics_settings;
+      diagnostics_settings.enabled = true;
+      diagnostics_settings.pathPrefix = log.pathPrefix;
+      diagnostics_settings.stateRate = log.stateRate;
+      diagnostics_settings.logCost = log.logCost;
+      diagnostics_settings.costRate = log.costRate;
+      diagnostics_settings.bufferRows = static_cast<std::size_t>(std::max<int64_t>(log.bufferRows, 16));
+      diagnostics_ = std::make_unique<CentroidalMpcDiagnostics>(
+        diagnostics_settings, *mpc_interface_, *control_pinocchio_,
+        parameters_.stateEstimator.contactFrames);
+      RCLCPP_INFO(
+        get_node()->get_logger(),
+        "[HumanoidCentroidalMpcController] diagnostics logging enabled | prefix=%s | "
+        "state=%.1f Hz cost=%s@%.1f Hz",
+        log.pathPrefix.c_str(), log.stateRate, log.logCost ? "on" : "off", log.costRate);
+    }
   } catch (const std::exception& e) {
     RCLCPP_ERROR(
       get_node()->get_logger(),
-      "[HumanoidCentroidalMpcController] Failed to build CentroidalMpcInterface: %s",
-      e.what());
+      "[HumanoidCentroidalMpcController] on_configure failed while %s: %s",
+      configure_stage, e.what());
+    // std::bad_array_new_length here almost always means a stale object file was
+    // linked against a changed class layout rather than a bad parameter: an
+    // allocation size is read from a member that is no longer where the caller
+    // thinks it is. On a shared-folder workspace `make` can be fooled by clock
+    // skew ("Clock skew detected. Your build may be incomplete."), so rebuild
+    // both packages from scratch before treating it as a configuration problem.
+    RCLCPP_ERROR(
+      get_node()->get_logger(),
+      "[HumanoidCentroidalMpcController] if this is std::bad_array_new_length, remove "
+      "build/ and install/ for legged_state_estimator and legged_robot_mpc_controller "
+      "and rebuild: a partially rebuilt workspace mixes old code with a changed class "
+      "layout.");
     return controller_interface::CallbackReturn::ERROR;
   }
 
@@ -294,6 +339,28 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_activat
     previous_accelerometer_bias_.setZero();
     estimator_bias_validation_initialized_ = false;
   }
+  if (diagnostics_) {
+    try {
+      diagnostics_->start();
+      RCLCPP_INFO(
+        get_node()->get_logger(),
+        "[HumanoidCentroidalMpcController] diagnostics logs: %s | %s",
+        diagnostics_->statePath().c_str(),
+        diagnostics_->costPath().empty() ? "(cost log disabled)" : diagnostics_->costPath().c_str());
+    } catch (const std::exception& e) {
+      // Losing the log must not prevent the robot from running.
+      RCLCPP_ERROR(
+        get_node()->get_logger(),
+        "[HumanoidCentroidalMpcController] diagnostics logging disabled: %s", e.what());
+      diagnostics_.reset();
+    }
+  }
+
+  // Seed the mode-schedule snapshot before the solver thread exists, so the
+  // first build_observation() has a schedule to read rather than defaulting to
+  // STANCE.
+  publish_mode_schedule();
+
   initial_observation_state_ = mpc_interface_->getInitialState();
   const auto initial_observation = build_observation(get_node()->now());
   const vector_t q_hold = control_model_->getJointAngles(initial_observation.state);
@@ -337,6 +404,29 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_deactiv
   stop_solver_thread();
   for (auto& command_interface : command_interfaces_) {
     command_interface.set_value(0.0);
+  }
+  if (diagnostics_) {
+    // The solver thread is already joined, so no more cost rows can arrive.
+    const std::size_t dropped_state = diagnostics_->droppedStateRows();
+    const std::size_t dropped_cost = diagnostics_->droppedCostRows();
+    diagnostics_->stop();
+    if (dropped_state > 0 || dropped_cost > 0) {
+      RCLCPP_WARN(
+        get_node()->get_logger(),
+        "[HumanoidCentroidalMpcController] diagnostics log has gaps: dropped %zu state and %zu "
+        "cost rows (writer fell behind); raise diagnostics.log.bufferRows or lower the rates.",
+        dropped_state, dropped_cost);
+    }
+    if (diagnostics_->schemaMismatch()) {
+      RCLCPP_ERROR(
+        get_node()->get_logger(),
+        "[HumanoidCentroidalMpcController] diagnostics rows do not match the declared column "
+        "count; the CSV columns are misaligned and must not be trusted.");
+    }
+    RCLCPP_INFO(
+      get_node()->get_logger(),
+      "[HumanoidCentroidalMpcController] diagnostics logs closed: %s",
+      diagnostics_->statePath().c_str());
   }
   return controller_interface::CallbackReturn::SUCCESS;
 }
@@ -433,6 +523,7 @@ controller_interface::return_type HumanoidCentroidalMpcController::update_and_wr
   update_state_estimator(time);
 
   const auto observation = build_observation(time);
+  record_diagnostics_state(time, observation);
   JointActionCommand command;
   if (mrt_interface_ && mrt_interface_->initialPolicyReceived()) {
     command = compute_mpc_joint_action(observation);
@@ -568,6 +659,30 @@ bool HumanoidCentroidalMpcController::read_joint_state(vector_t& q, vector_t& v)
   return true;
 }
 
+void HumanoidCentroidalMpcController::publish_mode_schedule()
+{
+  // Solver thread only, and only between iterations: the reference manager swaps
+  // its buffered schedule in during preSolverRun(), so this is the point at
+  // which reading it is not concurrent with that swap.
+  if (const auto reference_manager = mpc_interface_->getSwitchedModelReferenceManagerPtr()) {
+    mode_schedule_buffer_.writeFromNonRT(reference_manager->getModeSchedule());
+  }
+}
+
+ocs2::contact_flag_t HumanoidCentroidalMpcController::contact_flags_at(double time)
+{
+  return ocs2::humanoid::modeNumber2StanceLeg(mode_at(time));
+}
+
+size_t HumanoidCentroidalMpcController::mode_at(double time)
+{
+  const auto* schedule = mode_schedule_buffer_.readFromRT();
+  if (schedule == nullptr || schedule->modeSequence.empty()) {
+    return ocs2::humanoid::STANCE;  // nothing published yet: assume double support
+  }
+  return schedule->modeAtTime(time);
+}
+
 void HumanoidCentroidalMpcController::update_state_estimator(const rclcpp::Time& time)
 {
   if (!state_estimator_) {
@@ -631,11 +746,10 @@ void HumanoidCentroidalMpcController::update_state_estimator(const rclcpp::Time&
   }
 
   if (parameters_.stateEstimator.contact.source == "scheduled") {
-    const auto reference_manager = mpc_interface_->getSwitchedModelReferenceManagerPtr();
-    if (!reference_manager) {
-      return;
-    }
-    const auto contact_flags = reference_manager->getContactFlags(time.seconds());
+    // From the control-thread snapshot, not the reference manager directly: see
+    // mode_schedule_buffer_. A torn read here would hand the filter a wrong
+    // contact flag and add or drop a landmark at the wrong instant.
+    const auto contact_flags = contact_flags_at(time.seconds());
     last_estimate_ = state_estimator_->update(
       gyro, accel, joint_pos, joint_vel, joint_eff,
       std::vector<bool>{contact_flags[0], contact_flags[1]});
@@ -791,6 +905,76 @@ void HumanoidCentroidalMpcController::log_state_estimator_validation(
   }
 }
 
+void HumanoidCentroidalMpcController::record_diagnostics_state(
+  const rclcpp::Time& time, const ocs2::SystemObservation& observation)
+{
+  if (!diagnostics_) {
+    return;
+  }
+
+  // Hand the observation to the solver thread for the cost breakdown. try_lock
+  // so a slow reader can never stall the control loop; a skipped tick just means
+  // the solver evaluates the previous observation.
+  {
+    std::unique_lock<std::mutex> lock(diagnostics_observation_mutex_, std::try_to_lock);
+    if (lock.owns_lock()) {
+      diagnostics_observation_ = observation;
+      diagnostics_observation_valid_ = true;
+    }
+  }
+
+  if (!state_estimator_) {
+    return;  // the estimator log has nothing to say without an estimator
+  }
+
+  auto& sample = diagnostics_sample_;
+  sample.time = time.seconds();
+  // Phase segments the run so warm-up, hand-off and steady state can be analysed
+  // separately without having to guess where the transitions happened.
+  sample.phase = !state_estimator_->initialized() ? 0 : (estimator_driving_control_ ? 2 : 1);
+  sample.mode = static_cast<int>(observation.mode);
+
+  const auto contact_flags = contact_flags_at(sample.time);
+  sample.contact_left = contact_flags[0];
+  sample.contact_right = contact_flags[1];
+
+  const std::string& base = parameters_.floatingBase.stateInterfaceName;
+  const auto px = get_state_interface_value(base, "position.x");
+  const auto py = get_state_interface_value(base, "position.y");
+  const auto pz = get_state_interface_value(base, "position.z");
+  const auto qw = get_state_interface_value(base, "orientation.w");
+  const auto qx = get_state_interface_value(base, "orientation.x");
+  const auto qy = get_state_interface_value(base, "orientation.y");
+  const auto qz = get_state_interface_value(base, "orientation.z");
+  const auto lvx = get_state_interface_value(base, "linear_velocity.x");
+  const auto lvy = get_state_interface_value(base, "linear_velocity.y");
+  const auto lvz = get_state_interface_value(base, "linear_velocity.z");
+  const auto avx = get_state_interface_value(base, "angular_velocity.x");
+  const auto avy = get_state_interface_value(base, "angular_velocity.y");
+  const auto avz = get_state_interface_value(base, "angular_velocity.z");
+  sample.gt_valid = px && py && pz && qw && qx && qy && qz && lvx && lvy && lvz && avx && avy && avz;
+  if (sample.gt_valid) {
+    sample.gt_position = Eigen::Vector3d(*px, *py, *pz);
+    Eigen::Quaterniond gt_orientation(*qw, *qx, *qy, *qz);
+    if (gt_orientation.norm() < 1e-12) {
+      gt_orientation = Eigen::Quaterniond::Identity();
+    } else {
+      gt_orientation.normalize();
+    }
+    sample.gt_orientation = gt_orientation;
+    // MuJoCo reports the GT twist body-local; match build_observation and store
+    // the linear part in world coordinates.
+    sample.gt_linear_velocity_world = gt_orientation * Eigen::Vector3d(*lvx, *lvy, *lvz);
+    sample.gt_angular_velocity_local = Eigen::Vector3d(*avx, *avy, *avz);
+  }
+
+  // The joint state is shared by both momentum evaluations, so the two differ
+  // only in the floating-base feedback - which is the comparison we want.
+  sample.joint_valid = read_joint_state(sample.joint_positions, sample.joint_velocities);
+
+  diagnostics_->recordState(sample, last_estimate_, state_estimator_->diagnostics());
+}
+
 ocs2::SystemObservation HumanoidCentroidalMpcController::build_observation(const rclcpp::Time& time)
 {
   const auto& info = mpc_interface_->getCentroidalModelInfo();
@@ -804,10 +988,7 @@ ocs2::SystemObservation HumanoidCentroidalMpcController::build_observation(const
     initial_observation_state_ :
     mpc_interface_->getInitialState();
   observation.input = vector_t::Zero(static_cast<Eigen::Index>(control_model_->getInputDim()));
-  observation.mode = ocs2::humanoid::STANCE;
-  if (const auto reference_manager = mpc_interface_->getSwitchedModelReferenceManagerPtr()) {
-    observation.mode = reference_manager->getModeSchedule().modeAtTime(observation.time);
-  }
+  observation.mode = mode_at(observation.time);
 
   vector_t q_joint;
   vector_t v_joint;
@@ -1018,6 +1199,10 @@ void HumanoidCentroidalMpcController::solver_worker()
       accumulated_advance_ms += advance_ms;
       ++advance_samples;
 
+      // The solve is finished, so the reference manager's buffered schedule is
+      // no longer being swapped; republish it for the control loop.
+      publish_mode_schedule();
+
       if (!mrt_interface_->updatePolicy()) {
         RCLCPP_WARN_THROTTLE(
           get_node()->get_logger(),
@@ -1032,6 +1217,25 @@ void HumanoidCentroidalMpcController::solver_worker()
         2000,
         "[HumanoidCentroidalMpcController] MPC solver exception: %s",
         e.what());
+    }
+
+    // Per-cost-term breakdown, evaluated here rather than in the control thread:
+    // the terms read the reference manager (mode schedule, swing trajectories),
+    // which this thread writes in preSolverRun(). Between iterations is the only
+    // point where reading it does not race with that write.
+    if (diagnostics_) {
+      ocs2::SystemObservation cost_observation;
+      bool have_observation = false;
+      {
+        std::lock_guard<std::mutex> lock(diagnostics_observation_mutex_);
+        if (diagnostics_observation_valid_) {
+          cost_observation = diagnostics_observation_;
+          have_observation = true;
+        }
+      }
+      if (have_observation) {
+        diagnostics_->recordCost(cost_observation, advance_ms);
+      }
     }
 
     if (Clock::now() >= next_log && advance_samples > 0) {
