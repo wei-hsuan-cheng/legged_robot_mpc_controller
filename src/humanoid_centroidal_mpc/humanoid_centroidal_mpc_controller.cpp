@@ -4,7 +4,9 @@
 #include <array>
 #include <chrono>
 #include <cmath>
+#include <iomanip>
 #include <limits>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -287,6 +289,10 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_activat
     last_estimate_publish_time_ = -1.0;
     estimator_warmup_end_time_ = -1.0;  // set on the first estimator tick
     estimator_driving_control_ = false;
+    last_estimator_validation_time_ = -1.0;
+    previous_gyroscope_bias_.setZero();
+    previous_accelerometer_bias_.setZero();
+    estimator_bias_validation_initialized_ = false;
   }
   initial_observation_state_ = mpc_interface_->getInitialState();
   const auto initial_observation = build_observation(get_node()->now());
@@ -667,6 +673,121 @@ void HumanoidCentroidalMpcController::update_state_estimator(const rclcpp::Time&
       odom.twist.twist.angular.z = last_estimate_.angular_velocity_local.z();
       state_estimate_odom_publisher_->publish(odom);
     }
+  }
+
+  log_state_estimator_validation(time);
+}
+
+void HumanoidCentroidalMpcController::log_state_estimator_validation(
+  const rclcpp::Time& time)
+{
+  const auto& validation = parameters_.stateEstimator.validation;
+  if (!validation.enabled || !state_estimator_ || !last_estimate_.valid) {
+    return;
+  }
+
+  const double now = time.seconds();
+  if (last_estimator_validation_time_ >= 0.0 &&
+      now - last_estimator_validation_time_ < validation.period) {
+    return;
+  }
+  const double validation_dt = last_estimator_validation_time_ >= 0.0 ?
+    now - last_estimator_validation_time_ : 0.0;
+  last_estimator_validation_time_ = now;
+
+  const std::string& base = parameters_.floatingBase.stateInterfaceName;
+  const auto qw = get_state_interface_value(base, "orientation.w");
+  const auto qx = get_state_interface_value(base, "orientation.x");
+  const auto qy = get_state_interface_value(base, "orientation.y");
+  const auto qz = get_state_interface_value(base, "orientation.z");
+  const auto lvx = get_state_interface_value(base, "linear_velocity.x");
+  const auto lvy = get_state_interface_value(base, "linear_velocity.y");
+  const auto lvz = get_state_interface_value(base, "linear_velocity.z");
+  const auto avx = get_state_interface_value(base, "angular_velocity.x");
+  const auto avy = get_state_interface_value(base, "angular_velocity.y");
+  const auto avz = get_state_interface_value(base, "angular_velocity.z");
+  if (!qw || !qx || !qy || !qz || !lvx || !lvy || !lvz || !avx || !avy || !avz) {
+    RCLCPP_WARN(
+      get_node()->get_logger(),
+      "[HumanoidCentroidalMpcController][INEKF_VELOCITY_VALIDATION] ground-truth "
+      "floating-base interfaces are unavailable; validation skipped.");
+    return;
+  }
+
+  Eigen::Quaterniond gt_orientation(*qw, *qx, *qy, *qz);
+  if (!gt_orientation.coeffs().allFinite() || gt_orientation.norm() < 1.0e-12) {
+    RCLCPP_WARN(
+      get_node()->get_logger(),
+      "[HumanoidCentroidalMpcController][INEKF_VELOCITY_VALIDATION] invalid "
+      "ground-truth orientation; validation skipped.");
+    return;
+  }
+  gt_orientation.normalize();
+
+  // MuJoCo exposes both twist components in the pelvis frame. Compare linear
+  // velocity in world coordinates and angular velocity in the pelvis frame,
+  // matching the representation consumed by build_observation().
+  const Eigen::Vector3d gt_linear_velocity_world =
+    gt_orientation * Eigen::Vector3d(*lvx, *lvy, *lvz);
+  const Eigen::Vector3d gt_angular_velocity_local(*avx, *avy, *avz);
+  const Eigen::Vector3d linear_velocity_error =
+    last_estimate_.linear_velocity_world - gt_linear_velocity_world;
+  const Eigen::Vector3d angular_velocity_error =
+    last_estimate_.angular_velocity_local - gt_angular_velocity_local;
+
+  const Eigen::Vector3d gyroscope_bias = state_estimator_->estimatedGyroscopeBias();
+  const Eigen::Vector3d accelerometer_bias = state_estimator_->estimatedAccelerometerBias();
+  double gyroscope_bias_rate = 0.0;
+  double accelerometer_bias_rate = 0.0;
+  if (estimator_bias_validation_initialized_ && validation_dt > 0.0) {
+    gyroscope_bias_rate =
+      (gyroscope_bias - previous_gyroscope_bias_).norm() / validation_dt;
+    accelerometer_bias_rate =
+      (accelerometer_bias - previous_accelerometer_bias_).norm() / validation_dt;
+  }
+  previous_gyroscope_bias_ = gyroscope_bias;
+  previous_accelerometer_bias_ = accelerometer_bias;
+  estimator_bias_validation_initialized_ = true;
+
+  const double linear_error_norm = linear_velocity_error.norm();
+  const double angular_error_norm = angular_velocity_error.norm();
+  const bool finite = last_estimate_.linear_velocity_world.allFinite() &&
+    last_estimate_.angular_velocity_local.allFinite() && linear_velocity_error.allFinite() &&
+    angular_velocity_error.allFinite() && gyroscope_bias.allFinite() &&
+    accelerometer_bias.allFinite();
+  const bool valid = finite &&
+    linear_error_norm <= validation.maxLinearVelocityError &&
+    angular_error_norm <= validation.maxAngularVelocityError;
+  const char* control_source = estimator_driving_control_ ? "state_estimator" : "ground_truth_state";
+
+  std::ostringstream message;
+  message << std::fixed << std::setprecision(4)
+          << "control=" << control_source << " finite=" << (finite ? "true" : "false")
+          << " | v_est_W=(" << last_estimate_.linear_velocity_world.transpose() << ")"
+          << " v_gt_W=(" << gt_linear_velocity_world.transpose() << ")"
+          << " e_v=(" << linear_velocity_error.transpose() << ")"
+          << " |e_v|=" << linear_error_norm << "/" << validation.maxLinearVelocityError << " m/s"
+          << " | omega_est_B=(" << last_estimate_.angular_velocity_local.transpose() << ")"
+          << " omega_gt_B=(" << gt_angular_velocity_local.transpose() << ")"
+          << " e_omega=(" << angular_velocity_error.transpose() << ")"
+          << " |e_omega|=" << angular_error_norm << "/" << validation.maxAngularVelocityError << " rad/s"
+          << std::setprecision(5)
+          << " | b_g=(" << gyroscope_bias.transpose() << ")"
+          << " b_a=(" << accelerometer_bias.transpose() << ")"
+          << std::scientific << std::setprecision(3)
+          << " |db_g/dt|=" << gyroscope_bias_rate
+          << " |db_a/dt|=" << accelerometer_bias_rate;
+  const std::string message_text = message.str();
+  if (valid) {
+    RCLCPP_INFO(
+      get_node()->get_logger(),
+      "[HumanoidCentroidalMpcController][INEKF_VELOCITY_VALIDATION][PASS] %s",
+      message_text.c_str());
+  } else {
+    RCLCPP_WARN(
+      get_node()->get_logger(),
+      "[HumanoidCentroidalMpcController][INEKF_VELOCITY_VALIDATION][FAIL] %s",
+      message_text.c_str());
   }
 }
 

@@ -84,6 +84,7 @@ private:
   ocs2::SystemObservation build_observation(const rclcpp::Time& time);
   // Runs the InEKF state estimator each control tick (bootstraps from GT, publishes its odom).
   void update_state_estimator(const rclcpp::Time& time);
+  void log_state_estimator_validation(const rclcpp::Time& time);
   ocs2::TargetTrajectories current_observation_to_reset_trajectory(
     const ocs2::SystemObservation& observation);
   void start_solver_thread(const ocs2::SystemObservation& initial_observation);
@@ -125,6 +126,10 @@ private:
   // Filter convergence window: the estimate only drives control after this time.
   double estimator_warmup_end_time_{-1.0};
   bool estimator_driving_control_{false};
+  double last_estimator_validation_time_{-1.0};
+  Eigen::Vector3d previous_gyroscope_bias_{Eigen::Vector3d::Zero()};
+  Eigen::Vector3d previous_accelerometer_bias_{Eigen::Vector3d::Zero()};
+  bool estimator_bias_validation_initialized_{false};
 
   std::jthread solver_thread_;
   std::atomic_bool terminate_solver_thread_{false};

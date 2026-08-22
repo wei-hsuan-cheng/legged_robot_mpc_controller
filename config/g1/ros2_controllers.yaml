@@ -384,6 +384,12 @@ humanoid_centroidal_mpc_controller:
       publishRate: 100.0
       # Allow IMU biases and contact-aided velocity to settle before closing the loop.
       warmupSeconds: 5.0
+      # Simulation-only comparison against the MuJoCo floating-base state interfaces.
+      validation:
+        enabled: true
+        period: 0.5
+        maxLinearVelocityError: 0.1
+        maxAngularVelocityError: 0.2
       # The pelvis accelerometer swings +-5 m/s^2 while standing (stiff PD/contact
       # vibration), so trust it far less and low-pass it hard; lean on the contact
       # height-anchor instead.
