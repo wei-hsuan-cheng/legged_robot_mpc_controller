@@ -579,23 +579,42 @@ def analyse_joints(state: Table, top: int = 12) -> None:
             return float("nan")
         return float(np.sqrt(np.mean(np.diff(values, 2) ** 2)) / np.sqrt(6.0))
 
+    def amplitude(name: str) -> tuple[float, float]:
+        """Peak-to-peak and std of the joint angle about its own mean.
+
+        Per-sample jitter and visible motion are different things: 1e-4 rad of
+        sample-to-sample content is invisible, while a 5 degree oscillation at a
+        few Hz is exactly what "the arm is jittering" usually means. The
+        high-frequency metric alone cannot see the second, so report both.
+        """
+        if name not in state:
+            return (float("nan"), float("nan"))
+        values = finite(state.col(name))
+        if values.size < 8:
+            return (float("nan"), float("nan"))
+        return (float(np.ptp(values)), float(np.std(values)))
+
     rows = []
     for joint in joints:
         meas = hf(f"q_{joint}")
         cmd = hf(f"qcmd_{joint}")
         tau = f"tau_{joint}"
         tau_rms = rms(state.col(tau)) if tau in state else float("nan")
-        tau_jitter = hf(tau)
+        span, sd = amplitude(f"q_{joint}")
+        cmd_span, _ = amplitude(f"qcmd_{joint}")
         ratio = meas / cmd if (np.isfinite(cmd) and cmd > 1e-12) else float("nan")
-        rows.append((joint, meas, cmd, ratio, tau_rms, tau_jitter))
+        rows.append((joint, meas, cmd, ratio, tau_rms, span, sd, cmd_span))
 
-    rows.sort(key=lambda r: (r[1] if np.isfinite(r[1]) else -1.0), reverse=True)
+    # Rank by visible motion, not by per-sample content: that is what the
+    # complaint is about.
+    rows.sort(key=lambda r: (r[5] if np.isfinite(r[5]) else -1.0), reverse=True)
 
-    print(f"  {'joint':<28} {'meas jitter':>12} {'cmd jitter':>11} {'ratio':>7} "
-          f"{'tau RMS':>9} {'tau jitter':>11}")
-    for joint, meas, cmd, ratio, tau_rms, tau_jitter in rows[:top]:
-        print(f"  {joint[:28]:<28} {meas:12.3e} {cmd:11.3e} {ratio:7.2f} "
-              f"{tau_rms:9.3f} {tau_jitter:11.3e}")
+    print(f"  {'joint':<26} {'p-p [deg]':>10} {'cmd p-p':>9} {'std [deg]':>10} "
+          f"{'meas jit':>10} {'cmd jit':>10} {'ratio':>6} {'tau RMS':>8}")
+    for joint, meas, cmd, ratio, tau_rms, span, sd, cmd_span in rows[:top]:
+        print(f"  {joint[:26]:<26} {np.degrees(span):10.3f} "
+              f"{np.degrees(cmd_span):9.3f} {np.degrees(sd):10.4f} "
+              f"{meas:10.2e} {cmd:10.2e} {ratio:6.2f} {tau_rms:8.3f}")
 
     arms = [r for r in rows if any(k in r[0] for k in
                                    ("shoulder", "elbow", "wrist"))]
