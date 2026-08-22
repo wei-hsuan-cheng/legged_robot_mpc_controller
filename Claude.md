@@ -137,8 +137,8 @@ cd ~/ocs2_ros2_ws
 ros2 launch legged_robot_mpc_controller g1.launch.py \
   floatingBaseSource:=state_estimator diagnosticsLog:=true \
   diagnosticsLogPrefix:=/tmp/diag_%t
-python3 scripts/command_sequence.py --sequence speed_ladder
-python3 scripts/analyze_diagnostics.py /tmp/diag_<stamp> --timeline 5
+python3 launch/command_sequence.py --sequence speed_ladder
+python3 launch/analyze_diagnostics.py /tmp/diag_<stamp> --timeline 5
 ```
 
 Build with `NUM_JOBS=2` per the README — a full-parallelism clean build OOMs

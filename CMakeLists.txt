@@ -195,6 +195,9 @@ install(DIRECTORY launch/
 )
 install(PROGRAMS
   launch/base_command_gui.py
+  launch/command_sequence.py
+  launch/figure_eight_command.py
+  launch/analyze_diagnostics.py
   launch/command/mpc_targets/joint_tracking_target.py
   launch/command/mpc_targets/frame_relation_tracking_target.py
   launch/command/mpc_targets/joint_frame_relation_tracking_target.py
