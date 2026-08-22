@@ -634,6 +634,84 @@ def analyse_joints(state: Table, top: int = 12) -> None:
     print("  in free space have no such excuse.")
 
 
+def analyse_lateral(state: Table, contacts: list[str], fall_time: float | None) -> None:
+    """Step-by-step lateral balance, which is what a roll divergence is about.
+
+    The single most useful discriminator is whether roll grows smoothly or in
+    once-per-step jumps. Smooth growth points at a continuously acting feedback
+    deficiency; step-locked growth points at foot placement, because that is the
+    only thing that changes discretely at touchdown. They call for different
+    fixes, and the aggregate roll trace cannot tell them apart.
+
+    Step positions are taken from the InEKF's contact landmarks: a landmark is
+    created where the foot touched down and held through stance, so its value at
+    each touchdown is that step's foothold.
+    """
+    if not state.has("t", "gt_rpy_x"):
+        return
+    section("LATERAL BALANCE, STEP BY STEP")
+
+    t = state.col("t")
+    roll = state.col("gt_rpy_x")
+    base_y = state.col("gt_p_y") if "gt_p_y" in state else np.full_like(t, np.nan)
+
+    # Touchdown events: a rising edge of the per-contact stance flag.
+    events = []
+    for name in contacts:
+        flag_col = f"{name}_in_stance"
+        if flag_col not in state:
+            continue
+        flag = state.col(flag_col) > 0.5
+        rising = np.flatnonzero((~flag[:-1]) & flag[1:]) + 1
+        for i in rising:
+            events.append((float(t[i]), name, int(i)))
+    if not events:
+        print("  no touchdown transitions in this log (the robot never broke contact)")
+        return
+    events.sort()
+
+    print(f"  {'step':>5} {'t [s]':>8} {'contact':<20} {'roll [deg]':>11} "
+          f"{'d roll':>8} {'foot y':>9} {'base y':>9} {'y offset':>9}")
+    previous_roll = None
+    shown = 0
+    for index, (event_time, name, row) in enumerate(events):
+        r = float(roll[row])
+        delta = (r - previous_roll) if previous_roll is not None else float("nan")
+        previous_roll = r
+        foot_y_col = f"{name}_landmark_y"
+        foot_y = float(state.col(foot_y_col)[row]) if foot_y_col in state else float("nan")
+        by = float(base_y[row])
+        # How far the base sits laterally from the foot that just landed. A
+        # healthy gait keeps this bounded and alternating in sign.
+        offset = by - foot_y
+        if fall_time is not None and event_time > fall_time + 0.5:
+            break
+        print(f"  {index:>5} {event_time:8.2f} {name:<20} {np.degrees(r):11.3f} "
+              f"{np.degrees(delta):8.3f} {foot_y:9.4f} {by:9.4f} {offset:9.4f}")
+        shown += 1
+        if shown > 40:
+            print("  ... (truncated)")
+            break
+
+    # Smooth vs step-locked: compare the roll change across touchdowns with the
+    # roll change between them.
+    pre_fall = [e for e in events
+                if fall_time is None or e[0] < fall_time]
+    if len(pre_fall) >= 4:
+        rows = [e[2] for e in pre_fall]
+        at_events = np.array([roll[i] for i in rows])
+        jumps = np.abs(np.diff(at_events))
+        total = abs(at_events[-1] - at_events[0])
+        print(f"\n  roll at first touchdown {np.degrees(at_events[0]):+.2f} deg, "
+              f"at last before the fall {np.degrees(at_events[-1]):+.2f} deg")
+        print(f"  total growth {np.degrees(total):.2f} deg over {len(pre_fall)} steps, "
+              f"mean per step {np.degrees(np.mean(jumps)):.3f} deg")
+        signs = np.sign(np.diff(at_events))
+        same = int(np.sum(signs == signs[0])) if signs.size else 0
+        print(f"  step-to-step roll change keeps the same sign in {same}/{signs.size} "
+              f"steps - a divergence walks one way, an oscillation alternates")
+
+
 def analyse_solver(cost: Table, fall_time: float | None) -> None:
     """Did the optimizer solve the problem, or fail to?
 
@@ -915,6 +993,7 @@ def main() -> int | str:
     analyse_accuracy(state)
     analyse_height(state)
     analyse_contacts(state, contacts)
+    analyse_lateral(state, contacts, fall_time)
     analyse_joints(state)
     if cost is not None and not cost.empty:
         analyse_solver(cost, fall_time)

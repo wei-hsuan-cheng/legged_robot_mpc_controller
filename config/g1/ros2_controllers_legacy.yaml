@@ -613,7 +613,7 @@ humanoid_centroidal_mpc_controller:
            1000.0, 1000.0, 0.0,
            10.0, 10.0, 0.0,
            1.0, 1.0, 0.005]
-        icpErrorWeight: 0.0
+        icpErrorWeight: 15.0
         taskSpaceCosts:
           names:
             [torso]
