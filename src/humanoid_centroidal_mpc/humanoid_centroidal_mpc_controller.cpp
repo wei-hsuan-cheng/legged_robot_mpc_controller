@@ -804,6 +804,12 @@ ocs2::SystemObservation HumanoidCentroidalMpcController::build_observation(const
     momentum_matrix * v_pinocchio / info.robotMass;
   ocs2::centroidal_model::getGeneralizedCoordinates(observation.state, info) = q_pinocchio;
 
+  // Keep the observed input consistent with the velocity used to construct momentum.
+  // Contact wrenches remain unknown (zero); measured joint velocities populate the input tail.
+  const vector_t filtered_joint_velocity = v_pinocchio.tail(joint_dim);
+  control_model_->setJointVelocities(
+    observation.state, observation.input, filtered_joint_velocity);
+
   return observation;
 }
 
