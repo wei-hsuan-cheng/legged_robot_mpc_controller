@@ -259,11 +259,95 @@ void SwitchedModelReferenceManager::modifyReferences(scalar_t initTime,
   }
 
   modeSchedule_ = modeSchedule;
+
+  // Recompute the flat-ground capture-point footholds from the state this solve
+  // starts at, so the swing target reflects the CURRENT lateral velocity rather
+  // than a fixed nominal step.
+  updateCaptureFootholds(initTime, initState);
 }
 
 /******************************************************************************************************/
 /******************************************************************************************************/
 /******************************************************************************************************/
+
+void SwitchedModelReferenceManager::updateCaptureFootholds(scalar_t initTime, const vector_t& initState) {
+  captureFootholdValid_ = {false, false};
+  if (!captureFootPlacement_.enabled) {
+    return;
+  }
+
+  const auto& model = pinocchioInterface_.getModel();
+  auto& data = pinocchioInterface_.getData();
+  const vector_t q = mpcRobotModelPtr_->getGeneralizedCoordinates(initState);
+  pinocchio::centerOfMass(model, data, q, false);
+
+  const vector2_t com = data.com[0].head<2>();
+  const scalar_t comHeight = std::max(data.com[0](2), 0.1);
+  // For the centroidal model the normalized linear momentum IS the CoM velocity.
+  const vector2_t comVelocity = mpcRobotModelPtr_->getBaseComLinearVelocity(initState).head<2>();
+
+  // omega = sqrt(g / z_com); the capture point is com + v/omega, i.e. where the
+  // CoM would come to rest if the foot were placed there.
+  const scalar_t omega = std::sqrt(9.81 / comHeight);
+  const vector2_t capturePoint = com + comVelocity / omega;
+
+  const vector6_t basePose = mpcRobotModelPtr_->getBasePose(initState);
+  const scalar_t yaw = basePose(3);
+  const vector2_t lateralDirection(-std::sin(yaw), std::cos(yaw));
+
+  const contact_flag_t contactFlags = getContactFlags(initTime);
+  const scalar_t halfWidth = 0.5 * captureFootPlacement_.stepWidth;
+  const feet_array_t<vector3_t> feetPositions = computeFeetPositions(initState);
+
+  // Time remaining until the next contact switch, i.e. until the swinging foot
+  // lands. The DCM diverges from the stance foot as exp(omega * t), so a
+  // correction built from the CURRENT capture point is systematically too small
+  // by that factor - which shows up as a roll that still grows, only slower.
+  // Propagating the DCM to touchdown is what makes the placement deadbeat.
+  scalar_t timeToTouchdown = 0.0;
+  {
+    const auto& eventTimes = modeSchedule_.eventTimes;
+    const auto it = std::upper_bound(eventTimes.begin(), eventTimes.end(), initTime);
+    if (it != eventTimes.end()) {
+      timeToTouchdown = std::max(*it - initTime, 0.0);
+    }
+    // Bound the extrapolation: exp() of a long horizon turns a small velocity
+    // error into an unreachable foothold, and the clamp below would then saturate
+    // every step and destroy the feedback. Measured: a 0.4 s horizon is worse
+    // than none at all.
+    timeToTouchdown = std::min(timeToTouchdown, captureFootPlacement_.projectionHorizon);
+  }
+
+  for (size_t foot = 0; foot < captureFoothold_.size(); ++foot) {
+    if (contactFlags[foot]) {
+      continue;  // a foot already on the ground is not being placed
+    }
+    // Foot 0 is the left foot, so it sits on the positive lateral side.
+    const scalar_t side = (foot == 0) ? 1.0 : -1.0;
+    const vector2_t nominal = basePose.head<2>() + side * halfWidth * lateralDirection;
+
+    // Propagate the capture point about the supporting foot to the moment this
+    // foot lands: xi_td = p_stance + (xi_now - p_stance) * exp(omega * dt).
+    const size_t stanceFoot = 1 - foot;
+    const vector2_t stancePosition = feetPositions[stanceFoot].head<2>();
+    const scalar_t growth = std::exp(omega * timeToTouchdown);
+    const vector2_t capturePointAtTouchdown =
+        stancePosition + (capturePoint - stancePosition) * growth;
+
+    // The correction is what turns a fixed step into feedback: how far the
+    // predicted capture point sits from where the foot would nominally go.
+    // Clamped so a transient cannot command a step the leg cannot reach.
+    vector2_t correction =
+        captureFootPlacement_.gain * (capturePointAtTouchdown - basePose.head<2>());
+    const scalar_t limit = captureFootPlacement_.maxAdjustment;
+    correction.x() = std::clamp(correction.x(), -limit, limit);
+    correction.y() = std::clamp(correction.y(), -limit, limit);
+
+    captureFoothold_[foot].head<2>() = nominal + correction;
+    captureFoothold_[foot](2) = 0.0;  // flat ground
+    captureFootholdValid_[foot] = true;
+  }
+}
 
 feet_array_t<vector3_t> SwitchedModelReferenceManager::computeFeetPositions(const vector_t& initState) {
   const auto& model = pinocchioInterface_.getModel();
@@ -288,6 +372,16 @@ bool SwitchedModelReferenceManager::getSwingFootholdReference(size_t foot,
                                                               scalar_t time,
                                                               vector3_t& positionReference,
                                                               scalar_t& trackingWeight) const {
+  // Terrain-aware plans win: they encode real geometry, whereas the capture-point
+  // foothold below assumes flat ground.
+  const auto& stairPlanForFoothold = stairClimbingPlan_.get();
+  if (!stairPlanForFoothold && !isTerrainWalkActive() && captureFootPlacement_.enabled &&
+      foot < captureFootholdValid_.size() && captureFootholdValid_[foot]) {
+    positionReference = captureFoothold_[foot];
+    trackingWeight = captureFootPlacement_.trackingWeight;
+    return true;
+  }
+
   const auto& stairPlan = stairClimbingPlan_.get();
   if (stairPlan && stairPlan->getSwingFootReference(foot, time, positionReference)) {
     trackingWeight = stairPlan->getFootholdTrackingWeight();

@@ -778,6 +778,43 @@ humanoid_centroidal_mpc_controller:
         validation: { fixed_size<>: [12] }
       }
 
+      captureFootPlacement:
+        enabled: {
+          type: bool,
+          default_value: false,
+          description: "Aim the swing foot at the capture point on flat ground. Without it there is NO foothold xy reference at all (the stair/terrain planners are inactive and the foot cost has zero position weight), so nothing arrests a lateral fall - and lateral walking dynamics are an inverted pendulum whose real authority is where the next foot lands."
+        }
+        gain: {
+          type: double,
+          default_value: 1.0,
+          description: "Scales the capture-point correction; 0 reproduces a fixed nominal foothold",
+          validation: { gt_eq: [0.0] }
+        }
+        stepWidth: {
+          type: double,
+          default_value: 0.18,
+          description: "Nominal lateral spacing between the feet [m]",
+          validation: { gt: [0.0] }
+        }
+        maxAdjustment: {
+          type: double,
+          default_value: 0.12,
+          description: "Bound on the foothold correction away from nominal [m]; keeps a transient from commanding an unreachable step",
+          validation: { gt: [0.0] }
+        }
+        trackingWeight: {
+          type: double,
+          default_value: 100.0,
+          description: "xy foothold tracking weight handed to the foot task-space cost during swing",
+          validation: { gt_eq: [0.0] }
+        }
+        projectionHorizon: {
+          type: double,
+          default_value: 0.0,
+          description: "Seconds to propagate the capture point about the stance foot before placing the foot, capped at the time to touchdown. The DCM diverges as exp(omega*t) so projecting to touchdown is deadbeat in theory, but at omega~3.7 a 0.4 s horizon amplifies 4.5x, saturates maxAdjustment every step and measured WORSE than no projection. 0 = instantaneous capture point (best measured).",
+          validation: { gt_eq: [0.0] }
+        }
+
       icpErrorWeight: {
         type: double,
         default_value: 0.0,

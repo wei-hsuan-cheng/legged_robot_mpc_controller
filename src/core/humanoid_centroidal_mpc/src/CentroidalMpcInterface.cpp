@@ -112,6 +112,7 @@ CentroidalMpcInterface::CentroidalMpcInterface(Config config, bool setupOCP)
       GaitSchedule::createGaitSchedule(config_.initialModeSchedule, config_.defaultModeSequenceTemplate, modelSettings_, verbose_),
       std::move(swingTrajectoryPlanner), *pinocchioInterfacePtr_, *mpcRobotModelPtr_);
   referenceManagerPtr_->setArmSwingReferenceActive(true);
+  referenceManagerPtr_->setCaptureFootPlacementSettings(config_.captureFootPlacement);
 
   // initial state
   if (config_.initialState.size() != centroidalModelInfo_.stateDim) {

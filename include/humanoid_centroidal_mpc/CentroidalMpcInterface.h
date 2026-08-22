@@ -106,6 +106,10 @@ class CentroidalMpcInterface final : public RobotInterface {
     EndEffectorKinematicsWeights taskSpaceFootCostWeights;
     vector2_t icpCostWeights = vector2_t::Zero();
 
+    // Flat-ground capture-point foot placement; see
+    // SwitchedModelReferenceManager::CaptureFootPlacementSettings.
+    SwitchedModelReferenceManager::CaptureFootPlacementSettings captureFootPlacement;
+
     std::vector<TaskSpaceCostConfig> taskSpaceCosts;   // optional additional task-space tracking costs
     std::vector<MimicJointConfig> mimicJoints;         // optional, empty = mimic constraints disabled
 

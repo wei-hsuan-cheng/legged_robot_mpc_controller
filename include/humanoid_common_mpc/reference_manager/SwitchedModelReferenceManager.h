@@ -64,6 +64,45 @@ class SwitchedModelReferenceManager : public ReferenceManager {
   SwitchedModelReferenceManager& operator=(SwitchedModelReferenceManager&&) = delete;
   SwitchedModelReferenceManager(SwitchedModelReferenceManager&&) = delete;
 
+  /**
+   * Capture-point foot placement for flat ground.
+   *
+   * On flat ground there is no foothold reference at all: the stair plan and the
+   * terrain planner are both inactive, getSwingFootholdReference() returns false,
+   * and the foot task-space cost has zero position weight. The landing xy is then
+   * whatever the optimizer happens to produce. That is fine while the robot is
+   * upright, but it leaves nothing to arrest a lateral fall - and lateral walking
+   * dynamics are an inverted pendulum whose only real authority IS where the next
+   * foot lands. Measured behaviour matches: step width stayed pinned near 0.18 m
+   * while roll grew step over step until the robot went over.
+   *
+   * This closes that loop the standard way. The swing foot is aimed at the
+   * capture point (CoM plus CoM velocity over omega), offset laterally by half
+   * the nominal step width so the feet stay apart, with the correction clamped so
+   * a transient cannot command an unreachable step.
+   */
+  struct CaptureFootPlacementSettings {
+    bool enabled = false;
+    scalar_t gain = 1.0;             //!< scales the capture-point correction; 0 reproduces the nominal foothold
+    scalar_t stepWidth = 0.18;       //!< nominal lateral spacing between the feet [m]
+    scalar_t maxAdjustment = 0.12;   //!< bound on the correction away from nominal [m]
+    scalar_t trackingWeight = 100.0; //!< xy foothold tracking weight handed to the foot cost
+    //! How far ahead to propagate the capture point about the stance foot, in
+    //! seconds, capped at the time remaining until touchdown. The DCM diverges as
+    //! exp(omega*t), so in principle projecting to touchdown makes the placement
+    //! deadbeat. In practice omega ~ 3.7 turns a 0.4 s projection into a 4.5x
+    //! amplification that saturates maxAdjustment on every step and destroys the
+    //! feedback it was meant to sharpen - measured worse than no projection.
+    //! Default 0 is the instantaneous capture point, which measured best; raise
+    //! it together with maxAdjustment if you want to explore the deadbeat end.
+    scalar_t projectionHorizon = 0.0;
+  };
+
+  void setCaptureFootPlacementSettings(const CaptureFootPlacementSettings& settings) {
+    captureFootPlacement_ = settings;
+  }
+  const CaptureFootPlacementSettings& getCaptureFootPlacementSettings() const { return captureFootPlacement_; }
+
   contact_flag_t getContactFlags(scalar_t time) const;
 
   bool isInStancePhase(scalar_t time) const { return (getContactFlags(time)[0] && getContactFlags(time)[1]); }
@@ -190,6 +229,14 @@ class SwitchedModelReferenceManager : public ReferenceManager {
 
   /// Measured feet (contact frame) world positions from FK of the current state.
   feet_array_t<vector3_t> computeFeetPositions(const vector_t& initState);
+
+  /// Recompute the capture-point footholds from the current state. Solver thread
+  /// only, called from modifyReferences() before the solve reads them.
+  void updateCaptureFootholds(scalar_t initTime, const vector_t& initState);
+
+  CaptureFootPlacementSettings captureFootPlacement_;
+  feet_array_t<vector3_t> captureFoothold_{vector3_t::Zero(), vector3_t::Zero()};
+  feet_array_t<bool> captureFootholdValid_{false, false};
 
   std::shared_ptr<GaitSchedule> gaitSchedulePtr_;
   std::shared_ptr<SwingTrajectoryPlanner> swingTrajectoryPtr_;

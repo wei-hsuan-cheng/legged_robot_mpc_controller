@@ -209,6 +209,13 @@ ocs2::humanoid::CentroidalMpcInterface::Config buildCentroidalMpcConfig(
 
   config.icpCostWeights = vector2_t::Constant(p.costs.icpErrorWeight);
 
+  config.captureFootPlacement.enabled = p.costs.captureFootPlacement.enabled;
+  config.captureFootPlacement.gain = p.costs.captureFootPlacement.gain;
+  config.captureFootPlacement.stepWidth = p.costs.captureFootPlacement.stepWidth;
+  config.captureFootPlacement.maxAdjustment = p.costs.captureFootPlacement.maxAdjustment;
+  config.captureFootPlacement.trackingWeight = p.costs.captureFootPlacement.trackingWeight;
+  config.captureFootPlacement.projectionHorizon = p.costs.captureFootPlacement.projectionHorizon;
+
   for (const auto& costName : p.costs.taskSpaceCosts.names) {
     if (costName.empty()) {
       continue;
