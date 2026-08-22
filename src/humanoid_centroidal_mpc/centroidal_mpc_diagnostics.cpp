@@ -46,6 +46,17 @@ void addVector3Columns(
   columns.emplace_back(name + "_z");
 }
 
+/// Orientation columns named for what they actually hold. quaternionToEulerZYX
+/// returns (yaw, pitch, roll), so naming these _x/_y/_z invites reading the yaw
+/// column as roll - which is exactly the mistake that made a commanded turn look
+/// like a lateral divergence.
+void addEulerZyxColumns(std::vector<std::string> & columns, const std::string & name)
+{
+  columns.emplace_back(name + "_yaw");
+  columns.emplace_back(name + "_pitch");
+  columns.emplace_back(name + "_roll");
+}
+
 void addMomentumColumns(std::vector<std::string> & columns, const std::string & name)
 {
   for (const char * axis : {"lin_x", "lin_y", "lin_z", "ang_x", "ang_y", "ang_z"}) {
@@ -137,17 +148,17 @@ void CentroidalMpcDiagnostics::buildStateSchema()
   c.emplace_back("contact_right");
 
   addVector3Columns(c, "gt_p");
-  addVector3Columns(c, "gt_rpy");
+  addEulerZyxColumns(c, "gt_euler");
   addVector3Columns(c, "gt_v_world");
   addVector3Columns(c, "gt_w_local");
 
   addVector3Columns(c, "est_p");
-  addVector3Columns(c, "est_rpy");
+  addEulerZyxColumns(c, "est_euler");
   addVector3Columns(c, "est_v_world");
   addVector3Columns(c, "est_w_local");
 
   addVector3Columns(c, "err_p");
-  addVector3Columns(c, "err_rpy");
+  addEulerZyxColumns(c, "err_euler");
   addVector3Columns(c, "err_v_world");
   addVector3Columns(c, "err_w_local");
 

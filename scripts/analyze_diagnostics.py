@@ -282,12 +282,13 @@ def analyse_covariance(state: Table) -> None:
 def analyse_accuracy(state: Table) -> None:
     section("ESTIMATE vs GROUND TRUTH")
     groups = [("position   [m]", "err_p"),
-              ("orientation[rad]", "err_rpy"),
+              ("orientation[rad]", "err_euler"),
               ("lin vel W  [m/s]", "err_v_world"),
               ("ang vel B  [rad/s]", "err_w_local")]
     print(f"  {'signal':<20} {'RMS (x, y, z)':<40} peak |.|")
     for label, prefix in groups:
-        cols = [f"{prefix}_{a}" for a in "xyz"]
+        axes = ("yaw", "pitch", "roll") if prefix.endswith("euler") else ("x", "y", "z")
+        cols = [f"{prefix}_{a}" for a in axes]
         if not state.has(*cols):
             continue
         r = [rms(state.col(c)) for c in cols]
@@ -413,7 +414,7 @@ def analyse_signal_quality(state: Table) -> None:
 
     groups = [
         ("est position", [f"est_p_{a}" for a in "xyz"], 0.05),
-        ("est orientation", [f"est_rpy_{a}" for a in "xyz"], 0.10),
+        ("est orientation", [f"est_euler_{a}" for a in ("yaw", "pitch", "roll")], 0.10),
         ("est lin vel", [f"est_v_world_{a}" for a in "xyz"], 0.50),
         ("est ang vel", [f"est_w_local_{a}" for a in "xyz"], 0.50),
         ("gt position", [f"gt_p_{a}" for a in "xyz"], 0.05),
@@ -469,10 +470,15 @@ def find_fall(state: Table) -> float | None:
     t = state.col("t")
     height = state.col("gt_p_z")
     bad = np.isfinite(height) & (height < 0.55)
-    if state.has("gt_rpy_y", "gt_rpy_z"):
-        pitch = np.abs(state.col("gt_rpy_y"))
-        roll = np.abs(state.col("gt_rpy_x")) if "gt_rpy_x" in state else np.zeros_like(pitch)
-        bad = bad | (np.isfinite(pitch) & (pitch > 0.5)) | (np.isfinite(roll) & (roll > 0.5))
+    # Pitch and roll only. YAW MUST NOT BE USED: the orientation is ZYX, so a
+    # commanded turn drives yaw straight past any tilt threshold, and an earlier
+    # version of this check reported "loss of balance" for a robot that was
+    # calmly rotating in place at its nominal height.
+    pitch = state.col("gt_euler_pitch") if "gt_euler_pitch" in state else None
+    roll = state.col("gt_euler_roll") if "gt_euler_roll" in state else None
+    for tilt in (pitch, roll):
+        if tilt is not None:
+            bad = bad | (np.isfinite(tilt) & (np.abs(tilt) > 0.5))
     if not bad.any():
         return None
     return float(t[np.argmax(bad)])
@@ -491,7 +497,7 @@ def analyse_timeline(state: Table, window: float) -> None:
     err_v = np.sqrt(sum(col_or_nan(f"err_v_world_{a}") ** 2 for a in "xyz"))
 
     print(f"  {'t [s]':>7} {'gt_z':>7} {'rep_z':>7} {'|e_p|max':>9} {'|e_v|max':>9} "
-          f"{'pitch':>7} {'roll':>7} {'NIS/dof':>8} {'#lm':>5} {'phase':>6}")
+          f"{'yaw':>7} {'pitch':>7} {'roll':>7} {'NIS/dof':>8} {'#lm':>5} {'phase':>6}")
     edges = np.arange(0.0, float(np.nanmax(rel)) + window, window)
     for lo in edges:
         mask = (rel >= lo) & (rel < lo + window)
@@ -508,7 +514,8 @@ def analyse_timeline(state: Table, window: float) -> None:
         print(f"  {lo:>7.0f} {mn(col_or_nan('gt_p_z')):7.3f} "
               f"{mn(col_or_nan('height_reported')):7.3f} "
               f"{mx(err_p):9.3f} {mx(err_v):9.3f} "
-              f"{mx(col_or_nan('gt_rpy_y')):7.3f} {mx(col_or_nan('gt_rpy_x')):7.3f} "
+              f"{mx(col_or_nan('gt_euler_yaw')):7.3f} {mx(col_or_nan('gt_euler_pitch')):7.3f} "
+              f"{mx(col_or_nan('gt_euler_roll')):7.3f} "
               f"{mn(col_or_nan('nis_per_dof')):8.2f} "
               f"{mn(col_or_nan('num_augmented_contacts')):5.1f} "
               f"{mn(col_or_nan('phase')):6.1f}")
@@ -534,8 +541,8 @@ def analyse_fall(state: Table, fall_time: float, lead: float) -> None:
     err_v = np.sqrt(sum(col(f"err_v_world_{a}") ** 2 for a in "xyz"))
     for i in range(0, len(sub), step):
         print(f"  {st[i] - fall_time:>8.3f} {col('gt_p_z')[i]:7.3f} "
-              f"{col('est_p_z')[i]:7.3f} {col('gt_rpy_y')[i]:9.4f} "
-              f"{col('est_rpy_y')[i]:10.4f} {err_v[i]:7.3f} "
+              f"{col('est_p_z')[i]:7.3f} {col('gt_euler_pitch')[i]:9.4f} "
+              f"{col('est_euler_pitch')[i]:10.4f} {err_v[i]:7.3f} "
               f"{col('nis_per_dof')[i]:8.2f} {col('num_augmented_contacts')[i]:4.0f} "
               f"{col('contact_left')[i]:3.0f} {col('contact_right')[i]:3.0f}")
 
@@ -647,12 +654,12 @@ def analyse_lateral(state: Table, contacts: list[str], fall_time: float | None) 
     created where the foot touched down and held through stance, so its value at
     each touchdown is that step's foothold.
     """
-    if not state.has("t", "gt_rpy_x"):
+    if not state.has("t", "gt_euler_roll"):
         return
     section("LATERAL BALANCE, STEP BY STEP")
 
     t = state.col("t")
-    roll = state.col("gt_rpy_x")
+    roll = state.col("gt_euler_roll")
     base_y = state.col("gt_p_y") if "gt_p_y" in state else np.full_like(t, np.nan)
 
     # Touchdown events: a rising edge of the per-contact stance flag.

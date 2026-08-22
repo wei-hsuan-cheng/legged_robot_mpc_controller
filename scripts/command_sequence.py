@@ -155,6 +155,98 @@ SEQUENCES: dict[str, list[Phase]] = {
     ],
     # Stance only, as a control: any estimator drift seen here is not gait-driven.
     "stand": [Phase("stand", 120.0)],
+
+    # Robustness sweep across command types, kept near the origin.
+    #
+    # Forward-only tests are a trap on the default scene: stairs.xml puts a
+    # 0.10 m riser at x = 0.75 m, so a 0.1 m/s walk stubs its swing foot after
+    # about 7 s and topples. That reads exactly like a balance failure in the
+    # logs. Either run on scene_flat.xml, or alternate direction as this
+    # sequence does so the robot stays within roughly +-0.4 m of the origin.
+    "robustness": [
+        Phase("settle", 10.0),
+        Phase("fwd_ramp", 4.0, vx=0.10, ramp=True),
+        Phase("fwd", 8.0, vx=0.10),
+        Phase("brake", 4.0, vx=0.0, ramp=True),
+        Phase("back_ramp", 4.0, vx=-0.10, ramp=True),
+        Phase("back", 8.0, vx=-0.10),
+        Phase("brake2", 4.0, vx=0.0, ramp=True),
+        Phase("turn_ramp", 3.0, yaw_rate=0.3, ramp=True),
+        Phase("turn", 10.0, yaw_rate=0.3),
+        Phase("turn_back", 10.0, yaw_rate=-0.3),
+        Phase("brake3", 4.0, yaw_rate=0.0, ramp=True),
+        Phase("strafe_ramp", 3.0, vy=0.10, ramp=True),
+        Phase("strafe", 8.0, vy=0.10),
+        Phase("strafe_back", 8.0, vy=-0.10),
+        Phase("brake4", 4.0, ramp=True),
+        Phase("squat_walk", 10.0, vx=0.08, height=0.75),
+        Phase("rise_walk", 10.0, vx=0.08, height=NOMINAL_HEIGHT),
+        Phase("stop", 10.0),
+    ],
+
+    # Pure in-place manoeuvres: no translation at all, so obstacles are
+    # irrelevant and any failure is attributable to the command itself.
+    "in_place": [
+        Phase("settle", 10.0),
+        Phase("turn_l", 12.0, yaw_rate=0.3),
+        Phase("rest", 6.0),
+        Phase("turn_r", 12.0, yaw_rate=-0.3),
+        Phase("rest2", 6.0),
+        Phase("squat", 10.0, height=0.75),
+        Phase("rise", 10.0),
+    ],
+
+    # Magnitude ladders, one axis at a time, each returning to rest in between so
+    # a failure is attributable to the magnitude that preceded it rather than to
+    # accumulated state. Flat scene only - the vx ladder covers several metres.
+    "vx_ladder": [
+        Phase("settle", 10.0),
+        Phase("vx_005", 12.0, vx=0.05), Phase("rest1", 5.0),
+        Phase("vx_010", 12.0, vx=0.10), Phase("rest2", 5.0),
+        Phase("vx_020", 12.0, vx=0.20), Phase("rest3", 5.0),
+        Phase("vx_030", 12.0, vx=0.30), Phase("rest4", 5.0),
+        Phase("vx_neg10", 12.0, vx=-0.10), Phase("stop", 8.0),
+    ],
+    "vy_ladder": [
+        Phase("settle", 10.0),
+        Phase("vy_005", 12.0, vy=0.05), Phase("rest1", 5.0),
+        Phase("vy_010", 12.0, vy=0.10), Phase("rest2", 5.0),
+        Phase("vy_020", 12.0, vy=0.20), Phase("rest3", 5.0),
+        Phase("vy_neg10", 12.0, vy=-0.10), Phase("rest4", 5.0),
+        Phase("vy_neg20", 12.0, vy=-0.20), Phase("stop", 8.0),
+    ],
+    "yaw_ladder": [
+        Phase("settle", 10.0),
+        Phase("yaw_010", 12.0, yaw_rate=0.10), Phase("rest1", 5.0),
+        Phase("yaw_030", 12.0, yaw_rate=0.30), Phase("rest2", 5.0),
+        Phase("yaw_050", 12.0, yaw_rate=0.50), Phase("rest3", 5.0),
+        Phase("yaw_neg30", 12.0, yaw_rate=-0.30), Phase("stop", 8.0),
+    ],
+    # Combined commands: the axes are coupled through the same support polygon,
+    # so passing each ladder alone does not imply passing them together.
+    "combined": [
+        Phase("settle", 10.0),
+        Phase("fwd_turn", 15.0, vx=0.10, yaw_rate=0.20), Phase("rest1", 6.0),
+        Phase("fwd_strafe", 15.0, vx=0.10, vy=0.08), Phase("rest2", 6.0),
+        Phase("strafe_turn", 15.0, vy=0.08, yaw_rate=-0.20), Phase("rest3", 6.0),
+        Phase("all_low", 15.0, vx=0.08, vy=0.05, yaw_rate=0.15, height=0.75),
+        Phase("stop", 10.0),
+    ],
+    "height_walk": [
+        Phase("settle", 10.0),
+        Phase("w_nominal", 12.0, vx=0.10), Phase("rest1", 5.0),
+        Phase("w_077", 12.0, vx=0.10, height=0.77), Phase("rest2", 5.0),
+        Phase("w_075", 12.0, vx=0.10, height=0.75), Phase("rest3", 5.0),
+        Phase("w_072", 12.0, vx=0.10, height=0.72), Phase("stop", 8.0),
+    ],
+
+    # Long forward walk, only safe on a scene without obstacles.
+    "walk_far": [
+        Phase("settle", 12.0),
+        Phase("ramp", 6.0, vx=0.1, ramp=True),
+        Phase("hold", 120.0, vx=0.1),
+        Phase("stop", 12.0),
+    ],
 }
 
 
