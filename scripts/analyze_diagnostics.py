@@ -401,6 +401,151 @@ def analyse_contacts(state: Table, contacts: list[str]) -> None:
                   f"range={np.ptp(values):.5f} m")
 
 
+def analyse_signal_quality(state: Table) -> None:
+    """Is the data itself trustworthy before any conclusion is drawn from it?
+
+    Three separate failure modes, which look alike in a summary statistic but
+    have completely different causes: non-finite values (a divergence or an
+    uninitialised read), step discontinuities (a torn cross-thread read, or a
+    filter reset), and high-frequency content (genuine measurement noise).
+    """
+    section("SIGNAL QUALITY")
+
+    groups = [
+        ("est position", [f"est_p_{a}" for a in "xyz"], 0.05),
+        ("est orientation", [f"est_rpy_{a}" for a in "xyz"], 0.10),
+        ("est lin vel", [f"est_v_world_{a}" for a in "xyz"], 0.50),
+        ("est ang vel", [f"est_w_local_{a}" for a in "xyz"], 0.50),
+        ("gt position", [f"gt_p_{a}" for a in "xyz"], 0.05),
+        ("gt lin vel", [f"gt_v_world_{a}" for a in "xyz"], 0.50),
+        ("momentum est", [f"hbar_est_{a}" for a in
+                          ("lin_x", "lin_y", "lin_z", "ang_x", "ang_y", "ang_z")], 0.50),
+    ]
+
+    print(f"  {'signal':<16} {'non-finite':>11} {'max |step|':>11} {'jumps':>7} "
+          f"{'noise (HF rms)':>15}")
+    for label, cols, jump_threshold in groups:
+        cols = [c for c in cols if c in state]
+        if not cols:
+            continue
+        non_finite = 0
+        max_step = 0.0
+        jumps = 0
+        noise = 0.0
+        for col in cols:
+            values = state.col(col)
+            non_finite += int(np.sum(~np.isfinite(values)))
+            good = values[np.isfinite(values)]
+            if good.size < 3:
+                continue
+            steps = np.abs(np.diff(good))
+            max_step = max(max_step, float(steps.max()))
+            jumps += int(np.sum(steps > jump_threshold))
+            # Second difference isolates content at the sampling frequency from
+            # the smooth motion underneath it.
+            noise = max(noise, float(np.sqrt(np.mean(np.diff(good, 2) ** 2)) / np.sqrt(6.0)))
+        flag = ""
+        if non_finite:
+            flag = "  <-- NON-FINITE VALUES"
+        elif jumps:
+            flag = "  <-- discontinuities"
+        print(f"  {label:<16} {non_finite:>11d} {max_step:>11.4f} {jumps:>7d} "
+              f"{noise:>15.5f}{flag}")
+
+    print("\n  'jumps' counts consecutive-sample steps above a per-signal threshold.")
+    print("  A handful during a fall is expected. A steady trickle while the robot is")
+    print("  upright is not, and would point at a torn read rather than at noise.")
+
+
+def find_fall(state: Table) -> float | None:
+    """Time of the first sign of loss of balance, or None.
+
+    Uses ground truth, not the estimate: the estimate is exactly what is in
+    question once things go wrong. A fall is called on the pelvis dropping well
+    below its commanded range or the trunk tipping past a recoverable angle.
+    """
+    if not state.has("t", "gt_p_z"):
+        return None
+    t = state.col("t")
+    height = state.col("gt_p_z")
+    bad = np.isfinite(height) & (height < 0.55)
+    if state.has("gt_rpy_y", "gt_rpy_z"):
+        pitch = np.abs(state.col("gt_rpy_y"))
+        roll = np.abs(state.col("gt_rpy_x")) if "gt_rpy_x" in state else np.zeros_like(pitch)
+        bad = bad | (np.isfinite(pitch) & (pitch > 0.5)) | (np.isfinite(roll) & (roll > 0.5))
+    if not bad.any():
+        return None
+    return float(t[np.argmax(bad)])
+
+
+def analyse_timeline(state: Table, window: float) -> None:
+    section(f"TIMELINE ({window:.0f}s windows)")
+    t = state.col("t")
+    t0 = float(np.nanmin(t))
+    rel = t - t0
+
+    def col_or_nan(name: str) -> "np.ndarray":
+        return state.col(name) if name in state else np.full_like(t, np.nan)
+
+    err_p = np.sqrt(sum(col_or_nan(f"err_p_{a}") ** 2 for a in "xyz"))
+    err_v = np.sqrt(sum(col_or_nan(f"err_v_world_{a}") ** 2 for a in "xyz"))
+
+    print(f"  {'t [s]':>7} {'gt_z':>7} {'rep_z':>7} {'|e_p|max':>9} {'|e_v|max':>9} "
+          f"{'pitch':>7} {'roll':>7} {'NIS/dof':>8} {'#lm':>5} {'phase':>6}")
+    edges = np.arange(0.0, float(np.nanmax(rel)) + window, window)
+    for lo in edges:
+        mask = (rel >= lo) & (rel < lo + window)
+        if not mask.any():
+            continue
+        def mx(values):
+            v = values[mask]
+            v = v[np.isfinite(v)]
+            return float(np.max(np.abs(v))) if v.size else float("nan")
+        def mn(values):
+            v = values[mask]
+            v = v[np.isfinite(v)]
+            return float(np.mean(v)) if v.size else float("nan")
+        print(f"  {lo:>7.0f} {mn(col_or_nan('gt_p_z')):7.3f} "
+              f"{mn(col_or_nan('height_reported')):7.3f} "
+              f"{mx(err_p):9.3f} {mx(err_v):9.3f} "
+              f"{mx(col_or_nan('gt_rpy_y')):7.3f} {mx(col_or_nan('gt_rpy_x')):7.3f} "
+              f"{mn(col_or_nan('nis_per_dof')):8.2f} "
+              f"{mn(col_or_nan('num_augmented_contacts')):5.1f} "
+              f"{mn(col_or_nan('phase')):6.1f}")
+
+
+def analyse_fall(state: Table, fall_time: float, lead: float) -> None:
+    section(f"FALL ONSET at t = {fall_time:.2f} s  (showing the {lead:.0f}s before)")
+    t = state.col("t")
+    mask = (t >= fall_time - lead) & (t <= fall_time + 2.0)
+    if not mask.any():
+        print("  no samples around the onset")
+        return
+    sub = state.select(mask)
+    st = sub.col("t")
+
+    # Sample sparsely enough to read, densely enough to see a single touchdown.
+    step = max(1, len(sub) // 60)
+    def col(name):
+        return sub.col(name) if name in sub else np.full(len(sub), np.nan)
+
+    print(f"  {'t':>8} {'gt_z':>7} {'est_z':>7} {'gt_pitch':>9} {'est_pitch':>10} "
+          f"{'|e_v|':>7} {'NIS/dof':>8} {'#lm':>4} {'cL':>3} {'cR':>3}")
+    err_v = np.sqrt(sum(col(f"err_v_world_{a}") ** 2 for a in "xyz"))
+    for i in range(0, len(sub), step):
+        print(f"  {st[i] - fall_time:>8.3f} {col('gt_p_z')[i]:7.3f} "
+              f"{col('est_p_z')[i]:7.3f} {col('gt_rpy_y')[i]:9.4f} "
+              f"{col('est_rpy_y')[i]:10.4f} {err_v[i]:7.3f} "
+              f"{col('nis_per_dof')[i]:8.2f} {col('num_augmented_contacts')[i]:4.0f} "
+              f"{col('contact_left')[i]:3.0f} {col('contact_right')[i]:3.0f}")
+
+    print("\n  Times are relative to the onset. What to look for: does the estimate")
+    print("  diverge from ground truth BEFORE the pelvis drops (estimator drove the")
+    print("  fall), or only after (the controller lost balance and the estimator")
+    print("  merely followed)? That distinction decides whether the next change")
+    print("  belongs in the filter or in the controller.")
+
+
 def analyse_cost(cost: Table) -> None:
     section("COST BREAKDOWN (which term actually decides the posture)")
     run_cols = [c for c in cost.columns if c.startswith("run_")]
@@ -554,6 +699,11 @@ def main() -> int | str:
     parser.add_argument("--from-time", type=float, default=None)
     parser.add_argument("--to-time", type=float, default=None)
     parser.add_argument("--plot", action="store_true", help="also write PNG summaries")
+    parser.add_argument("--timeline", type=float, nargs="?", const=5.0, default=None,
+                        metavar="WINDOW",
+                        help="print a per-window timeline (default window 5 s)")
+    parser.add_argument("--fall-lead", type=float, default=6.0,
+                        help="seconds before the fall onset to dump in detail")
     args = parser.parse_args()
 
     state_path = args.prefix.with_name(args.prefix.name + "_state.csv")
@@ -592,6 +742,24 @@ def main() -> int | str:
     contacts = sorted({c[: -len("_in_stance")]
                        for c in state.columns if c.endswith("_in_stance")})
 
+    # Whether the robot stayed up governs how every number below should be read,
+    # so it is established first.
+    fall_time = find_fall(state)
+    if fall_time is None:
+        print("\n  No loss of balance detected (ground-truth pelvis stayed above 0.55 m "
+              "and trunk within 0.5 rad).")
+    else:
+        print(f"\n  *** LOSS OF BALANCE at t = {fall_time:.2f} s "
+              f"({fall_time - float(np.nanmin(state.col('t'))):.2f} s into the log). "
+              "Aggregate statistics below mix pre- and post-fall data; use "
+              "--to-time to look at the healthy segment alone. ***")
+
+    if args.timeline is not None:
+        analyse_timeline(state, args.timeline)
+    if fall_time is not None:
+        analyse_fall(state, fall_time, args.fall_lead)
+
+    analyse_signal_quality(state)
     analyse_consistency(state)
     analyse_covariance(state)
     analyse_accuracy(state)

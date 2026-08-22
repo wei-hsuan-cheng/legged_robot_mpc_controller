@@ -93,10 +93,6 @@ def generate_launch_description():
                         "ground_truth_state (simulator/hardware body state) | state_estimator (proprioceptive InEKF). "
                         "The InEKF always runs in parallel and publishes /humanoid/state_estimate/odom."),
         DeclareLaunchArgument(
-            "baseCommandGui", default_value="true",
-            description="Spawn the Tk base-command GUI. Set false for headless/scripted runs, which would otherwise open a window on the operator's display.",
-        ),
-        DeclareLaunchArgument(
             "diagnosticsLog", default_value="false",
             description="Write the per-tick CSV diagnostics (estimator internals + per-cost-term breakdown) for a tuning/diagnosis run",
         ),

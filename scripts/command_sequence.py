@@ -46,32 +46,115 @@ except ImportError as exc:  # pragma: no cover
 NOMINAL_HEIGHT = 0.7925
 PUBLISH_HZ = 50.0
 
-# name, duration [s], vx, vy, yaw rate, pelvis height [m]
-SEQUENCES: dict[str, list[tuple[str, float, float, float, float, float]]] = {
+
+class Phase:
+    """One commanded segment.
+
+    `ramp` linearly interpolates from the previous phase's command to this one
+    over the phase duration, instead of stepping. This matters: a step from
+    standing to a walking velocity asks the MPC to acquire the whole momentum in
+    one horizon, and a robot that falls on the step may be perfectly stable on a
+    ramp. Distinguishing "cannot walk at this speed" from "cannot accept this
+    acceleration" needs both to be runnable.
+    """
+
+    def __init__(self, name: str, duration: float, vx: float = 0.0, vy: float = 0.0,
+                 yaw_rate: float = 0.0, height: float = NOMINAL_HEIGHT,
+                 ramp: bool = False) -> None:
+        self.name = name
+        self.duration = duration
+        self.vx = vx
+        self.vy = vy
+        self.yaw_rate = yaw_rate
+        self.height = height
+        self.ramp = ramp
+
+    def command(self, alpha: float, previous: "Phase | None") -> tuple[float, float, float, float]:
+        target = (self.vx, self.vy, self.yaw_rate, self.height)
+        if not self.ramp or previous is None:
+            return target
+        start = (previous.vx, previous.vy, previous.yaw_rate, previous.height)
+        return tuple(s + (e - s) * alpha for s, e in zip(start, target))  # type: ignore[return-value]
+
+
+SEQUENCES: dict[str, list[Phase]] = {
+    # Full sweep: height first (no gait in the way), then gait.
     "diagnosis": [
-        ("settle", 15.0, 0.0, 0.0, 0.0, NOMINAL_HEIGHT),
-        ("squat", 20.0, 0.0, 0.0, 0.0, 0.75),
-        ("rise", 15.0, 0.0, 0.0, 0.0, NOMINAL_HEIGHT),
-        ("walk", 40.0, 0.3, 0.0, 0.0, NOMINAL_HEIGHT),
-        ("stop", 20.0, 0.0, 0.0, 0.0, NOMINAL_HEIGHT),
+        Phase("settle", 15.0),
+        Phase("squat", 20.0, height=0.75),
+        Phase("rise", 15.0),
+        Phase("walk", 40.0, vx=0.3),
+        Phase("stop", 20.0),
     ],
     # Isolates the height question with no gait in the way.
     "squat": [
-        ("settle", 15.0, 0.0, 0.0, 0.0, NOMINAL_HEIGHT),
-        ("squat", 25.0, 0.0, 0.0, 0.0, 0.75),
-        ("rise", 20.0, 0.0, 0.0, 0.0, NOMINAL_HEIGHT),
+        Phase("settle", 15.0),
+        Phase("squat", 25.0, height=0.75),
+        Phase("rise", 20.0),
     ],
-    # Long walk: the phase that generates contact transitions, for NIS statistics
-    # and for the height-drift rate (which needs 60 s+ to be readable).
-    "walk": [
-        ("settle", 15.0, 0.0, 0.0, 0.0, NOMINAL_HEIGHT),
-        ("walk", 90.0, 0.3, 0.0, 0.0, NOMINAL_HEIGHT),
-        ("stop", 15.0, 0.0, 0.0, 0.0, NOMINAL_HEIGHT),
+    # Height sweep, to see whether tracking error grows smoothly with the
+    # commanded drop or hits a wall at some depth.
+    "height_sweep": [
+        Phase("settle", 10.0),
+        Phase("z_770", 12.0, height=0.770),
+        Phase("z_750", 12.0, height=0.750),
+        Phase("z_720", 12.0, height=0.720),
+        Phase("z_690", 12.0, height=0.690),
+        Phase("rise", 12.0),
+    ],
+    # Speed ladder with ramps between steps: finds the speed at which balance is
+    # lost, rather than only showing that one particular speed fails.
+    "speed_ladder": [
+        Phase("settle", 12.0),
+        Phase("ramp_010", 5.0, vx=0.10, ramp=True),
+        Phase("hold_010", 15.0, vx=0.10),
+        Phase("ramp_020", 5.0, vx=0.20, ramp=True),
+        Phase("hold_020", 15.0, vx=0.20),
+        Phase("ramp_030", 5.0, vx=0.30, ramp=True),
+        Phase("hold_030", 15.0, vx=0.30),
+        Phase("ramp_stop", 5.0, vx=0.0, ramp=True),
+        Phase("stop", 10.0),
+    ],
+    # The same 0.3 m/s that fails as a step, reached as a ramp instead.
+    "walk_ramp": [
+        Phase("settle", 12.0),
+        Phase("ramp", 12.0, vx=0.3, ramp=True),
+        Phase("hold", 45.0, vx=0.3),
+        Phase("ramp_stop", 6.0, vx=0.0, ramp=True),
+        Phase("stop", 12.0),
+    ],
+    # Slow steady walk, long enough for the height-drift rate to be readable.
+    "walk_slow": [
+        Phase("settle", 12.0),
+        Phase("ramp", 6.0, vx=0.1, ramp=True),
+        Phase("hold", 90.0, vx=0.1),
+        Phase("ramp_stop", 4.0, vx=0.0, ramp=True),
+        Phase("stop", 12.0),
+    ],
+    # Short bursts: does it survive a few steps and settle, or does each burst
+    # leave it worse off than the last?
+    "bursts": [
+        Phase("settle", 12.0),
+        Phase("burst_1", 4.0, vx=0.15),
+        Phase("rest_1", 8.0),
+        Phase("burst_2", 4.0, vx=0.15),
+        Phase("rest_2", 8.0),
+        Phase("burst_3", 6.0, vx=0.2),
+        Phase("rest_3", 10.0),
+    ],
+    # Turning and lateral motion, which load the yaw/roll axes the forward walk
+    # does not exercise.
+    "turn_strafe": [
+        Phase("settle", 12.0),
+        Phase("ramp_yaw", 5.0, yaw_rate=0.3, ramp=True),
+        Phase("yaw", 15.0, yaw_rate=0.3),
+        Phase("rest", 8.0),
+        Phase("ramp_vy", 5.0, vy=0.15, ramp=True),
+        Phase("strafe", 15.0, vy=0.15),
+        Phase("stop", 10.0),
     ],
     # Stance only, as a control: any estimator drift seen here is not gait-driven.
-    "stand": [
-        ("stand", 120.0, 0.0, 0.0, 0.0, NOMINAL_HEIGHT),
-    ],
+    "stand": [Phase("stand", 120.0)],
 }
 
 
@@ -94,8 +177,7 @@ class CommandSequencer(Node):
         self._publisher.publish(message)
 
 
-def run(sequence: list[tuple[str, float, float, float, float, float]],
-        settle_before: float) -> None:
+def run(sequence: list[Phase], settle_before: float) -> None:
     rclpy.init()
     node = CommandSequencer()
     period = 1.0 / PUBLISH_HZ
@@ -109,14 +191,22 @@ def run(sequence: list[tuple[str, float, float, float, float, float]],
             node.publish(0.0, 0.0, 0.0, NOMINAL_HEIGHT)
             time.sleep(period)
 
-    for name, duration, vx, vy, yaw_rate, height in sequence:
+    previous: Phase | None = None
+    for phase in sequence:
         phase_start = time.time()
-        print(f"[{phase_start - start:7.2f}] {name:<8} "
-              f"v=({vx:+.2f}, {vy:+.2f}) yaw={yaw_rate:+.2f} z={height:.4f} "
-              f"for {duration:.1f}s", flush=True)
-        while time.time() - phase_start < duration:
+        kind = "ramp to" if phase.ramp else "hold   "
+        print(f"[{phase_start - start:7.2f}] {phase.name:<10} {kind} "
+              f"v=({phase.vx:+.2f}, {phase.vy:+.2f}) yaw={phase.yaw_rate:+.2f} "
+              f"z={phase.height:.4f} for {phase.duration:.1f}s", flush=True)
+        while True:
+            elapsed = time.time() - phase_start
+            if elapsed >= phase.duration:
+                break
+            alpha = min(1.0, elapsed / phase.duration) if phase.duration > 0 else 1.0
+            vx, vy, yaw_rate, height = phase.command(alpha, previous)
             node.publish(vx, vy, yaw_rate, height)
             time.sleep(period)
+        previous = phase
 
     print(f"[{time.time() - start:7.2f}] done", flush=True)
     node.destroy_node()
@@ -136,9 +226,9 @@ def main() -> int:
 
     if args.list:
         for name, phases in SEQUENCES.items():
-            total = sum(p[1] for p in phases)
+            total = sum(p.duration for p in phases)
             print(f"{name} ({total:.0f}s): " +
-                  ", ".join(f"{p[0]}[{p[1]:.0f}s]" for p in phases))
+                  ", ".join(f"{p.name}[{p.duration:.0f}s]" for p in phases))
         return 0
 
     run(SEQUENCES[args.sequence], args.settle_before)
