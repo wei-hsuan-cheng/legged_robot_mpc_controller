@@ -786,8 +786,8 @@ humanoid_centroidal_mpc_controller:
         }
         gain: {
           type: double,
-          default_value: 1.0,
-          description: "Scales the capture-point correction; 0 reproduces a fixed nominal foothold",
+          default_value: 0.6,
+          description: "Scales the capture-point correction; 0 reproduces a fixed nominal foothold. Measured optimum is below 1: 0.6 -> 57.5 s, 1.0 -> 55.8, 1.5 -> 55.0, 2.0 -> 48.3 on the vx ladder at trackingWeight 100.",
           validation: { gt_eq: [0.0] }
         }
         stepWidth: {
@@ -798,14 +798,20 @@ humanoid_centroidal_mpc_controller:
         }
         maxAdjustment: {
           type: double,
-          default_value: 0.12,
+          default_value: 0.20,
           description: "Bound on the foothold correction away from nominal [m]; keeps a transient from commanding an unreachable step",
           validation: { gt: [0.0] }
         }
         trackingWeight: {
           type: double,
-          default_value: 100.0,
-          description: "xy foothold tracking weight handed to the foot task-space cost during swing",
+          default_value: 1600.0,
+          description: "xy foothold tracking weight handed to the foot task-space cost during swing. This turned out to be the dominant knob and it wants to be LARGE: on the vx ladder, 30 -> 48.5 s, 60 -> 56.0, 100 -> 57.5, 200 -> 62.3, 400 -> 65.0, 800 -> 72.0, 1600 -> 78.6, 3200 -> 79.2 (saturating). A weak weight lets the optimizer ignore the foothold and fall back on the behaviour that had no foot-placement feedback at all.",
+          validation: { gt_eq: [0.0] }
+        }
+        stepLengthGain: {
+          type: double,
+          default_value: 0.0,
+          description: "Feedforward step length as a fraction of (velocity x step period). The capture point alone is the DEADBEAT STOPPING placement; steady walking needs the foot to land AHEAD of the base by about v*T_step/2 so the body can pass over it. At omega~3.7 the capture term gives only 0.27*v against the ~0.43*v an 0.85 s step needs, leaving the robot short every step and pitching forward - worse the faster it walks.",
           validation: { gt_eq: [0.0] }
         }
         projectionHorizon: {

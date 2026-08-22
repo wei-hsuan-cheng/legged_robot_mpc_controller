@@ -11,32 +11,14 @@ Plan phases (agreed order):
 | 1 | Estimator correctness: A1–A4, A7 | **done, validated** |
 | 2 | Contact model (B1, A8) | not started |
 | 2.5 | Height pseudo-measurement inside the filter | **not needed on flat ground** (measured drift ≈ 0) |
-| 3 | Reference / cost consistency (B4 first) | **now the priority — walking is broken** |
-| 4 | Parameter sweeps | not started |
+| 3 | Reference / cost consistency | **partly done — foot placement added, walking much improved** |
+| 4 | Parameter sweeps | **done for foot placement; trackingWeight was the dominant knob** |
 | 5 | Hardware readiness (A5, GT-free init) | not started |
 
-## Headline result
+## Headline result (superseded — see "Walking" below)
 
-**Walking is broken, and it is not the estimator.** The robot falls after ~10 s
-of walking at 0.10 m/s. This reproduces:
-
-- with the InEKF driving control, **and** with `ground_truth_state` driving it
-  (estimator entirely out of the loop);
-- on the **pre-Phase-0 baseline build** (controller `88e5e0a`, estimator
-  `fe22857`), which falls at t = 31.2 s in the same `hold_010` phase that the
-  current build falls in at t ≈ 32.9 s.
-
-So it is pre-existing, and it is in the controller/gait, not the filter. The
-fall-onset dump is unambiguous on the mechanism: `est_z`/`gt_z` agree to three
-decimals and `est_pitch`/`gt_pitch` to ~0.01 rad right through the tipping; the
-estimate only departs from ground truth *after* the pelvis has already dropped.
-Pitch goes 0.03 → 0.13 → 0.49 rad in about 0.7 s.
-
-Standing and squatting are solid: 197 s of stance with no fall, and the pelvis
-follows a 0.7925 → 0.75 height command to 0.763 (13 mm short, reproducible in
-both feedback modes) and returns cleanly.
-
-Next work therefore belongs in Phase 3, on the OCP, not in the filter.
+Two analysis bugs invalidated the first round of walking conclusions. Both are
+fixed; the corrected picture is in the Walking section.
 
 ---
 
@@ -239,3 +221,145 @@ The B4 height question is now partly answered: the pelvis tracks a 0.75 m comman
 to 0.763 m, and `ExternalTorqueQuadraticCost` reads 0.0000 in stance, so the leg
 torque cost is *not* outbidding base-z tracking at this operating point. The 13 mm
 offset is real and reproducible but small; it is not the headline problem.
+
+
+---
+
+## Walking (current state)
+
+### Two analysis bugs that invalidated the first round
+
+1. **Yaw was being read as roll.** `quaternionToEulerZYX` returns
+   *(yaw, pitch, roll)*, but the diagnostics wrote them into `_x/_y/_z` columns and
+   the analyser read `_x` as roll. The "lateral roll divergence" reported earlier
+   was the robot **veering off heading**. Worse, the fall detector treated that
+   column > 0.5 rad as a loss of balance, so a commanded in-place turn was flagged
+   as a fall after two seconds while the pelvis sat at its nominal height.
+   Columns are now `gt/est/err_euler_{yaw,pitch,roll}` and the fall check uses
+   height + pitch + roll only.
+
+2. **Every forward walking test drove into the staircase.** `scene.xml` includes
+   `stairs.xml`, first riser at **x = 0.75 m**. The logs show the pelvis reaching
+   0.66–0.67 m and stalling for ten seconds before toppling — a swing foot
+   stubbing a 0.10 m step. `scene_flat.xml` is the same scene without obstacles;
+   use it for gait/balance/estimator work.
+
+Any conclusion in this file dated before those fixes should be re-derived.
+
+### The estimator is not the cause
+
+Measured through a run that ends in a fall at 55.8 s:
+
+| t | \|e_v\| | \|e_ω\| | e_yaw | e_pitch | \|Δh_lin\| |
+|---|---|---|---|---|---|
+| 10 | 0.011 | 0.0001 | 0.0005 | 0.0003 | 0.011 |
+| 30 | 0.011 | 0.0004 | 0.0094 | 0.0075 | 0.011 |
+| 50 | 0.048 | 0.0005 | 0.0157 | 0.0114 | 0.048 |
+| 55 | 1.35 | 0.015 | 0.75 | 0.055 | 1.29 |
+
+Velocity, angular-velocity and **momentum** error are bounded and flat — no
+accumulation. The blow-up at t=55 is after the pelvis is already at 0.40 m, i.e. a
+consequence. The only growing quantities are `|e_p|` and `e_yaw`, which are the
+unobservable gauge states a contact-aided InEKF must drift in.
+
+The controller is already insulated from them: `q.basePose` and `qFinal.basePose`
+put **zero weight on x, y and yaw**, and `BaseMotionTrackingCost` in
+`RelativeTwist` mode *skips* those pose deviations entirely and compares
+velocities in the respective pelvis frames, so a yaw-gauge change cancels on both
+sides. `RelativeTwist` is selected whenever the target mode is not an explicit
+base-pose command. The capture-point foot placement and the ICP cost both express
+the foothold and the CoM in the same estimated frame, so the drift cancels there
+too.
+
+### What was missing: a foothold reference
+
+On flat ground `getSwingFootholdReference()` returned false (no stair plan, no
+terrain planner) and the foot task-space cost has zero position weight — so the
+swing foot's landing xy was whatever the optimizer produced, with nothing closing
+a balance loop through foot placement. Added a capture-point foothold: aim the
+swing foot at `com + v/ω`, offset laterally by half the step width, clamped, with
+the nominal taken at the **predicted touchdown base position** (using the current
+base biases every step backwards by `v·Δt` and pitches the robot forward — worse
+the faster it walks).
+
+### Ablation and sweep, on the vx ladder, flat scene
+
+| config | fell at |
+|---|---|
+| ICP off, foot placement off (original) | 46.4 s (inside vx **0.10**) |
+| ICP 15, foot placement off | 48.1 s |
+| ICP off, foot placement on | 55.8 s |
+| ICP 15, foot placement on | 56.2 s |
+
+`trackingWeight` then turned out to be the dominant knob, and it wants to be
+large — a weak weight simply lets the optimizer ignore the foothold:
+
+| trackingWeight | 30 | 60 | 100 | 200 | 400 | 800 | 1600 | 3200 |
+|---|---|---|---|---|---|---|---|---|
+| fell at [s] | 48.5 | 56.0 | 57.5 | 62.3 | 65.0 | 72.0 | 78.6 | 79.2 |
+
+Other knobs: `gain` optimum is **0.6** (1.0 → 55.8, 1.5 → 55.0, 2.0 → 48.3);
+`maxAdjustment` 0.20 slightly better than 0.12; `stepLengthGain` measured
+neutral-to-harmful and defaults to 0, because `baseAtTouchdown` already supplies
+most of that travel and the two double-count.
+
+### Best configuration (in `ros2_controllers_legacy.yaml`)
+
+```yaml
+icpErrorWeight: 0.0
+captureFootPlacement:
+  enabled: true
+  gain: 0.6
+  stepWidth: 0.18
+  maxAdjustment: 0.20
+  trackingWeight: 1600.0
+  stepLengthGain: 0.0
+```
+
+**80.3 s on the vx ladder** — completes 0.05, 0.10, 0.20 **and 0.30 m/s**, falling
+only during the deceleration at the end. The original configuration failed inside
+the 0.10 m/s phase. Roughly a 3x increase in sustainable forward speed.
+
+ICP is off in this configuration because that measured best at
+`trackingWeight: 1600`. It *did* help at lower weights (400: 72.9 s with ICP vs
+65.0 s without) and was not re-tested at 1600 — worth one run.
+
+### Measured limits before this tuning (trackingWeight 100)
+
+| axis | survives | fails at |
+|---|---|---|
+| vx | 0.05, 0.10 | 0.20 |
+| vy | 0.05, 0.10 | 0.20 |
+| yaw | 0.1, 0.3, 0.5 | robust |
+| fwd+strafe combined | — | fails |
+| walk + squat to 0.75 m | 0.7925, 0.77 | 0.75 |
+
+These have **not** been re-measured at `trackingWeight: 1600`. Only the vx ladder
+has. That is the first thing to redo.
+
+### Other fixes landed while getting here
+
+- **ocs2_core `getGaussNewtonApproximation` out-of-bounds read** (`3ea029703` in
+  `ocs2_ros2`). The inner loop over a Jacobian row had no bound on `j`, so the
+  last non-zero of the last row read past the end of `rows[]` and could index
+  `dfdxx` with garbage. Latent for any Gauss-Newton AD cost; surfaced when two new
+  Jacobian columns changed the sparsity. Note ocs2_core is a **static** library,
+  so dependents must be relinked for the fix to take effect.
+- **ICP cost was never finished**: the capture point was commented out (leaving a
+  CoM-position cost), the reference averaged both feet including the airborne one,
+  and `isActive` required *both* feet — switching it off through every
+  single-support phase. All three fixed.
+- **`getPhaseVariable` out-of-bounds read** — dereferenced `end()` past the last
+  event; it feeds the arm-swing reference every solver iteration.
+- **Standing oscillation**: knees were swinging ~20° peak-to-peak while commanded
+  to stand, because leg posture weights were near zero (knee 0.02) while the
+  terminal weight was 8.0 — free mid-horizon, pinned at the end. Raised leg
+  weights; knee 19.6° → 5.6° p-p.
+
+### Open
+
+- Re-measure vy / yaw / combined / height ladders at the tuned weight.
+- Test ICP at `trackingWeight: 1600`.
+- The remaining failure is a forward **pitch** divergence at the top speed.
+- `targetMomentum(5)` still uses `ω_z/m` instead of `(I_G ω)_z/m`.
+- Phase 2 (contact model): double support NIS is ~2× over-confident.

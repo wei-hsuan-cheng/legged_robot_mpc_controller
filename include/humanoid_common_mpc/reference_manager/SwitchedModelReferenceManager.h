@@ -83,10 +83,14 @@ class SwitchedModelReferenceManager : public ReferenceManager {
    */
   struct CaptureFootPlacementSettings {
     bool enabled = false;
-    scalar_t gain = 1.0;             //!< scales the capture-point correction; 0 reproduces the nominal foothold
+    scalar_t gain = 0.6;             //!< scales the capture-point correction; 0 reproduces the nominal foothold
     scalar_t stepWidth = 0.18;       //!< nominal lateral spacing between the feet [m]
-    scalar_t maxAdjustment = 0.12;   //!< bound on the correction away from nominal [m]
-    scalar_t trackingWeight = 100.0; //!< xy foothold tracking weight handed to the foot cost
+    scalar_t maxAdjustment = 0.20;   //!< bound on the correction away from nominal [m]
+    //! xy foothold tracking weight handed to the foot cost. The dominant knob,
+    //! and it wants to be LARGE: on the vx ladder 30 -> 48.5 s, 100 -> 57.5,
+    //! 400 -> 65.0, 1600 -> 78.6, 3200 -> 79.2 (saturating). Too weak and the
+    //! optimizer simply ignores the foothold.
+    scalar_t trackingWeight = 1600.0;
     //! How far ahead to propagate the capture point about the stance foot, in
     //! seconds, capped at the time remaining until touchdown. The DCM diverges as
     //! exp(omega*t), so in principle projecting to touchdown makes the placement
@@ -96,6 +100,22 @@ class SwitchedModelReferenceManager : public ReferenceManager {
     //! Default 0 is the instantaneous capture point, which measured best; raise
     //! it together with maxAdjustment if you want to explore the deadbeat end.
     scalar_t projectionHorizon = 0.0;
+    //! Feedforward step length, as a fraction of (velocity x step period).
+    //!
+    //! The capture point alone is the DEADBEAT STOPPING placement: put the foot
+    //! there and the CoM comes to rest. Steady walking needs the opposite - the
+    //! foot must land ahead of the base by about v * T_step / 2 so the body can
+    //! keep passing over it. With omega ~ 3.7 the capture term supplies only
+    //! 0.27 * v against the ~0.43 * v that a 0.85 s step needs, leaving the robot
+    //! a few centimetres short on every step and slowly pitching forward - which
+    //! is worse the faster it walks.
+    //!
+    //! MEASURED NEUTRAL-TO-HARMFUL here, so it defaults to 0: the nominal already
+    //! advances by v * timeToTouchdown (see baseAtTouchdown), which covers most of
+    //! the same travel, and adding this term on top double-counts it. On the vx
+    //! ladder: 0.0 -> 56.3 s, 0.5 -> 56.1 s, 0.8 -> 55.5 s, 1.2 -> 47.1 s. Kept as
+    //! a knob because the right split between the two depends on the gait period.
+    scalar_t stepLengthGain = 0.0;
   };
 
   void setCaptureFootPlacementSettings(const CaptureFootPlacementSettings& settings) {

@@ -313,6 +313,20 @@ void SwitchedModelReferenceManager::updateCaptureFootholds(scalar_t initTime, co
     }
     timeToTouchdown = std::min(timeToTouchdown, 1.0);  // guard against a stale schedule
   }
+
+  // Step period, from the spacing of the scheduled contact switches. Used for the
+  // feedforward step length below; a walking robot must land its foot AHEAD of
+  // the body, which the capture point on its own never asks for.
+  scalar_t stepPeriod = 0.0;
+  {
+    const auto& eventTimes = modeSchedule_.eventTimes;
+    const auto it = std::upper_bound(eventTimes.begin(), eventTimes.end(), initTime);
+    if (it != eventTimes.end() && std::next(it) != eventTimes.end()) {
+      stepPeriod = std::clamp(*std::next(it) - *it, 0.0, 2.0);
+    } else if (it != eventTimes.end() && it != eventTimes.begin()) {
+      stepPeriod = std::clamp(*it - *std::prev(it), 0.0, 2.0);
+    }
+  }
   // Bound the DCM extrapolation separately: exp() of a long horizon turns a small
   // velocity error into an unreachable foothold, and the clamp below would then
   // saturate every step and destroy the feedback. Measured: a 0.4 s horizon is
@@ -333,7 +347,15 @@ void SwitchedModelReferenceManager::updateCaptureFootholds(scalar_t initTime, co
     // forward, and the error grows with speed. That matches the measured failure:
     // pitch creeping up through a walk and diverging sooner the faster it goes.
     const vector2_t baseAtTouchdown = basePose.head<2>() + comVelocity * timeToTouchdown;
-    const vector2_t nominal = baseAtTouchdown + side * halfWidth * lateralDirection;
+
+    // Feedforward step length: the foot has to land ahead of the base so the body
+    // can pass over it, which the capture point (a stopping placement) never
+    // asks for. See CaptureFootPlacementSettings::stepLengthGain.
+    const vector2_t stepAhead =
+        captureFootPlacement_.stepLengthGain * stepPeriod * comVelocity;
+
+    const vector2_t nominal =
+        baseAtTouchdown + stepAhead + side * halfWidth * lateralDirection;
 
     // Propagate the capture point about the supporting foot to the moment this
     // foot lands: xi_td = p_stance + (xi_now - p_stance) * exp(omega * dt).

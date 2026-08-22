@@ -215,6 +215,7 @@ ocs2::humanoid::CentroidalMpcInterface::Config buildCentroidalMpcConfig(
   config.captureFootPlacement.maxAdjustment = p.costs.captureFootPlacement.maxAdjustment;
   config.captureFootPlacement.trackingWeight = p.costs.captureFootPlacement.trackingWeight;
   config.captureFootPlacement.projectionHorizon = p.costs.captureFootPlacement.projectionHorizon;
+  config.captureFootPlacement.stepLengthGain = p.costs.captureFootPlacement.stepLengthGain;
 
   for (const auto& costName : p.costs.taskSpaceCosts.names) {
     if (costName.empty()) {
