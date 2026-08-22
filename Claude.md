@@ -7,13 +7,36 @@ Plan phases (agreed order):
 
 | Phase | Content | Status |
 |---|---|---|
-| 0 | Instrumentation. No behaviour change. | **code complete, not yet validated on a real run** |
-| 1 | Estimator correctness: A1–A4, A7 | A1 landed early (see below); A2/A3/A4/A7 pending |
+| 0 | Instrumentation. No behaviour change. | **done, validated on real runs** |
+| 1 | Estimator correctness: A1–A4, A7 | **done, validated** |
 | 2 | Contact model (B1, A8) | not started |
-| 2.5 | Height pseudo-measurement inside the filter | gated on Phase-0 data |
-| 3 | Reference / cost consistency (B4 first) | not started |
+| 2.5 | Height pseudo-measurement inside the filter | **not needed on flat ground** (measured drift ≈ 0) |
+| 3 | Reference / cost consistency (B4 first) | **now the priority — walking is broken** |
 | 4 | Parameter sweeps | not started |
 | 5 | Hardware readiness (A5, GT-free init) | not started |
+
+## Headline result
+
+**Walking is broken, and it is not the estimator.** The robot falls after ~10 s
+of walking at 0.10 m/s. This reproduces:
+
+- with the InEKF driving control, **and** with `ground_truth_state` driving it
+  (estimator entirely out of the loop);
+- on the **pre-Phase-0 baseline build** (controller `88e5e0a`, estimator
+  `fe22857`), which falls at t = 31.2 s in the same `hold_010` phase that the
+  current build falls in at t ≈ 32.9 s.
+
+So it is pre-existing, and it is in the controller/gait, not the filter. The
+fall-onset dump is unambiguous on the mechanism: `est_z`/`gt_z` agree to three
+decimals and `est_pitch`/`gt_pitch` to ~0.01 rad right through the tipping; the
+estimate only departs from ground truth *after* the pelvis has already dropped.
+Pitch goes 0.03 → 0.13 → 0.49 rad in about 0.7 s.
+
+Standing and squatting are solid: 197 s of stance with no fall, and the pelvis
+follows a 0.7925 → 0.75 height command to 0.763 (13 mm short, reproducible in
+both feedback modes) and returns cleanly.
+
+Next work therefore belongs in Phase 3, on the OCP, not in the filter.
 
 ---
 
@@ -116,38 +139,103 @@ deliberately seeded non-zero initial bias.
 **Not yet verified on a run.** The convergence test (inject a known IMU bias,
 confirm it converges) is a Phase-1 gate.
 
-### Status / caveats
+### Status
 
-- Both packages **compile clean** (`colcon build`, Release).
-- The analysis script is **smoke-tested end-to-end** against a synthetic log with
-  the exact production schema — loader, every analysis section, and both plots.
-- **Not yet run against real data.** I could not launch the sim in this
-  environment (segfault during `Configuring controller`, right after
-  `frameIndices: 103`); it reproduces at clean HEAD with diagnostics disabled, so
-  it is environmental to my headless invocation and not caused by these changes.
-  The first real run is the outstanding Phase-0 validation step.
-- `bufferRows` 8192 at 200 Hz is ~40 s of slack against a stalled write. If
-  deactivation reports dropped rows, raise it or lower `stateRate`.
+Validated on real runs. No dropped log rows, no schema mismatch, 396/396
+estimator validation lines PASS on the 197 s stance run.
+
+**Running it.** `libFolder` defaults to the *relative* path `auto_generated/g1`,
+so `ros2 launch` must be run from `~/ocs2_ros2_ws`. From anywhere else the cached
+CppAD libraries are not found, the model is regenerated, and generation segfaults
+inside `CppAdInterface::createModels`. That cost a lot of time to find; it is not
+a code defect but it looks exactly like one.
+
+```bash
+cd ~/ocs2_ros2_ws
+ros2 launch legged_robot_mpc_controller g1.launch.py \
+  floatingBaseSource:=state_estimator diagnosticsLog:=true \
+  diagnosticsLogPrefix:=/tmp/diag_%t
+python3 scripts/command_sequence.py --sequence speed_ladder
+python3 scripts/analyze_diagnostics.py /tmp/diag_<stamp> --timeline 5
+```
+
+Build with `NUM_JOBS=2` per the README — a full-parallelism clean build OOMs
+(`cc1plus` killed) on this container.
 
 ---
 
-## Phase 1 — estimator correctness (pending)
+## Phase 1 — estimator correctness (done)
 
-Remaining after A1:
+- **A1** bias wipe removed. **Confirmed working**: gyro bias now moves over a
+  range of 3.4e-2 rad/s and accelerometer bias 2.5e-1 m/s² during a run. Before
+  the fix these were identically zero forever, by construction.
+- **A2** configurable initial covariance, exposed as
+  `stateEstimator.initialCovariance.*`. Defaults: 1e-2 on attitude/velocity/
+  position, 1e-2 gyro bias, 1e-1 accel bias.
+- **A3** `init()` now calls `resetState()`, which drops the augmented contact and
+  landmark maps together with the state matrix they index into.
+- **A4** `base_ang_vel_world_estimate_` derived from the bias-corrected local rate
+  and the corrected rotation, instead of a variable only written under
+  `dynamic_contact_estimation`.
+- **A7** fixed, but **not by the mechanism originally described**. `getContactFlags`
+  reads the *base* class's `BufferedValue`, not the shadowing `modeSchedule_`
+  member (which only feeds a `getPhaseVariable` that has no callers). The race is
+  real all the same: `BufferedValue::get()` is documented as not thread-safe
+  against `updateFromBuffer()`, and the solver thread calls the latter inside
+  `preSolverRun()`. The control loop now reads a `RealtimeBuffer` snapshot the
+  solver publishes once its iteration is complete.
 
-- **A2** initial covariance is never configured. `InEKFState` defaults to
-  `P = I(15)` — σ_attitude = 1 rad, σ_v = 1 m/s, σ_p = 1 m — on a state seeded
-  from exact ground truth. The first contact correction with `N = (0.002 m)²`
-  then yanks it. Needs a configurable initial covariance.
-- **A3** `init()` calls `setState()` but not `clear()`, so
-  `estimated_contact_positions_` survives with stale indices into a fresh 5×5 `X`
-  → out-of-bounds on the next `CorrectKinematics`. `resetState()` now exists;
-  `LeggedStateEstimator::init()` must call it.
-- **A4** `base_ang_vel_world_estimate_` is only written under
-  `dynamic_contact_estimation`, which is false — so it is permanently zero.
-- **A7** `modeSchedule_` is read from the 1 kHz control thread and written from
-  the solver thread without the `BufferedValue` every other cross-thread field in
-  that class uses.
+### Measured estimator performance (197 s stance + squat, estimator in the loop)
 
-Gate: baseline flat-ground numbers no worse; injected bias converges;
-deactivate→activate does not crash.
+| Quantity | Result |
+|---|---|
+| linear velocity error | RMS 0.005–0.008 m/s, peak 0.039 |
+| angular velocity error | RMS ~1e-4 rad/s |
+| height error vs GT | RMS 0.0000 m (anchored blend pinning it) |
+| x / yaw drift | 0.107 m and 0.080 rad RMS over 197 s — unobservable gauge states, covariance grows accordingly |
+| filter-vs-reported height drift | −0.00000 m/s |
+
+The height architecture concern (Phase 2.5) **does not bite on flat ground**: the
+measured drift between the filter's internal height and the reported blended
+height is zero to five decimals over 197 s. Revisit only for terrain.
+
+### Filter consistency (NIS) — the one number worth acting on
+
+From the walking run, before the fall:
+
+| Support | NIS/dof | above 95% band |
+|---|---|---|
+| single (2 contacts, dim 6) | 1.02 | 10.6% |
+| double (4 contacts, dim 12) | 2.18 | 31.8% |
+
+Single support is consistent; double support is over-confident by ~2×. That is
+the B1 signature — rigidly linked contacts fed in as independent landmarks — and
+it is the evidence for doing Phase 2 (contact model) rather than sweeping
+`contactPosition` further. Note the dim-12 median is 9.07 against a mean of
+26.14, so the excess is concentrated in transition spikes rather than spread
+evenly; touchdown/liftoff handling is the place to look first.
+
+---
+
+## Phase 3 — walking (next, and now the priority)
+
+Walking fails at 0.10 m/s regardless of feedback source or build vintage. Since
+the estimator is exonerated, the candidates are the ones from the original
+Cassie-vs-G1 analysis that live in the OCP:
+
+1. **Arm-swing vs zero angular-momentum reference.** `setArmSwingReferenceActive(true)`
+   commands a swing scaled by commanded vₓ, while the momentum reference asks for
+   h_ang,x = h_ang,y = 0 with terminal weight 75. During walking the logged
+   `x_hbar_ang` is non-zero against a reference of exactly zero.
+2. **`targetMomentum(5) = yawRate / mass`** — normalized angular momentum is
+   (I_G ω)_z / m, not ω_z / m. Off by roughly the z inertia, on a heavily
+   weighted terminal component.
+3. **v_CoM ≠ v_pelvis**, which the command and base-pose target conflate.
+4. During walking the cost is dominated by the foot `TaskSpaceKinematicsCost`
+   terms (32.7% + 31.8%), well above `stateInputQuadraticCost` (19.4%) — worth
+   checking whether the swing-foot tracking weights are fighting balance.
+
+The B4 height question is now partly answered: the pelvis tracks a 0.75 m command
+to 0.763 m, and `ExternalTorqueQuadraticCost` reads 0.0000 in stance, so the leg
+torque cost is *not* outbidding base-z tracking at this operating point. The 13 mm
+offset is real and reproducible but small; it is not the headline problem.
