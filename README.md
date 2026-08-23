@@ -124,6 +124,7 @@ Three things will bite you if you skip them:
 cd <workspace_dir>
 source install/setup.bash
 ros2 launch legged_robot_mpc_controller g1.launch.py \
+  mujoco_headless:=true \
   mujocoModelFile:=scene_flat.xml \
   baseCommandGui:=false \
   diagnosticsLog:=true diagnosticsLogPrefix:=/tmp/fig8_%t
