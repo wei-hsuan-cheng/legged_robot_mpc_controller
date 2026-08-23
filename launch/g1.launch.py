@@ -44,7 +44,7 @@ def generate_launch_description():
 
     controllers_file_default = PathJoinSubstitution([
         mpc_share_dir, "config", "g1",
-        "ros2_controllers_legacy.yaml"
+        "ros2_controllers.yaml"
         ])
     
     gait_library_file_default = PathJoinSubstitution([
