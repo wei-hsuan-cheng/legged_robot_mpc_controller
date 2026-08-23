@@ -9,16 +9,60 @@ Plan phases (agreed order):
 |---|---|---|
 | 0 | Instrumentation. No behaviour change. | **done, validated on real runs** |
 | 1 | Estimator correctness: A1–A4, A7 | **done, validated** |
-| 2 | Contact model (B1, A8) | not started |
-| 2.5 | Height pseudo-measurement inside the filter | **not needed on flat ground** (measured drift ≈ 0) |
-| 3 | Reference / cost consistency | **partly done — foot placement added, walking much improved** |
-| 4 | Parameter sweeps | **done for foot placement; trackingWeight was the dominant knob** |
+| 2 | Contact model (B1, A8) | A8 answered (torque detection is structurally broken for G1); B1 open |
+| 2.5 | Height pseudo-measurement inside the filter | **now the top priority** — it is what blocks terrain walking |
+| 3 | Reference / cost consistency | partly done: foot placement added, walking much improved |
+| 4 | Parameter sweeps | done for foot placement; `trackingWeight` was the dominant knob |
 | 5 | Hardware readiness (A5, GT-free init) | not started |
 
-## Headline result (superseded — see "Walking" below)
+## Current status
 
-Two analysis bugs invalidated the first round of walking conclusions. Both are
-fixed; the corrected picture is in the Walking section.
+**Where it stands.** Standing, squatting, in-place turning and figure-eight
+walking all work. Forward walking is roughly 3x faster than at the start:
+sustainable vx went from failing inside the 0.10 m/s phase to completing 0.30 m/s.
+The estimator is healthy and is not what limits any of it.
+
+**Shipped configuration** is in `config/g1/ros2_controllers_legacy.yaml` and
+reproduced under "Shipped configuration (flat ground)" at the end of this file.
+Flat ground, no terrain reference, `kinematic` height source, capture-point foot
+placement at `trackingWeight: 1600`.
+
+**Representative measurements** (flat scene unless noted):
+
+| test | result |
+|---|---|
+| stance, 197 s | no fall; 396/396 estimator validation PASS |
+| in-place turn ±0.3 rad/s + squat, 145 s | no fall |
+| figure-eight, 0.22 m/s constant | ~69 s of walking, ~1.4 laps, ~15 m of path |
+| vx ladder | completes 0.05 / 0.10 / 0.20 / 0.30 m/s, falls on the deceleration |
+| yaw | robust through 0.5 rad/s |
+| 3° ramp (terrain reference on) | 94.1 s, peak pitch 0.221 rad |
+
+**The single open blocker** is the estimator's absolute-z drift. It is what stops
+the terrain-height reference from being trustworthy, and the fix is Phase 2.5: a
+height pseudo-measurement *inside* the filter instead of the blend currently
+applied outside it. Details under "The terrain-height blocker".
+
+**Two retracted conclusions** from the first round, both my own tooling bugs, both
+fixed — see "Two analysis bugs that invalidated the first round":
+yaw was being read as roll, and every forward-walk test was driving into the
+staircase at x = 0.75 m.
+
+### Landed, in order
+
+| commit | what |
+|---|---|
+| `af9956e` | yaw-as-roll fix; `scene_flat.xml` |
+| `834e145` | foot placement aimed at the base position *at touchdown* |
+| `de51716` | `trackingWeight` sweep — 3x sustainable speed |
+| `3d62b73` | figure-eight command script |
+| `d57dba2` | scripts moved to `launch/` and installed |
+| `25c46c8` | optional terrain-height reference; `static` fix in the ground estimate |
+| `30051ad` | shipped flat-ground config; README + terrain caveat |
+
+Plus, in the other two repos: `3fd9f1e` (`legged_state_estimator`, InEKF bias /
+reset / diagnostics) and `3ea029703` (`ocs2_ros2`, out-of-bounds read in
+`getGaussNewtonApproximation`).
 
 ---
 
@@ -199,11 +243,11 @@ evenly; touchdown/liftoff handling is the place to look first.
 
 ---
 
-## Phase 3 — walking (next, and now the priority)
+## Phase 3 — OCP candidates (raised early; still largely open)
 
-Walking fails at 0.10 m/s regardless of feedback source or build vintage. Since
-the estimator is exonerated, the candidates are the ones from the original
-Cassie-vs-G1 analysis that live in the OCP:
+Written when walking failed at 0.10 m/s. That symptom is gone - foot placement
+fixed it - but none of the items below were actually addressed, so they remain
+open and are the likely ceiling on further speed:
 
 1. **Arm-swing vs zero angular-momentum reference.** `setArmSwingReferenceActive(true)`
    commands a swing scaled by commanded vₓ, while the momentum reference asks for
@@ -356,14 +400,7 @@ has. That is the first thing to redo.
   terminal weight was 8.0 — free mid-horizon, pinned at the end. Raised leg
   weights; knee 19.6° → 5.6° p-p.
 
-### Open
-
-- Re-measure vy / yaw / combined / height ladders at the tuned weight.
-- Test ICP at `trackingWeight: 1600`.
-- The remaining failure is a forward **pitch** divergence at the top speed.
-- `targetMomentum(5)` still uses `ω_z/m` instead of `(I_G ω)_z/m`.
-- Phase 2 (contact model): double support NIS is ~2× over-confident.
-
+(Open items for this section are consolidated at the end of the file.)
 
 ---
 
@@ -446,3 +483,45 @@ ocs2:
 Deliberately excludes the 149 s flat result: it is not reproducible as *walking*
 skill, only as a slackened height constraint, and it comes with a 0.39 m height
 error that would be dangerous on hardware.
+
+
+---
+
+## Open work, in priority order
+
+1. **Bound the estimator's absolute-z drift (Phase 2.5).** This is the blocker for
+   terrain walking and the reason the terrain reference ships off. The right fix
+   is a height pseudo-measurement *inside* the InEKF, so the filter's own z is
+   corrected, instead of the blend currently applied outside it which leaves the
+   internal z drifting uncorrected and lets `anchored` feed that drift back
+   through the touchdown anchors.
+2. **Re-measure the vy / yaw / combined / height ladders at `trackingWeight: 1600`.**
+   Only the vx ladder was re-run after that sweep; the other limits in this file
+   date from weight 100 and are stale.
+3. **Test ICP at `trackingWeight: 1600`.** It helped at 400 (72.9 s vs 65.0 s) and
+   was never retested at the shipped weight; it is currently off.
+4. **The height command is not tracked during walking.** The figure-eight plot
+   shows a commanded 0.77↔0.80 m sinusoid at 13 s producing only step-frequency
+   bounce with a slow upward creep. Same family as the 13 mm squat offset, but a
+   whole command being ignored rather than a small bias.
+5. **Roll oscillates ±8° per step** at 0.22 m/s, much larger than expected, and is
+   the precursor to most falls.
+6. **`targetMomentum(5)` uses `ω_z/m` instead of `(I_G ω)_z/m`** — off by roughly
+   the z inertia on a terminal component with weight 75.
+7. **Arm-swing vs zero angular-momentum reference conflict** (Phase 3 item 1).
+8. **Phase 2 contact model (B1):** double-support NIS is ~2x over-confident,
+   consistent with heel and toe being fed in as independent landmarks when they
+   are rigidly linked.
+
+### Known environment traps
+
+- Launch from `~/ocs2_ros2_ws`. `libFolder` is the relative path
+  `auto_generated/g1`; elsewhere the cached CppAD libraries are missed, the model
+  regenerates, and generation segfaults.
+- Use `scene_flat.xml` or `scene_ramp.xml` for locomotion work. `scene.xml` has a
+  0.10 m riser at x = 0.75 m that silently ends every forward-walk test.
+- Pass `baseCommandGui:=false` when driving from a script: the GUI publishes to the
+  same topic at 50 Hz and its zeros interleave with the script's commands.
+- Build with `NUM_JOBS=2`. Full parallelism OOMs (`cc1plus` killed) on this box.
+- `ocs2_core` is a **static** library; changing it requires relinking dependents.
+- Diagnostic CSVs are ~50-120 MB per run and filled the VM disk once. Clean up.
