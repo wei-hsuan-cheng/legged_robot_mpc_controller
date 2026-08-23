@@ -110,6 +110,12 @@ class CentroidalMpcInterface final : public RobotInterface {
     // SwitchedModelReferenceManager::CaptureFootPlacementSettings.
     SwitchedModelReferenceManager::CaptureFootPlacementSettings captureFootPlacement;
 
+    //! Use the measured stance-foot height as the swing planner's ground
+    //! reference instead of a flat floor at z = 0. See
+    //! SwitchedModelReferenceManager::setUseTerrainHeightEstimate().
+    bool useTerrainHeightEstimate = false;
+    scalar_t maxTerrainHeightStep = 0.01;
+
     std::vector<TaskSpaceCostConfig> taskSpaceCosts;   // optional additional task-space tracking costs
     std::vector<MimicJointConfig> mimicJoints;         // optional, empty = mimic constraints disabled
 

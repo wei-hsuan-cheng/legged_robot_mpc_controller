@@ -484,6 +484,10 @@ humanoid_centroidal_mpc_controller:
         robotName: g1
         centroidalModelType: 0  # FullCentroidalDynamics
         phaseTransitionStanceTime: 0.0
+        # Use the measured stance-foot height as the swing planner ground reference
+        # instead of a flat floor at z=0. Pair with height.source inekf/anchored.
+        useTerrainHeightEstimate: false
+        maxTerrainHeightStep: 0.01
         verboseCppAd: true
         recompileLibrariesCppAd: false
         fixedJointNames:

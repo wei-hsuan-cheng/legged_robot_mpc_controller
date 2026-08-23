@@ -113,6 +113,8 @@ CentroidalMpcInterface::CentroidalMpcInterface(Config config, bool setupOCP)
       std::move(swingTrajectoryPlanner), *pinocchioInterfacePtr_, *mpcRobotModelPtr_);
   referenceManagerPtr_->setArmSwingReferenceActive(true);
   referenceManagerPtr_->setCaptureFootPlacementSettings(config_.captureFootPlacement);
+  referenceManagerPtr_->setUseTerrainHeightEstimate(config_.useTerrainHeightEstimate,
+                                                   config_.maxTerrainHeightStep);
 
   // initial state
   if (config_.initialState.size() != centroidalModelInfo_.stateDim) {

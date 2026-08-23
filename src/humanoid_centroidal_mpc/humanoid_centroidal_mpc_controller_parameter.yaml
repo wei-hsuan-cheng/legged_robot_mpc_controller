@@ -398,6 +398,17 @@ humanoid_centroidal_mpc_controller:
         default_value: 0.0,
         description: "Minimum stance time inserted at phase transitions [s]"
       }
+      useTerrainHeightEstimate: {
+        type: bool,
+        default_value: false,
+        description: "Use the measured stance-foot height as the swing planner's ground reference instead of assuming a flat floor at z=0. adaptToCurrentGroundHeight() computes that estimate and then discards it with a hardcoded 0.0; that constant is what the swing trajectory is built around, so it is the single thing preventing walking on sloped or stepped ground however well the estimator tracks the terrain. Off by default because the shipped gains were tuned against the flat assumption and on genuinely flat ground the estimate is strictly worse than the constant. Enable together with stateEstimator.height.source of 'inekf' or 'anchored' - 'kinematic' and 'blend' pin the feet to groundZ and would feed the flat assumption straight back in."
+      }
+      maxTerrainHeightStep: {
+        type: double,
+        default_value: 0.01,
+        description: "Bound [m] on how far the terrain-height reference may move in one solver iteration, so a mis-detected contact cannot demand an impossible swing",
+        validation: { gt: [0.0] }
+      }
       verboseCppAd: {
         type: bool,
         default_value: true,

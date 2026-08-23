@@ -110,7 +110,31 @@ scalar_t SwitchedModelReferenceManager::adaptToCurrentGroundHeight(TargetTraject
   scalar_t terrainHeight = computeGroundHeightEstimate(pinocchioInterface_, *mpcRobotModelPtr_,
                                                        mpcRobotModelPtr_->getGeneralizedCoordinates(initState), initMode);
 
-  terrainHeight = 0.0;
+  // This value is the swing planner's ground reference and the base-height target
+  // offset, so pinning it to zero hard-codes a flat floor at the world origin -
+  // the estimate above was computed and then thrown away. That is the single
+  // thing preventing the stack from walking on sloped or stepped ground, no
+  // matter how well the state estimator tracks the terrain: the swing foot would
+  // still be aimed at z = 0.
+  //
+  // Off by default because every gain in this configuration was tuned against the
+  // flat assumption, and because the estimate is only as good as the foot heights
+  // the estimator supplies - on flat ground it is strictly worse than the
+  // constant it replaces. Turn it on together with an InEKF height source that
+  // does not itself assume a flat plane ("inekf" or "anchored"; "kinematic" and
+  // "blend" both pin the feet to groundZ and would defeat the point).
+  if (!useTerrainHeightEstimate_) {
+    terrainHeight = 0.0;
+  } else if (!std::isfinite(terrainHeight)) {
+    terrainHeight = previousGroundHeightEstimate_;  // never feed a NaN to the planner
+  } else {
+    // Rate-limit per solve: a mis-detected contact can otherwise step the
+    // reference by most of a leg length in one iteration, which the swing planner
+    // turns into an impossible foot trajectory.
+    terrainHeight = std::clamp(terrainHeight,
+                               previousGroundHeightEstimate_ - maxTerrainHeightStep_,
+                               previousGroundHeightEstimate_ + maxTerrainHeightStep_);
+  }
 
   // adapt target Trajectories to current terrain height
   // Since they are published in the past the current observations ground height might have drifted.

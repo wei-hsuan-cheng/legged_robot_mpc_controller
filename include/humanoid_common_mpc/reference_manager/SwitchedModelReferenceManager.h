@@ -118,6 +118,34 @@ class SwitchedModelReferenceManager : public ReferenceManager {
     scalar_t stepLengthGain = 0.0;
   };
 
+  /**
+   * Use the measured stance-foot height as the swing planner's ground reference,
+   * instead of assuming a flat floor at z = 0.
+   *
+   * adaptToCurrentGroundHeight() computes a ground-height estimate from the
+   * stance feet and then, historically, discarded it with `terrainHeight = 0.0`.
+   * That constant is what the swing trajectory is built around and what the
+   * base-height target is offset by, so it hard-codes a flat floor at the world
+   * origin - and it is the single thing that stops this stack walking on sloped
+   * or stepped ground however well the state estimator tracks the terrain,
+   * because the swing foot is still aimed at z = 0.
+   *
+   * Off by default: the shipped gains were all tuned against the flat assumption,
+   * and on genuinely flat ground the estimate is strictly worse than the constant
+   * it replaces. Enable it together with an InEKF height source that does not
+   * itself assume a flat plane - "inekf" or "anchored". "kinematic" and "blend"
+   * both pin the stance feet to groundZ, which would feed the assumption straight
+   * back in and defeat the purpose.
+   *
+   * @param maxStepPerSolve bounds how far the reference may move in one solver
+   *        iteration, so a mis-detected contact cannot demand an impossible swing.
+   */
+  void setUseTerrainHeightEstimate(bool enabled, scalar_t maxStepPerSolve = 0.01) {
+    useTerrainHeightEstimate_ = enabled;
+    maxTerrainHeightStep_ = maxStepPerSolve;
+  }
+  bool usesTerrainHeightEstimate() const { return useTerrainHeightEstimate_; }
+
   void setCaptureFootPlacementSettings(const CaptureFootPlacementSettings& settings) {
     captureFootPlacement_ = settings;
   }
@@ -253,6 +281,9 @@ class SwitchedModelReferenceManager : public ReferenceManager {
   /// Recompute the capture-point footholds from the current state. Solver thread
   /// only, called from modifyReferences() before the solve reads them.
   void updateCaptureFootholds(scalar_t initTime, const vector_t& initState);
+
+  bool useTerrainHeightEstimate_ = false;
+  scalar_t maxTerrainHeightStep_ = 0.01;
 
   CaptureFootPlacementSettings captureFootPlacement_;
   feet_array_t<vector3_t> captureFoothold_{vector3_t::Zero(), vector3_t::Zero()};

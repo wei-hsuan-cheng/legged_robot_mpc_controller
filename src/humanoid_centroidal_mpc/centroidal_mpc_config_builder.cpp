@@ -217,6 +217,9 @@ ocs2::humanoid::CentroidalMpcInterface::Config buildCentroidalMpcConfig(
   config.captureFootPlacement.projectionHorizon = p.costs.captureFootPlacement.projectionHorizon;
   config.captureFootPlacement.stepLengthGain = p.costs.captureFootPlacement.stepLengthGain;
 
+  config.useTerrainHeightEstimate = p.model.useTerrainHeightEstimate;
+  config.maxTerrainHeightStep = p.model.maxTerrainHeightStep;
+
   for (const auto& costName : p.costs.taskSpaceCosts.names) {
     if (costName.empty()) {
       continue;
