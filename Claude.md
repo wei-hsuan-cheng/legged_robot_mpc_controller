@@ -17,33 +17,47 @@ Plan phases (agreed order):
 
 ## Current status
 
-**Both standard tests now complete without falling.** This is new - every earlier
-configuration fell somewhere.
+**Forward walking is fixed and repeatable. Backward walking still fails about one
+run in five, and that is the one open defect.**
 
-| test | result |
+Fall rate on the shipped configuration, pooled over 29 runs of the vx ladder in
+five separate batches: **6/29 (~21%), and every single one of them is the
+`vx_neg10` phase**, at 84.5-86.3 s. Forward walking at 0.05 / 0.10 / 0.20 /
+0.30 m/s has not failed once with `footCenterOffset` and `captureFootPlacement`
+both enabled.
+
+Per-batch, to show the spread that a single batch would hide: 0/3, 0/6, 2/4, 3/8,
+1/8. **Do not quote any one of these.** An early batch of 0/6 was written into this
+file as "0 falls in 9 runs" and was wrong - the next batch of the identical
+configuration returned 2/4.
+
+Motion quality, by contrast, is stable across all 29 runs with tight spreads, and
+this is the part that genuinely improved:
+
+| quantity | value |
 |---|---|
-| figure-eight, 0.22 m/s, 2 laps | **SURVIVED 147.9 s** (reproduced: 147.8 s) |
-| vx ladder | forward 0.05 / 0.10 / 0.20 / 0.30 complete every run; the **reversal to -0.10 m/s is bimodal** - one run in four survived to 197.8 s, the rest fell at 84-85 s. See "The vx ladder is bimodal at the reversal". |
-| stance, 197 s | no fall; 396/396 estimator validation PASS |
-| in-place turn +-0.3 rad/s + squat, 145 s | no fall |
-| 3 deg ramp (terrain reference on) | 94.1 s, peak pitch 0.221 rad |
+| trunk pitch sd | 0.0138 +- 0.0045 rad |
+| trunk roll sd | 0.0600 +- 0.012 rad |
+| pelvis z sd | 0.0056 +- 0.0002 m |
+| pitch drift | 0.0007 +- 0.0012 rad/s (bounded) |
+| z drift | 0.0003 +- 0.0002 m/s (bounded) |
+| estimator \|e_pitch\| | 0.0113 +- 0.0059 rad |
+| estimator \|e_z\| | 0.00038 +- 0.00021 m |
+| estimator roughness / GT | 1.03 +- 0.12 |
+| command / joint 8-60 Hz amplitude | 0.0033 / 0.0031 rad |
 
-Peak trunk attitude on the figure-eight is now 0.094 rad pitch / 0.145 rad roll,
-against 0.499 / 0.324 for the previous configuration.
-
-**Working configuration** (`config/g1/ros2_controllers.yaml`, the only controller
-config since the legacy file was folded into it):
+**Shipped configuration** (`config/g1/ros2_controllers.yaml`):
 
 ```yaml
 stateEstimator:
   height:  { source: kinematic }
   contact: { source: scheduled }
 ocs2:
-  model:
-    useTerrainHeightEstimate: false
+  reference:
+    defaultBaseHeight: 0.7925
+    defaultJointState arms: [-0.30, +-0.20, 0.0, 1.20]   # hanging, angled forward
   costs:
-    q.jointPositions (legs): [1.0, 0.5, 4.0, 2.0, 0.5, 0.5]  x2
-    icpErrorWeight: 15.0
+    icpErrorWeight: 0.0
     captureFootPlacement:
       enabled: true
       gain: 1.0
@@ -51,30 +65,150 @@ ocs2:
       maxAdjustment: 0.20
       trackingWeight: 100.0
       stepLengthGain: 0.0
+      footCenterOffset: 0.035     # <- the change that mattered
 ```
 
-**Correction to the earlier sweep.** `trackingWeight: 1600` was tuned on the vx
-ladder alone and **overfit it**. On the figure-eight, which turns continuously and
-which the ladder never exercises, the same setting falls at 123.7 s while
-`trackingWeight: 100` with `gain: 1.0` and the ICP cost enabled survives. The
-ladder-optimal and the figure-eight-optimal are different points, and the second
-generalises: it also completes the ladder. Treat any single-test sweep in this file
-with that in mind.
+One inconclusive lead, recorded so it is not re-derived from scratch: the batches
+differ in the arm spawn pose in `initial_pose.yaml` (shoulder pitch 0.0 gives
+1/17, -0.30 gives 5/12). Restricted to a single build it is 1/8 against 5/12,
+**p ~ 0.16, not significant**, and there is no mechanism by which a startup
+transient should influence a fall at t = 85 s. Shipped at 0.0 because it is no
+worse; treat the correlation as unexplained rather than as a finding.
 
-`height.source` is the other large factor: `kinematic` 123.7-147.9 s against
-`anchored` 40.3 s on the same test.
+## Read this before quoting any single run
 
-**The initial state now comes from hardware, not from configuration.** See
-"Initial state" below. `ocs2.initialState` is a construction-time placeholder only.
+Two independent findings say single-run numbers from this stack are not
+measurements:
 
-**The single open blocker** for terrain remains the estimator's absolute-z drift -
-Phase 2.5, a height pseudo-measurement inside the filter. Details under "The
-terrain-height blocker".
+1. **The vx ladder is close to bimodal.** Two identical runs of the same
+   configuration gave "survived 197.6 s" and "fell at 54.8 s". The previously
+   shipped configuration measures 2/3 falls at N=3.
+2. **Every "SURVIVED t=..." figure earlier in this file is one sample of that
+   distribution.** They are kept for history but should not be compared against
+   each other.
 
-**Two retracted conclusions** from the first round, both my own tooling bugs, both
-fixed - see "Two analysis bugs that invalidated the first round": yaw was being
-read as roll, and every forward-walk test was driving into the staircase at
-x = 0.75 m.
+Everything in the current-status table is a mean with its spread over N=6 runs,
+and outcomes are reported as rates. `launch/analyze_diagnostics.py` and the
+per-phase quality metrics (drift / sd / hf / band-limited roughness) exist for
+this reason.
+
+## The fix that mattered: foot support polygon vs contact frame
+
+**The contact frame is the ankle; the sole is not centred on it.** Measured from
+the G1 model, the foot spans **-0.055 m at the heel to +0.125 m at the toe** about
+the ankle - the toe reach is **2.27x** the heel reach.
+
+`updateCaptureFootholds()` placed the *ankle* under the predicted base position,
+which gives a CoM travelling forward 0.125 m of support margin and a CoM
+travelling backward only 0.055 m.
+
+The data matched that exactly before the fix: with foot placement enabled,
+forward walking at 0.05-0.30 m/s never fell across six runs, and **4 of 4 falls
+were 1.6-3.8 s into the -0.10 m/s phase**, clustered at 84.6-86.8 s.
+
+Subtracting `footCenterOffset = (0.125 - 0.055) / 2 = 0.035 m` along the heading
+centres the polygon under the base and equalises both margins at 0.09 m. Effect at
+N=3 per cell:
+
+| | falls | pitch sd | roll sd | z sd | settled tilt |
+|---|---|---|---|---|---|
+| offset 0.000 | 2/3 | 0.0559+-0.14 | 0.202+-0.50 | 0.0272+-0.075 | 0.552+-1.0 |
+| offset 0.035 | **0/3** | **0.0138+-0.005** | **0.0607+-0.012** | **0.0056+-0.0002** | **0.054+-0.046** |
+
+It removed the FORWARD falls entirely and tightened every spread by roughly an
+order of magnitude - the configuration became *repeatable*, which is the part luck
+does not produce. It reduced but did NOT eliminate the backward falls: the pooled
+rate over 29 runs is 6/29, all in `vx_neg10`. The 0/3 cell above is one batch and
+should be read with the per-batch spread in "Current status".
+
+## Two things measured and found NOT to be problems
+
+**Pelvis height was not too high.** A first measurement suggested the commanded
+0.7925 m exceeded full leg extension; that was wrong, from a sole-height estimate
+that mishandled the foot geometry. Correctly: straight legs put the pelvis at
+**0.8096 m**, so 0.7925 m corresponds to **0.47 rad (27 deg) of knee flexion** -
+a normal walking posture, not a locked leg. Sweeping the height confirmed it
+empirically: with the foothold fix in place, 0.7925 measured 0/6 falls against
+1/6 at 0.7500 in that batch, with statistically indistinguishable walk quality.
+(Both numbers are single batches - see "Current status" for why that matters - but
+the point stands that lowering the height bought nothing.) Height was never the
+problem; the foot placement geometry was.
+
+**The MPC command does not chatter.** An RMS-second-difference metric reported the
+command as 4-6x "rougher" than the joint feedback. That metric weights a component
+at frequency f by f^2, so it is dominated by whatever sits nearest Nyquist -
+and logging a 1 kHz policy evaluation at 200 Hz puts exactly such a component in
+the command and not in the physical joint. A band-resolved comparison shows command
+and feedback agreeing **within 3.6% in every band from 0 to 100 Hz**:
+
+| signal | 0-3 Hz | 3-10 | 10-30 | 30-60 | 60-100 |
+|---|---|---|---|---|---|
+| knee cmd | 2.31e-1 | 2.26e-2 | 9.73e-3 | 5.30e-3 | 4.04e-3 |
+| knee fb | 2.30e-1 | 2.23e-2 | 9.80e-3 | 5.12e-3 | 3.90e-3 |
+
+The metric was measuring the logger. It is now band-limited to 8-60 Hz.
+
+## The walk->stance fix: correct, but its behavioural effect is UNMEASURED
+
+`transitionToSlowerGait()` tested the *command's* yaw rate where it must test the
+*measured* yaw rate:
+
+```cpp
+bool baseSpeedSlowEnough = (std::abs(baseVelocity(0))  < ... &&
+                            std::abs(baseVelocity(1))  < ... &&
+                            std::abs(velCommandVec(3)) < ...);   // <- the command
+```
+
+`slowerGaitRequested`, evaluated immediately above, has already established the
+command is near zero, so the yaw term was trivially true whenever the operator
+stopped commanding and the guard degenerated to "vx and vy are small". Stance
+cannot take a recovery step, so entering it with residual momentum leaves a lean
+nothing can correct. The sibling `transitionToFasterGait()` uses `baseVelocity`
+for all three terms, and the variable is called `baseSpeedSlowEnough`. It is a
+copy-paste slip and the fix is not in doubt.
+
+**What IS in doubt is whether fixing it changes the outcome.** An A/B on the new
+`stop_cycles` sequence (8 walk->stop cycles per run, varied direction and speed),
+N=3 per arm, same build otherwise:
+
+| | falls | pitch sd | roll sd | settled tilt |
+|---|---|---|---|---|
+| fixed | 1/3 | 0.101+-0.20 | 0.460+-0.80 | 0.566+-1.0 |
+| reverted | 2/3 | 0.020+-0.023 | 0.072+-0.017 | 0.126+-0.45 |
+
+Fewer falls with the fix, *worse* motion statistics - and every spread is as large
+as or larger than its mean. **This is an underpowered experiment and it supports
+no conclusion in either direction.** N=3 with 1-2 falls per arm cannot separate a
+real effect from which runs happened to fall early. The fix is kept because the
+code defect is unambiguous, not because this measured it.
+
+Two things to do properly later: rerun at N>=10 per arm, and hard-link the CSVs so
+fall times are recoverable (they were deleted here, so the contradiction between
+fall count and motion statistics could not be traced to when each fall occurred).
+
+## stop_cycles is much harder than the ladder, and is the next target
+
+The shipped configuration falls ~21% of the time on the vx ladder (all backward)
+but the same build is 1/3 on `stop_cycles`, whose stops follow lateral (vy = 0.15), turning (yaw = 0.30) and
+combined commands that the ladder never issues. Settled tilt is 0.566 rad against
+0.046 on the ladder.
+
+So the ladder numbers describe forward/backward walking only, not the robot in
+general. Lateral and turning stops are the weakest measured behaviour and are
+where the next round of work belongs.
+
+## captureFootPlacement must stay enabled
+
+Measured head-to-head at N=3, arms P4, ICP off:
+
+| | falls | where | pitch RMS | roll noise |
+|---|---|---|---|---|
+| enabled | 2/3 | backward phase only | 0.043-0.045 | 0.055-0.057 |
+| disabled | 2/3 | **forward 0.20 / 0.30 m/s** | 0.115 | 0.34-0.38 |
+
+With it enabled, forward walking never failed in six runs. With it disabled,
+forward walking itself breaks. It supplies the only foothold xy reference on flat
+ground, so without it nothing arrests a lateral fall.
 
 ## Arm posture (phase 1 of the arm work)
 
@@ -704,40 +838,48 @@ arm pair has authority over.
 
 ## Open work, in priority order
 
-1. **Bound the estimator's absolute-z drift (Phase 2.5).** This is the blocker for
+1. **Backward walking remains the weak direction, even after the foothold fix.**
+   The single fall in the N=6 height comparison was again `vx_neg10`, and the one
+   remaining fall mode anywhere is that phase. `footCenterOffset` equalised the
+   static margins at 0.09 m each, which is what removed most of it, but the gait
+   is still forward-biased in ways this did not address - the swing trajectory and
+   the step timing are both tuned around forward travel. Next step would be to
+   measure the actual CoM excursion relative to the support polygon edge during
+   the reversal rather than reasoning from the static geometry.
+2. **Bound the estimator's absolute-z drift (Phase 2.5).** This is the blocker for
    terrain walking and the reason the terrain reference ships off. The right fix
    is a height pseudo-measurement *inside* the InEKF, so the filter's own z is
    corrected, instead of the blend currently applied outside it which leaves the
    internal z drifting uncorrected and lets `anchored` feed that drift back
    through the touchdown anchors.
-2. **Backward walking is the weak direction.** Every vx-ladder fall observed lands
+3. **[SUPERSEDED - see item 1] Backward walking.** Every vx-ladder fall observed lands
    1.3-2.3 s after the reversal to -0.10 m/s; all forward speeds up to 0.30 m/s
    complete every time, with either arm posture. Look at the feedforward terms in
    the foot-placement path first (`baseAtTouchdown`, `stepLengthGain`) - they were
    derived for forward travel and reversal inverts their sign convention, while
    the capture-point correction itself is sign-symmetric.
-3. **Retune pitch against the arms-down posture.** Moving 7 kg of arm mass down and
+4. **Retune pitch against the arms-down posture.** Moving 7 kg of arm mass down and
    back cost 10-20% in forward pitch RMS at every speed (table under "Arm
    posture"). The gains were fitted with the arms held forward.
-4. **Re-measure the vy / yaw / combined ladders on the shipped configuration.**
+5. **Re-measure the vy / yaw / combined ladders on the shipped configuration.**
    Only the vx ladder and the figure-eight were re-run after the weight was moved
    back to 100 with ICP on; the lateral and yaw limits quoted further down this
    file predate that and are stale. (The `trackingWeight: 1600` follow-ups that
    used to be items 2 and 3 here are withdrawn - that weight overfit the vx
    ladder and is no longer shipped.)
-5. **The height command is not tracked during walking.** The figure-eight plot
+6. **The height command is not tracked during walking.** The figure-eight plot
    shows a commanded 0.77↔0.80 m sinusoid at 13 s producing only step-frequency
    bounce with a slow upward creep. Same family as the 13 mm squat offset, but a
    whole command being ignored rather than a small bias.
-6. **Roll oscillates ±8° per step** at 0.22 m/s, much larger than expected, and is
+7. **Roll oscillates ±8° per step** at 0.22 m/s, much larger than expected, and is
    the precursor to most falls.
-7. **`targetMomentum(5)` uses `ω_z/m` instead of `(I_G ω)_z/m`** — off by roughly
+8. **`targetMomentum(5)` uses `ω_z/m` instead of `(I_G ω)_z/m`** — off by roughly
    the z inertia on a terminal component with weight 75.
-8. **Arm-swing vs zero angular-momentum reference conflict** (Phase 3 item 1). Now
+9. **Arm-swing vs zero angular-momentum reference conflict** (Phase 3 item 1). Now
    the blocker for phase 2 of the arm work: the swing ships disabled precisely
    because of this, and it must be resolved before a momentum-regulating arm law
    can do anything. See "Arm swing: shipped off, with a seam for phase 2".
-9. **Phase 2 contact model (B1):** double-support NIS is ~2x over-confident,
+10. **Phase 2 contact model (B1):** double-support NIS is ~2x over-confident,
    consistent with heel and toe being fed in as independent landmarks when they
    are rigidly linked.
 

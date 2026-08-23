@@ -199,6 +199,23 @@ SEQUENCES: dict[str, list[Phase]] = {
     # Magnitude ladders, one axis at a time, each returning to rest in between so
     # a failure is attributable to the magnitude that preceded it rather than to
     # accumulated state. Flat scene only - the vx ladder covers several metres.
+    # Walk-then-stop, repeated. The walk->stance transition is where the trunk
+    # was observed to settle leaning and then topple, and a single stop event per
+    # run makes that a coin flip you cannot measure. Eight cycles per run turns
+    # one launch into eight independent samples of the transition, which is what
+    # makes the mean and spread of the settled tilt meaningful. Directions and
+    # speeds are varied so the result is not specific to one approach velocity.
+    "stop_cycles": [
+        Phase("settle", 10.0),
+        Phase("w1", 10.0, vx=0.25),  Phase("s1", 8.0),
+        Phase("w2", 10.0, vx=0.15),  Phase("s2", 8.0),
+        Phase("w3", 10.0, vx=0.30),  Phase("s3", 8.0),
+        Phase("w4", 10.0, vx=-0.10), Phase("s4", 8.0),
+        Phase("w5", 10.0, vy=0.15),  Phase("s5", 8.0),
+        Phase("w6", 10.0, yaw_rate=0.30), Phase("s6", 8.0),
+        Phase("w7", 10.0, vx=0.20, yaw_rate=0.20), Phase("s7", 8.0),
+        Phase("w8", 10.0, vx=0.25, vy=0.10), Phase("s8", 8.0),
+    ],
     "vx_ladder": [
         Phase("settle", 10.0),
         Phase("vx_005", 12.0, vx=0.05), Phase("rest1", 5.0),

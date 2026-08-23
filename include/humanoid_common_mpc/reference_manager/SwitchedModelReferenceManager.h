@@ -116,6 +116,24 @@ class SwitchedModelReferenceManager : public ReferenceManager {
     //! ladder: 0.0 -> 56.3 s, 0.5 -> 56.1 s, 0.8 -> 55.5 s, 1.2 -> 47.1 s. Kept as
     //! a knob because the right split between the two depends on the gait period.
     scalar_t stepLengthGain = 0.0;
+    //! Distance from the contact (ankle) frame to the CENTRE of the foot's
+    //! support polygon, along the heading direction [m].
+    //!
+    //! The contact frame is the ankle, but the sole is not centred on it. On the
+    //! G1 it spans -0.055 m at the heel to +0.125 m at the toe, so the toe reach
+    //! is 2.27x the heel reach. Placing the ankle under the predicted base
+    //! therefore leaves 0.125 m of margin for a CoM travelling forward and only
+    //! 0.055 m for one travelling backward.
+    //!
+    //! That asymmetry was the dominant failure mode: with foot placement enabled,
+    //! forward walking at 0.05-0.30 m/s never fell across six runs, while every
+    //! single fall (4 of 4) happened 1.6-3.8 s into the -0.10 m/s phase.
+    //! Subtracting this offset centres the polygon under the base and equalises
+    //! the margins at 0.09 m - a 64% gain backward for a reduction forward that
+    //! the robot never came close to needing.
+    //!
+    //! Measured from the model geometry: (0.125 - 0.055) / 2 = 0.035.
+    scalar_t footCenterOffset = 0.035;
   };
 
   /**

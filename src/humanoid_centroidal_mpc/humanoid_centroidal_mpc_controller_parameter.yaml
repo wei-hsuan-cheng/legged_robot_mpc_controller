@@ -819,6 +819,11 @@ humanoid_centroidal_mpc_controller:
           description: "xy foothold tracking weight handed to the foot task-space cost during swing. This turned out to be the dominant knob and it wants to be LARGE: on the vx ladder, 30 -> 48.5 s, 60 -> 56.0, 100 -> 57.5, 200 -> 62.3, 400 -> 65.0, 800 -> 72.0, 1600 -> 78.6, 3200 -> 79.2 (saturating). A weak weight lets the optimizer ignore the foothold and fall back on the behaviour that had no foot-placement feedback at all.",
           validation: { gt_eq: [0.0] }
         }
+        footCenterOffset: {
+          type: double,
+          default_value: 0.035,
+          description: "Distance from the contact (ankle) frame to the centre of the foot's support polygon, along the heading [m]. The ankle is not centred on the sole: on the G1 it spans -0.055 m (heel) to +0.125 m (toe), so placing the ankle under the predicted base leaves 0.125 m of margin for a forward-travelling CoM and only 0.055 m for a backward-travelling one. That asymmetry accounted for every fall observed with foot placement enabled - forward 0.05-0.30 m/s never fell in six runs, while 4 of 4 falls were 1.6-3.8 s into the -0.10 m/s phase. Subtracting this centres the polygon and equalises both margins at 0.09 m. Measured: (0.125-0.055)/2."
+        }
         stepLengthGain: {
           type: double,
           default_value: 0.0,

@@ -354,6 +354,7 @@ void SwitchedModelReferenceManager::updateCaptureFootholds(scalar_t initTime, co
   const vector6_t basePose = mpcRobotModelPtr_->getBasePose(initState);
   const scalar_t yaw = basePose(3);
   const vector2_t lateralDirection(-std::sin(yaw), std::cos(yaw));
+  const vector2_t forwardDirection(std::cos(yaw), std::sin(yaw));
 
   const contact_flag_t contactFlags = getContactFlags(initTime);
   const scalar_t halfWidth = 0.5 * captureFootPlacement_.stepWidth;
@@ -414,8 +415,15 @@ void SwitchedModelReferenceManager::updateCaptureFootholds(scalar_t initTime, co
     const vector2_t stepAhead =
         captureFootPlacement_.stepLengthGain * stepPeriod * comVelocity;
 
-    const vector2_t nominal =
-        baseAtTouchdown + stepAhead + side * halfWidth * lateralDirection;
+    // Centre the SUPPORT POLYGON under the base, not the ankle. The ankle is the
+    // contact frame, but the sole extends 0.125 m ahead of it and only 0.055 m
+    // behind, so putting the ankle under the base gives a forward-travelling CoM
+    // 0.125 m of margin and a backward-travelling one 0.055 m. See
+    // CaptureFootPlacementSettings::footCenterOffset - that asymmetry accounted
+    // for every fall observed with foot placement enabled.
+    const vector2_t nominal = baseAtTouchdown + stepAhead -
+                              captureFootPlacement_.footCenterOffset * forwardDirection +
+                              side * halfWidth * lateralDirection;
 
     // Propagate the capture point about the supporting foot to the moment this
     // foot lands: xi_td = p_stance + (xi_now - p_stance) * exp(omega * dt).

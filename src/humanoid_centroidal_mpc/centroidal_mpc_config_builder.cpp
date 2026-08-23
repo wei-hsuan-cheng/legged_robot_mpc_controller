@@ -216,6 +216,7 @@ ocs2::humanoid::CentroidalMpcInterface::Config buildCentroidalMpcConfig(
   config.captureFootPlacement.trackingWeight = p.costs.captureFootPlacement.trackingWeight;
   config.captureFootPlacement.projectionHorizon = p.costs.captureFootPlacement.projectionHorizon;
   config.captureFootPlacement.stepLengthGain = p.costs.captureFootPlacement.stepLengthGain;
+  config.captureFootPlacement.footCenterOffset = p.costs.captureFootPlacement.footCenterOffset;
 
   config.armSwing.enabled = p.reference.armSwing.enabled;
   config.armSwing.shoulderPitchAmplitude = p.reference.armSwing.shoulderPitchAmplitude;
