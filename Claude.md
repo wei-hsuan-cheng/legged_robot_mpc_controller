@@ -23,7 +23,7 @@ configuration fell somewhere.
 | test | result |
 |---|---|
 | figure-eight, 0.22 m/s, 2 laps | **SURVIVED 147.9 s** (reproduced: 147.8 s) |
-| vx ladder | **SURVIVED 197.8 s**, completes 0.05 / 0.10 / 0.20 / 0.30 and -0.10 m/s |
+| vx ladder | forward 0.05 / 0.10 / 0.20 / 0.30 complete every run; the **reversal to -0.10 m/s is bimodal** - one run in four survived to 197.8 s, the rest fell at 84-85 s. See "The vx ladder is bimodal at the reversal". |
 | stance, 197 s | no fall; 396/396 estimator validation PASS |
 | in-place turn +-0.3 rad/s + squat, 145 s | no fall |
 | 3 deg ramp (terrain reference on) | 94.1 s, peak pitch 0.221 rad |
@@ -75,6 +75,121 @@ terrain-height blocker".
 fixed - see "Two analysis bugs that invalidated the first round": yaw was being
 read as roll, and every forward-walk test was driving into the staircase at
 x = 0.75 m.
+
+## Arm posture (phase 1 of the arm work)
+
+**Problem.** The nominal arm posture was all-zero, and on the G1 that is not
+"arms down". Measured on the model, the all-zero pose puts the hands **0.20 m in
+front of the pelvis and 0.095 m above it**, because the forearm link extends
++0.1 m in x from the elbow: the arms are folded out horizontally, not hanging.
+That holds **7.04 kg of arm mass at +0.063 m forward** of the pelvis.
+
+**Fix.** The arm block of `reference.defaultJointState` becomes a hanging posture:
+
+| joint | old | new |
+|---|---|---|
+| shoulder pitch | 0.0 | 0.0 |
+| shoulder roll | 0.0 | +-0.20 |
+| shoulder yaw | 0.0 | 0.0 |
+| elbow | 0.0 | 1.20 |
+
+which puts the wrist at (0.073, 0.220, -0.061) relative to the pelvis - beside and
+just below it - and drops the arm-CoM forward offset to **+0.025 m, a 61%
+reduction**. `config/g1/initial_pose.yaml` was changed to match, so the robot
+spawns in the posture the reference asks it to hold.
+
+**The shoulder roll is not cosmetic.** At zero roll the hands interpenetrate the
+hip links by 12.6 mm at this elbow angle. The MPC carries no self-collision
+constraint - by design, per the current scope - so the *reference* has to be
+collision-free on its own. Verified against the model with all geoms made
+collidable under a 20 mm margin: at the shipped nominal there are **0
+penetrations and 0 near-misses**, and the envelope stays clear across a +-0.6 rad
+shoulder-pitch excursion. That measured +-0.6 rad is what `armSwing.maxOffset`
+clamps to.
+
+**What this did NOT do - measured, not assumed.** The posture change does not buy
+stability, and it costs a little.
+
+*Standing:* trunk pitch is unchanged at noise level - 0.0057 rad arms-zero against
+0.0101 rad arms-down over the same 45 s stance test, both under 0.6 deg. In static
+stance the MPC compensates the arm mass either way, so the lean torque never shows
+up as pitch.
+
+*Walking:* base-motion noise over the forward phases of the vx ladder, two runs per
+configuration, averaged:
+
+| phase | pitch RMS down / zero | roll RMS down / zero | z std down / zero |
+|---|---|---|---|
+| vx 0.05 | 0.0232 / 0.0179 | 0.0698 / 0.0705 | 0.0056 / 0.0056 |
+| vx 0.10 | 0.0421 / 0.0379 | 0.0646 / 0.0648 | 0.0056 / 0.0055 |
+| vx 0.20 | 0.0595 / 0.0526 | 0.0575 / 0.0542 | 0.0060 / 0.0056 |
+| vx 0.30 | 0.0889 / 0.0739 | 0.0454 / 0.0452 | 0.0059 / 0.0060 |
+
+Pitch noise is **consistently 10-20% worse** with the arms down - the same
+direction at every speed in both runs, so it is an effect and not scatter. Roll and
+height noise are unchanged. The likely cause is simply that every gain in this
+configuration was tuned with the arms held forward: moving 7 kg changes the pitch
+inertia and the CoM that the foot-placement nominal was fitted around. Retuning
+against the new posture is a phase-2 item.
+
+So this change is justified by **the posture itself** - arms hanging at the sides,
+collision-free, which is what was asked for - and by the CoM offset it removes. It
+is NOT justified by a stability gain, and it should not be cited as one.
+
+### The vx ladder is bimodal at the reversal - do not read single runs
+
+An arms-down ladder run fell at 85.0 s where an arms-zero run had survived 197.8 s,
+which looked like a clear regression from the arm posture. It was not. Repeating
+both:
+
+| config | run 1 | run 2 | run 3 |
+|---|---|---|---|
+| arms-down | fell 85.0 s | fell 84.4 s | fell 85.4 s |
+| arms-zero | **survived 197.8 s** | **fell 84.4 s** | - |
+
+The arms-zero configuration falls at 84.4 s too, with near-identical numbers
+(peak pitch 0.485, roll 0.355 against 0.487/0.384 for arms-down). The outcome at
+this transition is close to a coin flip and the 197.8 s survival was the lucky
+draw. **The arm posture does not decide it.** Any single ladder run quoted in this
+file that hinges on surviving past ~84 s should be treated as one sample of a
+bimodal distribution, including the 197.8 s figure in "Current status".
+
+### Backward walking is the weak direction
+
+Every fall above lands 1.3-2.3 s after `vx_neg10` begins at 83.10 s. Forward
+phases at 0.05, 0.10, 0.20 and 0.30 m/s complete every time, in both
+configurations; the robot only ever goes over on the reversal to -0.10 m/s.
+
+That asymmetry is not explained yet and is worth its own investigation. The
+obvious suspects are all in the foot-placement path, which was derived and tuned
+for forward travel: `baseAtTouchdown` advances the nominal by `v * timeToTouchdown`
+and `stepLengthGain` biases the step ahead of the base, both of which assume a
+sign convention that reversal inverts. The capture-point correction itself is
+sign-symmetric, so the feedforward terms are the place to look first.
+
+## Arm swing: shipped off, with a seam for phase 2
+
+The hardcoded swing in `getDesiredState` (amplitudes and phase offset as literal
+`0.15`s) moved into a configurable `ArmSwingSettings` and a single private method,
+`SwitchedModelReferenceManager::addArmSwingOffsets`.
+
+**It ships disabled**, so the arm reference is a fixed posture. Two reasons:
+
+1. At the shipped amplitude the motion is **2.6 deg at 0.3 m/s** - too small to
+   help or hurt.
+2. It contradicts the momentum reference. That reference asks for
+   `h_ang,x = h_ang,y = 0` with terminal weight 75, while the swing commands a
+   motion that necessarily produces non-zero angular momentum. The two fight, and
+   that conflict is the reason the arms are worth nothing to balance today.
+
+`addArmSwingOffsets` is the phase-2 seam. It already receives the measured state
+(whose centroidal momentum block carries the arms' own contribution through
+`A_G(q)`), the reference being tracked, and the time for the gait phase - so a
+momentum-regulating law replaces the sinusoid without touching any call site. The
+arms are 7.04 kg on ~0.25 m lever arms, so they are a real angular-momentum
+actuator; the reason to do this properly is that the centroidal model already
+accounts for them. **Resolve the `h_ang = 0` conflict first**, or the cost will
+simply cancel whatever the new law commands.
 
 ## Initial state
 
@@ -537,6 +652,56 @@ error that would be dangerous on hardware.
 
 ---
 
+## Phase 2 plan — make the arms actually help balance
+
+Phase 1 gave the arms a fixed, collision-free hanging posture and turned the
+open-loop swing off. Phase 2 turns them into a working angular-momentum actuator.
+The order below is deliberate: steps 1 and 2 are prerequisites, and doing step 3
+first would produce a law the cost function silently cancels.
+
+**1. Resolve the `h_ang = 0` conflict. This is the gate.**
+The momentum reference asks for `h_ang,x = h_ang,y = 0` with terminal weight 75.
+Any arm motion that generates angular momentum is therefore penalised by
+construction - which is why the phase-1 swing was worth nothing and why it ships
+disabled. Options, cheapest first:
+  - Drop the weight on the `h_ang,x/y` terminal components, or zero them, and let
+    the momentum be shaped by the arm cost instead of pinned to zero.
+  - Better: track a *reference* angular momentum rather than zero, so the swing
+    is asked for rather than merely tolerated.
+Measure the per-term cost breakdown before and after with the existing
+`<prefix>_cost.csv` - this is exactly what that log was built for.
+
+**2. Fix `targetMomentum(5)`.** It sets `yawRate / mass`, but the normalized
+angular momentum is `(I_G omega)_z / m`, not `omega_z / m` - off by roughly the z
+inertia, on a terminal component with weight 75. The arms are a yaw-momentum
+actuator, so a wrong yaw-momentum reference corrupts precisely the axis phase 2
+is trying to control. Cheap, local, and it should land before any arm law is
+tuned against that reference.
+
+**3. Replace the sinusoid in `addArmSwingOffsets`.**
+The seam already receives everything needed: the measured state (whose centroidal
+momentum block includes the arms through `A_G(q)`), the reference, and the gait
+phase. Two candidate laws, in increasing order of ambition:
+  - *Momentum feedback.* Command a shoulder-pitch/roll offset proportional to the
+    measured angular-momentum error, `-K (h_ang - h_ang_ref)`. Simple, and it
+    reuses the state the MPC already estimates.
+  - *Let the optimizer decide.* Stop prescribing an arm trajectory at all: drop
+    the arm joint-tracking weights to something small, keep only a posture
+    regulariser about the hanging nominal, and let the momentum and ICP costs
+    move the arms. This is the principled version - the centroidal model already
+    knows what the arms do to `h_ang`, so the solver can exploit them if it is not
+    being told exactly where to put them. It is also the bigger change, because
+    the arm weights are currently high (30/30/10/20) precisely to stop the arms
+    wandering.
+Whichever is chosen, it must respect `armSwing.maxOffset`: there is no
+self-collision constraint in the MPC, so the clamp is the only thing keeping the
+hands out of the hips.
+
+**4. Re-run the standard tests.** Figure-eight and vx ladder, both scenes. The
+metric that should move is peak roll - it currently oscillates +-8 deg per step
+and is the precursor to most falls, and roll is exactly what a counter-swinging
+arm pair has authority over.
+
 ## Open work, in priority order
 
 1. **Bound the estimator's absolute-z drift (Phase 2.5).** This is the blocker for
@@ -545,22 +710,34 @@ error that would be dangerous on hardware.
    corrected, instead of the blend currently applied outside it which leaves the
    internal z drifting uncorrected and lets `anchored` feed that drift back
    through the touchdown anchors.
-2. **Re-measure the vy / yaw / combined ladders on the shipped configuration.**
+2. **Backward walking is the weak direction.** Every vx-ladder fall observed lands
+   1.3-2.3 s after the reversal to -0.10 m/s; all forward speeds up to 0.30 m/s
+   complete every time, with either arm posture. Look at the feedforward terms in
+   the foot-placement path first (`baseAtTouchdown`, `stepLengthGain`) - they were
+   derived for forward travel and reversal inverts their sign convention, while
+   the capture-point correction itself is sign-symmetric.
+3. **Retune pitch against the arms-down posture.** Moving 7 kg of arm mass down and
+   back cost 10-20% in forward pitch RMS at every speed (table under "Arm
+   posture"). The gains were fitted with the arms held forward.
+4. **Re-measure the vy / yaw / combined ladders on the shipped configuration.**
    Only the vx ladder and the figure-eight were re-run after the weight was moved
    back to 100 with ICP on; the lateral and yaw limits quoted further down this
    file predate that and are stale. (The `trackingWeight: 1600` follow-ups that
    used to be items 2 and 3 here are withdrawn - that weight overfit the vx
    ladder and is no longer shipped.)
-3. **The height command is not tracked during walking.** The figure-eight plot
+5. **The height command is not tracked during walking.** The figure-eight plot
    shows a commanded 0.77↔0.80 m sinusoid at 13 s producing only step-frequency
    bounce with a slow upward creep. Same family as the 13 mm squat offset, but a
    whole command being ignored rather than a small bias.
-4. **Roll oscillates ±8° per step** at 0.22 m/s, much larger than expected, and is
+6. **Roll oscillates ±8° per step** at 0.22 m/s, much larger than expected, and is
    the precursor to most falls.
-5. **`targetMomentum(5)` uses `ω_z/m` instead of `(I_G ω)_z/m`** — off by roughly
+7. **`targetMomentum(5)` uses `ω_z/m` instead of `(I_G ω)_z/m`** — off by roughly
    the z inertia on a terminal component with weight 75.
-6. **Arm-swing vs zero angular-momentum reference conflict** (Phase 3 item 1).
-7. **Phase 2 contact model (B1):** double-support NIS is ~2x over-confident,
+8. **Arm-swing vs zero angular-momentum reference conflict** (Phase 3 item 1). Now
+   the blocker for phase 2 of the arm work: the swing ships disabled precisely
+   because of this, and it must be resolved before a momentum-regulating arm law
+   can do anything. See "Arm swing: shipped off, with a seam for phase 2".
+9. **Phase 2 contact model (B1):** double-support NIS is ~2x over-confident,
    consistent with heel and toe being fed in as independent landmarks when they
    are rigidly linked.
 

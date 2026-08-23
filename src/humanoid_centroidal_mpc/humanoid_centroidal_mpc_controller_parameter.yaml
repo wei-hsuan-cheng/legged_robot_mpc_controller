@@ -1062,8 +1062,38 @@ humanoid_centroidal_mpc_controller:
       defaultJointState: {
         type: double_array,
         default_value: [],
-        description: "Default (standing) joint configuration, index-aligned with robot.jointNames"
+        description: "Default (standing) joint configuration, index-aligned with robot.jointNames. The ARM entries are also the nominal arm posture the arms hold while walking: with the swing below disabled, this is the whole arm reference. Keep it inside the self-collision-free envelope - the MPC has no self-collision constraint, so nothing else will."
       }
+
+      armSwing:
+        enabled: {
+          type: bool,
+          default_value: false,
+          description: "Superimpose a gait-phase-locked arm swing on the nominal arm posture. OFF by default, which makes the arm reference a fixed posture. Two reasons: at the shipped amplitude the motion is ~2.6 deg at 0.3 m/s, far too small to matter either way; and it fights the momentum reference, which asks for h_ang,x = h_ang,y = 0 with terminal weight 75 while this commands a swing that necessarily produces non-zero angular momentum. Turn it on as part of the phase-2 work that makes the arms regulate angular momentum for real."
+        }
+        shoulderPitchAmplitude: {
+          type: double,
+          default_value: 0.15,
+          description: "Shoulder-pitch swing amplitude per unit commanded forward speed [rad/(m/s)]",
+          validation: { gt_eq: [0.0] }
+        }
+        elbowAmplitude: {
+          type: double,
+          default_value: 0.15,
+          description: "Elbow swing amplitude per unit commanded forward speed [rad/(m/s)]",
+          validation: { gt_eq: [0.0] }
+        }
+        phaseOffset: {
+          type: double,
+          default_value: 0.15,
+          description: "Shifts the swing relative to the gait phase, in fractions of a cycle"
+        }
+        maxOffset: {
+          type: double,
+          default_value: 0.6,
+          description: "Hard bound on the swing offset away from the nominal posture [rad]. Sized from the collision-free envelope measured on the G1 model: at the shipped nominal (shoulder roll +-0.20, elbow 1.20) a +-0.6 rad shoulder-pitch excursion clears torso, pelvis and hips with no interpenetration and no near-miss inside a 20 mm margin. Since the MPC carries no self-collision constraint this clamp is the only thing keeping the arm reference inside that envelope.",
+          validation: { gt: [0.0] }
+        }
 
     gait:
       gaitLibraryFile: {

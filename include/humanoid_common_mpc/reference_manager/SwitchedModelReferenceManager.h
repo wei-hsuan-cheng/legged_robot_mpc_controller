@@ -157,7 +157,62 @@ class SwitchedModelReferenceManager : public ReferenceManager {
 
   bool isInContact(scalar_t time, size_t contactIndex) const { return getContactFlags(time)[contactIndex]; };
 
-  void setArmSwingReferenceActive(bool armSwingReferenceActive) { armSwingReferenceActive_ = armSwingReferenceActive; }
+  /**
+   * Swing superimposed on the nominal arm posture while walking.
+   *
+   * Two separable pieces, kept deliberately apart because only the second one is
+   * going to be replaced:
+   *
+   *  - The NOMINAL arm posture is NOT here. It is the arm block of
+   *    `reference.defaultJointState`, which is the posture the arms hold when the
+   *    swing evaluates to zero. That is the right home for it - it is the same
+   *    posture the terminal cost and the stair planner track - and it is what
+   *    decides whether the arms hang at the sides or stick out in front.
+   *  - The SWING about that posture is configured here.
+   *
+   * WHAT THIS IS (phase 1): an open-loop sinusoid locked to the gait phase and
+   * scaled by the commanded forward speed. It is a kinematic mimicry of a human
+   * arm swing: it does not know what the trunk is actually doing and cannot react
+   * to a disturbance. Its only stabilising effect is indirect, through the yaw
+   * moment the counter-swinging arms apply against the one the swinging leg
+   * generates.
+   *
+   * WHAT IT IS BUILT FOR (phase 2): the two arms are 7.04 kg on ~0.25 m lever
+   * arms, so they are a genuine angular-momentum actuator, and the centroidal
+   * model already accounts for their contribution through A_G(q) - the momentum
+   * state the MPC optimises over ALREADY contains it. The seam for that work is
+   * addArmSwingOffsets(): it receives the current state, the reference and the
+   * model, so a momentum-regulating law can replace the sinusoid below without
+   * touching a single caller.
+   *
+   * One conflict has to be resolved before that will do anything useful: the
+   * momentum reference asks for h_ang,x = h_ang,y = 0 with terminal weight 75,
+   * while this term commands a swing that necessarily produces non-zero angular
+   * momentum. The two are currently fighting, which is why the arms are worth
+   * very little to balance today.
+   */
+  struct ArmSwingSettings {
+    bool enabled = false;
+    //! Shoulder-pitch amplitude per unit of commanded forward speed [rad/(m/s)].
+    scalar_t shoulderPitchAmplitude = 0.15;
+    //! Elbow amplitude per unit of commanded forward speed [rad/(m/s)].
+    scalar_t elbowAmplitude = 0.15;
+    //! Shifts the swing relative to the gait phase, in fractions of a cycle.
+    scalar_t phaseOffset = 0.15;
+    //! Hard bound on the offset away from the nominal posture [rad]. Sized from
+    //! the collision-free envelope measured on the G1 model: at the shipped
+    //! nominal (shoulder roll +-0.20, elbow 1.20) a shoulder-pitch excursion of
+    //! +-0.6 rad clears the torso, pelvis and hips with no interpenetration and
+    //! no near-miss inside a 20 mm margin. Since the MPC carries no
+    //! self-collision constraint, this clamp is the only thing keeping the arm
+    //! reference inside that envelope, and a phase-2 law must respect it too.
+    scalar_t maxOffset = 0.6;
+  };
+
+  void setArmSwingSettings(const ArmSwingSettings& settings) { armSwing_ = settings; }
+  const ArmSwingSettings& getArmSwingSettings() const { return armSwing_; }
+
+  void setArmSwingReferenceActive(bool armSwingReferenceActive) { armSwing_.enabled = armSwingReferenceActive; }
 
   /**
    * Selects how the base tracking cost interprets the target trajectory.
@@ -247,6 +302,23 @@ class SwitchedModelReferenceManager : public ReferenceManager {
 
   vector_t getDesiredState(const TargetTrajectories& targetTrajectories, const vector_t& state, scalar_t time) const;
 
+  /**
+   * Superimpose the arm swing on the nominal arm posture, in place.
+   *
+   * THIS IS THE PHASE-2 SEAM. Everything a momentum-regulating arm law needs is
+   * already an argument: the measured `state` (whose centroidal momentum block
+   * carries the arms' own contribution through A_G(q)), the reference `xNominal`
+   * being tracked, and `time` for the gait phase. Replacing the body below with
+   * such a law requires no change at any call site.
+   *
+   * @param desiredJointAngles [in/out] the nominal joint reference; only the four
+   *        arm entries are modified, each clamped to +-ArmSwingSettings::maxOffset.
+   */
+  void addArmSwingOffsets(vector_t& desiredJointAngles,
+                          const vector_t& xNominal,
+                          const vector_t& state,
+                          scalar_t time) const;
+
  protected:
   virtual void modifyReferences(scalar_t initTime,
                                 scalar_t finalTime,
@@ -263,7 +335,7 @@ class SwitchedModelReferenceManager : public ReferenceManager {
   const MpcRobotModelBase<scalar_t>* mpcRobotModelPtr_;
   ModeSchedule modeSchedule_;
 
-  bool armSwingReferenceActive_{false};
+  ArmSwingSettings armSwing_;
 
   BufferedValue<TargetTrajectories> externalJointTargets_{TargetTrajectories()};
   BufferedValue<FrameRelationTargets> externalFrameRelationTargets_{FrameRelationTargets()};

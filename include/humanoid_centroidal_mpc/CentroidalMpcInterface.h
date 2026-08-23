@@ -109,6 +109,7 @@ class CentroidalMpcInterface final : public RobotInterface {
     // Flat-ground capture-point foot placement; see
     // SwitchedModelReferenceManager::CaptureFootPlacementSettings.
     SwitchedModelReferenceManager::CaptureFootPlacementSettings captureFootPlacement;
+    SwitchedModelReferenceManager::ArmSwingSettings armSwing;
 
     //! Use the measured stance-foot height as the swing planner's ground
     //! reference instead of a flat floor at z = 0. See

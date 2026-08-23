@@ -217,6 +217,12 @@ ocs2::humanoid::CentroidalMpcInterface::Config buildCentroidalMpcConfig(
   config.captureFootPlacement.projectionHorizon = p.costs.captureFootPlacement.projectionHorizon;
   config.captureFootPlacement.stepLengthGain = p.costs.captureFootPlacement.stepLengthGain;
 
+  config.armSwing.enabled = p.reference.armSwing.enabled;
+  config.armSwing.shoulderPitchAmplitude = p.reference.armSwing.shoulderPitchAmplitude;
+  config.armSwing.elbowAmplitude = p.reference.armSwing.elbowAmplitude;
+  config.armSwing.phaseOffset = p.reference.armSwing.phaseOffset;
+  config.armSwing.maxOffset = p.reference.armSwing.maxOffset;
+
   config.useTerrainHeightEstimate = p.model.useTerrainHeightEstimate;
   config.maxTerrainHeightStep = p.model.maxTerrainHeightStep;
 

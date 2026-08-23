@@ -160,26 +160,62 @@ vector_t SwitchedModelReferenceManager::getDesiredState(const TargetTrajectories
                                                         scalar_t time) const {
   vector_t xNominal = targetTrajectories.getDesiredState(time);
 
-  if (armSwingReferenceActive_) {
-    scalar_t phaseVariable = this->getPhaseVariable(time);
+  if (armSwing_.enabled) {
     vector_t desiredJointAngles = mpcRobotModelPtr_->getJointAngles(xNominal);
-
-    vector3_t linVelCommand = mpcRobotModelPtr_->getBaseComLinearVelocity(xNominal);
-    scalar_t currentEulerZ = mpcRobotModelPtr_->getBasePose(state)[3];
-
-    const scalar_t localVelXCommand = (std::cos(currentEulerZ) * linVelCommand[0] + std::sin(currentEulerZ) * linVelCommand[1]);
-
-    const ModelSettings& modelSettings = mpcRobotModelPtr_->modelSettings;
-
-    scalar_t gaitCycleFactor = std::sin(2 * M_PI * (phaseVariable - 0.15)) * localVelXCommand;
-    desiredJointAngles[modelSettings.j_l_shoulder_y_index] += -0.15 * gaitCycleFactor;
-    desiredJointAngles[modelSettings.j_r_shoulder_y_index] += 0.15 * gaitCycleFactor;
-    desiredJointAngles[modelSettings.j_l_elbow_y_index] += -0.15 * gaitCycleFactor;
-    desiredJointAngles[modelSettings.j_r_elbow_y_index] += 0.15 * gaitCycleFactor;
-
+    addArmSwingOffsets(desiredJointAngles, xNominal, state, time);
     mpcRobotModelPtr_->setJointAngles(xNominal, desiredJointAngles);
   }
   return xNominal;
+}
+
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+void SwitchedModelReferenceManager::addArmSwingOffsets(vector_t& desiredJointAngles,
+                                                       const vector_t& xNominal,
+                                                       const vector_t& state,
+                                                       scalar_t time) const {
+  // ------------------------------------------------------------------------
+  // Phase-1 law: an open-loop sinusoid locked to the gait phase and scaled by
+  // the commanded forward speed. Standing still (speed 0) leaves the arms
+  // exactly at the nominal posture, which is what keeps them hanging at the
+  // sides instead of drifting.
+  //
+  // Replace THIS BLOCK, and nothing else, to make the arms regulate centroidal
+  // angular momentum instead (phase 2). See ArmSwingSettings for what is already
+  // available here and for the h_ang = 0 reference conflict to resolve first.
+  // ------------------------------------------------------------------------
+  const scalar_t phaseVariable = this->getPhaseVariable(time);
+  const vector3_t linVelCommand = mpcRobotModelPtr_->getBaseComLinearVelocity(xNominal);
+  const scalar_t currentEulerZ = mpcRobotModelPtr_->getBasePose(state)[3];
+
+  // Commanded velocity resolved into the heading frame: the swing follows how
+  // fast the robot is asked to walk FORWARD, not how fast it moves in world x.
+  const scalar_t localVelXCommand =
+      (std::cos(currentEulerZ) * linVelCommand[0] + std::sin(currentEulerZ) * linVelCommand[1]);
+
+  const scalar_t gaitCycleFactor =
+      std::sin(2.0 * M_PI * (phaseVariable - armSwing_.phaseOffset)) * localVelXCommand;
+
+  // The MPC carries no self-collision constraint, so this clamp is the only
+  // thing holding the arm reference inside the envelope that was measured
+  // collision-free on the model. It has no effect at ordinary walking speeds
+  // (0.15 rad per m/s against a 0.6 rad bound); it exists so that a large speed
+  // command, or a future phase-2 law, cannot drive the hands into the hips.
+  const auto clampToEnvelope = [this](scalar_t offset) {
+    return std::max(-armSwing_.maxOffset, std::min(armSwing_.maxOffset, offset));
+  };
+  const scalar_t shoulderOffset = clampToEnvelope(armSwing_.shoulderPitchAmplitude * gaitCycleFactor);
+  const scalar_t elbowOffset = clampToEnvelope(armSwing_.elbowAmplitude * gaitCycleFactor);
+
+  // Antisymmetric across the body: the arms counter-swing, so their net linear
+  // momentum cancels while the pair still applies a yaw moment opposing the one
+  // the swinging leg generates.
+  const ModelSettings& modelSettings = mpcRobotModelPtr_->modelSettings;
+  desiredJointAngles[modelSettings.j_l_shoulder_y_index] += -shoulderOffset;
+  desiredJointAngles[modelSettings.j_r_shoulder_y_index] += shoulderOffset;
+  desiredJointAngles[modelSettings.j_l_elbow_y_index] += -elbowOffset;
+  desiredJointAngles[modelSettings.j_r_elbow_y_index] += elbowOffset;
 }
 
 /******************************************************************************************************/

@@ -111,7 +111,7 @@ CentroidalMpcInterface::CentroidalMpcInterface(Config config, bool setupOCP)
   referenceManagerPtr_ = std::make_shared<SwitchedModelReferenceManager>(
       GaitSchedule::createGaitSchedule(config_.initialModeSchedule, config_.defaultModeSequenceTemplate, modelSettings_, verbose_),
       std::move(swingTrajectoryPlanner), *pinocchioInterfacePtr_, *mpcRobotModelPtr_);
-  referenceManagerPtr_->setArmSwingReferenceActive(true);
+  referenceManagerPtr_->setArmSwingSettings(config_.armSwing);
   referenceManagerPtr_->setCaptureFootPlacementSettings(config_.captureFootPlacement);
   referenceManagerPtr_->setUseTerrainHeightEstimate(config_.useTerrainHeightEstimate,
                                                    config_.maxTerrainHeightStep);

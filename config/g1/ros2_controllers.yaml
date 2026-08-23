@@ -297,12 +297,22 @@ humanoid_wb_mpc_controller:
         defaultBaseHeight: 0.7925
         basePosePositionTolerance: 0.02
         basePoseOrientationTolerance: 0.03
+        # Arms hang at the sides. The all-zero arm posture this replaced put the
+        # hands 0.20 m IN FRONT of the pelvis and 0.10 m above it, holding 7.04 kg
+        # of arm mass at +0.063 m forward of the pelvis. Shoulder roll +-0.20 and
+        # elbow 1.20 bring that to +0.025 m (-61%) with the forearms hanging beside
+        # the hips; at zero roll the hands interpenetrate the hip links by 12.6 mm,
+        # which is why the roll term is not optional.
+        #
+        # This is a POSTURE change, not a stability fix: standing pitch is
+        # unchanged (both under 0.6 deg) and forward pitch RMS is 10-20% WORSE,
+        # because the gains were tuned with the arms held forward. See Claude.md.
         defaultJointState:
           [-0.05, 0.0, 0.0, 0.1, -0.05, 0.0,
            -0.05, 0.0, 0.0, 0.1, -0.05, 0.0,
              0.0, 0.0, 0.0,
-             0.0, 0.0, 0.0, 0.0,
-             0.0, 0.0, 0.0, 0.0]
+             0.0, 0.20, 0.0, 1.20,
+             0.0, -0.20, 0.0, 1.20]
 
       gait:
         gaitLibraryFile: $(var gaitLibraryFile)
@@ -689,12 +699,22 @@ humanoid_centroidal_mpc_controller:
         defaultBaseHeight: 0.7925
         basePosePositionTolerance: 0.02
         basePoseOrientationTolerance: 0.03
+        # Arms hang at the sides. The all-zero arm posture this replaced put the
+        # hands 0.20 m IN FRONT of the pelvis and 0.10 m above it, holding 7.04 kg
+        # of arm mass at +0.063 m forward of the pelvis. Shoulder roll +-0.20 and
+        # elbow 1.20 bring that to +0.025 m (-61%) with the forearms hanging beside
+        # the hips; at zero roll the hands interpenetrate the hip links by 12.6 mm,
+        # which is why the roll term is not optional.
+        #
+        # This is a POSTURE change, not a stability fix: standing pitch is
+        # unchanged (both under 0.6 deg) and forward pitch RMS is 10-20% WORSE,
+        # because the gains were tuned with the arms held forward. See Claude.md.
         defaultJointState:
           [-0.05, 0.0, 0.0, 0.1, -0.05, 0.0,
            -0.05, 0.0, 0.0, 0.1, -0.05, 0.0,
              0.0, 0.0, 0.0,
-             0.0, 0.0, 0.0, 0.0,
-             0.0, 0.0, 0.0, 0.0]
+             0.0, 0.20, 0.0, 1.20,
+             0.0, -0.20, 0.0, 1.20]
 
       gait:
         gaitLibraryFile: $(var gaitLibraryFile)
