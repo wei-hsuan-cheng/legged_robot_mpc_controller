@@ -363,3 +363,86 @@ has. That is the first thing to redo.
 - The remaining failure is a forward **pitch** divergence at the top speed.
 - `targetMomentum(5)` still uses `ω_z/m` instead of `(I_G ω)_z/m`.
 - Phase 2 (contact model): double support NIS is ~2× over-confident.
+
+
+---
+
+## InEKF sources, terrain height, and the shipped flat-ground config
+
+### Cross-test: height source x contact source (figure-eight, flat)
+
+| height.source | scheduled | torque |
+|---|---|---|
+| kinematic | **127.8 s** | 12.7 s |
+| blend | 60.3 s | 8.2 s |
+| anchored | 43.2 s | 6.6 s |
+| inekf | 26.3 s | 7.4 s |
+
+`torque` contact detection collapses everything to 6-13 s, confirming the A8
+analysis: `ContactEstimator` assumes contact i is served by joints 3i..3i+2, a
+12-DoF quadruped layout that maps G1's heel/toe onto the wrong joints. Structural,
+not tunable. Use `scheduled`.
+
+`kinematic` wins on flat because it pins the feet to the same plane the controller
+assumes (`terrainHeight = 0.0`). Consistency, not generality.
+
+### The terrain-height blocker, and why it is not shipped on
+
+`adaptToCurrentGroundHeight()` computed a ground-height estimate and then threw it
+away with a hardcoded `terrainHeight = 0.0`. That constant is the swing planner's
+ground reference, so it hard-codes a flat floor - the single thing preventing
+terrain walking regardless of estimator quality. Now selectable via
+`ocs2.model.useTerrainHeightEstimate` (off by default), rate-limited per solve.
+Also fixed a function-local `static` in `getGroundHeightEstimate()` that shared one
+mutable value across every solver thread and across activations.
+
+Measured with `anchored` + terrain on:
+
+| | survived | dist | peak pitch | \|e_z\| |
+|---|---|---|---|---|
+| ramp, terrain off | 40.7 s | 1.51 m | 0.496 | 0.0016 |
+| ramp, terrain on | **94.1 s** | 2.28 m | **0.221** | 0.134 |
+| flat, terrain off | 44.0 s | 1.91 m | 0.493 | 0.0019 |
+| flat, terrain on | 149.2 s | 23.14 m | 0.493 | **0.390** |
+
+**The gain and the drift are the same effect.** Tightening `maxTerrainHeightStep`
+removes both together: 0.01 -> 149 s / 0.390 m; 0.002 -> 68 s / 0.079 m;
+0.0005 -> 64 s / 0.050 m. So the flat-ground result is largely the base-height
+target running away with the drifting terrain reference, which quietly removes the
+height constraint that was destabilising the walk - not terrain adaptation.
+
+The loop is the Phase 2.5 concern: with `anchored`, touchdown anchors are computed
+from the filter's own height, so enabling the terrain reference lets filter drift
+feed the anchors which feed the reference. `inekf` (no blend) shows it far less -
+|e_z| 0.053 vs 0.390 under the same setting, at 52.6 s.
+
+**Open problem.** Bounding this drift is the prerequisite for terrain walking. The
+principled fix is a height pseudo-measurement INSIDE the filter rather than a blend
+applied outside it, so the filter's own z is corrected instead of being papered
+over downstream. On the ramp the tighter limit costs almost nothing (94.1 -> 94.9 s
+at 0.002), so if terrain is enabled, use 0.002 rather than 0.01.
+
+### Shipped configuration (flat ground)
+
+```yaml
+stateEstimator:
+  height:   { source: kinematic }     # best on flat, |e_z| = 0.0005 m, no drift
+  contact:  { source: scheduled }     # torque is structurally broken for G1
+ocs2:
+  model:
+    useTerrainHeightEstimate: false   # see above; not trustworthy yet
+    maxTerrainHeightStep: 0.002       # value to use if enabling it
+  costs:
+    icpErrorWeight: 0.0
+    captureFootPlacement:
+      enabled: true
+      gain: 0.6
+      stepWidth: 0.18
+      maxAdjustment: 0.20
+      trackingWeight: 1600.0
+      stepLengthGain: 0.0
+```
+
+Deliberately excludes the 149 s flat result: it is not reproducible as *walking*
+skill, only as a slackened height constraint, and it comes with a 0.39 m height
+error that would be dangerous on hardware.

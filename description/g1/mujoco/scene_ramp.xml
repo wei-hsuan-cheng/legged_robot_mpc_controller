@@ -6,14 +6,26 @@
 
     slope.xml is not usable for this. It sits at x in [-5, -1] and, being a
     rotated box with its low corner in the air, presents a ~0.27 m ledge at its
-    near edge - a step up, not a ramp. Here the box is deliberately thick (0.5 m
-    half-thickness) and sunk so that the LOW edge of its top surface lands exactly
-    on (x, z) = (0, 0), which makes the transition from floor to ramp seamless.
+    near edge - a step up, not a ramp. Here the slab is positioned so that the LOW
+    edge of its top surface lands exactly on (x, z) = (1.5, 0), flush with the floor.
 
-    Geometry: half-size (2, 1, 0.5), rotated -3 deg about Y so the surface rises
+    It starts 1.5 m ahead of the spawn rather than at the origin so the robot has
+    clear flat ground to spawn and settle on and then walks ONTO the ramp. With
+    the low edge at the origin the robot was being thrown at spawn - angular rates
+    of 8.6 rad/s, down at t = 0.3 s - because its feet straddle x = 0 and sit
+    inside the slab edge before the controller has done anything.
+
+    Geometry: half-size (2, 1, 0.02), rotated -3 deg about Y so the surface rises
     with +x (a positive rotation about +Y tilts local +x downward, hence the
-    negative sign), centred at (2.023, 0, -0.3946). That puts the top surface at
-    z = 0 at x = 0 and z = 0.209 at x = 3.99.
+    negative sign), centred at (3.49831, 0, 0.084699). That puts the top
+    surface at z = 0 at x = 1.5 and z = 0.209 at x = 5.49.
+
+    The slab is deliberately THIN. A thick box positioned to present the same
+    surface buries most of its volume under the infinite floor plane, and MuJoCo
+    resolves that as a huge static penetration - the robot was being thrown at
+    spawn with angular rates of 8.6 rad/s, falling at t = 0.3 s, before it had
+    taken a step. The contact exclusion below is kept as well, but keeping the
+    penetration small is what actually makes the scene usable.
   -->
 
   <!-- legged robot -->
@@ -45,10 +57,10 @@
     <light pos="1 0 3.5" dir="0 0 -1" directional="true"/>
     <geom name="floor" size="0 0 0.05" type="plane" material="groundplane"/>
 
-    <body name="ramp" pos="2.023 0 -0.394643">
+    <body name="ramp" pos="3.49831 0 0.084699">
       <geom name="ramp_surface"
             type="box"
-            size="2.0 1.0 0.5"
+            size="2.0 1.0 0.02"
             quat="0.9996573 0 -0.0261769 0"
             rgba="0.55 0.6 0.65 1"
             friction="0.8 0.1 0.001"/>
@@ -57,12 +69,9 @@
 
   <contact>
     <!--
-      The ramp is a thick box sunk below the surface it presents, so most of its
-      volume is under the infinite floor plane. Without this exclusion MuJoCo
-      resolves that as an enormous penetration between the two static geoms and
-      launches the scene on the first step - the robot was falling at t = 0.3 s,
-      before it had taken a step. Both still collide with the robot normally;
-      only the floor/ramp pair is skipped.
+      The near end of the slab still dips a few centimetres below the floor plane.
+      Skip that static pair so it cannot generate contact forces; both geoms still
+      collide with the robot normally.
     -->
     <exclude body1="world" body2="ramp"/>
   </contact>

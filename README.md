@@ -99,6 +99,80 @@ ros2 launch legged_robot_mpc_controller g1.launch.py \
 ```
 
 
+### Scripted trajectory tests (figure-eight, flat ground and ramp)
+
+`launch/figure_eight_command.py` walks a closed figure-eight (Gerono lemniscate)
+at **constant speed** with a **sinusoidal pelvis height**, publishing the same
+`WalkingVelocityCommand` topic the GUI uses. It exercises forward speed, both turn
+directions and the curvature reversal at the crossing continuously, without ever
+leaving a small patch of floor.
+
+Three things will bite you if you skip them:
+
+- **Pick a scene without the stairs.** `scene.xml` puts a 0.10 m riser at
+  `x = 0.75 m`; the default figure-eight spans `x` in `[-2, +2]` and would walk
+  straight into it. Use `scene_flat.xml` (flat) or `scene_ramp.xml` (3 deg ramp).
+- **Turn the command GUI off.** It publishes its slider values to the *same
+  topic* at 50 Hz, so leaving it up means its zeros fight the script.
+- **Launch from the workspace root.** `libFolder` is a relative path
+  (`auto_generated/g1`); from anywhere else the cached CppAD libraries are not
+  found and the model is regenerated.
+
+**Flat ground:**
+```bash
+# Terminal 1
+cd <workspace_dir>
+source install/setup.bash
+ros2 launch legged_robot_mpc_controller g1.launch.py \
+  mujocoModelFile:=scene_flat.xml \
+  baseCommandGui:=false \
+  diagnosticsLog:=true diagnosticsLogPrefix:=/tmp/fig8_%t
+
+# Terminal 2
+cd <workspace_dir>
+source install/setup.bash
+ros2 run legged_robot_mpc_controller figure_eight_command.py --dry-run   # check the envelope
+ros2 run legged_robot_mpc_controller figure_eight_command.py
+```
+
+`--dry-run` prints path length, lap time, peak/mean yaw rate and the tightest turn
+radius, and warns when the geometry leaves the measured-safe envelope
+(`vx <= 0.30 m/s`, `|omega| <= 0.5 rad/s`). That is how the defaults were chosen:
+`--lx 4.0 --ly 1.6 --speed 0.22` gives a peak yaw rate of 0.466 rad/s. Geometry,
+speed, laps and all height parameters are arguments:
+
+```bash
+ros2 run legged_robot_mpc_controller figure_eight_command.py \
+  --lx 4.0 --ly 1.6 --speed 0.22 --laps 2 \
+  --zmin 0.77 --zmax 0.80 --zperiod 13.0
+```
+
+**Ramp (3 degree slope, terrain test):**
+```bash
+ros2 launch legged_robot_mpc_controller g1.launch.py \
+  mujocoModelFile:=scene_ramp.xml \
+  baseCommandGui:=false
+```
+`scene_ramp.xml` is flat until `x = 1.5 m`, then rises 3 degrees to `z = 0.21 m`
+at `x = 5.49 m`. Use a forward walk rather than the figure-eight for this, since
+the lemniscate stays within `x <= 2` and would barely touch the slope:
+
+```bash
+ros2 run legged_robot_mpc_controller command_sequence.py --sequence walk_far
+```
+
+To have the swing planner actually follow the slope instead of assuming a flat
+floor, set `ocs2.model.useTerrainHeightEstimate: true` — see
+**Configuration** below for the caveat, it is off by default for a reason.
+
+**Analysing a run:**
+```bash
+ros2 run legged_robot_mpc_controller analyze_diagnostics.py /tmp/fig8_<stamp> --timeline 5
+```
+Reports estimator-vs-ground-truth error, filter consistency (NIS), contact
+bookkeeping, per-joint jitter, solver health and the per-cost-term breakdown, and
+locates the loss of balance if there was one.
+
 ### Base targets
 
 **Base twist command**:
@@ -315,6 +389,56 @@ Robot-specific values:
 - [`config/g1/gait.yaml`](./config/g1/gait.yaml) is the named gait library (mode sequence templates), referenced by `ocs2.gait.gaitLibraryFile` and shared by both controllers.
 - [`config/g1/initial_pose.yaml`](./config/g1/initial_pose.yaml) sets the simulation start pose consumed by the `ros2_control` xacro.
 
+
+### Terrain height (`ocs2.model.useTerrainHeightEstimate`)
+
+`adaptToCurrentGroundHeight()` computes a ground-height estimate from the stance
+feet and historically discarded it (`terrainHeight = 0.0`). That constant is what
+the swing trajectory is built around, so it hard-codes a flat floor at the world
+origin — the single thing preventing this stack from walking on sloped or stepped
+ground, however well the estimator tracks the terrain.
+
+Setting `useTerrainHeightEstimate: true` uses the estimate instead, rate-limited
+by `maxTerrainHeightStep` per solver iteration. Pair it with a
+`stateEstimator.height.source` that does not itself assume a plane — `inekf` or
+`anchored`. `kinematic` and `blend` pin the stance feet to `groundZ` and would
+feed the flat assumption straight back in.
+
+**Off by default, and not yet trustworthy.** On the 3 degree ramp it more than
+doubles survival (40.7 s → 94.1 s) and halves peak pitch (0.50 → 0.22 rad), but
+the reported height drifts: `|e_z|` reaches 0.39 m on flat ground and 0.13 m on
+the ramp. The two are the same effect — tightening `maxTerrainHeightStep` removes
+the drift and the benefit together (0.01 → 149 s walked / 0.39 m drift;
+0.002 → 68 s / 0.079 m; 0.0005 → 64 s / 0.050 m). The gain is largely the
+base-height target being allowed to run away with the drifting terrain reference,
+not terrain adaptation.
+
+The loop is: with `anchored`, touchdown anchors are computed from the filter's own
+height, so enabling the terrain reference lets filter drift feed the anchors,
+which feed the reference. `inekf` (no blend) shows it far less — `|e_z|` 0.053
+instead of 0.390 under the same setting. Bounding this is the open problem before
+terrain walking can be relied on.
+
+### InEKF height and contact sources
+
+Measured on the figure-eight, flat ground, survival time:
+
+| `height.source` | `contact.source: scheduled` | `contact.source: torque` |
+|---|---|---|
+| `kinematic` | **127.8 s** | 12.7 s |
+| `blend` | 60.3 s | 8.2 s |
+| `anchored` | 43.2 s | 6.6 s |
+| `inekf` | 26.3 s | 7.4 s |
+
+`torque` contact detection collapses everything to 6–13 s. `ContactEstimator`
+assumes contact *i* is served by joints *3i…3i+2* — a 12-DoF quadruped layout that
+maps G1's heel/toe onto the wrong joints entirely. This is structural, not a
+`beta0`/`beta1` tuning problem; use `scheduled`.
+
+`kinematic` wins on flat ground because it pins the feet to the *same* plane the
+controller assumes while `useTerrainHeightEstimate` is off — that is consistency,
+not terrain generality, which is exactly why terrain support needs both changes
+together.
 
 ## Floating-Base State (ground truth vs. state estimator)
 
