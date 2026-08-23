@@ -85,6 +85,10 @@ private:
     const std::string& prefix_name,
     const std::string& interface_name) const;
   ocs2::SystemObservation build_observation(const rclcpp::Time& time);
+  /// Last observation fully read from hardware, with the time/mode refreshed, or
+  /// the supplied fallback if none has been read yet.
+  ocs2::SystemObservation hold_last_hardware_observation(
+    const ocs2::SystemObservation& fallback) const;
   // Runs the InEKF state estimator each control tick (bootstraps from GT, publishes its odom).
   void update_state_estimator(const rclcpp::Time& time);
   void log_state_estimator_validation(const rclcpp::Time& time);
@@ -183,7 +187,22 @@ private:
   std::jthread solver_thread_;
   std::atomic_bool terminate_solver_thread_{false};
 
-  vector_t initial_observation_state_;
+  /**
+   * The MPC observation is built entirely from the hardware interfaces - all 35
+   * states are overwritten from the measured joint and floating-base feedback.
+   * The configured ocs2.initialState is only a construction-time placeholder for
+   * the interface; the robot's actual starting pose comes from wherever the
+   * hardware says it is, which in simulation is initial_pose.yaml via the
+   * ros2_control xacro.
+   *
+   * These hold the last observation that was fully read from hardware, so a
+   * transient interface dropout holds the last KNOWN state instead of silently
+   * asserting a configured pose the robot is not in.
+   */
+  ocs2::SystemObservation last_hardware_observation_;
+  bool has_hardware_observation_{false};
+  //! Set by build_observation(): true when every interface it needs was readable.
+  bool observation_from_hardware_{false};
   vector_t mpc_joint_kp_;
   vector_t mpc_joint_kd_;
   vector_t fixed_joint_kp_;

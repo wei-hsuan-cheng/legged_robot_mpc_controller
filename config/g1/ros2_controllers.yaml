@@ -450,7 +450,7 @@ humanoid_centroidal_mpc_controller:
         contactPosition: 0.002
         contactRotation: 0.01
       height:
-        source: anchored
+        source: kinematic
         kinematicWeight: 0.9
         anchorUpdateThreshold: 0.05
         groundZ: 0.0
@@ -583,8 +583,8 @@ humanoid_centroidal_mpc_controller:
           basePose:
             [0.0, 0.0, 15.0, 0.0, 5.0, 5.0]
           jointPositions:
-            [0.02, 0.06, 4.0, 0.02, 0.01, 0.01,
-             0.02, 0.06, 4.0, 0.02, 0.01, 0.01,
+            [1.0, 0.5, 4.0, 2.0, 0.5, 0.5,
+             1.0, 0.5, 4.0, 2.0, 0.5, 0.5,
              2.0, 0.5, 0.5,
              30.0, 30.0, 10.0, 20.0,
              30.0, 30.0, 10.0, 20.0]
@@ -616,15 +616,15 @@ humanoid_centroidal_mpc_controller:
            1000.0, 1000.0, 0.0,
            10.0, 10.0, 0.0,
            1.0, 1.0, 0.005]
-        icpErrorWeight: 0.0
+        icpErrorWeight: 15.0
         # Flat-ground capture-point foot placement. Without this there is no
         # foothold xy reference at all, so nothing arrests a lateral fall.
         captureFootPlacement:
-          enabled: false
-          gain: 0.6
+          enabled: true
+          gain: 1.0
           stepWidth: 0.18
           maxAdjustment: 0.20
-          trackingWeight: 1600.0
+          trackingWeight: 100.0
           stepLengthGain: 0.0
         taskSpaceCosts:
           names:

@@ -17,36 +17,86 @@ Plan phases (agreed order):
 
 ## Current status
 
-**Where it stands.** Standing, squatting, in-place turning and figure-eight
-walking all work. Forward walking is roughly 3x faster than at the start:
-sustainable vx went from failing inside the 0.10 m/s phase to completing 0.30 m/s.
-The estimator is healthy and is not what limits any of it.
-
-**Shipped configuration** is in `config/g1/ros2_controllers_legacy.yaml` and
-reproduced under "Shipped configuration (flat ground)" at the end of this file.
-Flat ground, no terrain reference, `kinematic` height source, capture-point foot
-placement at `trackingWeight: 1600`.
-
-**Representative measurements** (flat scene unless noted):
+**Both standard tests now complete without falling.** This is new - every earlier
+configuration fell somewhere.
 
 | test | result |
 |---|---|
+| figure-eight, 0.22 m/s, 2 laps | **SURVIVED 147.9 s** (reproduced: 147.8 s) |
+| vx ladder | **SURVIVED 197.8 s**, completes 0.05 / 0.10 / 0.20 / 0.30 and -0.10 m/s |
 | stance, 197 s | no fall; 396/396 estimator validation PASS |
-| in-place turn ±0.3 rad/s + squat, 145 s | no fall |
-| figure-eight, 0.22 m/s constant | ~69 s of walking, ~1.4 laps, ~15 m of path |
-| vx ladder | completes 0.05 / 0.10 / 0.20 / 0.30 m/s, falls on the deceleration |
-| yaw | robust through 0.5 rad/s |
-| 3° ramp (terrain reference on) | 94.1 s, peak pitch 0.221 rad |
+| in-place turn +-0.3 rad/s + squat, 145 s | no fall |
+| 3 deg ramp (terrain reference on) | 94.1 s, peak pitch 0.221 rad |
 
-**The single open blocker** is the estimator's absolute-z drift. It is what stops
-the terrain-height reference from being trustworthy, and the fix is Phase 2.5: a
-height pseudo-measurement *inside* the filter instead of the blend currently
-applied outside it. Details under "The terrain-height blocker".
+Peak trunk attitude on the figure-eight is now 0.094 rad pitch / 0.145 rad roll,
+against 0.499 / 0.324 for the previous configuration.
+
+**Working configuration** (`config/g1/ros2_controllers.yaml`, the only controller
+config since the legacy file was folded into it):
+
+```yaml
+stateEstimator:
+  height:  { source: kinematic }
+  contact: { source: scheduled }
+ocs2:
+  model:
+    useTerrainHeightEstimate: false
+  costs:
+    q.jointPositions (legs): [1.0, 0.5, 4.0, 2.0, 0.5, 0.5]  x2
+    icpErrorWeight: 15.0
+    captureFootPlacement:
+      enabled: true
+      gain: 1.0
+      stepWidth: 0.18
+      maxAdjustment: 0.20
+      trackingWeight: 100.0
+      stepLengthGain: 0.0
+```
+
+**Correction to the earlier sweep.** `trackingWeight: 1600` was tuned on the vx
+ladder alone and **overfit it**. On the figure-eight, which turns continuously and
+which the ladder never exercises, the same setting falls at 123.7 s while
+`trackingWeight: 100` with `gain: 1.0` and the ICP cost enabled survives. The
+ladder-optimal and the figure-eight-optimal are different points, and the second
+generalises: it also completes the ladder. Treat any single-test sweep in this file
+with that in mind.
+
+`height.source` is the other large factor: `kinematic` 123.7-147.9 s against
+`anchored` 40.3 s on the same test.
+
+**The initial state now comes from hardware, not from configuration.** See
+"Initial state" below. `ocs2.initialState` is a construction-time placeholder only.
+
+**The single open blocker** for terrain remains the estimator's absolute-z drift -
+Phase 2.5, a height pseudo-measurement inside the filter. Details under "The
+terrain-height blocker".
 
 **Two retracted conclusions** from the first round, both my own tooling bugs, both
-fixed — see "Two analysis bugs that invalidated the first round":
-yaw was being read as roll, and every forward-walk test was driving into the
-staircase at x = 0.75 m.
+fixed - see "Two analysis bugs that invalidated the first round": yaw was being
+read as roll, and every forward-walk test was driving into the staircase at
+x = 0.75 m.
+
+## Initial state
+
+The MPC observation is built entirely from live feedback; nothing in it comes from
+`ocs2.initialState`:
+
+| element | source |
+|---|---|
+| centroidal momentum (6) | `A_G(q) v / m`, so it follows the floating-base twist |
+| base pose (6) | the floating-base source - the InEKF once the warm-up window passes, the simulator/hardware body before that |
+| joint positions (23) | the ros2_control state interfaces |
+
+`on_activate` now polls those interfaces until they are readable and seeds the
+first observation from them, logging the pose it read; if they do not become
+readable within 5 s it refuses to activate rather than starting the MPC from a
+configured pose the robot may not be in. In simulation that measured pose is
+`initial_pose.yaml` by way of the ros2_control xacro.
+
+A related defect went with it: both interface-dropout paths in `build_observation`
+logged "holding last observation" but actually returned the configured seed, which
+silently asserts a pose rather than admitting the state is unknown. They now hold
+the last observation genuinely read from hardware.
 
 ### Landed, in order
 
@@ -495,21 +545,22 @@ error that would be dangerous on hardware.
    corrected, instead of the blend currently applied outside it which leaves the
    internal z drifting uncorrected and lets `anchored` feed that drift back
    through the touchdown anchors.
-2. **Re-measure the vy / yaw / combined / height ladders at `trackingWeight: 1600`.**
-   Only the vx ladder was re-run after that sweep; the other limits in this file
-   date from weight 100 and are stale.
-3. **Test ICP at `trackingWeight: 1600`.** It helped at 400 (72.9 s vs 65.0 s) and
-   was never retested at the shipped weight; it is currently off.
-4. **The height command is not tracked during walking.** The figure-eight plot
+2. **Re-measure the vy / yaw / combined ladders on the shipped configuration.**
+   Only the vx ladder and the figure-eight were re-run after the weight was moved
+   back to 100 with ICP on; the lateral and yaw limits quoted further down this
+   file predate that and are stale. (The `trackingWeight: 1600` follow-ups that
+   used to be items 2 and 3 here are withdrawn - that weight overfit the vx
+   ladder and is no longer shipped.)
+3. **The height command is not tracked during walking.** The figure-eight plot
    shows a commanded 0.77↔0.80 m sinusoid at 13 s producing only step-frequency
    bounce with a slow upward creep. Same family as the 13 mm squat offset, but a
    whole command being ignored rather than a small bias.
-5. **Roll oscillates ±8° per step** at 0.22 m/s, much larger than expected, and is
+4. **Roll oscillates ±8° per step** at 0.22 m/s, much larger than expected, and is
    the precursor to most falls.
-6. **`targetMomentum(5)` uses `ω_z/m` instead of `(I_G ω)_z/m`** — off by roughly
+5. **`targetMomentum(5)` uses `ω_z/m` instead of `(I_G ω)_z/m`** — off by roughly
    the z inertia on a terminal component with weight 75.
-7. **Arm-swing vs zero angular-momentum reference conflict** (Phase 3 item 1).
-8. **Phase 2 contact model (B1):** double-support NIS is ~2x over-confident,
+6. **Arm-swing vs zero angular-momentum reference conflict** (Phase 3 item 1).
+7. **Phase 2 contact model (B1):** double-support NIS is ~2x over-confident,
    consistent with heel and toe being fed in as independent landmarks when they
    are rigidly linked.
 

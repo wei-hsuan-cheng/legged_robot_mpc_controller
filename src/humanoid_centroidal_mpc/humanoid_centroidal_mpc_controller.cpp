@@ -361,8 +361,44 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_activat
   // STANCE.
   publish_mode_schedule();
 
-  initial_observation_state_ = mpc_interface_->getInitialState();
-  const auto initial_observation = build_observation(get_node()->now());
+  // Start from where the robot ACTUALLY is, not from ocs2.initialState. In
+  // simulation the hardware pose comes from initial_pose.yaml through the
+  // ros2_control xacro; on hardware it is simply wherever the robot is standing.
+  // Seeding the MPC from a configured constant instead would make the first
+  // solve plan from a pose the robot is not in, and the error would be silently
+  // absorbed on the next tick rather than reported.
+  //
+  // State interfaces are only valid from on_activate onwards and the first
+  // simulator publish can lag it slightly, so poll briefly rather than assuming
+  // the very first read succeeds.
+  ocs2::SystemObservation initial_observation;
+  {
+    constexpr auto kInitialStateTimeout = std::chrono::seconds(5);
+    const auto deadline = std::chrono::steady_clock::now() + kInitialStateTimeout;
+    while (rclcpp::ok()) {
+      initial_observation = build_observation(get_node()->now());
+      if (observation_from_hardware_) {
+        break;
+      }
+      if (std::chrono::steady_clock::now() > deadline) {
+        RCLCPP_ERROR(
+          get_node()->get_logger(),
+          "[HumanoidCentroidalMpcController] joint and floating-base state interfaces did not "
+          "become readable within 5 s; refusing to activate rather than starting the MPC from a "
+          "configured pose the robot may not be in.");
+        return controller_interface::CallbackReturn::ERROR;
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+  }
+  {
+    const vector_t base_pose = control_model_->getBasePose(initial_observation.state);
+    RCLCPP_INFO(
+      get_node()->get_logger(),
+      "[HumanoidCentroidalMpcController] initial state read from hardware | base xyz=(%.3f, %.3f, "
+      "%.3f) rpy_zyx=(%.3f, %.3f, %.3f)",
+      base_pose(0), base_pose(1), base_pose(2), base_pose(3), base_pose(4), base_pose(5));
+  }
   const vector_t q_hold = control_model_->getJointAngles(initial_observation.state);
   write_joint_action_command(
     q_hold,
@@ -991,11 +1027,17 @@ ocs2::SystemObservation HumanoidCentroidalMpcController::build_observation(const
   const auto joint_dim = static_cast<Eigen::Index>(control_model_->getJointDim());
   const auto gen_coordinates_dim = static_cast<Eigen::Index>(info.generalizedCoordinatesNum);
 
+  observation_from_hardware_ = false;
+
   ocs2::SystemObservation observation;
   observation.time = time.seconds();
-  observation.state = initial_observation_state_.size() ==
-    static_cast<Eigen::Index>(control_model_->getStateDim()) ?
-    initial_observation_state_ :
+  // Every element of this is overwritten from the hardware interfaces below, so
+  // the seed only matters if a read fails - and in that case holding the last
+  // KNOWN state is right, while asserting the configured ocs2.initialState would
+  // claim the robot is somewhere it may well not be. The configured value is a
+  // construction-time placeholder for the interface, not a runtime pose.
+  observation.state = has_hardware_observation_ ?
+    last_hardware_observation_.state :
     mpc_interface_->getInitialState();
   observation.input = vector_t::Zero(static_cast<Eigen::Index>(control_model_->getInputDim()));
   observation.mode = mode_at(observation.time);
@@ -1008,7 +1050,7 @@ ocs2::SystemObservation HumanoidCentroidalMpcController::build_observation(const
       *get_node()->get_clock(),
       2000,
       "[HumanoidCentroidalMpcController] missing joint state interfaces; holding last observation.");
-    return observation;
+    return hold_last_hardware_observation(observation);
   }
 
   // Floating-base state: world-frame position/orientation/linear velocity and
@@ -1054,7 +1096,7 @@ ocs2::SystemObservation HumanoidCentroidalMpcController::build_observation(const
       *get_node()->get_clock(),
       2000,
       "[HumanoidCentroidalMpcController] missing floating-base interfaces; holding last observation.");
-    return observation;
+    return hold_last_hardware_observation(observation);
   }
   base_position = ocs2::vector3_t(*px, *py, *pz);
   base_orientation = Eigen::Quaterniond(*qw, *qx, *qy, *qz);
@@ -1110,6 +1152,14 @@ ocs2::SystemObservation HumanoidCentroidalMpcController::build_observation(const
   }
 
   // Centroidal state: [normalized momentum (6), generalized coordinates].
+  //
+  // Provenance of every element, which is the whole point of this function:
+  //   momentum (6)   A_G(q) v / m, so it follows the floating-base twist below
+  //   base pose (6)  from the floating-base source - the InEKF once the warm-up
+  //                  window has passed, the simulator/hardware body before that
+  //   joints (23)    straight from the ros2_control state interfaces
+  // Nothing here comes from ocs2.initialState; that value is only a
+  // construction-time placeholder for the interface.
   ocs2::updateCentroidalDynamics(*control_pinocchio_, info, q_pinocchio);
   const auto& momentum_matrix = ocs2::getCentroidalMomentumMatrix(*control_pinocchio_);
   ocs2::centroidal_model::getNormalizedMomentum(observation.state, info).noalias() =
@@ -1122,7 +1172,24 @@ ocs2::SystemObservation HumanoidCentroidalMpcController::build_observation(const
   control_model_->setJointVelocities(
     observation.state, observation.input, filtered_joint_velocity);
 
+  observation_from_hardware_ = true;
+  last_hardware_observation_ = observation;
+  has_hardware_observation_ = true;
   return observation;
+}
+
+ocs2::SystemObservation HumanoidCentroidalMpcController::hold_last_hardware_observation(
+  const ocs2::SystemObservation& fallback) const
+{
+  if (!has_hardware_observation_) {
+    return fallback;
+  }
+  // Keep the last state that was actually measured, but advance its timestamp so
+  // the policy is still evaluated at the current time rather than replayed.
+  ocs2::SystemObservation held = last_hardware_observation_;
+  held.time = fallback.time;
+  held.mode = fallback.mode;
+  return held;
 }
 
 ocs2::TargetTrajectories HumanoidCentroidalMpcController::current_observation_to_reset_trajectory(
