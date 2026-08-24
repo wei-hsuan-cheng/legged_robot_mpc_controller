@@ -711,11 +711,11 @@ humanoid_centroidal_mpc_controller:
         # unchanged (both under 0.6 deg) and forward pitch RMS is 10-20% WORSE,
         # because the gains were tuned with the arms held forward. See Claude.md.
         defaultJointState:
-          [-0.05, 0.0, 0.0, 0.1, -0.05, 0.0,
-           -0.05, 0.0, 0.0, 0.1, -0.05, 0.0,
-             0.0, 0.0, 0.0,
-             -0.30, 0.20, 0.0, 1.20,
-             -0.30, -0.20, 0.0, 1.20]
+          [-0.05,   0.0, 0.0,  0.1, -0.05, 0.0,
+           -0.05,   0.0, 0.0,  0.1, -0.05, 0.0,
+             0.0,   0.0, 0.0,
+           -0.30,  0.20, 0.0, 1.20,
+           -0.30, -0.20, 0.0, 1.20]
 
       gait:
         gaitLibraryFile: $(var gaitLibraryFile)
