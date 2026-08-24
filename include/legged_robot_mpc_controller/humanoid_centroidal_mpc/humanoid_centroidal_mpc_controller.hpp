@@ -104,6 +104,11 @@ private:
   void solver_worker();
   vector_t compute_weight_compensating_torque(const ocs2::SystemObservation& observation);
   JointActionCommand compute_mpc_joint_action(const ocs2::SystemObservation& observation);
+
+  //! Which generalized velocity feeds the RNEA feedforward. See
+  //! compute_mpc_joint_action() for why this is a choice and not a constant.
+  enum class InverseDynamicsVelocity { Zero, Measured, Policy };
+  InverseDynamicsVelocity inverse_dynamics_velocity_{InverseDynamicsVelocity::Measured};
   void write_joint_action_command(
     const vector_t& q_des, const vector_t& qd_des, const vector_t& tau_ff);
 

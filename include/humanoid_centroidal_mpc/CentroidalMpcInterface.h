@@ -94,6 +94,9 @@ class CentroidalMpcInterface final : public RobotInterface {
 
     CentroidalModelType centroidalModelType = CentroidalModelType::SingleRigidBodyDynamics;
     vector_t referenceJointState;  // default joint state used to build the centroidal model info
+    //! Build the angular momentum reference as I_G(q)*omega/m (true) or the
+    //! historical omega/m (false). See CentroidalMpcTargetTrajectoriesCalculator.
+    bool useInertiaWeightedAngularMomentum{true};
 
     ModeSchedule initialModeSchedule{{0.5}, {ModeNumber::STANCE, ModeNumber::STANCE}};
     ModeSequenceTemplate defaultModeSequenceTemplate{{0.0, 0.5}, {ModeNumber::STANCE}};

@@ -79,6 +79,15 @@ humanoid_centroidal_mpc_controller:
       }
     }
 
+    inverseDynamicsVelocity: {
+      type: string,
+      default_value: "measured",
+      description: "Generalized velocity used by the RNEA feedforward. With qdd=0, RNEA gives tau = C(q,qd)*qd + g(q) - J^T F, so this selects which velocity enters the Coriolis/centrifugal term. 'measured' uses the observed velocity - C is quadratic in qd, so encoder-differentiation and floating-base estimator noise are amplified straight into the commanded torque, turning a feedforward term into unfiltered velocity feedback (a plausible leg-jitter source). 'policy' uses the velocity the MPC planned, keeping the Coriolis compensation but taking it from a smooth optimized trajectory. 'zero' omits the term entirely - immune to velocity noise but discards real dynamics.",
+      validation: {
+        one_of<>: [["zero", "measured", "policy"]]
+      }
+    }
+
     policyTimeOffset: {
       type: double,
       default_value: 0.005,
@@ -695,24 +704,6 @@ humanoid_centroidal_mpc_controller:
         description: "Print MPC debug information"
       }
 
-    initialState:
-      centroidalMomentum: {
-        type: double_array,
-        default_value: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-        description: "Initial normalized centroidal momentum [linear xyz, angular xyz]",
-        validation: { fixed_size<>: [6] }
-      }
-      basePose: {
-        type: double_array,
-        default_value: [0.0, 0.0, 0.7925, 0.0, 0.0, 0.0],
-        description: "Initial base pose [x, y, z, yaw, pitch, roll]",
-        validation: { fixed_size<>: [6] }
-      }
-      jointPositions: {
-        type: double_array,
-        default_value: [],
-        description: "Initial joint positions, index-aligned with robot.jointNames"
-      }
 
     costs:
       qScaling: {
@@ -1063,6 +1054,11 @@ humanoid_centroidal_mpc_controller:
         validation: {
           gt_eq: [0.0]
         }
+      }
+      useInertiaWeightedAngularMomentum: {
+        type: bool,
+        default_value: true,
+        description: "Build the angular part of the momentum reference as I_G(q)*omega/m (correct) instead of omega/m (the historical form, which for the G1 is 1.86x too large since I_zz = 0.539). Exposed so the correction can be cross-tested against the tuning that was fitted around the old value; see Claude.md."
       }
       defaultJointState: {
         type: double_array,

@@ -50,7 +50,8 @@ class CentroidalMpcTargetTrajectoriesCalculator : public TargetTrajectoriesCalcu
                                             const MpcRobotModelBase<scalar_t>& mpcRobotModel,
                                             PinocchioInterface pinocchioInterface,
                                             const CentroidalModelInfo& info,
-                                            scalar_t mpcHorizon);
+                                            scalar_t mpcHorizon,
+                                            bool useInertiaWeightedAngularMomentum = true);
 
   CentroidalMpcTargetTrajectoriesCalculator(const CentroidalMpcTargetTrajectoriesCalculator& rhs) = delete;
 
@@ -99,6 +100,7 @@ class CentroidalMpcTargetTrajectoriesCalculator : public TargetTrajectoriesCalcu
 
   PinocchioInterface pinocchioInterface_;
   const scalar_t mass_;
+  const bool useInertiaWeightedAngularMomentum_;
 };
 
 }  // namespace ocs2::humanoid

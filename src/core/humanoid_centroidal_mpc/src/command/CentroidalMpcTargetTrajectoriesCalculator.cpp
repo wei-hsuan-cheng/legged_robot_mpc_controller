@@ -46,10 +46,12 @@ CentroidalMpcTargetTrajectoriesCalculator::CentroidalMpcTargetTrajectoriesCalcul
                                                                                      const MpcRobotModelBase<scalar_t>& mpcRobotModel,
                                                                                      PinocchioInterface pinocchioInterface,
                                                                                      const CentroidalModelInfo& info,
-                                                                                     scalar_t mpcHorizon)
+                                                                                     scalar_t mpcHorizon,
+                                                                                     bool useInertiaWeightedAngularMomentum)
     : TargetTrajectoriesCalculatorBase(referenceConfig, mpcRobotModel, mpcHorizon),
       pinocchioInterface_(std::move(pinocchioInterface)),
-      mass_(pinocchio::computeTotalMass(pinocchioInterface_.getModel())) {
+      mass_(pinocchio::computeTotalMass(pinocchioInterface_.getModel())),
+      useInertiaWeightedAngularMomentum_(useInertiaWeightedAngularMomentum) {
   static_cast<void>(info);
 }
 
@@ -59,6 +61,13 @@ CentroidalMpcTargetTrajectoriesCalculator::CentroidalMpcTargetTrajectoriesCalcul
 
 vector3_t CentroidalMpcTargetTrajectoriesCalculator::normalizedAngularMomentumForYawRate(const vector_t& initState,
                                                                                          scalar_t yawRate) {
+  if (!useInertiaWeightedAngularMomentum_) {
+    // Historical form, kept only so the correction can be cross-tested against
+    // the cost tuning that was fitted around it: omega_z / m, with the x and y
+    // angular components pinned to zero.
+    return vector3_t(0.0, 0.0, yawRate / mass_);
+  }
+
   const auto& model = pinocchioInterface_.getModel();
   auto& data = pinocchioInterface_.getData();
   const vector_t q = mpcRobotModelPtr_->getGeneralizedCoordinates(initState);

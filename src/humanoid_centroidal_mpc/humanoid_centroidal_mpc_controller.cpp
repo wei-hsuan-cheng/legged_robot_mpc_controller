@@ -96,6 +96,17 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_configu
     parameters_ = param_listener_->get_params();
   }
 
+  {
+    const std::string& mode = parameters_.control.inverseDynamicsVelocity;
+    inverse_dynamics_velocity_ = (mode == "zero")     ? InverseDynamicsVelocity::Zero
+                               : (mode == "policy")   ? InverseDynamicsVelocity::Policy
+                                                      : InverseDynamicsVelocity::Measured;
+    RCLCPP_INFO(
+      get_node()->get_logger(),
+      "[HumanoidCentroidalMpcController] inverse-dynamics feedforward velocity: %s",
+      mode.c_str());
+  }
+
   if (parameters_.paths.urdfFile.empty() || parameters_.paths.libFolder.empty()) {
     RCLCPP_ERROR(
       get_node()->get_logger(),
@@ -141,7 +152,8 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_configu
       mpc_interface_->getMpcRobotModel(),
       mpc_interface_->getPinocchioInterface(),
       mpc_interface_->getCentroidalModelInfo(),
-      mpc_interface_->mpcSettings().timeHorizon_);
+      mpc_interface_->mpcSettings().timeHorizon_,
+      parameters_.ocs2.reference.useInertiaWeightedAngularMomentum);
     auto velocity_target_to_target_trajectories =
       [this](
       const ocs2::vector4_t& velocity_target,
@@ -1409,10 +1421,44 @@ HumanoidCentroidalMpcController::compute_mpc_joint_action(const ocs2::SystemObse
     control_model_->getContactWrench(policy_input, 0),
     control_model_->getContactWrench(policy_input, 1)};
 
-  vector_t state = observation.state;
-  vector_t input = observation.input;
-  const vector_t q = control_model_->getGeneralizedCoordinates(state);
-  const vector_t qd = control_model_->getGeneralizedVelocities(state, input);
+  const vector_t q = control_model_->getGeneralizedCoordinates(observation.state);
+
+  // Which generalized velocity feeds the inverse dynamics.
+  //
+  // With qdd = 0, RNEA returns tau = C(q,qd)*qd + g(q) - J^T * F. The Coriolis
+  // and centrifugal term C(q,qd)*qd is physically real, so dropping the velocity
+  // is not "more correct" - it just omits that term. The question is WHICH
+  // velocity belongs in a FEEDFORWARD torque:
+  //
+  //   measured - the velocity the robot is actually at. C is quadratic in qd,
+  //              so encoder-differentiation noise and estimator noise on the
+  //              floating-base twist are amplified and injected straight into
+  //              the commanded torque with no filtering. That turns a
+  //              feedforward term into an unfiltered velocity feedback path,
+  //              which is a plausible source of leg jitter.
+  //   policy   - the velocity the MPC PLANNED to be at. Keeps the Coriolis
+  //              compensation but takes it from a smooth optimized trajectory
+  //              rather than from a noisy measurement. This is what a
+  //              feedforward term should use.
+  //   zero     - omit the term entirely. Loses real dynamics, but is immune to
+  //              velocity noise.
+  //
+  // Exposed as a setting because which one wins is an empirical question about
+  // how noisy this robot's velocity signal actually is.
+  vector_t qd;
+  switch (inverse_dynamics_velocity_) {
+    case InverseDynamicsVelocity::Zero:
+      qd = vector_t::Zero(control_pinocchio_->getModel().nv);
+      break;
+    case InverseDynamicsVelocity::Policy:
+      qd = control_model_->getGeneralizedVelocities(policy_state, policy_input);
+      break;
+    case InverseDynamicsVelocity::Measured:
+    default:
+      qd = control_model_->getGeneralizedVelocities(observation.state, observation.input);
+      break;
+  }
+
   const vector_t qdd_joints = vector_t::Zero(static_cast<Eigen::Index>(control_model_->getJointDim()));
   command.feedforward = ocs2::humanoid::computeJointTorques<ocs2::scalar_t>(
     q, qd, qdd_joints, foot_wrenches, *control_pinocchio_);

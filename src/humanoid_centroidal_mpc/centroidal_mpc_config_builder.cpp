@@ -134,12 +134,24 @@ ocs2::humanoid::CentroidalMpcInterface::Config buildCentroidalMpcConfig(
   // --- default joint state used to build the centroidal model info (legacy reference.info) ---
   checkJointArraySize(p.reference.defaultJointState, numJoints, "reference.defaultJointState");
   config.referenceJointState = toVector(p.reference.defaultJointState);
+  config.useInertiaWeightedAngularMomentum = p.reference.useInertiaWeightedAngularMomentum;
 
   // --- initial state: [normalized momentum (6), base pose (6), joint positions] ---
-  checkJointArraySize(p.initialState.jointPositions, numJoints, "initialState.jointPositions");
+  //
+  // DERIVED, not configured. This value is a construction-time placeholder for
+  // the MPC interface and nothing more: on_activate() polls the hardware state
+  // interfaces and refuses to activate unless it can read an actual pose, and
+  // build_observation() overwrites every element from those interfaces. There is
+  // therefore no runtime pose to configure, and having one invited it to drift
+  // out of step with initial_pose.yaml - which is the single source of truth for
+  // where the robot actually starts.
+  //
+  // Built from the nominal standing posture so the placeholder is at least a
+  // self-consistent configuration: zero momentum, the default base height, and
+  // the default joint state.
   config.initialState = vector_t::Zero(static_cast<Eigen::Index>(12 + numJoints));
-  config.initialState << toVector(p.initialState.centroidalMomentum), toVector(p.initialState.basePose),
-    toVector(p.initialState.jointPositions);
+  config.initialState(8) = p.reference.defaultBaseHeight;
+  config.initialState.tail(static_cast<Eigen::Index>(numJoints)) = config.referenceJointState;
 
   // --- costs ---
   checkJointArraySize(p.costs.q.jointPositions, numJoints, "costs.q.jointPositions");
