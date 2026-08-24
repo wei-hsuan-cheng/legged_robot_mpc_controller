@@ -35,6 +35,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <cmath>
 
 #include <pinocchio/algorithm/center-of-mass.hpp>
+#include <pinocchio/algorithm/centroidal.hpp>
 
 #include <ocs2_core/misc/LoadData.h>
 #include "ocs2_centroidal_model/ModelHelperFunctions.h"
@@ -47,8 +48,26 @@ CentroidalMpcTargetTrajectoriesCalculator::CentroidalMpcTargetTrajectoriesCalcul
                                                                                      const CentroidalModelInfo& info,
                                                                                      scalar_t mpcHorizon)
     : TargetTrajectoriesCalculatorBase(referenceConfig, mpcRobotModel, mpcHorizon),
-      mass_(pinocchio::computeTotalMass(pinocchioInterface.getModel())) {
+      pinocchioInterface_(std::move(pinocchioInterface)),
+      mass_(pinocchio::computeTotalMass(pinocchioInterface_.getModel())) {
   static_cast<void>(info);
+}
+
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+
+vector3_t CentroidalMpcTargetTrajectoriesCalculator::normalizedAngularMomentumForYawRate(const vector_t& initState,
+                                                                                         scalar_t yawRate) {
+  const auto& model = pinocchioInterface_.getModel();
+  auto& data = pinocchioInterface_.getData();
+  const vector_t q = mpcRobotModelPtr_->getGeneralizedCoordinates(initState);
+  pinocchio::ccrba(model, data, q, vector_t::Zero(model.nv));
+
+  // h_ang = I_G * omega, with omega = (0, 0, yawRate): the third COLUMN of I_G
+  // scaled by the yaw rate. Normalized by mass to match the centroidal state.
+  const matrix3_t Ig = data.Ig.inertia().matrix();
+  return (Ig.col(2) * yawRate) / mass_;
 }
 
 /******************************************************************************************************/
@@ -124,8 +143,11 @@ TargetTrajectories CentroidalMpcTargetTrajectoriesCalculator::commandedVelocityT
   const std::array<vector6_t, 3> poses{currentPoseTarget, intermediateTargetPose, finalTargetPose};
   for (size_t i = 0; i < poses.size(); ++i) {
     const vector4_t velocityWorld = transformVelCommandToGlobal(commandedVelocities, poses[i](3));
+    // Angular part is I_G(q) * omega / m, not omega / m - see
+    // normalizedAngularMomentumForYawRate().
+    const vector3_t angularMomentum = normalizedAngularMomentumForYawRate(initState, velocityWorld(3));
     vector6_t targetMomentum;
-    targetMomentum << velocityWorld(0), velocityWorld(1), 0.0, 0.0, 0.0, velocityWorld(3) / mass_;
+    targetMomentum << velocityWorld(0), velocityWorld(1), 0.0, angularMomentum;
     stateTrajectory[i] << targetMomentum, poses[i], targetJointState_;
   }
 

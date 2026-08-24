@@ -69,6 +69,71 @@ ocs2:
       footCenterOffset: 0.075
 ```
 
+## Angular momentum reference: now correct, and it costs something
+
+**The formulation was wrong.** The centroidal state carries `h_ang / m`, and
+`h_ang = I_G(q) * omega` - not `omega`. `targetMomentum` was built as
+
+```cpp
+targetMomentum << vx, vy, 0.0, 0.0, 0.0, yawRate / mass_;   // wrong
+```
+
+which is dimensionally wrong, pins the x/y angular components to zero, and for
+the G1 is numerically wrong by `1 / I_zz`. Measured on the model,
+`I_zz = 0.539 kg m^2`, so:
+
+| | commanded h_ang,z / m |
+|---|---|
+| old | 0.02848 * omega_z |
+| correct | 0.01535 * omega_z |
+
+Every commanded turn asked for **1.86x the angular momentum the motion actually
+carries**, on a terminal component with weight 75. It is now
+`I_G(q) * omega / m`, evaluated at the current configuration (I_G is
+configuration dependent) and using the full product, so the inertia-product terms
+that a yaw rotation of an asymmetric body genuinely produces are included
+(`I_xz = 0.043 kg m^2` here - small, but the old code implicitly set it to zero).
+
+**The other axes were checked, not assumed.** The linear x/y target is already
+correct in form: normalized linear momentum IS the CoM velocity, so commanding
+`(vx, vy)` is right. The `z` component is 0, which is *consistent* with the pose
+reference holding a constant commanded height - its derivative is zero. The
+height-tracking weakness comes from that pose reference being a step, not from the
+momentum term, and is a separate item. The residual linear defect is the
+pelvis-vs-CoM conflation (`v_CoM != v_pelvis`), also separate.
+
+### It measures neutral-to-worse, and that is not a contradiction
+
+| sequence | before | with the correct formula |
+|---|---|---|
+| vx_ladder | 0/16 | 0/4 |
+| yaw_ladder | 0/4 | 0/4 |
+| combined | 0/4 | 0/4 |
+| figure-eight | 2/2 (dist 1.9-2.2 m) | 2/2 (**dist 7.0-7.8 m**) |
+| vy_ladder | 2/4 | 3/4 |
+| **stop_cycles** | **0/4** | **3/10** |
+
+Turning and combined motion - what the yaw reference most directly drives - are
+unaffected, and the figure-eight covers **3-4x the distance per lap**, i.e. it is
+tracking the path rather than crabbing. But `stop_cycles` is 3/10 against 0/4, and
+settled tilt is 0.068 +- 0.30 against 0.028 +- 0.017.
+
+**Fisher exact on 3/10 vs 0/4 gives p ~ 0.51 - not significant.** Both arms are
+too small to separate 0% from 30%, which needs 10-15 samples per arm. What can be
+said is that no measured indicator improved except the figure-eight distance, and
+several point estimates and spreads moved the wrong way.
+
+The likely reason is not that the physics is wrong now - it is that **everything
+downstream was tuned against the inflated reference.** The `h_ang` terminal weight
+of 75 was fitted while the target was 1.86x too large; correcting the target
+changes the effective authority of that term without changing its weight.
+
+**This is Phase 2 step 1.** The plan already names the `h_ang = 0` conflict as the
+gate on the arm work; this is the same knot from the other side. Retuning the
+momentum weights against the corrected reference has to happen before the arms can
+be made to regulate angular momentum, and it should recover the `stop_cycles`
+result.
+
 ## Read this before quoting any single run
 
 Two independent findings say single-run numbers from this stack are not
@@ -899,8 +964,11 @@ arm pair has authority over.
    whole command being ignored rather than a small bias.
 7. **Roll oscillates ±8° per step** at 0.22 m/s, much larger than expected, and is
    the precursor to most falls.
-8. **`targetMomentum(5)` uses `ω_z/m` instead of `(I_G ω)_z/m`** — off by roughly
-   the z inertia on a terminal component with weight 75.
+8. **[FIXED, needs retuning] `targetMomentum` angular part.** Now `I_G(q)*omega/m`.
+   Note the earlier entry here said "off by roughly the z inertia" implying too
+   small; it was 1.86x too LARGE, since I_zz = 0.539 < 1. The correction measures
+   neutral-to-worse (stop_cycles 0/4 -> 3/10, p ~ 0.51) because the weight-75
+   terminal term was tuned against the inflated target. Retune it in Phase 2.
 9. **Arm-swing vs zero angular-momentum reference conflict** (Phase 3 item 1). Now
    the blocker for phase 2 of the arm work: the swing ships disabled precisely
    because of this, and it must be resolved before a momentum-regulating arm law

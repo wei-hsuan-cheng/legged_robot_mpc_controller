@@ -78,6 +78,26 @@ class CentroidalMpcTargetTrajectoriesCalculator : public TargetTrajectoriesCalcu
                                                            const vector_t& initState) override;
 
  private:
+  /**
+   * Normalized centroidal angular momentum for a commanded yaw rate.
+   *
+   * The centroidal state carries h_ang / m, and h_ang = I_G(q) * omega - NOT
+   * omega itself. The reference used to be built as `yawRate / mass`, which is
+   * dimensionally wrong and, for the G1, numerically wrong by a factor of
+   * 1 / I_zz: with I_zz = 0.539 kg m^2 the commanded yaw momentum was 1.86x
+   * larger than the motion it was supposed to describe, on a terminal component
+   * carrying weight 75.
+   *
+   * I_G is configuration dependent, so it is evaluated at the current state
+   * rather than baked in as a constant. The full product is used, including the
+   * inertia products, because a yaw rotation of an asymmetric body genuinely
+   * carries angular momentum about x and y as well - I_xz is 0.043 kg m^2 here,
+   * small but not zero, and pinning those components to zero is what the old
+   * code did implicitly.
+   */
+  vector3_t normalizedAngularMomentumForYawRate(const vector_t& initState, scalar_t yawRate);
+
+  PinocchioInterface pinocchioInterface_;
   const scalar_t mass_;
 };
 
