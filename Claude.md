@@ -17,34 +17,35 @@ Plan phases (agreed order):
 
 ## Current status
 
-**Forward walking is fixed and repeatable. Backward walking still fails about one
-run in five, and that is the one open defect.**
+**No falls in 16 ladder runs, 4 stop_cycles runs and 2 figure-eight runs.** This is
+the first configuration in this effort that does not fall, and the first whose
+per-batch results do not swing between 0/6 and 2/4.
 
-Fall rate on the shipped configuration, pooled over 29 runs of the vx ladder in
-five separate batches: **6/29 (~21%), and every single one of them is the
-`vx_neg10` phase**, at 84.5-86.3 s. Forward walking at 0.05 / 0.10 / 0.20 /
-0.30 m/s has not failed once with `footCenterOffset` and `captureFootPlacement`
-both enabled.
+| test | result |
+|---|---|
+| vx ladder, 200 s, N=8 | **0/8** |
+| vx ladder, 102 s, N=8 | **0/8** |
+| stop_cycles (8 walk->stop cycles/run), N=4 | **0/4** |
+| figure-eight 0.22 m/s, 2 laps, N=2 | **2/2 survived** |
 
-Per-batch, to show the spread that a single batch would hide: 0/3, 0/6, 2/4, 3/8,
-1/8. **Do not quote any one of these.** An early batch of 0/6 was written into this
-file as "0 falls in 9 runs" and was wrong - the next batch of the identical
-configuration returned 2/4.
-
-Motion quality, by contrast, is stable across all 29 runs with tight spreads, and
-this is the part that genuinely improved:
+Measured on the 200 s ladder, N=8, 32 walk windows, 40 stop holds:
 
 | quantity | value |
 |---|---|
-| trunk pitch sd | 0.0138 +- 0.0045 rad |
-| trunk roll sd | 0.0600 +- 0.012 rad |
+| trunk pitch sd | 0.0110 +- 0.0047 rad |
+| trunk roll sd | 0.0667 +- 0.0096 rad |
 | pelvis z sd | 0.0056 +- 0.0002 m |
-| pitch drift | 0.0007 +- 0.0012 rad/s (bounded) |
+| pitch drift | 0.0008 +- 0.0010 rad/s (bounded) |
 | z drift | 0.0003 +- 0.0002 m/s (bounded) |
-| estimator \|e_pitch\| | 0.0113 +- 0.0059 rad |
-| estimator \|e_z\| | 0.00038 +- 0.00021 m |
-| estimator roughness / GT | 1.03 +- 0.12 |
-| command / joint 8-60 Hz amplitude | 0.0033 / 0.0031 rad |
+| settled tilt at stop holds | 0.034 +- 0.033 rad (2.0 deg) |
+| estimator \|e_pitch\| | 0.0074 +- 0.0051 rad |
+| estimator \|e_z\| | 0.00027 +- 0.00012 m |
+| estimator roughness / GT | 1.00 +- 0.13 |
+| command / joint 8-60 Hz amplitude | 0.00324 / 0.00304 rad |
+
+Against the previously shipped configuration this is: falls 6/29 -> 0/16, pitch sd
+0.0138 -> 0.0110, settled tilt 0.216 -> 0.034, estimator \|e_pitch\| 0.0113 ->
+0.0074, and on `stop_cycles` 1/3 -> 0/4 with settled tilt 0.566 -> 0.028.
 
 **Shipped configuration** (`config/g1/ros2_controllers.yaml`):
 
@@ -55,7 +56,7 @@ stateEstimator:
 ocs2:
   reference:
     defaultBaseHeight: 0.7925
-    defaultJointState arms: [-0.30, +-0.20, 0.0, 1.20]   # hanging, angled forward
+    defaultJointState arms: [-0.30, +-0.20, 0.0, 1.20]
   costs:
     icpErrorWeight: 0.0
     captureFootPlacement:
@@ -65,15 +66,8 @@ ocs2:
       maxAdjustment: 0.20
       trackingWeight: 100.0
       stepLengthGain: 0.0
-      footCenterOffset: 0.035     # <- the change that mattered
+      footCenterOffset: 0.075
 ```
-
-One inconclusive lead, recorded so it is not re-derived from scratch: the batches
-differ in the arm spawn pose in `initial_pose.yaml` (shoulder pitch 0.0 gives
-1/17, -0.30 gives 5/12). Restricted to a single build it is 1/8 against 5/12,
-**p ~ 0.16, not significant**, and there is no mechanism by which a startup
-transient should influence a fall at t = 85 s. Shipped at 0.0 because it is no
-worse; treat the correlation as unexplained rather than as a finding.
 
 ## Read this before quoting any single run
 
@@ -106,9 +100,41 @@ The data matched that exactly before the fix: with foot placement enabled,
 forward walking at 0.05-0.30 m/s never fell across six runs, and **4 of 4 falls
 were 1.6-3.8 s into the -0.10 m/s phase**, clustered at 84.6-86.8 s.
 
-Subtracting `footCenterOffset = (0.125 - 0.055) / 2 = 0.035 m` along the heading
-centres the polygon under the base and equalises both margins at 0.09 m. Effect at
-N=3 per cell:
+Subtracting `footCenterOffset` along the heading moves the foot behind the base and
+buys rear margin. The static-geometry value that centres the polygon is
+`(0.125 - 0.055) / 2 = 0.035 m` - and that turned out to be **measurably too
+small**, because the requirement is dynamic, not static. Swept on the ladder,
+N=8 per cell:
+
+| offset [m] | ladder falls | pitch sd | settled tilt | vx_030 front margin |
+|---|---|---|---|---|
+| 0.035 | 2/8 | 0.0138 | 0.185 | -0.114 |
+| 0.055 | 1/8 | 0.0125 | 0.105 | - |
+| **0.075** | **0/8** | 0.0110 | 0.0488 | -0.093 |
+| 0.095 | 0/8 | 0.0099 | 0.0475 | -0.086 |
+| 0.115 | 0/8 | 0.0097 | 0.0417 | -0.075 |
+
+**The offset is not a margin trade.** Raising it improved the FORWARD margin too
+(-0.114 -> -0.075 at 0.30 m/s) while adding rear margin, so it is changing the
+gait dynamics rather than translating the support polygon. That is also why the
+statically-derived 0.035 was wrong.
+
+Gains saturate past 0.075 while roll sd slowly degrades (0.0662 -> 0.0698), so the
+choice between 0.075 / 0.095 / 0.115 was made on the scenario that was weakest
+rather than on the ladder, where all three are 0/8:
+
+| | stop_cycles falls | settled tilt | roll sd | figure-eight |
+|---|---|---|---|---|
+| **0.075** | **0/4** | **0.0284 +- 0.017** | **0.0721** | 2/2 survived |
+| 0.095 | 1/4 | 0.0445 +- 0.14 | 0.0750 | 2/2 survived |
+
+**0.075 is shipped.** 0.115 was rejected despite equal ladder performance: it puts
+the foot ~0.14 m behind the CoM, a large behavioural change that a straight-line
+0.05-0.30 m/s ladder cannot probe, and there is no model explaining why it would
+be safe outside that range.
+
+The original N=3 comparison that first established the effect, at offset 0.035
+against none:
 
 | | falls | pitch sd | roll sd | z sd | settled tilt |
 |---|---|---|---|---|---|

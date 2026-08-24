@@ -635,7 +635,7 @@ humanoid_centroidal_mpc_controller:
           stepWidth: 0.18
           maxAdjustment: 0.20
           trackingWeight: 100.0
-          footCenterOffset: 0.035
+          footCenterOffset: 0.075
           stepLengthGain: 0.0
         taskSpaceCosts:
           names:
