@@ -61,7 +61,7 @@ humanoid_wb_mpc_controller:
       # 12 Hz preserves the walking bandwidth while softening the GT-to-InEKF handoff.
       observationVelocityFilterCutoffHz: 12.0
       inverseDynamicsVelocity: measured
-      policyTimeOffset: 0.005
+      policyTimeOffset: 0.000
       # Legacy WB MPC stand/balance feedback around the optimized policy.
       mpcJointKp:
         [1200.0, 1200.0, 1200.0, 1200.0, 1200.0, 1200.0,
@@ -278,7 +278,7 @@ humanoid_wb_mpc_controller:
         maxDisplacementVelocityY: 1.2
         maxDeltaPelvisHeight: 0.4
         maxRotationVelocity: 1.0
-        defaultBaseHeight: 0.7500
+        defaultBaseHeight: 0.7925
         basePosePositionTolerance: 0.02
         basePoseOrientationTolerance: 0.03
         # Arms hang at the sides. The all-zero arm posture this replaced put the
@@ -371,7 +371,7 @@ humanoid_centroidal_mpc_controller:
 
     control:
       observationVelocityFilterCutoffHz: 30.0
-      policyTimeOffset: 0.005
+      policyTimeOffset: 0.000
       # Legacy CentroidalMpcMrtJointController servo gains.
       mpcJointKp:
         [1200.0, 1200.0, 1200.0, 1200.0, 1200.0, 1200.0,
@@ -671,7 +671,7 @@ humanoid_centroidal_mpc_controller:
         maxDisplacementVelocityY: 1.2
         maxDeltaPelvisHeight: 0.4
         maxRotationVelocity: 1.0
-        defaultBaseHeight: 0.7500
+        defaultBaseHeight: 0.7925
         basePosePositionTolerance: 0.02
         basePoseOrientationTolerance: 0.03
         # Arms hang at the sides. The all-zero arm posture this replaced put the

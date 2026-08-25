@@ -288,7 +288,7 @@ class HeightBar:
         self._bottom = 140.0
         self._minimum = 0.2
         self._maximum = 1.0
-        self._center = 0.7500
+        self._center = 0.7925
         self._value = self._center
         self._dragging = False
         self._hovering = False
@@ -447,7 +447,7 @@ class baseCommandGui(tk.Tk):
             font=("Helvetica", 12, "bold"),
         ).grid(row=2, column=0)
         self._height = HeightBar(height_frame, self._height_changed)
-        self._height.set(0.7500)
+        self._height.set(0.7925)
         self._height._canvas.grid(row=3, column=0)
         tk.Label(
             height_frame,
@@ -478,7 +478,7 @@ class baseCommandGui(tk.Tk):
     def _reset(self):
         self._linear.reset()
         self._yaw.reset()
-        self._height.set(0.7500)
+        self._height.set(0.7925)
 
     def _publish_periodically(self):
         # Joystick vertical axis = forward (vx); horizontal = lateral (ROS +y is left,

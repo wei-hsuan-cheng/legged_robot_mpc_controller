@@ -134,6 +134,81 @@ momentum weights against the corrected reference has to happen before the arms c
 be made to regulate angular momentum, and it should recover the `stop_cycles`
 result.
 
+## Leg jitter: four hypotheses tested, all negative
+
+The reported symptom was leg jitter while walking, suspected to come from the
+velocity term added to the RNEA feedforward. Measured with an 8-60 Hz band
+amplitude on commanded leg TORQUE (jitter is a torque phenomenon; joint angle
+only shows what survives the leg's inertia), plus a 4-8 Hz band added later.
+
+**1. Inverse-dynamics velocity: NOT the cause.** With qdd = 0, RNEA gives
+`tau = C(q,qd)*qd + g(q) - J^T F`, so the velocity enters through the Coriolis
+term. Now selectable via `control.inverseDynamicsVelocity`:
+
+| mode | falls | torque jitter 8-60 Hz |
+|---|---|---|
+| measured | 4/8 | 1.467 +- 0.38 |
+| policy | 1/8 | 1.463 +- 0.31 |
+| zero | 2/8 | 1.430 +- 0.21 |
+
+Across 24 runs spanning no velocity term, the noisy measured one and the smooth
+planned one, torque jitter is flat. **Removing the term entirely changes
+nothing**, so it cannot be the jitter source. (The fall-rate spread hinted that
+`measured` is worse for stability, p ~ 0.28, but that comparison ran at height
+0.75 / offset 0.005 and did not survive the config change - `measured` measures
+0/8 under the shipped settings. Treat it as confounded.)
+
+**2. Angular momentum formulation: no effect.** 3/18 falls either way over 18 runs
+per arm, torque jitter 1.431 vs 1.447. The correct `I_G(q)*omega/m` form is
+therefore free, which also retrospectively explains the `stop_cycles` scare
+(3/10 vs 0/4, p ~ 0.51) as noise.
+
+**3. PD damping: no effect.** The `effort_pd` loop runs
+`kp*(q_des-q) + kd*(qd_des-qd) + tau_ff` with kp = 1200 and kd = 10 uniform across
+23 joints whose effective inertia spans 0.0004 to 0.914 kg m^2 - a 2000x range.
+That looked like an obvious defect. Replacing kd with per-joint values matched to
+`M_ii` did nothing:
+
+| kd | falls | 4-8 Hz tau | 8-60 Hz tau | tau_rms | pitch sd |
+|---|---|---|---|---|---|
+| uniform 10 | 0/8 | 1.599+-0.20 | 1.322 | 7.089 | 0.01039 |
+| zeta = 0.7 | 0/8 | 1.577+-0.17 | 1.324 | 7.036 | 0.01035 |
+| zeta = 1.0 | 0/8 | 1.592+-0.20 | 1.347 | 7.068 | 0.01038 |
+
+Identical to three significant figures across a 6x change in damping.
+
+**Two corrections to that analysis, both mine.** First, the MuJoCo model already
+applies `damping = 10.0` on every joint, which the zeta calculation ignored: the
+true damping is `kd + 10`, so the hips sit at **zeta = 0.30, not the 0.15** first
+claimed, and the knee at 0.85 is nearly critical. The "severely underdamped" read
+was overstated by 2x. Second, the 4-8 Hz band was added specifically to catch a
+hip resonance at 5.8 Hz that the original 8-60 Hz window sat above - but since
+damping does not move that band either, its content is **gait harmonics** (0.67 Hz
+fundamental, harmonics 6-12 land in 4-8 Hz), i.e. real walking motion rather than
+ringing.
+
+**4. Policy time offset: the one knob that mattered.** `policyTimeOffset` evaluates
+the MPC policy ahead of the current observation to compensate control latency:
+
+| offset | falls | 8-60 Hz tau | joint jitter | cmd jitter |
+|---|---|---|---|---|
+| 0.005 | 0/8 | 1.471 | 0.00317 | 0.00352 |
+| **0.000** | **0/8** | **1.358** | **0.00296** | **0.00309** |
+| 0.010 | **6/8** | 31.0 +- 64 | 0.0227 | 0.0438 |
+
+Zero is 8% quieter in torque and 12% in command than 0.005, at the same fall rate,
+and **0.010 is a cliff** - 6/8 falls with 20x the torque jitter. The shipped 0.005
+was one step away from it. Now 0.000.
+
+**Where this leaves the jitter.** Nothing on the MPC side and nothing in the PD
+loop moves it. Combined with the earlier finding that command and joint feedback
+agree within 3.6% in every band from 0 to 100 Hz, the measured torque "jitter" of
+~1.4 Nm against a 7.0 Nm RMS is most likely the normal broadband content of
+walking on this model, not a defect. If the jitter is visible on real hardware but
+not reproducible here, the difference is in what the simulation does not model:
+actuator dynamics, transmission compliance, encoder quantisation and the real
+500 Hz control loop's latency.
+
 ## Read this before quoting any single run
 
 Two independent findings say single-run numbers from this stack are not
