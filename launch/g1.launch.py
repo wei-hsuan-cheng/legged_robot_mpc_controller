@@ -22,7 +22,13 @@ def generate_launch_description():
 
     rviz_default = os.path.join(mpc_share_dir, "config", "rviz", "humanoid.rviz")
     initial_pose_default = os.path.join(mpc_share_dir, "config", "g1", "initial_pose.yaml")
-    lib_folder_default = os.path.join("auto_generated", "g1")
+    # Per-branch CppAD cache. The generated libraries are keyed by model NAME
+    # only, with nothing recording the dimensions they were built for, so two
+    # branches whose costs differ in parameter count will silently load each
+    # other's libraries and segfault inside functor_generic_model.hpp with
+    # "Invalid independent array size". This branch changes ICPCost::getParameters
+    # from 2 to 5 parameters, so it must not share a cache with main.
+    lib_folder_default = os.path.join("auto_generated", "g1_test")
     mpc_controller_default = "humanoid_centroidal_mpc_controller" # humanoid_centroidal_mpc_controller | humanoid_wb_mpc_controller
 
     # URDF for the MPC's Pinocchio model: MUST be pelvis-rooted (the MPC adds its
