@@ -560,12 +560,12 @@ humanoid_centroidal_mpc_controller:
       costs:
         qScaling: 1.0
         rScaling: 0.001
-        terminalCostScaling: 3.0
+        terminalCostScaling: 0.0
         q:
           centroidalMomentum:
             [8.0, 8.0, 15.0, 15.0, 15.0, 4.0]
           basePose:
-            [0.0, 0.0, 15.0, 0.0, 25.0, 25.0]
+            [0.0, 0.0, 15.0, 0.0, 100.0, 100.0]
           jointPositions:
             [1.0, 0.5, 4.0, 2.0, 0.5, 0.5,
              1.0, 0.5, 4.0, 2.0, 0.5, 0.5,
@@ -592,8 +592,8 @@ humanoid_centroidal_mpc_controller:
             [20.0, 20.0, 200.0, 20.0, 20.0, 20.0,
              20.0, 20.0, 200.0, 20.0, 20.0, 20.0,
              2000.0, 800.0, 2000.0,
-             200.0, 100.0, 100.0, 200.0,
-             200.0, 100.0, 100.0, 200.0]
+             2000.0, 1000.0, 1000.0, 2000.0,
+             2000.0, 1000.0, 1000.0, 2000.0]
         # [pos xyz, orientation xyz, lin vel xyz, ang vel xyz]
         taskSpaceFootCostWeights:
           [0.0, 0.0, 0.0,
