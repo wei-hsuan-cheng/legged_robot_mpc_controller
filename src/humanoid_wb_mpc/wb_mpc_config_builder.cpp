@@ -130,11 +130,17 @@ ocs2::humanoid::WBMpcInterface::Config buildWbMpcConfig(const humanoid_wb_mpc_co
   swing.impactProximityFactorMidPointValue = p.swingTrajectory.impactProximityFactorMidPointValue;
 
   // --- initial state: [base pose (6), joint positions, base velocity (6), joint velocities] ---
-  checkJointArraySize(p.initialState.jointPositions, numJoints, "initialState.jointPositions");
-  checkJointArraySize(p.initialState.jointVelocities, numJoints, "initialState.jointVelocities");
+  //
+  // DERIVED from the nominal standing posture, not configured - see the matching
+  // comment in centroidal_mpc_config_builder.cpp. The observation is rebuilt from
+  // the ros2_control state interfaces every tick, so this is a construction-time
+  // placeholder, and duplicating the posture in ocs2.initialState only created a
+  // second copy to drift out of step with initial_pose.yaml.
+  checkJointArraySize(p.reference.defaultJointState, numJoints, "reference.defaultJointState");
   config.initialState = vector_t::Zero(static_cast<Eigen::Index>(12 + 2 * numJoints));
-  config.initialState << toVector(p.initialState.basePose), toVector(p.initialState.jointPositions),
-    toVector(p.initialState.baseVelocity), toVector(p.initialState.jointVelocities);
+  config.initialState(2) = p.reference.defaultBaseHeight;   // base pose z
+  config.initialState.segment(6, static_cast<Eigen::Index>(numJoints)) =
+    toVector(p.reference.defaultJointState);
 
   // --- costs ---
   checkJointArraySize(p.costs.q.jointPositions, numJoints, "costs.q.jointPositions");

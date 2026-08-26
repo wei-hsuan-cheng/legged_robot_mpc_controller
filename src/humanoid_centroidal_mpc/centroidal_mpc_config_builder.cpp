@@ -136,10 +136,20 @@ ocs2::humanoid::CentroidalMpcInterface::Config buildCentroidalMpcConfig(
   config.referenceJointState = toVector(p.reference.defaultJointState);
 
   // --- initial state: [normalized momentum (6), base pose (6), joint positions] ---
-  checkJointArraySize(p.initialState.jointPositions, numJoints, "initialState.jointPositions");
+  //
+  // DERIVED from the nominal standing posture, not configured. The observation is
+  // rebuilt from the ros2_control state interfaces, so this is a construction-time
+  // placeholder for the MPC interface - never a pose the robot is asserted to be
+  // at.
+  //
+  // It used to be duplicated in ocs2.initialState, restating exactly what
+  // reference.defaultBaseHeight and reference.defaultJointState already say. Two
+  // copies of one posture is one too many: they drift apart silently, and the
+  // config then claims a starting pose that disagrees with initial_pose.yaml,
+  // which is the actual source of truth for where the robot spawns.
   config.initialState = vector_t::Zero(static_cast<Eigen::Index>(12 + numJoints));
-  config.initialState << toVector(p.initialState.centroidalMomentum), toVector(p.initialState.basePose),
-    toVector(p.initialState.jointPositions);
+  config.initialState(8) = p.reference.defaultBaseHeight;   // base pose z
+  config.initialState.tail(static_cast<Eigen::Index>(numJoints)) = config.referenceJointState;
 
   // --- costs ---
   checkJointArraySize(p.costs.q.jointPositions, numJoints, "costs.q.jointPositions");

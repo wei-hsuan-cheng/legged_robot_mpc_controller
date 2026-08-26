@@ -477,29 +477,6 @@ humanoid_wb_mpc_controller:
         description: "Print MPC debug information"
       }
 
-    initialState:
-      basePose: {
-        type: double_array,
-        default_value: [0.0, 0.0, 0.7925, 0.0, 0.0, 0.0],
-        description: "Initial base pose [x, y, z, yaw, pitch, roll]",
-        validation: { fixed_size<>: [6] }
-      }
-      jointPositions: {
-        type: double_array,
-        default_value: [],
-        description: "Initial joint positions, index-aligned with robot.jointNames"
-      }
-      baseVelocity: {
-        type: double_array,
-        default_value: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-        description: "Initial base velocity [vx, vy, vz, wz, wy, wx]",
-        validation: { fixed_size<>: [6] }
-      }
-      jointVelocities: {
-        type: double_array,
-        default_value: [],
-        description: "Initial joint velocities, index-aligned with robot.jointNames"
-      }
 
     costs:
       qScaling: {
