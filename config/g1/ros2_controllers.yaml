@@ -603,7 +603,7 @@ humanoid_centroidal_mpc_controller:
         captureFootPlacement:
           enabled: true
           gain: 1.0
-          stepWidth: 0.12
+          stepWidth: 0.25
           maxAdjustment: 0.20
           trackingWeight: 100.0
           footCenterOffset: 0.075
