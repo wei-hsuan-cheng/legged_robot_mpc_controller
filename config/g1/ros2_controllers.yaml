@@ -434,13 +434,13 @@ humanoid_centroidal_mpc_controller:
       # vibration), so trust it far less and low-pass it hard; lean on the contact
       # height-anchor instead. Removes the ~4 cm height droop.
       noise:
-        gyroscope: 0.01
-        accelerometer: 1.5
+        gyroscope: 1.0e-2
+        accelerometer: 1.5e0
         gyroscopeBias: 1.0e-5
         accelerometerBias: 1.0e-4
-        contact: 0.01
-        contactPosition: 0.002
-        contactRotation: 0.01
+        contact: 1.0e-2
+        contactPosition: 2.0e-3
+        contactRotation: 1.0e-2
       height:
         source: kinematic
         kinematicWeight: 0.9
