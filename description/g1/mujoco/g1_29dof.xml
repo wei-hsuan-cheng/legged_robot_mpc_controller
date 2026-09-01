@@ -2,7 +2,7 @@
   <default>
     <!-- Legacy simulator applied 10 Nms/rad damping to all actuated joints. -->
     <joint damping="10.0"/>
-    <geom friction="0.8 0.1 0.001" solimp="0.999 0.95 0.005" solref="0.001 1.0"/>
+    <geom solimp="0.999 0.95 0.005" solref="0.001 1.0"/>
   </default>
   <compiler angle="radian" meshdir="../meshes"/>
 

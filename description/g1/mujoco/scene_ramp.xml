@@ -55,7 +55,8 @@
 
   <worldbody>
     <light pos="1 0 3.5" dir="0 0 -1" directional="true"/>
-    <geom name="floor" size="0 0 0.05" type="plane" material="groundplane"/>
+    <geom name="floor" size="0 0 0.05" type="plane" material="groundplane"
+          priority="1" friction="0.8 0.1 0.001"/>
 
     <body name="ramp" pos="3.49831 0 0.084699">
       <geom name="ramp_surface"
@@ -63,6 +64,7 @@
             size="2.0 1.0 0.02"
             quat="0.9996573 0 -0.0261769 0"
             rgba="0.55 0.6 0.65 1"
+            priority="1"
             friction="0.8 0.1 0.001"/>
     </body>
   </worldbody>
