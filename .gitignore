@@ -5,6 +5,3 @@
 # macOS
 .DS_Store
 **/.DS_Store
-
-# Personal working notes, not part of the package
-Codex.md
