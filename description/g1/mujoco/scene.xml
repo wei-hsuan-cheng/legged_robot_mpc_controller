@@ -8,7 +8,7 @@
   <!-- <include file="slope.xml"/> -->
 
   <!-- Match the legacy whole-body MuJoCo simulation timestep. -->
-  <option timestep="0.0005"/>
+  <option timestep="0.0002"/>
 
   <statistic center="1.0 0.7 1.0" extent="0.8"/>
 
