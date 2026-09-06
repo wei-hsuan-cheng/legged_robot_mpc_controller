@@ -13,7 +13,7 @@ namespace ocs2::humanoid
  * Quadratic tracking cost for the model's base pose and base motion state.
  *
  * The model-specific state layout is accessed through MpcRobotModelBase, so
- * the same cost can be used by the whole-body and centroidal formulations.
+ * the same cost can be reused across MPC formulations.
  */
 class BaseMotionTrackingCost final : public StateCost
 {

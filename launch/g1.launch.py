@@ -29,7 +29,7 @@ def generate_launch_description():
     # "Invalid independent array size". This branch changes ICPCost::getParameters
     # from 2 to 5 parameters, so it must not share a cache with main.
     lib_folder_default = os.path.join("auto_generated", "g1_test")
-    mpc_controller_default = "humanoid_centroidal_mpc_controller" # humanoid_centroidal_mpc_controller | humanoid_wb_mpc_controller
+    mpc_controller_default = "humanoid_centroidal_mpc_controller"
 
     # URDF for the MPC's Pinocchio model: MUST be pelvis-rooted (the MPC adds its
     # own floating base). Do NOT point this at a URDF that contains a world link /
@@ -106,7 +106,7 @@ def generate_launch_description():
             "diagnosticsLogPrefix", default_value="/tmp/centroidal_mpc_diag_%t",
             description="Output path prefix for the diagnostics CSVs; '_state.csv'/'_cost.csv' are appended and '%t' expands to the run start time",
         ),
-        DeclareLaunchArgument("mpcFreq", default_value="100", description="MPC update frequency (should be integer) (100 for centroidal, 50 for whole-body)"),
+        DeclareLaunchArgument("mpcFreq", default_value="100", description="MPC update frequency (should be integer)"),
         DeclareLaunchArgument("mrtFreq", default_value="1000", description="MRT update frequency (should be integer)"),
         DeclareLaunchArgument("controllersFile", default_value=controllers_file_default),
         DeclareLaunchArgument(

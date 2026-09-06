@@ -48,19 +48,12 @@ foreach(dependency IN ITEMS ${THIS_PACKAGE_INCLUDE_DEPENDS})
   find_package(${dependency} REQUIRED)
 endforeach()
 
-generate_parameter_library(humanoid_wb_mpc_controller_parameters
-  src/humanoid_wb_mpc/humanoid_wb_mpc_controller_parameter.yaml
-)
-
 generate_parameter_library(humanoid_centroidal_mpc_controller_parameters
   src/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller_parameter.yaml
 )
 
 file(GLOB_RECURSE HUMANOID_COMMON_CORE_SOURCES CONFIGURE_DEPENDS
   src/core/humanoid_common_mpc/src/*.cpp
-)
-file(GLOB_RECURSE HUMANOID_WB_CORE_SOURCES CONFIGURE_DEPENDS
-  src/core/humanoid_wb_mpc/src/*.cpp
 )
 file(GLOB_RECURSE HUMANOID_CENTROIDAL_CORE_SOURCES CONFIGURE_DEPENDS
   src/core/humanoid_centroidal_mpc/src/*.cpp
@@ -88,36 +81,6 @@ ament_target_dependencies(legged_robot_humanoid_common_core PUBLIC
 )
 target_link_libraries(legged_robot_humanoid_common_core PUBLIC Eigen3::Eigen ${Boost_LIBRARIES})
 target_compile_definitions(legged_robot_humanoid_common_core PUBLIC BOOST_MPL_LIMIT_LIST_SIZE=30)
-
-add_library(legged_robot_humanoid_wb_core SHARED
-  ${HUMANOID_WB_CORE_SOURCES}
-)
-target_compile_features(legged_robot_humanoid_wb_core PUBLIC cxx_std_20)
-target_include_directories(legged_robot_humanoid_wb_core
-  PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:include>
-)
-ament_target_dependencies(legged_robot_humanoid_wb_core PUBLIC
-  ament_index_cpp
-  ocs2_centroidal_model
-  ocs2_core
-  ocs2_ddp
-  ocs2_mpc
-  ocs2_oc
-  ocs2_pinocchio_interface
-  ocs2_robotic_tools
-  ocs2_sqp
-  pinocchio
-  rclcpp
-)
-target_link_libraries(legged_robot_humanoid_wb_core
-  PUBLIC
-    Eigen3::Eigen
-    ${Boost_LIBRARIES}
-    legged_robot_humanoid_common_core
-)
-target_compile_definitions(legged_robot_humanoid_wb_core PUBLIC BOOST_MPL_LIMIT_LIST_SIZE=30)
 
 add_library(legged_robot_humanoid_centroidal_core SHARED
   ${HUMANOID_CENTROIDAL_CORE_SOURCES}
@@ -159,8 +122,6 @@ add_library(${PROJECT_NAME} SHARED
   src/humanoid_centroidal_mpc/centroidal_mpc_config_builder.cpp
   src/humanoid_centroidal_mpc/centroidal_mpc_diagnostics.cpp
   src/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller.cpp
-  src/humanoid_wb_mpc/humanoid_wb_mpc_controller.cpp
-  src/humanoid_wb_mpc/wb_mpc_config_builder.cpp
   src/visualization/optimized_state_trajectory_visualization.cpp
   src/visualization/performance_visualization.cpp
 )
@@ -173,9 +134,7 @@ target_include_directories(${PROJECT_NAME}
 target_link_libraries(${PROJECT_NAME}
   PUBLIC
     Eigen3::Eigen
-    humanoid_wb_mpc_controller_parameters
     humanoid_centroidal_mpc_controller_parameters
-    legged_robot_humanoid_wb_core
     legged_robot_humanoid_centroidal_core
     legged_state_estimator::legged_state_estimator
     yaml-cpp
@@ -222,10 +181,8 @@ install(FILES legged_robot_mpc_controller_plugin.xml
 
 install(TARGETS
   ${PROJECT_NAME}
-  humanoid_wb_mpc_controller_parameters
   humanoid_centroidal_mpc_controller_parameters
   legged_robot_humanoid_common_core
-  legged_robot_humanoid_wb_core
   legged_robot_humanoid_centroidal_core
   EXPORT export_${PROJECT_NAME}
   ARCHIVE DESTINATION lib
@@ -246,7 +203,6 @@ ament_export_include_directories(include)
 ament_export_libraries(
   ${PROJECT_NAME}
   legged_robot_humanoid_common_core
-  legged_robot_humanoid_wb_core
   legged_robot_humanoid_centroidal_core
 )
 

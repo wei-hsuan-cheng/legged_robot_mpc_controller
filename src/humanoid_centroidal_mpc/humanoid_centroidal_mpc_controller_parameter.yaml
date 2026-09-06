@@ -51,7 +51,7 @@ humanoid_centroidal_mpc_controller:
     jointNames: {
       type: string_array,
       default_value: [],
-      description: "Actuated joint names controlled by the whole-body MPC",
+      description: "Actuated joint names controlled by the centroidal MPC",
       validation: {
         unique<>: null
       }
@@ -713,7 +713,7 @@ humanoid_centroidal_mpc_controller:
       solverType: {
         type: string,
         default_value: "sqp",
-        description: "Optimization backend used by the whole-body MPC",
+        description: "Optimization backend used by the centroidal MPC",
         validation: {
           one_of<>: [["ddp", "sqp"]]
         }

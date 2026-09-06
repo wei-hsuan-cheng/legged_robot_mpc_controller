@@ -16,7 +16,7 @@
   <!-- legged robot -->
   <include file="g1_29dof.xml"/>
 
-  <!-- Match the legacy whole-body MuJoCo simulation timestep. -->
+  <!-- MuJoCo simulation timestep. -->
   <option timestep="0.0005"/>
 
   <statistic center="1.0 0.7 1.0" extent="0.8"/>

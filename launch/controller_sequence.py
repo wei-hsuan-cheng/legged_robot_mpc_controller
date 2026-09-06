@@ -224,7 +224,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--controller-manager', default='/controller_manager')
     parser.add_argument('--robot-description-topic', default='/robot_description')
-    parser.add_argument('--controller-name', default='humanoid_wb_mpc_controller')
+    parser.add_argument('--controller-name', default='humanoid_centroidal_mpc_controller')
     parser.add_argument('--timeout', type=float, default=120.0)
     parser.add_argument(
         '--configure-timeout', type=float, default=3600.0,

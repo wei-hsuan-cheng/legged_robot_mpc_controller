@@ -18,8 +18,8 @@ namespace ocs2::humanoid
  * Structure (target + cost) so a Cartesian frame-relation tracking term can be
  * added alongside it later: the desired joint reference is read from the
  * SwitchedModelReferenceManager, and the model-specific state layout is accessed
- * through MpcRobotModelBase so the same cost serves the whole-body and
- * centroidal formulations.
+ * through MpcRobotModelBase so the same cost is reused across MPC
+ * formulations.
  *
  * The tracked joints are a subset of the joint block, addressed by their index
  * within that block (0 .. mpc_joint_dim-1). Because joint-position tracking is a

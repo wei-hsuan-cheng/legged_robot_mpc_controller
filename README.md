@@ -2,7 +2,7 @@
 
 ROS 2 controller integration for legged robot MPC using [OCS2](https://github.com/wei-hsuan-cheng/ocs2_ros2.git) and [Pinocchio](https://github.com/stack-of-tasks/pinocchio.git). Tested in [MuJoCo](https://mujoco.readthedocs.io/en/stable/overview.html) simulation environment.
 
-The humanoid centroidal MPC & whole-body MPC are migrated from the original implementaion of [`wb_humanoid_mpc`](https://github.com/manumerous/wb_humanoid_mpc.git).
+The humanoid centroidal MPC is migrated from the original implementaion of [`wb_humanoid_mpc`](https://github.com/manumerous/wb_humanoid_mpc.git).
 
 
 ## Build and Install
@@ -333,7 +333,7 @@ Useful launch args:
 ```bash
 baseCommandGui:=true | false
 spawnMpcController:=true | false         # false is only for environment smoke tests; the robot will not balance
-mpcControllerName:=humanoid_centroidal_mpc_controller | humanoid_wb_mpc_controller
+mpcControllerName:=humanoid_centroidal_mpc_controller
 use_mujoco_sim:=true | false             # false: plain ros2_control_node (fake hardware)
 use_fake_hardware:=false | true          # mock_components/GenericSystem when not using MuJoCo
 ros2ControlCommandInterface:=effort | effort_pd | position
@@ -371,23 +371,19 @@ All MPC settings live in ROS 2 parameters:
 
 | Controller | Parameter declaration | Config adapter | Interface |
 |---|---|---|---|
-| `humanoid_wb_mpc_controller` | [`src/humanoid_wb_mpc/humanoid_wb_mpc_controller_parameter.yaml`](./src/humanoid_wb_mpc/humanoid_wb_mpc_controller_parameter.yaml) | [`src/humanoid_wb_mpc/wb_mpc_config_builder.cpp`](./src/humanoid_wb_mpc/wb_mpc_config_builder.cpp) | `WBMpcInterface::Config` |
 | `humanoid_centroidal_mpc_controller` | [`src/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller_parameter.yaml`](./src/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller_parameter.yaml) | [`src/humanoid_centroidal_mpc/centroidal_mpc_config_builder.cpp`](./src/humanoid_centroidal_mpc/centroidal_mpc_config_builder.cpp) | `CentroidalMpcInterface::Config` |
 
-Both declare model settings, foot-constraint gains, swing trajectory, SQP/rollout/MPC solver settings, initial state, `Q`/`R`/`Q_final` cost diagonals, task-space foot cost weights, and the friction-cone / contact-moment / joint-limit / foot-collision constraint parameters. 
-
-The whole-body state is:
-- `[base pose, joint positions, base velocity, joint velocities]` with joint accelerations + contact wrenches as inputs.
+It declares model settings, foot-constraint gains, swing trajectory, SQP/rollout/MPC solver settings, `Q`/`R`/`Q_final` cost diagonals, task-space foot cost weights, and the friction-cone / contact-moment / joint-limit / foot-collision constraint parameters. 
 
 The centroidal state is:
 - `[normalized centroidal momentum, base pose, joint positions]` with joint velocities + contact wrenches as inputs.
 - Additional centroidal-only costs (ICP, torso task-space tracking via `costs.taskSpaceCosts`, leg external-torque costs via `costs.legTorqueCost`). 
 
-Loaders shared by both controllers (gait map, reference config, cost-matrix assembly) live in [`common/config/config_builder_utils.hpp`](./include/legged_robot_mpc_controller/common/config/config_builder_utils.hpp).
+Shared loaders (gait map, reference config, cost-matrix assembly), kept generic so a future MPC formulation can reuse them, live in [`common/config/config_builder_utils.hpp`](./include/legged_robot_mpc_controller/common/config/config_builder_utils.hpp).
 
 Robot-specific values:
 
-- [`config/g1/gait.yaml`](./config/g1/gait.yaml) is the named gait library (mode sequence templates), referenced by `ocs2.gait.gaitLibraryFile` and shared by both controllers.
+- [`config/g1/gait.yaml`](./config/g1/gait.yaml) is the named gait library (mode sequence templates), referenced by `ocs2.gait.gaitLibraryFile`.
 - [`config/g1/initial_pose.yaml`](./config/g1/initial_pose.yaml) sets the simulation start pose consumed by the `ros2_control` xacro.
 
 
@@ -476,7 +472,7 @@ See [`docs/humanoid_state_estimation.md`](./docs/humanoid_state_estimation.md) f
 
 ## Acknowledgements
 
-- The original code implementation of humanoid centroidal MPC and whole-body MPC: [`manumerous/wb_humanoid_mpc`](https://github.com/manumerous/wb_humanoid_mpc)
+- The original code implementation of humanoid centroidal MPC: [`manumerous/wb_humanoid_mpc`](https://github.com/manumerous/wb_humanoid_mpc)
 
 
 ## Contact
