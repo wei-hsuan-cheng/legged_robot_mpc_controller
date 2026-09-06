@@ -163,7 +163,7 @@ private:
   // Optional InEKF floating-base estimator. When enabled it runs in parallel and
   // publishes its odometry; when floatingBase.source == "state_estimator" its
   // output drives the observation instead of the MuJoCo ground-truth body frame.
-  std::unique_ptr<state_estimation::InekfFloatingBaseEstimator> state_estimator_;
+  std::unique_ptr<state_estimation::FloatingBaseEstimatorInterface> state_estimator_;
   state_estimation::FloatingBaseEstimate last_estimate_;
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr state_estimate_odom_publisher_;
   double last_estimate_publish_time_{-1.0};

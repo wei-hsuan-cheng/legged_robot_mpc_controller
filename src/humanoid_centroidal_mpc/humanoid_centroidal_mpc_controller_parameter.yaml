@@ -284,6 +284,73 @@ humanoid_centroidal_mpc_controller:
     # are the forward-kinematics MEASUREMENT noise. A linear KF parameterises
     # its Q and R differently and would declare its own linearKF: block.
     # ---------------------------------------------------------------------
+    # ---------------------------------------------------------------------
+    # Parameters of the two-stage linear Kalman filter (estimatorType: linearKF),
+    # after MIT Cheetah 3 (Bledt et al., IROS 2018, Sec. III-H).
+    #
+    # Stage 1 takes attitude from the IMU; stage 2 is a plain KF over base
+    # position, base velocity and the contact-point positions. Because attitude
+    # is treated as known the remaining process is linear, which is what allows a
+    # conventional KF where the InEKF needs a Lie-group formulation.
+    #
+    # Defaults are the values used in qiayuanl/legged_control.
+    # ---------------------------------------------------------------------
+    linearKF:
+      numFeet: {
+        type: int,
+        default_value: 0,
+        description: "Number of physical FEET, which is not the number of contact frames. The G1 has 2 feet but 4 contact points (heel and toe per foot), so contactFrames has 4 entries while the gait schedule yields 2 contact flags; inEKF.contact.footIndices ([0,0,1,1]) maps between them. 0 means derive it as max(footIndices)+1, which is right whenever the mapping is dense; set it explicitly only to assert a value.",
+        validation: { gt_eq: [0] }
+      }
+      footRadius: {
+        type: double,
+        default_value: 0.0,
+        description: "Contact-point sphere radius added to the measured foot height [m]. legged_control uses 0.02 because its robots have spherical feet whose contact frame is at the sphere CENTRE; a frame already defined at the sole needs 0.0, otherwise the estimated base height is biased up by exactly this value.",
+        validation: { gt_eq: [0.0] }
+      }
+      imuProcessNoisePosition: {
+        type: double,
+        default_value: 0.02,
+        description: "Process noise on the IMU-integrated base position",
+        validation: { gt: [0.0] }
+      }
+      imuProcessNoiseVelocity: {
+        type: double,
+        default_value: 0.02,
+        description: "Process noise on the IMU-integrated base velocity",
+        validation: { gt: [0.0] }
+      }
+      footProcessNoisePosition: {
+        type: double,
+        default_value: 0.002,
+        description: "Process noise on a stance foot's world position, i.e. how much slip is tolerated",
+        validation: { gt: [0.0] }
+      }
+      footSensorNoisePosition: {
+        type: double,
+        default_value: 0.005,
+        description: "Measurement noise on the forward-kinematic foot position",
+        validation: { gt: [0.0] }
+      }
+      footSensorNoiseVelocity: {
+        type: double,
+        default_value: 0.1,
+        description: "Measurement noise on the forward-kinematic foot velocity",
+        validation: { gt: [0.0] }
+      }
+      footHeightSensorNoise: {
+        type: double,
+        default_value: 0.01,
+        description: "Measurement noise on the assumed contact height",
+        validation: { gt: [0.0] }
+      }
+      swingNoiseMultiplier: {
+        type: double,
+        default_value: 100.0,
+        description: "Multiplier on a SWING foot's process and measurement noise, which is how the filter ignores a foot that is off the ground while keeping the matrix dimensions fixed across contact transitions. Cheetah 3 raises the covariance 'to a high value'; 100 is the value used there.",
+        validation: { gt: [1.0] }
+      }
+
     inEKF:
       noise:
         gyroscope: { type: double, default_value: 0.01, description: "InEKF gyroscope noise std-dev" }

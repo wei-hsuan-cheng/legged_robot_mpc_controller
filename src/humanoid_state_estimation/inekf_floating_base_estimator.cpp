@@ -1,5 +1,7 @@
 #include "legged_robot_mpc_controller/humanoid_state_estimation/inekf_floating_base_estimator.hpp"
 
+#include "legged_robot_mpc_controller/humanoid_state_estimation/linear_kf_floating_base_estimator.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
@@ -508,22 +510,15 @@ const char * toString(EstimatorType type)
   return "unknown";
 }
 
-std::unique_ptr<InekfFloatingBaseEstimator> makeFloatingBaseEstimator(
-  EstimatorType type, const InekfFloatingBaseEstimator::Settings & settings)
+std::unique_ptr<FloatingBaseEstimatorInterface> makeFloatingBaseEstimator(
+  EstimatorType type, const EstimatorSettings & settings)
 {
   switch (type) {
     case EstimatorType::InEkf:
       return std::make_unique<InekfFloatingBaseEstimator>(settings);
 
     case EstimatorType::LinearKf:
-      // Deliberately a hard failure rather than a fallback to the InEKF. The
-      // whole point of the switch is to compare filters on identical logs; a
-      // silent fallback would produce a run that looks like linear_kf and is
-      // actually in_ekf, which is worse than not running at all.
-      throw std::invalid_argument(
-        "[FloatingBaseEstimator] estimatorType 'linearKF' is not implemented yet. "
-        "Use 'inEKF', or implement the linear filter and return it here "
-        "(see makeFloatingBaseEstimator in inekf_floating_base_estimator.cpp).");
+      return std::make_unique<LinearKfFloatingBaseEstimator>(settings);
   }
   throw std::invalid_argument("[FloatingBaseEstimator] unhandled EstimatorType");
 }

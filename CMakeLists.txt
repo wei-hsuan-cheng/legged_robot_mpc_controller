@@ -155,6 +155,7 @@ add_library(${PROJECT_NAME} SHARED
   src/common/ros2_procedural_mpc_motion_manager.cpp
   src/common/target/mpc_targets_parser.cpp
   src/humanoid_state_estimation/inekf_floating_base_estimator.cpp
+  src/humanoid_state_estimation/linear_kf_floating_base_estimator.cpp
   src/humanoid_centroidal_mpc/centroidal_mpc_config_builder.cpp
   src/humanoid_centroidal_mpc/centroidal_mpc_diagnostics.cpp
   src/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller.cpp

@@ -267,6 +267,18 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_configu
       settings.lpf_ddqJ_cutoff = se.inEKF.lpf.ddqJCutoff;
       settings.lpf_tauJ_cutoff = se.inEKF.lpf.tauJCutoff;
 
+      // Two-stage linear KF (estimatorType: linearKF). Harmless when the InEKF
+      // is selected - it simply ignores these.
+      settings.num_feet = static_cast<int>(se.linearKF.numFeet);
+      settings.lkf_foot_radius = se.linearKF.footRadius;
+      settings.lkf_imu_process_noise_position = se.linearKF.imuProcessNoisePosition;
+      settings.lkf_imu_process_noise_velocity = se.linearKF.imuProcessNoiseVelocity;
+      settings.lkf_foot_process_noise_position = se.linearKF.footProcessNoisePosition;
+      settings.lkf_foot_sensor_noise_position = se.linearKF.footSensorNoisePosition;
+      settings.lkf_foot_sensor_noise_velocity = se.linearKF.footSensorNoiseVelocity;
+      settings.lkf_foot_height_sensor_noise = se.linearKF.footHeightSensorNoise;
+      settings.lkf_swing_noise_multiplier = se.linearKF.swingNoiseMultiplier;
+
       // Which filter to run. An unknown or unimplemented type throws here, so a
       // misconfigured comparison run fails at configure time instead of quietly
       // producing data from a different estimator than the one requested.
@@ -555,6 +567,14 @@ HumanoidCentroidalMpcController::state_interface_configuration() const
       config.names.emplace_back(imu + "/angular_velocity." + axis);
       config.names.emplace_back(imu + "/linear_acceleration." + axis);
     }
+    // Stage 1 of the two-stage linear KF reads attitude straight from the IMU
+    // (mujoco_ros2_control exports it from the framequat sensor named by
+    // mujoco_quat_sensor_name). The InEKF does not need it - attitude is part of
+    // its state - but claiming it unconditionally keeps the claimed interface set
+    // identical between estimators, so a comparison run differs only in the filter.
+    for (const char* component : {"w", "x", "y", "z"}) {
+      config.names.emplace_back(imu + "/orientation." + component);
+    }
   }
 
   return config;
@@ -799,6 +819,23 @@ void HumanoidCentroidalMpcController::update_state_estimator(const rclcpp::Time&
     // Start the convergence window from the first estimator tick.
     estimator_warmup_end_time_ =
       time.seconds() + std::max(0.0, parameters_.stateEstimator.warmupSeconds);
+  }
+
+  // Stage 1 attitude for estimators that do not estimate it themselves. The
+  // InEKF inherits a no-op override, so this costs nothing when it is selected.
+  {
+    const auto qw = get_state_interface_value(imu, "orientation.w");
+    const auto qx = get_state_interface_value(imu, "orientation.x");
+    const auto qy = get_state_interface_value(imu, "orientation.y");
+    const auto qz = get_state_interface_value(imu, "orientation.z");
+    if (qw && qx && qy && qz) {
+      const Eigen::Quaterniond imu_orientation(*qw, *qx, *qy, *qz);
+      // A zero quaternion means the sensor has not produced a sample yet;
+      // normalising it would yield NaN and poison the whole filter.
+      if (imu_orientation.norm() > 1e-6) {
+        state_estimator_->setBaseOrientation(imu_orientation);
+      }
+    }
   }
 
   if (parameters_.stateEstimator.inEKF.contact.source == "scheduled") {

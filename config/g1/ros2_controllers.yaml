@@ -418,7 +418,7 @@ humanoid_centroidal_mpc_controller:
       # inEKF    = contact-aided right-invariant EKF (Hartley et al. 2018)
       # linearKF = conventional linearised KF baseline; NOT implemented yet,
       #            selecting it fails at configure time rather than falling back.
-      estimatorType: inEKF
+      estimatorType: linearKF
       imuInterfaceName: pelvis_imu
       imuFrame: imu_in_pelvis
       contactFrames:
@@ -440,6 +440,30 @@ humanoid_centroidal_mpc_controller:
       # ---- contact-aided invariant EKF (estimatorType: inEKF) ----
       # Estimator-specific tuning. A future linearKF: block sits alongside this
       # one; shared plumbing (imu*, contactFrames, odom*, validation) stays above.
+      # ---- two-stage linear KF (estimatorType: linearKF) ----
+      # MIT Cheetah 3, Bledt et al. IROS 2018 Sec. III-H. Stage 1 takes attitude
+      # from pelvis_imu; stage 2 is a plain KF over base position, base velocity
+      # and the 4 contact-point positions (18 states).
+      linearKF:
+        # 0 = derive from inEKF.contact.footIndices ([0,0,1,1] -> 2 feet).
+        # The G1 has 2 FEET but 4 CONTACT POINTS (heel + toe each).
+        numFeet: 2
+        # 0.0, NOT legged_control's 0.02: that value compensates a SPHERICAL foot
+        # whose contact frame sits at the sphere centre (Unitree A1/Go1). The G1's
+        # foot_*_est frames are already at the sole (urdf origin z = -0.035 from the
+        # ankle), so a radius here biases the estimated base height up by exactly
+        # that amount - measured as a +20 mm offset before this was zeroed.
+        footRadius: 0.0
+        imuProcessNoisePosition: 0.02
+        imuProcessNoiseVelocity: 0.02
+        footProcessNoisePosition: 0.002
+        footSensorNoisePosition: 0.005
+        footSensorNoiseVelocity: 0.1
+        footHeightSensorNoise: 0.01
+        # A swing foot's noise is scaled by this, which is how the filter ignores
+        # a foot that is off the ground without resizing the problem.
+        swingNoiseMultiplier: 100.0
+
       inEKF:
         noise:
           gyroscope: 1.0e-2

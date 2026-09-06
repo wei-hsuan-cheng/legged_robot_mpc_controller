@@ -13,7 +13,7 @@
 #include <pinocchio/multibody/model.hpp>
 #include <pinocchio/multibody/data.hpp>
 
-#include "legged_robot_mpc_controller/humanoid_state_estimation/floating_base_estimate.hpp"
+#include "legged_robot_mpc_controller/humanoid_state_estimation/floating_base_estimator_interface.hpp"
 
 namespace legged_robot_mpc_controller::state_estimation
 {
@@ -29,194 +29,17 @@ namespace legged_robot_mpc_controller::state_estimation
  *
  * The controller provides joint states in its own `robot.jointNames` order; this
  * wrapper remaps them into the estimator URDF's Pinocchio joint order and
- * zero-fills any URDF joints the controller does not actuate (e.g. wrists).
+ * zero-fills any URDF joints the controller does not actuate.
  */
-/**
- * Which floating-base estimator the controller should run.
- *
- * The two differ in where they linearise, not in what they sense - both fuse the
- * same IMU and the same forward-kinematics contact measurements.
- *
- *  InEkf     Contact-aided right-invariant EKF (Hartley et al., 2018). The state
- *            lives on the matrix Lie group SE_{N+2}(3) - attitude, velocity,
- *            position and one column per contact point - and the process model
- *            is group affine, so the right-invariant error obeys a LOG-LINEAR
- *            autonomous differential equation. Two consequences matter in
- *            practice: convergence does not depend on the current estimate, so a
- *            bad initialisation still converges; and the observability structure
- *            is exact rather than an artefact of linearisation, so the filter
- *            cannot spuriously "observe" yaw.
- *
- *  LinearKf  Reserved for a conventional linearised Kalman filter (e.g. a
- *            quaternion-error EKF), whose Jacobians are taken along the current
- *            estimate. Useful as a baseline: the paper's Fig. 2/3 show the
- *            invariant filter converging markedly faster from a poor initial
- *            attitude, and reproducing that on THIS robot is the point of having
- *            the switch.
- *
- * NOT YET IMPLEMENTED: LinearKf (config value 'linearKF'). makeFloatingBaseEstimator() rejects it at
- * configure time. It is deliberately a hard failure - silently falling back to
- * the InEKF would make a comparison run look like it succeeded while measuring
- * the wrong filter.
- */
-enum class EstimatorType
-{
-  InEkf,
-  LinearKf,
-};
-
-/// Parse the `stateEstimator.estimatorType` string. Throws on an unknown value.
-EstimatorType estimatorTypeFromString(const std::string & name);
-
-/// Human-readable name, for logs and errors.
-const char * toString(EstimatorType type);
-
-class InekfFloatingBaseEstimator
+class InekfFloatingBaseEstimator : public FloatingBaseEstimatorInterface
 {
 public:
-  struct Settings
-  {
-    std::string urdf_path;
-    std::string imu_frame;                            //!< URDF frame of the IMU (e.g. "imu_in_pelvis")
-    std::vector<std::string> contact_frames;          //!< URDF contact frames (e.g. foot_l/r_contact)
-    std::vector<std::string> controller_joint_names;  //!< order the controller provides joint values in
-    double sampling_time{0.001};                      //!< estimator dt (1 / controller update rate)
+  //! Kept so existing call sites (state_estimation::InekfFloatingBaseEstimator::Settings)
+  //! keep compiling now that the types are shared with the linear KF.
+  using Settings = EstimatorSettings;
+  using Diagnostics = EstimatorDiagnostics;
 
-    // InEKF process/measurement noise std-devs (isotropic).
-    double gyroscope_noise{0.01};
-    double accelerometer_noise{0.1};
-    double gyroscope_bias_noise{1.0e-5};
-    double accelerometer_bias_noise{1.0e-4};
-    double contact_noise{0.1};
-    double contact_position_noise{0.01};
-    double contact_rotation_noise{0.01};
 
-    // Initial InEKF covariance: how much the pose passed to initialize() is
-    // trusted. The library default is P = I(15) - 1 rad of attitude uncertainty,
-    // 1 m/s of velocity, 1 m of position - even when seeded from ground truth,
-    // so the first contact correction (millimetre noise) yanks the state. The
-    // resulting transient is easily mistaken for slow bias convergence.
-    double initial_attitude_noise{1.0e-2};            //!< [rad]
-    double initial_velocity_noise{1.0e-2};            //!< [m/s]
-    double initial_position_noise{1.0e-2};            //!< [m]
-    double initial_gyroscope_bias_noise{1.0e-2};      //!< [rad/s]
-    double initial_accelerometer_bias_noise{1.0e-1};  //!< [m/s^2]
-
-    //! Estimate the IMU biases. The bias is observable only through its
-    //! cross-covariance with the attitude/velocity/position block (the kinematic
-    //! measurement Jacobian has no bias columns), so the initial bias covariance
-    //! above must be non-zero for this to have any effect.
-    bool estimate_imu_bias{true};
-
-    // Torque-based contact estimator (logistic regression), one entry per contact.
-    std::vector<double> contact_beta0;
-    std::vector<double> contact_beta1;
-    double contact_force_covariance_alpha{100.0};
-    double contact_probability_threshold{0.5};
-    bool dynamic_contact_estimation{false};
-    std::string contact_source{"torque"};             //!< "torque" or externally supplied "scheduled"
-    std::vector<int64_t> contact_foot_indices;        //!< foot index for each point-contact frame
-
-    // Base-height conditioning. The centroidal MPC references swing/stance foot
-    // targets to an ABSOLUTE ground plane (terrainHeight is forced to 0 in
-    // SwitchedModelReferenceManager::adaptToCurrentGroundHeight), so any base-height
-    // error shifts every foot height relative to that plane 1:1 - a few centimetres
-    // is a large fraction of the 0.08 m swing height and destabilizes contact timing.
-    // Fusing the InEKF height with the height implied by the stance-foot kinematics
-    // (feet on z = 0) keeps the observation consistent with what the MPC assumes.
-    // "inekf"     = raw filter height.
-    // "kinematic" = stance-foot height against a flat plane at height_ground_z.
-    // "blend"     = complementary filter between the two (flat ground only).
-    // "anchored"  = per-contact, time-varying ground height: each contact records the
-    //               estimated world height where it touched down and keeps it through
-    //               stance, so the kinematic term enforces consistency *within* a
-    //               stance phase without fighting a real terrain change. Valid on
-    //               stairs and slopes, and needs no terrain map.
-    std::string height_source{"inekf"};
-    double height_kinematic_weight{0.0};  //!< blend weight on the kinematic height, [0, 1]
-    double height_ground_z{0.0};          //!< flat-plane height [m] for "kinematic"/"blend"
-    //! "anchored" only: a touchdown re-anchors a contact just when the measured landing
-    //! height differs from its current anchor by more than this [m]. It must exceed the
-    //! filter's height noise (~0.03 m) so flat ground keeps its exact, noise-free anchor,
-    //! and stay well below a stair riser (0.17 m) so real steps are still captured.
-    double height_anchor_update_threshold{0.05};
-
-    // Low-pass filter cutoff frequencies [Hz].
-    double lpf_gyro_cutoff{250.0};
-    double lpf_gyro_accel_cutoff{250.0};
-    double lpf_lin_accel_cutoff{250.0};
-    double lpf_dqJ_cutoff{10.0};
-    double lpf_ddqJ_cutoff{5.0};
-    double lpf_tauJ_cutoff{10.0};
-  };
-
-  /**
-   * Per-update view of the filter's internals, for offline diagnosis.
-   *
-   * The estimate alone cannot distinguish a filter that is confident and right
-   * from one that is confident and wrong. These are the quantities that can:
-   * the covariance it reports for itself, the innovation it saw relative to the
-   * covariance it predicted for that innovation (NIS), the contact bookkeeping
-   * that drives both, and the two competing height sources that the reported
-   * height is blended from.
-   *
-   * All per-contact vectors are indexed by contact frame (settings.contactFrames
-   * order) and are sized once at construction, so filling them allocates nothing.
-   */
-  struct Diagnostics
-  {
-    bool valid{false};
-
-    // --- last InEKF measurement update -------------------------------------
-    bool correction_applied{false};   //!< a correction actually fired this tick
-    int correction_dim{0};            //!< stacked measurement dimension (3 per corrected contact)
-    double nis{0.0};                  //!< normalized innovation squared, r' S^-1 r
-    //! NIS divided by its degrees of freedom. A consistent filter sits near 1;
-    //! persistently below 1 means the measurement noise is overstated, above
-    //! means the filter is over-confident (the signature of double-counting
-    //! rigidly-linked heel/toe landmarks as independent measurements).
-    double nis_per_dof{0.0};
-
-    //! Per-contact innovation r and its predicted std sqrt(diag(S)), world frame.
-    //! Zero for contacts that did not take part in this correction.
-    std::vector<Eigen::Vector3d> contact_innovation;
-    std::vector<Eigen::Vector3d> contact_innovation_std;
-    std::vector<bool> contact_corrected;   //!< contact contributed to this correction
-    std::vector<bool> contact_added;       //!< contact was augmented this tick (touchdown)
-    std::vector<bool> contact_removed;     //!< contact was marginalized this tick (liftoff)
-    std::vector<bool> contact_in_stance;   //!< scheduled/detected contact flag fed to the filter
-
-    //! World position the filter holds for each augmented contact landmark. A
-    //! stance-phase drift here is the "foot stretch" a position-only correction
-    //! has to absorb into the base pose when the real foot rolls.
-    std::vector<Eigen::Vector3d> contact_landmark_position;
-    std::vector<bool> contact_landmark_valid;
-
-    int num_augmented_contacts{0};
-
-    // --- covariance ---------------------------------------------------------
-    Eigen::Vector3d attitude_std{Eigen::Vector3d::Zero()};
-    Eigen::Vector3d velocity_std{Eigen::Vector3d::Zero()};
-    Eigen::Vector3d position_std{Eigen::Vector3d::Zero()};
-    Eigen::Vector3d gyroscope_bias_std{Eigen::Vector3d::Zero()};
-    Eigen::Vector3d accelerometer_bias_std{Eigen::Vector3d::Zero()};
-
-    // --- bias ---------------------------------------------------------------
-    Eigen::Vector3d gyroscope_bias{Eigen::Vector3d::Zero()};
-    Eigen::Vector3d accelerometer_bias{Eigen::Vector3d::Zero()};
-    bool estimating_bias{false};
-
-    // --- height conditioning ------------------------------------------------
-    //! The filter's own base height, BEFORE the kinematic blend. The blend is
-    //! applied outside the filter, so this keeps drifting uncorrected even while
-    //! the reported height looks good - and the touchdown anchors are computed
-    //! from it, so its drift compounds into them.
-    double inekf_height{0.0};
-    double kinematic_height{0.0};
-    bool kinematic_height_valid{false};
-    double reported_height{0.0};      //!< what the MPC actually receives
-    std::vector<double> contact_ground_anchor;
-  };
 
   explicit InekfFloatingBaseEstimator(const Settings& settings);
 
@@ -225,7 +48,7 @@ public:
   void initialize(
     const Eigen::Vector3d& base_position,
     const Eigen::Quaterniond& base_orientation,
-    const std::vector<double>& joint_positions);
+    const std::vector<double>& joint_positions) override;
 
   /// One estimator step. IMU quantities are body-local raw measurements; joint
   /// vectors are in the controller's jointNames order.
@@ -234,7 +57,7 @@ public:
     const Eigen::Vector3d& imu_linear_acceleration_body,
     const std::vector<double>& joint_positions,
     const std::vector<double>& joint_velocities,
-    const std::vector<double>& joint_efforts);
+    const std::vector<double>& joint_efforts) override;
 
   /// One estimator step using externally supplied per-foot contact states.
   FloatingBaseEstimate update(
@@ -243,31 +66,31 @@ public:
     const std::vector<double>& joint_positions,
     const std::vector<double>& joint_velocities,
     const std::vector<double>& joint_efforts,
-    const std::vector<bool>& foot_contacts);
+    const std::vector<bool>& foot_contacts) override;
 
   /// Forget the initialization so the next initialize() re-seeds the filter (e.g. on re-activation).
-  void reset() { initialized_ = false; }
+  void reset() override { initialized_ = false; }
 
-  bool initialized() const { return initialized_; }
+  bool initialized() const override { return initialized_; }
 
   /// Number of actuated joints in the estimator (URDF) model.
-  int numEstimatorJoints() const { return num_estimator_joints_; }
+  int numEstimatorJoints() const override { return num_estimator_joints_; }
 
   /// InEKF bias estimates (for diagnostics); valid after the first update().
-  Eigen::Vector3d estimatedAccelerometerBias() const
+  Eigen::Vector3d estimatedAccelerometerBias() const override
   {
     return estimator_ ? estimator_->getIMULinearAccelerationBiasEstimate() : Eigen::Vector3d::Zero();
   }
-  Eigen::Vector3d estimatedGyroscopeBias() const
+  Eigen::Vector3d estimatedGyroscopeBias() const override
   {
     return estimator_ ? estimator_->getIMUGyroBiasEstimate() : Eigen::Vector3d::Zero();
   }
 
   /// Filter internals from the most recent update(); see Diagnostics.
-  const Diagnostics & diagnostics() const { return diagnostics_; }
+  const EstimatorDiagnostics & diagnostics() const override { return diagnostics_; }
 
   /// Contact frame names, matching the per-contact ordering used in Diagnostics.
-  const std::vector<std::string> & contactFrames() const { return settings_.contact_frames; }
+  const std::vector<std::string> & contactFrames() const override { return settings_.contact_frames; }
 
 private:
   /// Fill an estimator-order joint vector from a controller-order one (unmapped joints stay 0).
@@ -348,25 +171,6 @@ private:
 };
 
 
-/**
- * Construct the configured floating-base estimator.
- *
- * The return type is the concrete InEKF today. When LinearKf is implemented,
- * lift the small surface the controller actually uses - initialize(), update(),
- * reset(), initialized(), numEstimatorJoints(), estimatedGyroscopeBias(),
- * estimatedAccelerometerBias(), diagnostics(), contactFrames() - into an
- * abstract base and return that instead; those nine methods are the whole
- * contract, so the extraction is mechanical.
- *
- * Diagnostics is InEKF-shaped (NIS, per-contact innovation, landmarks). A filter
- * without those concepts should leave them unset: DiagnosticsCsvLogger writes
- * unset columns empty, which numpy/pandas read back as NaN and is therefore
- * distinguishable from a real zero.
- *
- * @throws std::invalid_argument if the requested type is not implemented.
- */
-std::unique_ptr<InekfFloatingBaseEstimator> makeFloatingBaseEstimator(
-  EstimatorType type, const InekfFloatingBaseEstimator::Settings & settings);
 
 }  // namespace legged_robot_mpc_controller::state_estimation
 

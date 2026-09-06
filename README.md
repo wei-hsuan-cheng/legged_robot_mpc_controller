@@ -78,7 +78,7 @@ The humanoid centroidal MPC & whole-body MPC are migrated from the original impl
   export MAKEFLAGS=-j${NUM_JOBS} && \
   export NINJAFLAGS=-j${NUM_JOBS} && \
   colcon build --symlink-install \
-    --packages-up-to legged_robot_mpc_controller \
+    --packages-select legged_robot_mpc_controller \
     --executor sequential --parallel-workers ${NUM_JOBS} \
     --cmake-force-configure \
     --cmake-args -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release && \
