@@ -400,9 +400,6 @@ humanoid_centroidal_mpc_controller:
       odometryTopic: /mujoco/ground_truth/odom
       baseFrame: pelvis
 
-    # InEKF runs in parallel and publishes /humanoid/state_estimate/odom for
-    # comparison against GT. It only drives control when floatingBase.source is
-    # switched to "state_estimator".
     stateEstimator:
       enabled: true
       # linearKF = two-stage filter of MIT Cheetah 3 (Bledt et al. 2018): attitude
