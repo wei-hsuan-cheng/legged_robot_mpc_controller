@@ -594,7 +594,7 @@ humanoid_centroidal_mpc_controller:
           centroidalMomentum:
             [8.0, 8.0, 15.0, 15.0, 15.0, 4.0]
           basePose:
-            [0.0, 0.0, 15.0, 0.0, 100.0, 100.0]
+            [0.0, 0.0, 100.0, 0.0, 100.0, 100.0]
           jointPositions:
             [1.0, 0.5, 4.0, 2.0, 0.5, 0.5,
              1.0, 0.5, 4.0, 2.0, 0.5, 0.5,
