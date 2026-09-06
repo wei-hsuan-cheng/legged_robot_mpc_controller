@@ -634,7 +634,7 @@ humanoid_centroidal_mpc_controller:
         # foothold xy reference at all, so nothing arrests a lateral fall.
         captureFootPlacement:
           enabled: true
-          gain: 1.0
+          gain: 0.1
           stepWidth: 0.25
           maxAdjustment: 0.20
           trackingWeight: 100.0
