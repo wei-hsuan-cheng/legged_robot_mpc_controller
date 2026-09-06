@@ -280,7 +280,7 @@ class YawRateBar:
 
 
 class HeightBar:
-    def __init__(self, parent, on_change):
+    def __init__(self, parent, on_change, center=0.7925):
         self._on_change = on_change
         self._canvas = tk.Canvas(parent, width=48, height=150, bg="#2c2c2c", highlightthickness=0)
         self._x = 24.0
