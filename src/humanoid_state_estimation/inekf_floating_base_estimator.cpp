@@ -489,10 +489,10 @@ FloatingBaseEstimate InekfFloatingBaseEstimator::updateImpl(
 EstimatorType estimatorTypeFromString(const std::string & name)
 {
   if (name == "inEKF") {
-    return EstimatorType::InEkf;
+    return EstimatorType::InEKF;
   }
   if (name == "linearKF") {
-    return EstimatorType::LinearKf;
+    return EstimatorType::LinearKF;
   }
   throw std::invalid_argument(
     "[FloatingBaseEstimator] unknown stateEstimator.estimatorType '" + name +
@@ -502,9 +502,9 @@ EstimatorType estimatorTypeFromString(const std::string & name)
 const char * toString(EstimatorType type)
 {
   switch (type) {
-    case EstimatorType::InEkf:
+    case EstimatorType::InEKF:
       return "inEKF";
-    case EstimatorType::LinearKf:
+    case EstimatorType::LinearKF:
       return "linearKF";
   }
   return "unknown";
@@ -514,10 +514,10 @@ std::unique_ptr<FloatingBaseEstimatorInterface> makeFloatingBaseEstimator(
   EstimatorType type, const EstimatorSettings & settings)
 {
   switch (type) {
-    case EstimatorType::InEkf:
+    case EstimatorType::InEKF:
       return std::make_unique<InekfFloatingBaseEstimator>(settings);
 
-    case EstimatorType::LinearKf:
+    case EstimatorType::LinearKF:
       return std::make_unique<LinearKfFloatingBaseEstimator>(settings);
   }
   throw std::invalid_argument("[FloatingBaseEstimator] unhandled EstimatorType");

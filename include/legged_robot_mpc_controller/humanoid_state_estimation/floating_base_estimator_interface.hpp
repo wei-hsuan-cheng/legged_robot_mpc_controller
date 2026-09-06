@@ -20,14 +20,14 @@ namespace legged_robot_mpc_controller::state_estimation
  * Both fuse the same signals - IMU plus forward kinematics of the contact feet -
  * and differ in where they linearise.
  *
- *  InEkf     Contact-aided right-invariant EKF (Hartley et al., 2018). The state
+ *  InEKF     Contact-aided right-invariant EKF (Hartley et al., 2018). The state
  *            lives on SE_{N+2}(3) and the process model is group affine, so the
  *            right-invariant error obeys a LOG-LINEAR autonomous ODE.
  *            Convergence therefore does not depend on the current estimate, and
  *            the observability structure is exact rather than an artefact of
  *            linearisation, so the filter cannot spuriously "observe" yaw.
  *
- *  LinearKf  Two-stage design of MIT Cheetah 3 (Bledt et al., IROS 2018,
+ *  LinearKF  Two-stage design of MIT Cheetah 3 (Bledt et al., IROS 2018,
  *            Sec. III-H), as ported in qiayuanl/legged_control. Stage 1 takes
  *            attitude from the IMU; stage 2 is a CONVENTIONAL linear Kalman
  *            filter over base position, base velocity and the contact-point
@@ -41,8 +41,8 @@ namespace legged_robot_mpc_controller::state_estimation
  */
 enum class EstimatorType
 {
-  InEkf,
-  LinearKf,
+  InEKF,
+  LinearKF,
 };
 
 /// Parse the `stateEstimator.estimatorType` string. Throws on an unknown value.
