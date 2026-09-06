@@ -206,6 +206,15 @@ humanoid_centroidal_mpc_controller:
       default_value: false,
       description: "Run the InEKF floating-base estimator in parallel (publishes its odom; drives control only when floatingBase.source == state_estimator)"
     }
+    estimatorType: {
+      type: string,
+      default_value: "inEKF",
+      description: "Which floating-base state estimator to run. 'inEKF' is the contact-aided right-invariant EKF of Hartley et al. 2018: an IMU+contact process model on SE_{N+2}(3) corrected by forward-kinematics position measurements, whose error dynamics are log-linear and therefore convergent independently of the operating point. 'linearKF' is reserved for a conventional linearised Kalman filter so the two can be compared on the same logs; it is NOT implemented yet and selecting it fails at configure time rather than silently falling back. Estimator-specific tuning lives in the matching block below (inEKF:), so each filter declares only what applies to it.",
+      validation: {
+        one_of<>: [["inEKF", "linearKF"]]
+      }
+    }
+
     imuInterfaceName: {
       type: string,
       default_value: "pelvis_imu",
@@ -265,110 +274,121 @@ humanoid_centroidal_mpc_controller:
         description: "Maximum accepted norm of body-frame base angular-velocity estimation error [rad/s]",
         validation: { gt_eq: [0.0] }
       }
-    noise:
-      gyroscope: { type: double, default_value: 0.01, description: "InEKF gyroscope noise std-dev" }
-      accelerometer: { type: double, default_value: 0.1, description: "InEKF accelerometer noise std-dev" }
-      gyroscopeBias: { type: double, default_value: 1.0e-5, description: "InEKF gyroscope bias noise std-dev" }
-      accelerometerBias: { type: double, default_value: 1.0e-4, description: "InEKF accelerometer bias noise std-dev" }
-      contact: { type: double, default_value: 0.1, description: "InEKF contact noise std-dev" }
-      contactPosition: { type: double, default_value: 0.01, description: "Contact position measurement noise" }
-      contactRotation: { type: double, default_value: 0.01, description: "Contact rotation measurement noise (surface contacts)" }
-    initialCovariance:
-      attitude: {
-        type: double,
-        default_value: 0.01,
-        description: "Initial attitude std-dev [rad]. The InEKF state defaults to P = I(15), i.e. 1 rad of attitude uncertainty, 1 m/s of velocity and 1 m of position - even when the filter is seeded from an exactly known pose. The first contact correction, whose noise is millimetres, then yanks the state; that transient is easily mistaken for slow bias convergence. Seeded from ground truth: keep tight. On hardware: tight roll/pitch (gravity is observable at rest), loose yaw/xy (a gauge freedom).",
-        validation: { gt: [0.0] }
-      }
-      velocity: {
-        type: double,
-        default_value: 0.01,
-        description: "Initial base linear velocity std-dev [m/s]",
-        validation: { gt: [0.0] }
-      }
-      position: {
-        type: double,
-        default_value: 0.01,
-        description: "Initial base position std-dev [m]",
-        validation: { gt: [0.0] }
-      }
-      gyroscopeBias: {
-        type: double,
-        default_value: 0.01,
-        description: "Initial gyroscope bias std-dev [rad/s]. Must be non-zero for bias estimation to do anything: the kinematic measurement Jacobian has no bias columns, so the bias is observable ONLY through its cross-covariance with the attitude/velocity/position block.",
-        validation: { gt: [0.0] }
-      }
-      accelerometerBias: {
-        type: double,
-        default_value: 0.1,
-        description: "Initial accelerometer bias std-dev [m/s^2]; see gyroscopeBias",
-        validation: { gt: [0.0] }
-      }
-    estimateImuBias: {
-      type: bool,
-      default_value: true,
-      description: "Estimate the IMU biases. When false the bias block is decoupled from the rest of the covariance every propagation, freezing the bias at its seeded value."
-    }
-    height:
-      source: {
-        type: string,
-        default_value: "anchored",
-        description: "Base-height conditioning. The centroidal MPC references foot targets to a ground plane, so a base-height error shifts every foot height relative to it 1:1 - a few cm is a large fraction of the 0.08 m swing height and breaks contact timing. inekf = raw filter height (noisy). kinematic/blend = stance feet on a FLAT plane at groundZ (precise, flat ground only). anchored = per-contact, time-varying ground height recorded at each touchdown (precise AND valid on stairs/slopes, no terrain map needed).",
-        validation: {
-          one_of<>: [["inekf", "kinematic", "blend", "anchored"]]
+    # ---------------------------------------------------------------------
+    # Parameters of the contact-aided invariant EKF (estimatorType: inEKF).
+    #
+    # Nested so a second estimator can declare its own block without either
+    # inheriting tuning that does not apply to it. `noise` in particular is
+    # InEKF-specific: gyroscope/accelerometer/*Bias/contact are the PROCESS
+    # noise of the SE_{N+2}(3) propagation, and contactPosition/contactRotation
+    # are the forward-kinematics MEASUREMENT noise. A linear KF parameterises
+    # its Q and R differently and would declare its own linearKF: block.
+    # ---------------------------------------------------------------------
+    inEKF:
+      noise:
+        gyroscope: { type: double, default_value: 0.01, description: "InEKF gyroscope noise std-dev" }
+        accelerometer: { type: double, default_value: 0.1, description: "InEKF accelerometer noise std-dev" }
+        gyroscopeBias: { type: double, default_value: 1.0e-5, description: "InEKF gyroscope bias noise std-dev" }
+        accelerometerBias: { type: double, default_value: 1.0e-4, description: "InEKF accelerometer bias noise std-dev" }
+        contact: { type: double, default_value: 0.1, description: "InEKF contact noise std-dev" }
+        contactPosition: { type: double, default_value: 0.01, description: "Contact position measurement noise" }
+        contactRotation: { type: double, default_value: 0.01, description: "Contact rotation measurement noise (surface contacts)" }
+      initialCovariance:
+        attitude: {
+          type: double,
+          default_value: 0.01,
+          description: "Initial attitude std-dev [rad]. The InEKF state defaults to P = I(15), i.e. 1 rad of attitude uncertainty, 1 m/s of velocity and 1 m of position - even when the filter is seeded from an exactly known pose. The first contact correction, whose noise is millimetres, then yanks the state; that transient is easily mistaken for slow bias convergence. Seeded from ground truth: keep tight. On hardware: tight roll/pitch (gravity is observable at rest), loose yaw/xy (a gauge freedom).",
+          validation: { gt: [0.0] }
         }
-      }
-      kinematicWeight: {
-        type: double,
-        default_value: 0.9,
-        description: "Weight on the kinematic (stance-foot) height when height.source is 'blend'; 1.0 = pure kinematic",
-        validation: { bounds<>: [0.0, 1.0] }
-      }
-      anchorUpdateThreshold: {
-        type: double,
-        default_value: 0.05,
-        description: "anchored only: a touchdown re-anchors a contact just when the measured landing height differs from its current anchor by more than this [m]. Must exceed the filter height noise (~0.03 m) so flat ground keeps a noise-free anchor, and stay below a stair riser (0.17 m) so real steps are captured.",
-        validation: { gt_eq: [0.0] }
-      }
-      groundZ: {
-        type: double,
-        default_value: 0.0,
-        description: "Assumed ground-plane height [m] the stance feet rest on; must match the plane the MPC references (terrainHeight = 0)"
-      }
-    contact:
-      source: {
-        type: string,
-        default_value: "scheduled",
-        description: "Contact source for InEKF kinematic updates: scheduled uses the MPC gait schedule; torque uses the estimator library contact classifier",
-        validation: {
-          one_of<>: [["scheduled", "torque"]]
+        velocity: {
+          type: double,
+          default_value: 0.01,
+          description: "Initial base linear velocity std-dev [m/s]",
+          validation: { gt: [0.0] }
         }
+        position: {
+          type: double,
+          default_value: 0.01,
+          description: "Initial base position std-dev [m]",
+          validation: { gt: [0.0] }
+        }
+        gyroscopeBias: {
+          type: double,
+          default_value: 0.01,
+          description: "Initial gyroscope bias std-dev [rad/s]. Must be non-zero for bias estimation to do anything: the kinematic measurement Jacobian has no bias columns, so the bias is observable ONLY through its cross-covariance with the attitude/velocity/position block.",
+          validation: { gt: [0.0] }
+        }
+        accelerometerBias: {
+          type: double,
+          default_value: 0.1,
+          description: "Initial accelerometer bias std-dev [m/s^2]; see gyroscopeBias",
+          validation: { gt: [0.0] }
+        }
+      estimateImuBias: {
+        type: bool,
+        default_value: true,
+        description: "Estimate the IMU biases. When false the bias block is decoupled from the rest of the covariance every propagation, freezing the bias at its seeded value."
       }
-      footIndices: {
-        type: int_array,
-        default_value: [0, 0, 1, 1],
-        description: "Foot index for each contactFrames entry; G1 maps left heel/toe to 0 and right heel/toe to 1"
-      }
-      beta0: {
-        type: double_array,
-        default_value: [-20.0, -20.0, -20.0, -20.0],
-        description: "Logistic-regression bias per contact (torque-based contact estimator); one entry per contactFrame"
-      }
-      beta1: {
-        type: double_array,
-        default_value: [0.7, 0.7, 0.7, 0.7],
-        description: "Logistic-regression slope per contact; one entry per contactFrame"
-      }
-      forceCovarianceAlpha: { type: double, default_value: 100.0, description: "Contact force covariance scaling" }
-      probabilityThreshold: { type: double, default_value: 0.5, description: "Contact on/off probability threshold" }
-      dynamicEstimation: { type: bool, default_value: false, description: "Use full dynamics (true) or equilibrium (false) for contact estimation" }
-    lpf:
-      gyroCutoff: { type: double, default_value: 250.0, description: "LPF cutoff [Hz] for gyro" }
-      gyroAccelCutoff: { type: double, default_value: 250.0, description: "LPF cutoff [Hz] for gyro-derived angular acceleration" }
-      linAccelCutoff: { type: double, default_value: 250.0, description: "LPF cutoff [Hz] for linear acceleration" }
-      dqJCutoff: { type: double, default_value: 10.0, description: "LPF cutoff [Hz] for joint velocities" }
-      ddqJCutoff: { type: double, default_value: 5.0, description: "LPF cutoff [Hz] for joint accelerations" }
-      tauJCutoff: { type: double, default_value: 10.0, description: "LPF cutoff [Hz] for joint torques" }
+      height:
+        source: {
+          type: string,
+          default_value: "anchored",
+          description: "Base-height conditioning. The centroidal MPC references foot targets to a ground plane, so a base-height error shifts every foot height relative to it 1:1 - a few cm is a large fraction of the 0.08 m swing height and breaks contact timing. inekf = raw filter height (noisy). kinematic/blend = stance feet on a FLAT plane at groundZ (precise, flat ground only). anchored = per-contact, time-varying ground height recorded at each touchdown (precise AND valid on stairs/slopes, no terrain map needed).",
+          validation: {
+            one_of<>: [["inekf", "kinematic", "blend", "anchored"]]
+          }
+        }
+        kinematicWeight: {
+          type: double,
+          default_value: 0.9,
+          description: "Weight on the kinematic (stance-foot) height when height.source is 'blend'; 1.0 = pure kinematic",
+          validation: { bounds<>: [0.0, 1.0] }
+        }
+        anchorUpdateThreshold: {
+          type: double,
+          default_value: 0.05,
+          description: "anchored only: a touchdown re-anchors a contact just when the measured landing height differs from its current anchor by more than this [m]. Must exceed the filter height noise (~0.03 m) so flat ground keeps a noise-free anchor, and stay below a stair riser (0.17 m) so real steps are captured.",
+          validation: { gt_eq: [0.0] }
+        }
+        groundZ: {
+          type: double,
+          default_value: 0.0,
+          description: "Assumed ground-plane height [m] the stance feet rest on; must match the plane the MPC references (terrainHeight = 0)"
+        }
+      contact:
+        source: {
+          type: string,
+          default_value: "scheduled",
+          description: "Contact source for InEKF kinematic updates: scheduled uses the MPC gait schedule; torque uses the estimator library contact classifier",
+          validation: {
+            one_of<>: [["scheduled", "torque"]]
+          }
+        }
+        footIndices: {
+          type: int_array,
+          default_value: [0, 0, 1, 1],
+          description: "Foot index for each contactFrames entry; G1 maps left heel/toe to 0 and right heel/toe to 1"
+        }
+        beta0: {
+          type: double_array,
+          default_value: [-20.0, -20.0, -20.0, -20.0],
+          description: "Logistic-regression bias per contact (torque-based contact estimator); one entry per contactFrame"
+        }
+        beta1: {
+          type: double_array,
+          default_value: [0.7, 0.7, 0.7, 0.7],
+          description: "Logistic-regression slope per contact; one entry per contactFrame"
+        }
+        forceCovarianceAlpha: { type: double, default_value: 100.0, description: "Contact force covariance scaling" }
+        probabilityThreshold: { type: double, default_value: 0.5, description: "Contact on/off probability threshold" }
+        dynamicEstimation: { type: bool, default_value: false, description: "Use full dynamics (true) or equilibrium (false) for contact estimation" }
+      lpf:
+        gyroCutoff: { type: double, default_value: 250.0, description: "LPF cutoff [Hz] for gyro" }
+        gyroAccelCutoff: { type: double, default_value: 250.0, description: "LPF cutoff [Hz] for gyro-derived angular acceleration" }
+        linAccelCutoff: { type: double, default_value: 250.0, description: "LPF cutoff [Hz] for linear acceleration" }
+        dqJCutoff: { type: double, default_value: 10.0, description: "LPF cutoff [Hz] for joint velocities" }
+        ddqJCutoff: { type: double, default_value: 5.0, description: "LPF cutoff [Hz] for joint accelerations" }
+        tauJCutoff: { type: double, default_value: 10.0, description: "LPF cutoff [Hz] for joint torques" }
 
   ocs2:
     interface:

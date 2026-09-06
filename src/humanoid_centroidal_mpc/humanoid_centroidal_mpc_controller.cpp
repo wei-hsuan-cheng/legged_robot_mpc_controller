@@ -236,47 +236,52 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_configu
       settings.contact_frames = se.contactFrames;
       settings.controller_joint_names = parameters_.robot.jointNames;
       settings.sampling_time = 1.0 / std::max(1.0, static_cast<double>(get_update_rate()));
-      settings.gyroscope_noise = se.noise.gyroscope;
-      settings.accelerometer_noise = se.noise.accelerometer;
-      settings.gyroscope_bias_noise = se.noise.gyroscopeBias;
-      settings.accelerometer_bias_noise = se.noise.accelerometerBias;
-      settings.contact_noise = se.noise.contact;
-      settings.initial_attitude_noise = se.initialCovariance.attitude;
-      settings.initial_velocity_noise = se.initialCovariance.velocity;
-      settings.initial_position_noise = se.initialCovariance.position;
-      settings.initial_gyroscope_bias_noise = se.initialCovariance.gyroscopeBias;
-      settings.initial_accelerometer_bias_noise = se.initialCovariance.accelerometerBias;
-      settings.estimate_imu_bias = se.estimateImuBias;
-      settings.contact_position_noise = se.noise.contactPosition;
-      settings.contact_rotation_noise = se.noise.contactRotation;
-      settings.contact_beta0 = se.contact.beta0;
-      settings.contact_beta1 = se.contact.beta1;
-      settings.contact_force_covariance_alpha = se.contact.forceCovarianceAlpha;
-      settings.contact_probability_threshold = se.contact.probabilityThreshold;
-      settings.dynamic_contact_estimation = se.contact.dynamicEstimation;
-      settings.contact_source = se.contact.source;
-      settings.contact_foot_indices = se.contact.footIndices;
-      settings.height_source = se.height.source;
-      settings.height_kinematic_weight = se.height.kinematicWeight;
-      settings.height_ground_z = se.height.groundZ;
-      settings.height_anchor_update_threshold = se.height.anchorUpdateThreshold;
-      settings.lpf_gyro_cutoff = se.lpf.gyroCutoff;
-      settings.lpf_gyro_accel_cutoff = se.lpf.gyroAccelCutoff;
-      settings.lpf_lin_accel_cutoff = se.lpf.linAccelCutoff;
-      settings.lpf_dqJ_cutoff = se.lpf.dqJCutoff;
-      settings.lpf_ddqJ_cutoff = se.lpf.ddqJCutoff;
-      settings.lpf_tauJ_cutoff = se.lpf.tauJCutoff;
+      settings.gyroscope_noise = se.inEKF.noise.gyroscope;
+      settings.accelerometer_noise = se.inEKF.noise.accelerometer;
+      settings.gyroscope_bias_noise = se.inEKF.noise.gyroscopeBias;
+      settings.accelerometer_bias_noise = se.inEKF.noise.accelerometerBias;
+      settings.contact_noise = se.inEKF.noise.contact;
+      settings.initial_attitude_noise = se.inEKF.initialCovariance.attitude;
+      settings.initial_velocity_noise = se.inEKF.initialCovariance.velocity;
+      settings.initial_position_noise = se.inEKF.initialCovariance.position;
+      settings.initial_gyroscope_bias_noise = se.inEKF.initialCovariance.gyroscopeBias;
+      settings.initial_accelerometer_bias_noise = se.inEKF.initialCovariance.accelerometerBias;
+      settings.estimate_imu_bias = se.inEKF.estimateImuBias;
+      settings.contact_position_noise = se.inEKF.noise.contactPosition;
+      settings.contact_rotation_noise = se.inEKF.noise.contactRotation;
+      settings.contact_beta0 = se.inEKF.contact.beta0;
+      settings.contact_beta1 = se.inEKF.contact.beta1;
+      settings.contact_force_covariance_alpha = se.inEKF.contact.forceCovarianceAlpha;
+      settings.contact_probability_threshold = se.inEKF.contact.probabilityThreshold;
+      settings.dynamic_contact_estimation = se.inEKF.contact.dynamicEstimation;
+      settings.contact_source = se.inEKF.contact.source;
+      settings.contact_foot_indices = se.inEKF.contact.footIndices;
+      settings.height_source = se.inEKF.height.source;
+      settings.height_kinematic_weight = se.inEKF.height.kinematicWeight;
+      settings.height_ground_z = se.inEKF.height.groundZ;
+      settings.height_anchor_update_threshold = se.inEKF.height.anchorUpdateThreshold;
+      settings.lpf_gyro_cutoff = se.inEKF.lpf.gyroCutoff;
+      settings.lpf_gyro_accel_cutoff = se.inEKF.lpf.gyroAccelCutoff;
+      settings.lpf_lin_accel_cutoff = se.inEKF.lpf.linAccelCutoff;
+      settings.lpf_dqJ_cutoff = se.inEKF.lpf.dqJCutoff;
+      settings.lpf_ddqJ_cutoff = se.inEKF.lpf.ddqJCutoff;
+      settings.lpf_tauJ_cutoff = se.inEKF.lpf.tauJCutoff;
 
-      state_estimator_ =
-        std::make_unique<state_estimation::InekfFloatingBaseEstimator>(settings);
+      // Which filter to run. An unknown or unimplemented type throws here, so a
+      // misconfigured comparison run fails at configure time instead of quietly
+      // producing data from a different estimator than the one requested.
+      const auto estimator_type = state_estimation::estimatorTypeFromString(se.estimatorType);
+      state_estimator_ = state_estimation::makeFloatingBaseEstimator(estimator_type, settings);
+
       state_estimate_odom_publisher_ =
         get_node()->create_publisher<nav_msgs::msg::Odometry>(se.odomTopic, rclcpp::SystemDefaultsQoS());
       RCLCPP_INFO(
         get_node()->get_logger(),
-        "[HumanoidCentroidalMpcController] InEKF state estimator enabled | imu=%s contacts=%zu joints=%d | "
+        "[HumanoidCentroidalMpcController] state estimator enabled | type=%s imu=%s contacts=%zu joints=%d | "
         "update_rate=%u Hz sampling_time=%.6f s | contact_source=%s | drives_control=%s",
+        state_estimation::toString(estimator_type),
         se.imuFrame.c_str(), se.contactFrames.size(), state_estimator_->numEstimatorJoints(),
-        get_update_rate(), settings.sampling_time, se.contact.source.c_str(),
+        get_update_rate(), settings.sampling_time, se.inEKF.contact.source.c_str(),
         uses_state_estimator(parameters_.floatingBase.source) ? "yes" : "no");
     }
     configure_stage = "building the diagnostics logger";
@@ -796,7 +801,7 @@ void HumanoidCentroidalMpcController::update_state_estimator(const rclcpp::Time&
       time.seconds() + std::max(0.0, parameters_.stateEstimator.warmupSeconds);
   }
 
-  if (parameters_.stateEstimator.contact.source == "scheduled") {
+  if (parameters_.stateEstimator.inEKF.contact.source == "scheduled") {
     // From the control-thread snapshot, not the reference manager directly: see
     // mode_schedule_buffer_. A torn read here would hand the filter a wrong
     // contact flag and add or drop a landmark at the wrong instant.

@@ -31,6 +31,46 @@ namespace legged_robot_mpc_controller::state_estimation
  * wrapper remaps them into the estimator URDF's Pinocchio joint order and
  * zero-fills any URDF joints the controller does not actuate (e.g. wrists).
  */
+/**
+ * Which floating-base estimator the controller should run.
+ *
+ * The two differ in where they linearise, not in what they sense - both fuse the
+ * same IMU and the same forward-kinematics contact measurements.
+ *
+ *  InEkf     Contact-aided right-invariant EKF (Hartley et al., 2018). The state
+ *            lives on the matrix Lie group SE_{N+2}(3) - attitude, velocity,
+ *            position and one column per contact point - and the process model
+ *            is group affine, so the right-invariant error obeys a LOG-LINEAR
+ *            autonomous differential equation. Two consequences matter in
+ *            practice: convergence does not depend on the current estimate, so a
+ *            bad initialisation still converges; and the observability structure
+ *            is exact rather than an artefact of linearisation, so the filter
+ *            cannot spuriously "observe" yaw.
+ *
+ *  LinearKf  Reserved for a conventional linearised Kalman filter (e.g. a
+ *            quaternion-error EKF), whose Jacobians are taken along the current
+ *            estimate. Useful as a baseline: the paper's Fig. 2/3 show the
+ *            invariant filter converging markedly faster from a poor initial
+ *            attitude, and reproducing that on THIS robot is the point of having
+ *            the switch.
+ *
+ * NOT YET IMPLEMENTED: LinearKf (config value 'linearKF'). makeFloatingBaseEstimator() rejects it at
+ * configure time. It is deliberately a hard failure - silently falling back to
+ * the InEKF would make a comparison run look like it succeeded while measuring
+ * the wrong filter.
+ */
+enum class EstimatorType
+{
+  InEkf,
+  LinearKf,
+};
+
+/// Parse the `stateEstimator.estimatorType` string. Throws on an unknown value.
+EstimatorType estimatorTypeFromString(const std::string & name);
+
+/// Human-readable name, for logs and errors.
+const char * toString(EstimatorType type);
+
 class InekfFloatingBaseEstimator
 {
 public:
@@ -306,6 +346,27 @@ private:
 
   bool initialized_{false};
 };
+
+
+/**
+ * Construct the configured floating-base estimator.
+ *
+ * The return type is the concrete InEKF today. When LinearKf is implemented,
+ * lift the small surface the controller actually uses - initialize(), update(),
+ * reset(), initialized(), numEstimatorJoints(), estimatedGyroscopeBias(),
+ * estimatedAccelerometerBias(), diagnostics(), contactFrames() - into an
+ * abstract base and return that instead; those nine methods are the whole
+ * contract, so the extraction is mechanical.
+ *
+ * Diagnostics is InEKF-shaped (NIS, per-contact innovation, landmarks). A filter
+ * without those concepts should leave them unset: DiagnosticsCsvLogger writes
+ * unset columns empty, which numpy/pandas read back as NaN and is therefore
+ * distinguishable from a real zero.
+ *
+ * @throws std::invalid_argument if the requested type is not implemented.
+ */
+std::unique_ptr<InekfFloatingBaseEstimator> makeFloatingBaseEstimator(
+  EstimatorType type, const InekfFloatingBaseEstimator::Settings & settings);
 
 }  // namespace legged_robot_mpc_controller::state_estimation
 

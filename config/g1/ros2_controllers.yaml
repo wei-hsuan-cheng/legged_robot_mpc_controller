@@ -415,6 +415,10 @@ humanoid_centroidal_mpc_controller:
     # switched to "state_estimator".
     stateEstimator:
       enabled: true
+      # inEKF    = contact-aided right-invariant EKF (Hartley et al. 2018)
+      # linearKF = conventional linearised KF baseline; NOT implemented yet,
+      #            selecting it fails at configure time rather than falling back.
+      estimatorType: inEKF
       imuInterfaceName: pelvis_imu
       imuFrame: imu_in_pelvis
       contactFrames:
@@ -433,37 +437,41 @@ humanoid_centroidal_mpc_controller:
       # The pelvis accelerometer swings +-5 m/s^2 while standing (stiff PD/contact
       # vibration), so trust it far less and low-pass it hard; lean on the contact
       # height-anchor instead. Removes the ~4 cm height droop.
-      noise:
-        gyroscope: 1.0e-2
-        accelerometer: 1.5e0
-        gyroscopeBias: 1.0e-5
-        accelerometerBias: 1.0e-4
-        contact: 1.0e-2
-        contactPosition: 2.0e-3
-        contactRotation: 1.0e-2
-      height:
-        source: kinematic
-        kinematicWeight: 0.9
-        anchorUpdateThreshold: 0.05
-        groundZ: 0.0
-      contact:
-        source: scheduled
-        footIndices:
-          [0, 0, 1, 1]
-        beta0:
-          [-20.0, -20.0, -20.0, -20.0]
-        beta1:
-          [0.7, 0.7, 0.7, 0.7]
-        forceCovarianceAlpha: 10.0
-        probabilityThreshold: 0.5
-        dynamicEstimation: false
-      lpf:
-        gyroCutoff: 80.0
-        gyroAccelCutoff: 50.0
-        linAccelCutoff: 15.0
-        dqJCutoff: 10.0
-        ddqJCutoff: 5.0
-        tauJCutoff: 10.0
+      # ---- contact-aided invariant EKF (estimatorType: inEKF) ----
+      # Estimator-specific tuning. A future linearKF: block sits alongside this
+      # one; shared plumbing (imu*, contactFrames, odom*, validation) stays above.
+      inEKF:
+        noise:
+          gyroscope: 1.0e-2
+          accelerometer: 1.5e0
+          gyroscopeBias: 1.0e-5
+          accelerometerBias: 1.0e-4
+          contact: 1.0e-2
+          contactPosition: 2.0e-3
+          contactRotation: 1.0e-2
+        height:
+          source: kinematic
+          kinematicWeight: 0.9
+          anchorUpdateThreshold: 0.05
+          groundZ: 0.0
+        contact:
+          source: scheduled
+          footIndices:
+            [0, 0, 1, 1]
+          beta0:
+            [-20.0, -20.0, -20.0, -20.0]
+          beta1:
+            [0.7, 0.7, 0.7, 0.7]
+          forceCovarianceAlpha: 10.0
+          probabilityThreshold: 0.5
+          dynamicEstimation: false
+        lpf:
+          gyroCutoff: 80.0
+          gyroAccelCutoff: 50.0
+          linAccelCutoff: 15.0
+          dqJCutoff: 10.0
+          ddqJCutoff: 5.0
+          tauJCutoff: 10.0
 
     ocs2:
       interface:

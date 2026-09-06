@@ -482,4 +482,50 @@ FloatingBaseEstimate InekfFloatingBaseEstimator::updateImpl(
   return estimate;
 }
 
+/******************************************************************************/
+
+EstimatorType estimatorTypeFromString(const std::string & name)
+{
+  if (name == "inEKF") {
+    return EstimatorType::InEkf;
+  }
+  if (name == "linearKF") {
+    return EstimatorType::LinearKf;
+  }
+  throw std::invalid_argument(
+    "[FloatingBaseEstimator] unknown stateEstimator.estimatorType '" + name +
+    "'. Expected 'inEKF' or 'linearKF'.");
+}
+
+const char * toString(EstimatorType type)
+{
+  switch (type) {
+    case EstimatorType::InEkf:
+      return "inEKF";
+    case EstimatorType::LinearKf:
+      return "linearKF";
+  }
+  return "unknown";
+}
+
+std::unique_ptr<InekfFloatingBaseEstimator> makeFloatingBaseEstimator(
+  EstimatorType type, const InekfFloatingBaseEstimator::Settings & settings)
+{
+  switch (type) {
+    case EstimatorType::InEkf:
+      return std::make_unique<InekfFloatingBaseEstimator>(settings);
+
+    case EstimatorType::LinearKf:
+      // Deliberately a hard failure rather than a fallback to the InEKF. The
+      // whole point of the switch is to compare filters on identical logs; a
+      // silent fallback would produce a run that looks like linear_kf and is
+      // actually in_ekf, which is worse than not running at all.
+      throw std::invalid_argument(
+        "[FloatingBaseEstimator] estimatorType 'linearKF' is not implemented yet. "
+        "Use 'inEKF', or implement the linear filter and return it here "
+        "(see makeFloatingBaseEstimator in inekf_floating_base_estimator.cpp).");
+  }
+  throw std::invalid_argument("[FloatingBaseEstimator] unhandled EstimatorType");
+}
+
 }  // namespace legged_robot_mpc_controller::state_estimation
