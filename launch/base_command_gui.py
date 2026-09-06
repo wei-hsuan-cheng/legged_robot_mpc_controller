@@ -280,7 +280,7 @@ class YawRateBar:
 
 
 class HeightBar:
-    def __init__(self, parent, on_change, center=0.7925):
+    def __init__(self, parent, on_change, center=0.6):
         self._on_change = on_change
         self._canvas = tk.Canvas(parent, width=48, height=150, bg="#2c2c2c", highlightthickness=0)
         self._x = 24.0
@@ -407,7 +407,7 @@ class baseCommandGui(tk.Tk):
         max_linear_velocity_x,
         max_linear_velocity_y,
         max_yaw_rate,
-        reference_base_height=0.7925,
+        reference_base_height=0.6,
     ):
         super().__init__()
         self.title("Humanoid MPC Base Command GUI (Pelvis Frame)")
@@ -502,7 +502,7 @@ class PublisherNode(Node):
         self.declare_parameter("max_linear_velocity_x", 2.4)
         self.declare_parameter("max_linear_velocity_y", 1.2)
         self.declare_parameter("max_yaw_rate", 1.0)
-        self.declare_parameter("reference_base_height", 0.7925)
+        self.declare_parameter("reference_base_height", 0.6)
         self.max_linear_velocity_x = float(self.get_parameter("max_linear_velocity_x").value)
         self.max_linear_velocity_y = float(self.get_parameter("max_linear_velocity_y").value)
         self.max_yaw_rate = float(self.get_parameter("max_yaw_rate").value)

@@ -43,7 +43,7 @@ except ImportError as exc:  # pragma: no cover
     sys.exit(f"needs a sourced ROS 2 environment with ocs2_msgs: {exc}")
 
 
-NOMINAL_HEIGHT = 0.7925
+NOMINAL_HEIGHT = 0.6
 PUBLISH_HZ = 50.0
 
 
