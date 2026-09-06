@@ -83,7 +83,8 @@ class TargetTrajectoriesCalculatorBase {
 
   /**
    * Converts desired velocities to TargetTrajectories.
-   * @param [in] commandedVelocities : [v_x, v_y, v_yaw] defined in pelvis frame
+   * @param [in] commandedVelocities : [v_x, v_y, pelvis_height, yaw_rate],
+   *                                    with the planar twist in the pelvis frame
    * @param [in] observation : the current observation
    */
   virtual TargetTrajectories commandedVelocityToTargetTrajectories(const vector4_t& commandedVelocities,
@@ -99,14 +100,17 @@ class TargetTrajectoriesCalculatorBase {
 
   vector6_t getDeltaBaseTarget(const vector4_t& commadLinePoseTarget, const vector6_t& currentPoseTarget) const;
 
-  vector4_t filterAndTransformVelCommandToLocal(const vector4_t& commandedVelLocal,
-                                                const scalar_t& currentEulerZ,
-                                                scalar_t filterAlpha) const;
+  vector4_t transformVelCommandToGlobal(const vector4_t& commandedVelLocal,
+                                        const scalar_t& currentEulerZ) const;
 
-  vector6_t integrateTargetBasePose(const vector6_t& currentPose,
-                                    const vector3_t& averageVel,
-                                    scalar_t deltaPelvisHeight,
-                                    scalar_t deltaT) const;
+  /**
+   * Integrates a constant pelvis-frame planar twist from the current pose using
+   * the SE(2) exponential map. The target depends only on the command and the
+   * current pose anchor; measured velocity is deliberately not used.
+   */
+  vector6_t integrateBodyTwistTargetBasePose(const vector6_t& currentPose,
+                                             const vector4_t& commandedVelLocal,
+                                             scalar_t deltaT) const;
 
   const MpcRobotModelBase<scalar_t>* mpcRobotModelPtr_;
 

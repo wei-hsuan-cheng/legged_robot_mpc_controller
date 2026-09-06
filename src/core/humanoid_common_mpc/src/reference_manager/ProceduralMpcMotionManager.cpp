@@ -76,6 +76,14 @@ void ProceduralMpcMotionManager::setVelocityCommand(const WalkingVelocityCommand
 /******************************************************************************************************/
 /******************************************************************************************************/
 
+void ProceduralMpcMotionManager::requestVelocityTargetFilterReset() {
+  walkingVelocityTarget_.requestFilterReset();
+}
+
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+
 void ProceduralMpcMotionManager::setBasePoseCommand(const BasePoseCommand& command) {
   basePoseTarget_.setCommand(command);
 }
@@ -86,6 +94,9 @@ void ProceduralMpcMotionManager::setBasePoseCommand(const BasePoseCommand& comma
 
 void ProceduralMpcMotionManager::setTargetMode(TargetMode mode) {
   const TargetMode previousMode = targetMode_.load(std::memory_order_acquire);
+  if (mode != previousMode) {
+    walkingVelocityTarget_.requestFilterReset();
+  }
   if (mode == TargetMode::BasePose && previousMode != TargetMode::BasePose) {
     basePoseTarget_.requestCurrentPoseLatch();
   }
@@ -118,9 +129,23 @@ bool ProceduralMpcMotionManager::transitionToSlowerGait(const vector4_t& velComm
   bool slowerGaitRequested = (std::abs(velCommandVec(0)) < cfg.minLinVelCmd && std::abs(velCommandVec(1)) < cfg.minLinVelCmd &&
                               std::abs(velCommandVec(3)) < cfg.minAngVelCmd);
 
+  // NOTE the third term reads baseVelocity, not velCommandVec.
+  //
+  // It used to read `velCommandVec(3)`, which is the COMMAND - and the command
+  // is what `slowerGaitRequested` above has already established is near zero.
+  // The yaw term of this check was therefore trivially true whenever the
+  // operator stopped commanding, so the guard degenerated to "vx and vy are
+  // small" and the FSM would drop into stance while the base was still turning.
+  // The sibling transitionToFasterGait() uses baseVelocity for all three, and
+  // the variable is named baseSpeedSlowEnough, so this was a copy-paste slip.
+  //
+  // Why it matters: stance cannot take a recovery step. Committing to it while
+  // the robot still carries momentum leaves a residual lean that nothing can
+  // correct, and it grows until the robot falls - which is exactly the
+  // "leans over and falls a moment after I stop walking" failure.
   bool baseSpeedSlowEnough = (std::abs(baseVelocity(0)) < cfg.minLinVelCmd + cfg.linVelErrorThresh &&
                               std::abs(baseVelocity(1)) < cfg.minLinVelCmd + cfg.linVelErrorThresh &&
-                              std::abs(velCommandVec(3)) < cfg.minAngVelCmd + cfg.angVelErrorThresh);
+                              std::abs(baseVelocity(3)) < cfg.minAngVelCmd + cfg.angVelErrorThresh);
 
   return slowerGaitRequested && baseSpeedSlowEnough;
 }
@@ -133,14 +158,19 @@ void ProceduralMpcMotionManager::preSolverRun(scalar_t initTime,
                                               scalar_t finalTime,
                                               const vector_t& initState,
                                               const ReferenceManagerInterface& referenceManager) {
-  if (getTargetMode() == TargetMode::StairClimb) {
+  const TargetMode targetMode = getTargetMode();
+  switchedModelReferenceManagerPtr_->setBaseTrackingMode(
+      targetMode == TargetMode::BasePose ? SwitchedModelReferenceManager::BaseTrackingMode::AbsolutePose
+                                         : SwitchedModelReferenceManager::BaseTrackingMode::RelativeTwist);
+
+  if (targetMode == TargetMode::StairClimb) {
     switchedModelReferenceManagerPtr_->setTerrainWalkActive(false);
     runStairClimbing(initTime, initState);
     return;
   }
   // Terrain-aware walking rides the velocity-command path below; the online
   // foothold planner in the reference manager does the terrain adaptation.
-  switchedModelReferenceManagerPtr_->setTerrainWalkActive(getTargetMode() == TargetMode::TerrainWalk);
+  switchedModelReferenceManagerPtr_->setTerrainWalkActive(targetMode == TargetMode::TerrainWalk);
   if (activeStairClimbingPlan_) {
     // Left stair climbing mode: drop the plan so the swing planner reverts to
     // flat ground and the gait FSM takes over again from stance.
@@ -153,7 +183,7 @@ void ProceduralMpcMotionManager::preSolverRun(scalar_t initTime,
   }
 
   vector4_t filteredVelCommand;
-  if (getTargetMode() == TargetMode::BasePose) {
+  if (targetMode == TargetMode::BasePose) {
     BasePoseTarget::Output target = basePoseTarget_.evaluate(initTime, finalTime, initState);
     switchedModelReferenceManagerPtr_->setTargetTrajectories(std::move(target.targetTrajectories));
     filteredVelCommand = target.motionCommand;
@@ -163,10 +193,25 @@ void ProceduralMpcMotionManager::preSolverRun(scalar_t initTime,
     filteredVelCommand = target.conditionedCommand;
   }
 
-  static GaitModeStateConfig currentCfg = gaitModeStates_[currentGaitMode_];
+  // Derived from currentGaitMode_ on every call, NOT cached.
+  //
+  // This was a function-local `static`, which made it a single value shared
+  // across every instance and every activation, initialised once on the first
+  // call ever and thereafter updated only inside the two transition branches
+  // below. It desynchronised from currentGaitMode_ in normal operation: the
+  // stair-climbing exit path above and the TerrainWalk branch below both assign
+  // `currentGaitMode_ = 0` without touching it, so the FSM would go on testing
+  // the speed thresholds of a mode it was no longer in, and the next
+  // `currentGaitMode_++` would step from 0 while the thresholds came from some
+  // other mode. Being `static`, it also carried the previous run's gait state
+  // into a fresh activation.
+  //
+  // currentCfg IS BY DEFINITION the config of the current mode, so deriving it
+  // makes the desynchronisation unrepresentable rather than merely fixed.
+  const GaitModeStateConfig& currentCfg = gaitModeStates_[currentGaitMode_];
   vector6_t baseVelocity = mpcRobotModelPtr_->getBaseComVelocity(initState);
 
-  if (getTargetMode() == TargetMode::TerrainWalk) {
+  if (targetMode == TargetMode::TerrainWalk) {
     // Terrain-aware walking uses a fixed, deliberately slow gait with generous
     // double support (the "terrain_walk" entry in gait.yaml, matching the
     // stair-climb swing/stance timing) instead of the velocity-based gait FSM,
@@ -177,21 +222,27 @@ void ProceduralMpcMotionManager::preSolverRun(scalar_t initTime,
     currentGaitMode_ = 0;
     currentGaitCommand_ = moving ? terrainGait : "stance";
   } else if (initTime > lastGaitChangeTime_ + 0.2) {  // do not change the gait pattern for at least 0.2s
-    if (transitionToFasterGait(filteredVelCommand, baseVelocity, currentCfg)) {
+    // The bounds are enforced explicitly rather than left to the sentinel
+    // thresholds in gaitModeStates_ ("stance" has minLinVelCmd = -0.1, which no
+    // absolute value can go below; "run" has maxLinVelCmd = 10.0, which none
+    // reaches). Those do hold today, but they are the only thing standing
+    // between this and a size_t underflow at mode 0 or an out-of-bounds read at
+    // the last mode, and they are easy to invalidate by editing a threshold.
+    if (currentGaitMode_ + 1 < gaitModeStates_.size() &&
+        transitionToFasterGait(filteredVelCommand, baseVelocity, currentCfg)) {
       std::cout << "filteredVelCommand: " << filteredVelCommand.transpose() << std::endl;
       std::cout << "Linear limits: " << currentCfg.minLinVelCmd << ", " << currentCfg.maxLinVelCmd << std::endl;
       currentGaitMode_++;
-      currentCfg = gaitModeStates_[currentGaitMode_];
-      currentGaitCommand_ = currentCfg.gaitCommand;
-      std::cout << "ProceduralMpcMotionManager: Increasing to gait:" << currentCfg.gaitCommand << std::endl;
+      currentGaitCommand_ = gaitModeStates_[currentGaitMode_].gaitCommand;
+      std::cout << "ProceduralMpcMotionManager: Increasing to gait:" << currentGaitCommand_ << std::endl;
       lastGaitChangeTime_ = initTime;
-    } else if (transitionToSlowerGait(filteredVelCommand, baseVelocity, currentCfg)) {
+    } else if (currentGaitMode_ > 0 &&
+               transitionToSlowerGait(filteredVelCommand, baseVelocity, currentCfg)) {
       std::cout << "filteredVelCommand: " << filteredVelCommand.transpose() << std::endl;
       std::cout << "Linear limits: " << currentCfg.minLinVelCmd << ", " << currentCfg.maxLinVelCmd << std::endl;
       currentGaitMode_--;
-      currentCfg = gaitModeStates_[currentGaitMode_];
-      currentGaitCommand_ = currentCfg.gaitCommand;
-      std::cout << "ProceduralMpcMotionManager: Decreasing to gait:" << currentCfg.gaitCommand << std::endl;
+      currentGaitCommand_ = gaitModeStates_[currentGaitMode_].gaitCommand;
+      std::cout << "ProceduralMpcMotionManager: Decreasing to gait:" << currentGaitCommand_ << std::endl;
       lastGaitChangeTime_ = initTime;
     }
   }

@@ -43,27 +43,34 @@ class BreakFrequencyAlphaFilter final {
    * @param [in] breakFrequency: Break frequency (cut-off frequency) in Hz.
    */
   BreakFrequencyAlphaFilter(scalar_t breakFrequency, const vector_t& y_init)
-      : breakDeltaT_(1 / (2 * M_PI * breakFrequency)), y_last_(y_init) {
-    lastTimeFilterCalled = std::chrono::steady_clock::now();
-  };
+      : breakDeltaT_(1 / (2 * M_PI * breakFrequency)), y_last_(y_init) {}
 
-  vector_t getFilteredVector(const vector_t& x) {
+  vector_t getFilteredVector(const vector_t& x, scalar_t time) {
     assert(x.size() == y_last_.size());
-    scalar_t alpha = computeAlpha();
-    return (alpha * x + (1 - alpha) * y_last_);
+    if (!initialized_ || time < lastTimeFilterCalled_) {
+      initialized_ = true;
+      lastTimeFilterCalled_ = time;
+      return y_last_;
+    }
+
+    const scalar_t deltaTime = time - lastTimeFilterCalled_;
+    const scalar_t alpha = deltaTime / (deltaTime + breakDeltaT_);
+    y_last_ = alpha * x + (1 - alpha) * y_last_;
+    lastTimeFilterCalled_ = time;
+    return y_last_;
+  }
+
+  void reset(const vector_t& y_init) {
+    assert(y_init.size() == y_last_.size());
+    y_last_ = y_init;
+    initialized_ = false;
   }
 
  private:
-  scalar_t computeAlpha() {
-    auto now = std::chrono::steady_clock::now();
-    std::chrono::duration<double> durationInSeconds = now - lastTimeFilterCalled;
-    scalar_t delta_t = durationInSeconds.count();
-    return (delta_t / (delta_t + breakDeltaT_));
-  }
-
   scalar_t breakDeltaT_;
   vector_t y_last_;
-  std::chrono::time_point<std::chrono::steady_clock> lastTimeFilterCalled;
+  scalar_t lastTimeFilterCalled_{0.0};
+  bool initialized_{false};
 };
 
 }  // namespace ocs2::humanoid

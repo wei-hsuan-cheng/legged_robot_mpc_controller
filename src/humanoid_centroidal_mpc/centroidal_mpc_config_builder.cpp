@@ -134,21 +134,23 @@ ocs2::humanoid::CentroidalMpcInterface::Config buildCentroidalMpcConfig(
   // --- default joint state used to build the centroidal model info (legacy reference.info) ---
   checkJointArraySize(p.reference.defaultJointState, numJoints, "reference.defaultJointState");
   config.referenceJointState = toVector(p.reference.defaultJointState);
+  config.useInertiaWeightedAngularMomentum = p.reference.useInertiaWeightedAngularMomentum;
 
   // --- initial state: [normalized momentum (6), base pose (6), joint positions] ---
   //
-  // DERIVED from the nominal standing posture, not configured. The observation is
-  // rebuilt from the ros2_control state interfaces, so this is a construction-time
-  // placeholder for the MPC interface - never a pose the robot is asserted to be
-  // at.
+  // DERIVED, not configured. This value is a construction-time placeholder for
+  // the MPC interface and nothing more: on_activate() polls the hardware state
+  // interfaces and refuses to activate unless it can read an actual pose, and
+  // build_observation() overwrites every element from those interfaces. There is
+  // therefore no runtime pose to configure, and having one invited it to drift
+  // out of step with initial_pose.yaml - which is the single source of truth for
+  // where the robot actually starts.
   //
-  // It used to be duplicated in ocs2.initialState, restating exactly what
-  // reference.defaultBaseHeight and reference.defaultJointState already say. Two
-  // copies of one posture is one too many: they drift apart silently, and the
-  // config then claims a starting pose that disagrees with initial_pose.yaml,
-  // which is the actual source of truth for where the robot spawns.
+  // Built from the nominal standing posture so the placeholder is at least a
+  // self-consistent configuration: zero momentum, the default base height, and
+  // the default joint state.
   config.initialState = vector_t::Zero(static_cast<Eigen::Index>(12 + numJoints));
-  config.initialState(8) = p.reference.defaultBaseHeight;   // base pose z
+  config.initialState(8) = p.reference.defaultBaseHeight;
   config.initialState.tail(static_cast<Eigen::Index>(numJoints)) = config.referenceJointState;
 
   // --- costs ---
@@ -218,6 +220,24 @@ ocs2::humanoid::CentroidalMpcInterface::Config buildCentroidalMpcConfig(
     config.verbose);
 
   config.icpCostWeights = vector2_t::Constant(p.costs.icpErrorWeight);
+
+  config.captureFootPlacement.enabled = p.costs.captureFootPlacement.enabled;
+  config.captureFootPlacement.gain = p.costs.captureFootPlacement.gain;
+  config.captureFootPlacement.stepWidth = p.costs.captureFootPlacement.stepWidth;
+  config.captureFootPlacement.maxAdjustment = p.costs.captureFootPlacement.maxAdjustment;
+  config.captureFootPlacement.trackingWeight = p.costs.captureFootPlacement.trackingWeight;
+  config.captureFootPlacement.projectionHorizon = p.costs.captureFootPlacement.projectionHorizon;
+  config.captureFootPlacement.stepLengthGain = p.costs.captureFootPlacement.stepLengthGain;
+  config.captureFootPlacement.footCenterOffset = p.costs.captureFootPlacement.footCenterOffset;
+
+  config.armSwing.enabled = p.reference.armSwing.enabled;
+  config.armSwing.shoulderPitchAmplitude = p.reference.armSwing.shoulderPitchAmplitude;
+  config.armSwing.elbowAmplitude = p.reference.armSwing.elbowAmplitude;
+  config.armSwing.phaseOffset = p.reference.armSwing.phaseOffset;
+  config.armSwing.maxOffset = p.reference.armSwing.maxOffset;
+
+  config.useTerrainHeightEstimate = p.model.useTerrainHeightEstimate;
+  config.maxTerrainHeightStep = p.model.maxTerrainHeightStep;
 
   for (const auto& costName : p.costs.taskSpaceCosts.names) {
     if (costName.empty()) {

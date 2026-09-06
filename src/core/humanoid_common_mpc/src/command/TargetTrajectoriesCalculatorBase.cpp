@@ -115,17 +115,12 @@ vector6_t TargetTrajectoriesCalculatorBase::getCurrentBasePoseTarget(const vecto
 /******************************************************************************************************/
 /******************************************************************************************************/
 
-vector4_t TargetTrajectoriesCalculatorBase::filterAndTransformVelCommandToLocal(const vector4_t& commandedVelLocal,
-                                                                                const scalar_t& currentEulerZ,
-                                                                                scalar_t filterAlpha) const {
-  static vector4_t commVelFiltered = vector4_t::Zero();
+vector4_t TargetTrajectoriesCalculatorBase::transformVelCommandToGlobal(const vector4_t& commandedVelLocal,
+                                                                        const scalar_t& currentEulerZ) const {
+  vector4_t globalTargetVel = commandedVelLocal;
 
-  commVelFiltered = commVelFiltered * filterAlpha + commandedVelLocal * (1 - filterAlpha);
-
-  vector4_t globalTargetVel = commVelFiltered;
-
-  globalTargetVel(0) = std::cos(currentEulerZ) * commVelFiltered[0] - std::sin(currentEulerZ) * commVelFiltered[1];
-  globalTargetVel(1) = std::sin(currentEulerZ) * commVelFiltered[0] + std::cos(currentEulerZ) * commVelFiltered[1];
+  globalTargetVel(0) = std::cos(currentEulerZ) * commandedVelLocal[0] - std::sin(currentEulerZ) * commandedVelLocal[1];
+  globalTargetVel(1) = std::sin(currentEulerZ) * commandedVelLocal[0] + std::cos(currentEulerZ) * commandedVelLocal[1];
 
   return globalTargetVel;
 }
@@ -134,16 +129,31 @@ vector4_t TargetTrajectoriesCalculatorBase::filterAndTransformVelCommandToLocal(
 /******************************************************************************************************/
 /******************************************************************************************************/
 
-vector6_t TargetTrajectoriesCalculatorBase::integrateTargetBasePose(const vector6_t& currentPose,
-                                                                    const vector3_t& averageVel,
-                                                                    scalar_t deltaPelvisHeight,
-                                                                    scalar_t deltaT) const {
+vector6_t TargetTrajectoriesCalculatorBase::integrateBodyTwistTargetBasePose(
+    const vector6_t& currentPose, const vector4_t& commandedVelLocal, scalar_t deltaT) const {
   vector6_t targetPose = currentPose;
 
-  targetPose[0] += averageVel[0] * deltaT;
-  targetPose[1] += averageVel[1] * deltaT;
-  targetPose[2] = deltaPelvisHeight;
-  targetPose[3] += averageVel[2] * deltaT;
+  const scalar_t vx = commandedVelLocal(0);
+  const scalar_t vy = commandedVelLocal(1);
+  const scalar_t yawRate = commandedVelLocal(3);
+  const scalar_t deltaYaw = yawRate * deltaT;
+
+  vector2_t displacementBody;
+  if (std::abs(yawRate) < 1e-8) {
+    displacementBody << vx * deltaT, vy * deltaT;
+  } else {
+    const scalar_t sinDelta = std::sin(deltaYaw);
+    const scalar_t oneMinusCosDelta = 1.0 - std::cos(deltaYaw);
+    displacementBody << (sinDelta * vx - oneMinusCosDelta * vy) / yawRate,
+                        (oneMinusCosDelta * vx + sinDelta * vy) / yawRate;
+  }
+
+  const scalar_t cosYaw = std::cos(currentPose(3));
+  const scalar_t sinYaw = std::sin(currentPose(3));
+  targetPose(0) += cosYaw * displacementBody(0) - sinYaw * displacementBody(1);
+  targetPose(1) += sinYaw * displacementBody(0) + cosYaw * displacementBody(1);
+  targetPose(2) = commandedVelLocal(2);
+  targetPose(3) += deltaYaw;
   targetPose[4] = 0.0;
   targetPose[5] = 0.0;
   return targetPose;

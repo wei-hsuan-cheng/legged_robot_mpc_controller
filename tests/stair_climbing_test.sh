@@ -56,6 +56,12 @@ pkill -f mujoco_ros2_control 2>/dev/null
 sleep 2
 
 EXTRA_ARGS=()
+# Optional extra launch arguments, e.g.
+#   EXTRA_LAUNCH_ARGS="floatingBaseSource:=state_estimator"
+if [ -n "${EXTRA_LAUNCH_ARGS:-}" ]; then
+  # shellcheck disable=SC2206
+  EXTRA_ARGS+=($EXTRA_LAUNCH_ARGS)
+fi
 if [ -n "$STAIR_CONFIG" ]; then
   EXTRA_ARGS+=("stairClimbingFile:=$STAIR_CONFIG")
 fi

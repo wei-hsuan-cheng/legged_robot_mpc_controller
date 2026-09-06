@@ -157,16 +157,10 @@ controller_interface::CallbackReturn HumanoidWbMpcController::on_configure(
       ocs2::scalar_t init_time,
       ocs2::scalar_t /* final_time */,
       const ocs2::vector_t& init_state) {
-        auto target_trajectories = target_trajectories_calculator_->commandedVelocityToTargetTrajectories(
+        return target_trajectories_calculator_->commandedVelocityToTargetTrajectories(
           velocity_target,
           init_time,
           init_state);
-        heading_reference_.apply(
-          velocity_target(3),
-          init_time,
-          control_model_->getBasePose(init_state)[3],
-          target_trajectories);
-        return target_trajectories;
       };
     auto base_pose_target_to_target_trajectories =
       [this](
@@ -253,7 +247,7 @@ controller_interface::CallbackReturn HumanoidWbMpcController::on_activate(
     return controller_interface::CallbackReturn::ERROR;
   }
 
-  heading_reference_.reset();
+  motion_manager_->requestVelocityTargetFilterReset();
   yaw_unwrapper_.reset();
   initial_observation_state_ = mpc_interface_->getInitialState();
   const auto initial_observation = build_observation(get_node()->now());
@@ -337,7 +331,7 @@ controller_interface::InterfaceConfiguration HumanoidWbMpcController::state_inte
     }
   }
 
-  if (parameters_.floatingBase.source == "state_interfaces") {
+  if (parameters_.floatingBase.source == "ground_truth_state") {
     if (config.type == controller_interface::interface_configuration_type::NONE) {
       config.type = controller_interface::interface_configuration_type::INDIVIDUAL;
     }
@@ -587,7 +581,7 @@ ocs2::SystemObservation HumanoidWbMpcController::build_observation(const rclcpp:
     }
   }
 
-  if (parameters_.floatingBase.source == "state_interfaces") {
+  if (parameters_.floatingBase.source == "ground_truth_state") {
     read_floating_base_state(observation);
   } else if (has_odometry) {
     model.setBasePosition(

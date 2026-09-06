@@ -280,7 +280,7 @@ class YawRateBar:
 
 
 class HeightBar:
-    def __init__(self, parent, on_change):
+    def __init__(self, parent, on_change, center=0.6):
         self._on_change = on_change
         self._canvas = tk.Canvas(parent, width=48, height=150, bg="#2c2c2c", highlightthickness=0)
         self._x = 24.0
@@ -288,7 +288,10 @@ class HeightBar:
         self._bottom = 140.0
         self._minimum = 0.2
         self._maximum = 1.0
-        self._center = 0.7925
+        # Nominal pelvis height, from the reference_base_height parameter so the
+        # slider's centre and its reset value follow ocs2.reference.defaultBaseHeight
+        # instead of drifting apart from it.
+        self._center = center
         self._value = self._center
         self._dragging = False
         self._hovering = False
@@ -404,6 +407,7 @@ class baseCommandGui(tk.Tk):
         max_linear_velocity_x,
         max_linear_velocity_y,
         max_yaw_rate,
+        reference_base_height=0.6,
     ):
         super().__init__()
         self.title("Humanoid MPC Base Command GUI (Pelvis Frame)")
@@ -412,6 +416,7 @@ class baseCommandGui(tk.Tk):
         self._max_linear_velocity_x = max_linear_velocity_x
         self._max_linear_velocity_y = max_linear_velocity_y
         self._max_yaw_rate = max_yaw_rate
+        self._reference_base_height = reference_base_height
 
         container = tk.Frame(self, bg="#2c2c2c")
         container.pack(padx=16, pady=16)
@@ -446,8 +451,8 @@ class baseCommandGui(tk.Tk):
             fg="white",
             font=("Helvetica", 12, "bold"),
         ).grid(row=2, column=0)
-        self._height = HeightBar(height_frame, self._height_changed)
-        self._height.set(0.7925)
+        self._height = HeightBar(height_frame, self._height_changed, self._reference_base_height)
+        self._height.set(self._reference_base_height)
         self._height._canvas.grid(row=3, column=0)
         tk.Label(
             height_frame,
@@ -478,7 +483,7 @@ class baseCommandGui(tk.Tk):
     def _reset(self):
         self._linear.reset()
         self._yaw.reset()
-        self._height.set(0.7925)
+        self._height.set(self._reference_base_height)
 
     def _publish_periodically(self):
         # Joystick vertical axis = forward (vx); horizontal = lateral (ROS +y is left,
@@ -497,9 +502,11 @@ class PublisherNode(Node):
         self.declare_parameter("max_linear_velocity_x", 2.4)
         self.declare_parameter("max_linear_velocity_y", 1.2)
         self.declare_parameter("max_yaw_rate", 1.0)
+        self.declare_parameter("reference_base_height", 0.6)
         self.max_linear_velocity_x = float(self.get_parameter("max_linear_velocity_x").value)
         self.max_linear_velocity_y = float(self.get_parameter("max_linear_velocity_y").value)
         self.max_yaw_rate = float(self.get_parameter("max_yaw_rate").value)
+        self.reference_base_height = float(self.get_parameter("reference_base_height").value)
         qos = QoSProfile(depth=25, reliability=ReliabilityPolicy.BEST_EFFORT)
         self._publisher = self.create_publisher(
             WalkingVelocityCommand,
@@ -526,6 +533,7 @@ def main():
         node.max_linear_velocity_x,
         node.max_linear_velocity_y,
         node.max_yaw_rate,
+        node.reference_base_height,
     )
     try:
         app.mainloop()

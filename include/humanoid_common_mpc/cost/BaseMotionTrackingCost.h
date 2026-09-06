@@ -45,12 +45,15 @@ public:
 private:
   BaseMotionTrackingCost(const BaseMotionTrackingCost& other) = default;
 
-  vector_t getDeviation(
+  struct DeviationLinearization {
+    vector_t deviation;
+    matrix_t jacobian;
+  };
+
+  DeviationLinearization getDeviationLinearization(
     scalar_t time,
     const vector_t& state,
     const TargetTrajectories& target_trajectories) const;
-
-  matrix_t getStateJacobian() const;
 
   matrix_t gains_;
   const SwitchedModelReferenceManager* reference_manager_ptr_;

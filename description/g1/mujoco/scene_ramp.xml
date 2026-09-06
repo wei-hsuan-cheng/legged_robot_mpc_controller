@@ -1,0 +1,81 @@
+<mujoco model="g1_scene_ramp">
+  <!--
+    Flat ground with a gentle 3 degree ramp starting flush at the origin and
+    rising along +x. For testing terrain generalisation: the stack has to notice
+    that the ground is no longer at z = 0 and place the swing foot accordingly.
+
+    slope.xml is not usable for this. It sits at x in [-5, -1] and, being a
+    rotated box with its low corner in the air, presents a ~0.27 m ledge at its
+    near edge - a step up, not a ramp. Here the slab is positioned so that the LOW
+    edge of its top surface lands exactly on (x, z) = (1.5, 0), flush with the floor.
+
+    It starts 1.5 m ahead of the spawn rather than at the origin so the robot has
+    clear flat ground to spawn and settle on and then walks ONTO the ramp. With
+    the low edge at the origin the robot was being thrown at spawn - angular rates
+    of 8.6 rad/s, down at t = 0.3 s - because its feet straddle x = 0 and sit
+    inside the slab edge before the controller has done anything.
+
+    Geometry: half-size (2, 1, 0.02), rotated -3 deg about Y so the surface rises
+    with +x (a positive rotation about +Y tilts local +x downward, hence the
+    negative sign), centred at (3.49831, 0, 0.084699). That puts the top
+    surface at z = 0 at x = 1.5 and z = 0.209 at x = 5.49.
+
+    The slab is deliberately THIN. A thick box positioned to present the same
+    surface buries most of its volume under the infinite floor plane, and MuJoCo
+    resolves that as a huge static penetration - the robot was being thrown at
+    spawn with angular rates of 8.6 rad/s, falling at t = 0.3 s, before it had
+    taken a step. The contact exclusion below is kept as well, but keeping the
+    penetration small is what actually makes the scene usable.
+  -->
+
+  <!-- legged robot -->
+  <include file="g1_29dof.xml"/>
+
+  <!-- Match the legacy whole-body MuJoCo simulation timestep. -->
+  <option timestep="0.0005"/>
+
+  <statistic center="1.0 0.7 1.0" extent="0.8"/>
+
+  <visual>
+    <headlight diffuse="0.6 0.6 0.6" ambient="0.1 0.1 0.1" specular="0.9 0.9 0.9"/>
+    <rgba haze="0.15 0.25 0.35 1"/>
+    <global azimuth="-140" elevation="-20"/>
+  </visual>
+
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb2="0.835 0.761 0.612" rgb1="0.639 0.722 0.8" width="512" height="512"/>
+
+    <texture type="2d" name="groundplane" builtin="checker" mark="random"
+         rgb1="0.25 0.3 0.35" rgb2="0.15 0.2 0.25"
+         markrgb="0.6 0.7 0.8"
+         width="512" height="512"/>
+
+    <material name="groundplane" texture="groundplane" texuniform="true" texrepeat="2 2" reflectance="0.05"/>
+  </asset>
+
+  <worldbody>
+    <light pos="1 0 3.5" dir="0 0 -1" directional="true"/>
+    <geom name="floor" size="0 0 0.05" type="plane" material="groundplane"
+          priority="1" friction="0.8 0.1 0.001"/>
+
+    <body name="ramp" pos="3.49831 0 0.084699">
+      <geom name="ramp_surface"
+            type="box"
+            size="2.0 1.0 0.02"
+            quat="0.9996573 0 -0.0261769 0"
+            rgba="0.55 0.6 0.65 1"
+            priority="1"
+            friction="0.8 0.1 0.001"/>
+    </body>
+  </worldbody>
+
+  <contact>
+    <!--
+      The near end of the slab still dips a few centimetres below the floor plane.
+      Skip that static pair so it cannot generate contact forces; both geoms still
+      collide with the robot normally.
+    -->
+    <exclude body1="world" body2="ramp"/>
+  </contact>
+
+</mujoco>

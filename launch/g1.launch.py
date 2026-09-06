@@ -22,7 +22,13 @@ def generate_launch_description():
 
     rviz_default = os.path.join(mpc_share_dir, "config", "rviz", "humanoid.rviz")
     initial_pose_default = os.path.join(mpc_share_dir, "config", "g1", "initial_pose.yaml")
-    lib_folder_default = os.path.join("auto_generated", "g1")
+    # Per-branch CppAD cache. The generated libraries are keyed by model NAME
+    # only, with nothing recording the dimensions they were built for, so two
+    # branches whose costs differ in parameter count will silently load each
+    # other's libraries and segfault inside functor_generic_model.hpp with
+    # "Invalid independent array size". This branch changes ICPCost::getParameters
+    # from 2 to 5 parameters, so it must not share a cache with main.
+    lib_folder_default = os.path.join("auto_generated", "g1_test")
     mpc_controller_default = "humanoid_centroidal_mpc_controller" # humanoid_centroidal_mpc_controller | humanoid_wb_mpc_controller
 
     # URDF for the MPC's Pinocchio model: MUST be pelvis-rooted (the MPC adds its
@@ -87,9 +93,32 @@ def generate_launch_description():
             default_value=lib_folder_default,
             description="Writable folder for generated or cached CppAD libraries",
         ),
+        DeclareLaunchArgument(
+            "floatingBaseSource", default_value="state_estimator",
+            description="Floating-base feedback source for the centroidal MPC: "
+                        "ground_truth_state (simulator/hardware body state) | state_estimator (proprioceptive InEKF). "
+                        "The InEKF always runs in parallel and publishes /humanoid/state_estimate/odom."),
+        DeclareLaunchArgument(
+            "diagnosticsLog", default_value="false",
+            description="Write the per-tick CSV diagnostics (estimator internals + per-cost-term breakdown) for a tuning/diagnosis run",
+        ),
+        DeclareLaunchArgument(
+            "diagnosticsLogPrefix", default_value="/tmp/centroidal_mpc_diag_%t",
+            description="Output path prefix for the diagnostics CSVs; '_state.csv'/'_cost.csv' are appended and '%t' expands to the run start time",
+        ),
         DeclareLaunchArgument("mpcFreq", default_value="100", description="MPC update frequency (should be integer) (100 for centroidal, 50 for whole-body)"),
         DeclareLaunchArgument("mrtFreq", default_value="1000", description="MRT update frequency (should be integer)"),
         DeclareLaunchArgument("controllersFile", default_value=controllers_file_default),
+        DeclareLaunchArgument(
+            "refBaseHeight",
+            default_value="0.6",
+            description=(
+                "Nominal pelvis height [m]. Substituted into ocs2.reference.defaultBaseHeight "
+                "in the controllers yaml AND handed to the base-command GUI, so the slider's "
+                "centre and reset value cannot drift apart from what the MPC uses as its "
+                "reference."
+            ),
+        ),
         DeclareLaunchArgument("gaitLibraryFile", default_value=gait_library_file_default),
         DeclareLaunchArgument("stairClimbingFile", default_value=stair_climbing_file_default),
         DeclareLaunchArgument("terrainWalkingFile", default_value=terrain_walking_file_default),
@@ -278,14 +307,17 @@ def generate_launch_description():
         executable="base_command_gui.py",
         name="base_command_gui",
         output="screen",
+        condition=IfCondition(LaunchConfiguration("baseCommandGui")),
         parameters=[
             {
-                "max_linear_velocity_y": 2.4,
+                "max_linear_velocity_x": 2.4,
                 "max_linear_velocity_y": 1.2,
                 "max_yaw_rate": 1.0,
+                "reference_base_height": ParameterValue(
+                    LaunchConfiguration("refBaseHeight"), value_type=float
+                ),
             }
         ],
-        condition=IfCondition(LaunchConfiguration("baseCommandGui")),
     )
 
     rviz_node = Node(

@@ -58,10 +58,22 @@ class ICPCost final : public StateInputCostGaussNewtonAd {
 
   vector_t getParameters(scalar_t time, const TargetTrajectories& targetTrajectories, const PreComputation& preComputation) const override;
 
+  /**
+   * Active whenever at least one foot is on the ground.
+   *
+   * This used to require BOTH feet, which switched the term off through every
+   * single-support phase - precisely the phase in which lateral balance is at
+   * risk, since a single stance foot cannot resist a sideways fall by ankle
+   * torque alone. With the capture point restricted to double support it could
+   * only ever re-centre a robot that was already statically stable.
+   *
+   * During flight (no contact) there is no support reference to track, so the
+   * term stays off.
+   */
   bool isActive(scalar_t time) const override {
     if (!isActive_) return false;
     const contact_flag_t contactFlags = referenceManagerPtr_->getContactFlags(time);
-    return (contactFlags[0] && contactFlags[1]);
+    return (contactFlags[0] || contactFlags[1]);
   }
 
   void setActive(bool active) { isActive_ = active; }

@@ -24,3 +24,9 @@ repositories:
       type: git
       url: https://github.com/wei-hsuan-cheng/plane_segmentation_ros2.git
       version: main
+    
+    # state estimation
+    legged_robot_mpc_controller_dependencies/legged_state_estimator:
+      type: git
+      url: https://github.com/wei-hsuan-cheng/legged_state_estimator.git
+      version: main

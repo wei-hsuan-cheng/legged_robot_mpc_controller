@@ -172,7 +172,11 @@ scalar_t getGroundHeightEstimate(PinocchioInterfaceTpl<scalar_t>& pinocchioInter
 
   std::vector<vector3_t> contactPositions = getContactPositions<scalar_t>(pinocchioInterface, mpcRobotModel);
 
-  static scalar_t terrainHeight = 0.0;
+  // NOT static. This used to be a function-local static, i.e. one shared mutable
+  // value across every caller and every solver thread, carrying over between
+  // controller activations. Its only purpose is to hold the last value through a
+  // flight phase, which the caller can do far more safely than a hidden global.
+  scalar_t terrainHeight = 0.0;
 
   // Use right foot if in contact
   if (measuredContactFlags[0] && measuredContactFlags[1]) {

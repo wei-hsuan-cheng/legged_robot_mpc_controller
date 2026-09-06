@@ -42,7 +42,7 @@ WalkingVelocityTarget::WalkingVelocityTarget(const ReferenceConfig& referenceCon
       maxDisplacementVelocityX_(referenceConfig.maxDisplacementVelocityX),
       maxDisplacementVelocityY_(referenceConfig.maxDisplacementVelocityY),
       maxRotationVelocity_(referenceConfig.maxRotationVelocity),
-      velocityCommandFilter_(5, vector4_t::Zero()) {}
+      velocityCommandFilter_(5, vector4_t(0.0, 0.0, referenceConfig.defaultBaseHeight, 0.0)) {}
 
 /******************************************************************************************************/
 /******************************************************************************************************/
@@ -73,12 +73,22 @@ WalkingVelocityTarget::Output WalkingVelocityTarget::evaluate(scalar_t initTime,
   }
 
   WalkingVelocityCommand scaledCommand = scaleCommand(latestCommand);
-  vector4_t conditionedCommand = velocityCommandFilter_.getFilteredVector(scaledCommand.toVector());
+  if (filterResetRequested_.exchange(false, std::memory_order_acq_rel)) {
+    velocityCommandFilter_.reset(scaledCommand.toVector());
+  }
+  vector4_t conditionedCommand = velocityCommandFilter_.getFilteredVector(scaledCommand.toVector(), initTime);
 
   Output output;
   output.conditionedCommand = conditionedCommand;
   output.targetTrajectories = generator_(conditionedCommand, initTime, finalTime, initState);
   return output;
+}
+
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+void WalkingVelocityTarget::requestFilterReset() {
+  filterResetRequested_.store(true, std::memory_order_release);
 }
 
 }  // namespace ocs2::humanoid

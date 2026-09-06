@@ -2,7 +2,7 @@
   <default>
     <!-- Legacy simulator applied 10 Nms/rad damping to all actuated joints. -->
     <joint damping="10.0"/>
-    <geom friction="0.8 0.1 0.001" solimp="0.999 0.95 0.005" solref="0.001 1.0"/>
+    <geom solimp="0.999 0.95 0.005" solref="0.001 1.0"/>
   </default>
   <compiler angle="radian" meshdir="../meshes"/>
 
@@ -280,6 +280,9 @@
     <accelerometer name="imu-torso-linear-acceleration" site="imu_in_torso" noise="1e-2" cutoff="157"/>
     <gyro name="imu-pelvis-angular-velocity" site="imu_in_pelvis" noise="5e-4" cutoff="34.9"/>
     <accelerometer name="imu-pelvis-linear-acceleration" site="imu_in_pelvis" noise="1e-2" cutoff="157"/>
+    <!-- Orientation quaternion of the pelvis IMU site. The InEKF only needs gyro + accel,
+         but mujoco_ros2_control's IMU sensor mapping requires a quat sensor too. -->
+    <framequat name="imu-pelvis-quat" objtype="site" objname="imu_in_pelvis"/>
   </sensor>
 
 </mujoco>

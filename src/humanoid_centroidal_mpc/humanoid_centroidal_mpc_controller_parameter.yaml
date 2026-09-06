@@ -79,6 +79,15 @@ humanoid_centroidal_mpc_controller:
       }
     }
 
+    inverseDynamicsVelocity: {
+      type: string,
+      default_value: "measured",
+      description: "Generalized velocity used by the RNEA feedforward. With qdd=0, RNEA gives tau = C(q,qd)*qd + g(q) - J^T F, so this selects which velocity enters the Coriolis/centrifugal term. 'measured' uses the observed velocity - C is quadratic in qd, so encoder-differentiation and floating-base estimator noise are amplified straight into the commanded torque, turning a feedforward term into unfiltered velocity feedback (a plausible leg-jitter source). 'policy' uses the velocity the MPC planned, keeping the Coriolis compensation but taking it from a smooth optimized trajectory. 'zero' omits the term entirely - immune to velocity noise but discards real dynamics.",
+      validation: {
+        one_of<>: [["zero", "measured", "policy"]]
+      }
+    }
+
     policyTimeOffset: {
       type: double,
       default_value: 0.005,
@@ -128,13 +137,48 @@ humanoid_centroidal_mpc_controller:
       }
     }
 
+    log:
+      enabled: {
+        type: bool,
+        default_value: false,
+        description: "Write per-tick CSV diagnostics. Two files are produced: <pathPrefix>_state.csv from the control thread (InEKF covariance, innovations, NIS, contact transitions, estimate-vs-ground-truth error, and the centroidal momentum recomputed from BOTH feedback sources through the same A_G(q)) and <pathPrefix>_cost.csv from the solver thread (per-cost-term values at the current observation plus the reference they track). Sampling happens in the control loop but formatting and file I/O happen on a writer thread, so the control loop only memcpys into a preallocated ring."
+      }
+      pathPrefix: {
+        type: string,
+        default_value: "/tmp/centroidal_mpc_diag_%t",
+        description: "Output path prefix; '_state.csv' and '_cost.csv' are appended. A '%t' is replaced by the local start time so consecutive runs do not overwrite the log they are meant to be compared against."
+      }
+      stateRate: {
+        type: double,
+        default_value: 200.0,
+        description: "Sampling rate [Hz] of the control-thread state log. Must be high enough to resolve a single touchdown (a swing phase is a few hundred ms), so do not go below ~100 Hz.",
+        validation: { gt: [0.0] }
+      }
+      logCost: {
+        type: bool,
+        default_value: true,
+        description: "Also produce the solver-thread per-cost-term log"
+      }
+      costRate: {
+        type: double,
+        default_value: 50.0,
+        description: "Maximum sampling rate [Hz] of the cost log; capped in practice by the MPC iteration rate",
+        validation: { gt: [0.0] }
+      }
+      bufferRows: {
+        type: int,
+        default_value: 8192,
+        description: "Ring capacity in rows for each log. Sized so a stalled disk write cannot force samples to be dropped; a non-zero dropped-row count is reported on deactivation.",
+        validation: { gt: [15] }
+      }
+
   floatingBase:
     source: {
       type: string,
-      default_value: "state_interfaces",
-      description: "Floating-base state source. Prefer state_interfaces for control; mujoco_ground_truth_odom is a topic fallback.",
+      default_value: "ground_truth_state",
+      description: "Floating-base feedback source. ground_truth_state = simulator/hardware body state (ground truth in MuJoCo); state_estimator = proprioceptive InEKF (IMU + encoders + contacts); mujoco_ground_truth_odom is a topic fallback.",
       validation: {
-        one_of<>: [["mujoco_ground_truth_odom", "state_interfaces"]]
+        one_of<>: [["mujoco_ground_truth_odom", "ground_truth_state", "state_estimator"]]
       }
     }
 
@@ -155,6 +199,239 @@ humanoid_centroidal_mpc_controller:
       default_value: "pelvis",
       description: "Floating-base body frame used as the MPC base (URDF root / MuJoCo free-joint body)"
     }
+
+  stateEstimator:
+    enabled: {
+      type: bool,
+      default_value: false,
+      description: "Run the InEKF floating-base estimator in parallel (publishes its odom; drives control only when floatingBase.source == state_estimator)"
+    }
+    estimatorType: {
+      type: string,
+      default_value: "inEKF",
+      description: "Which floating-base state estimator to run. 'inEKF' is the contact-aided right-invariant EKF of Hartley et al. 2018: an IMU+contact process model on SE_{N+2}(3) corrected by forward-kinematics position measurements, whose error dynamics are log-linear and therefore convergent independently of the operating point. 'linearKF' is reserved for a conventional linearised Kalman filter so the two can be compared on the same logs; it is NOT implemented yet and selecting it fails at configure time rather than silently falling back. Estimator-specific tuning lives in the matching block below (inEKF:), so each filter declares only what applies to it.",
+      validation: {
+        one_of<>: [["inEKF", "linearKF"]]
+      }
+    }
+
+    imuInterfaceName: {
+      type: string,
+      default_value: "pelvis_imu",
+      description: "ros2_control sensor prefix exposing IMU orientation/angular_velocity/linear_acceleration"
+    }
+    imuFrame: {
+      type: string,
+      default_value: "imu_in_pelvis",
+      description: "URDF frame of the IMU used by the estimator"
+    }
+    contactFrames: {
+      type: string_array,
+      default_value: ["foot_l_heel_est", "foot_l_toe_est", "foot_r_heel_est", "foot_r_toe_est"],
+      description: "URDF contact frames fused by the InEKF. The library requires exactly 4 point contacts, so each flat foot contributes a heel + toe point. Distinct '_est' names avoid a Pinocchio frame collision with the MPC's foot_l/r_contact frames."
+    }
+    odomTopic: {
+      type: string,
+      default_value: "/humanoid/state_estimate/odom",
+      description: "nav_msgs/Odometry topic for the InEKF estimate (published for evaluation vs GT)"
+    }
+    odomFrame: {
+      type: string,
+      default_value: "world",
+      description: "Header frame of the published estimate odometry"
+    }
+    publishRate: {
+      type: double,
+      default_value: 100.0,
+      description: "Rate [Hz] at which the estimate odometry is published"
+    }
+    warmupSeconds: {
+      type: double,
+      default_value: 3.0,
+      description: "Convergence window [s] after activation during which the MPC keeps using the ground-truth/state-interface base even if floatingBase.source is state_estimator. The InEKF is seeded with zero velocity and unknown IMU biases, so its first ~2 s carry ~0.15 m/s of phantom base velocity; feeding that to the momentum-based centroidal MPC destabilizes the robot. On hardware this corresponds to holding the robot at a known pose until the filter converges."
+    }
+    # ---------------------------------------------------------------------
+    # Parameters of the contact-aided invariant EKF (estimatorType: inEKF).
+    #
+    # Nested so a second estimator can declare its own block without either
+    # inheriting tuning that does not apply to it. `noise` in particular is
+    # InEKF-specific: gyroscope/accelerometer/*Bias/contact are the PROCESS
+    # noise of the SE_{N+2}(3) propagation, and contactPosition/contactRotation
+    # are the forward-kinematics MEASUREMENT noise. A linear KF parameterises
+    # its Q and R differently and would declare its own linearKF: block.
+    # ---------------------------------------------------------------------
+    # ---------------------------------------------------------------------
+    # Parameters of the two-stage linear Kalman filter (estimatorType: linearKF),
+    # after MIT Cheetah 3 (Bledt et al., IROS 2018, Sec. III-H).
+    #
+    # Stage 1 takes attitude from the IMU; stage 2 is a plain KF over base
+    # position, base velocity and the contact-point positions. Because attitude
+    # is treated as known the remaining process is linear, which is what allows a
+    # conventional KF where the InEKF needs a Lie-group formulation.
+    #
+    # Defaults are the values used in qiayuanl/legged_control.
+    # ---------------------------------------------------------------------
+    linearKF:
+      numFeet: {
+        type: int,
+        default_value: 0,
+        description: "Number of physical FEET, which is not the number of contact frames. The G1 has 2 feet but 4 contact points (heel and toe per foot), so contactFrames has 4 entries while the gait schedule yields 2 contact flags; inEKF.contact.footIndices ([0,0,1,1]) maps between them. 0 means derive it as max(footIndices)+1, which is right whenever the mapping is dense; set it explicitly only to assert a value.",
+        validation: { gt_eq: [0] }
+      }
+      footRadius: {
+        type: double,
+        default_value: 0.0,
+        description: "Contact-point sphere radius added to the measured foot height [m]. legged_control uses 0.02 because its robots have spherical feet whose contact frame is at the sphere CENTRE; a frame already defined at the sole needs 0.0, otherwise the estimated base height is biased up by exactly this value.",
+        validation: { gt_eq: [0.0] }
+      }
+      imuProcessNoisePosition: {
+        type: double,
+        default_value: 0.02,
+        description: "Process noise on the IMU-integrated base position",
+        validation: { gt: [0.0] }
+      }
+      imuProcessNoiseVelocity: {
+        type: double,
+        default_value: 0.02,
+        description: "Process noise on the IMU-integrated base velocity",
+        validation: { gt: [0.0] }
+      }
+      footProcessNoisePosition: {
+        type: double,
+        default_value: 0.002,
+        description: "Process noise on a stance foot's world position, i.e. how much slip is tolerated",
+        validation: { gt: [0.0] }
+      }
+      footSensorNoisePosition: {
+        type: double,
+        default_value: 0.005,
+        description: "Measurement noise on the forward-kinematic foot position",
+        validation: { gt: [0.0] }
+      }
+      footSensorNoiseVelocity: {
+        type: double,
+        default_value: 0.1,
+        description: "Measurement noise on the forward-kinematic foot velocity",
+        validation: { gt: [0.0] }
+      }
+      footHeightSensorNoise: {
+        type: double,
+        default_value: 0.01,
+        description: "Measurement noise on the assumed contact height",
+        validation: { gt: [0.0] }
+      }
+      swingNoiseMultiplier: {
+        type: double,
+        default_value: 100.0,
+        description: "Multiplier on a SWING foot's process and measurement noise, which is how the filter ignores a foot that is off the ground while keeping the matrix dimensions fixed across contact transitions. Cheetah 3 raises the covariance 'to a high value'; 100 is the value used there.",
+        validation: { gt: [1.0] }
+      }
+
+    inEKF:
+      noise:
+        gyroscope: { type: double, default_value: 0.01, description: "InEKF gyroscope noise std-dev" }
+        accelerometer: { type: double, default_value: 0.1, description: "InEKF accelerometer noise std-dev" }
+        gyroscopeBias: { type: double, default_value: 1.0e-5, description: "InEKF gyroscope bias noise std-dev" }
+        accelerometerBias: { type: double, default_value: 1.0e-4, description: "InEKF accelerometer bias noise std-dev" }
+        contact: { type: double, default_value: 0.1, description: "InEKF contact noise std-dev" }
+        contactPosition: { type: double, default_value: 0.01, description: "Contact position measurement noise" }
+        contactRotation: { type: double, default_value: 0.01, description: "Contact rotation measurement noise (surface contacts)" }
+      initialCovariance:
+        attitude: {
+          type: double,
+          default_value: 0.01,
+          description: "Initial attitude std-dev [rad]. The InEKF state defaults to P = I(15), i.e. 1 rad of attitude uncertainty, 1 m/s of velocity and 1 m of position - even when the filter is seeded from an exactly known pose. The first contact correction, whose noise is millimetres, then yanks the state; that transient is easily mistaken for slow bias convergence. Seeded from ground truth: keep tight. On hardware: tight roll/pitch (gravity is observable at rest), loose yaw/xy (a gauge freedom).",
+          validation: { gt: [0.0] }
+        }
+        velocity: {
+          type: double,
+          default_value: 0.01,
+          description: "Initial base linear velocity std-dev [m/s]",
+          validation: { gt: [0.0] }
+        }
+        position: {
+          type: double,
+          default_value: 0.01,
+          description: "Initial base position std-dev [m]",
+          validation: { gt: [0.0] }
+        }
+        gyroscopeBias: {
+          type: double,
+          default_value: 0.01,
+          description: "Initial gyroscope bias std-dev [rad/s]. Must be non-zero for bias estimation to do anything: the kinematic measurement Jacobian has no bias columns, so the bias is observable ONLY through its cross-covariance with the attitude/velocity/position block.",
+          validation: { gt: [0.0] }
+        }
+        accelerometerBias: {
+          type: double,
+          default_value: 0.1,
+          description: "Initial accelerometer bias std-dev [m/s^2]; see gyroscopeBias",
+          validation: { gt: [0.0] }
+        }
+      estimateImuBias: {
+        type: bool,
+        default_value: true,
+        description: "Estimate the IMU biases. When false the bias block is decoupled from the rest of the covariance every propagation, freezing the bias at its seeded value."
+      }
+      height:
+        source: {
+          type: string,
+          default_value: "anchored",
+          description: "Base-height conditioning. The centroidal MPC references foot targets to a ground plane, so a base-height error shifts every foot height relative to it 1:1 - a few cm is a large fraction of the 0.08 m swing height and breaks contact timing. inekf = raw filter height (noisy). kinematic/blend = stance feet on a FLAT plane at groundZ (precise, flat ground only). anchored = per-contact, time-varying ground height recorded at each touchdown (precise AND valid on stairs/slopes, no terrain map needed).",
+          validation: {
+            one_of<>: [["inekf", "kinematic", "blend", "anchored"]]
+          }
+        }
+        kinematicWeight: {
+          type: double,
+          default_value: 0.9,
+          description: "Weight on the kinematic (stance-foot) height when height.source is 'blend'; 1.0 = pure kinematic",
+          validation: { bounds<>: [0.0, 1.0] }
+        }
+        anchorUpdateThreshold: {
+          type: double,
+          default_value: 0.05,
+          description: "anchored only: a touchdown re-anchors a contact just when the measured landing height differs from its current anchor by more than this [m]. Must exceed the filter height noise (~0.03 m) so flat ground keeps a noise-free anchor, and stay below a stair riser (0.17 m) so real steps are captured.",
+          validation: { gt_eq: [0.0] }
+        }
+        groundZ: {
+          type: double,
+          default_value: 0.0,
+          description: "Assumed ground-plane height [m] the stance feet rest on; must match the plane the MPC references (terrainHeight = 0)"
+        }
+      contact:
+        source: {
+          type: string,
+          default_value: "scheduled",
+          description: "Contact source for InEKF kinematic updates: scheduled uses the MPC gait schedule; torque uses the estimator library contact classifier",
+          validation: {
+            one_of<>: [["scheduled", "torque"]]
+          }
+        }
+        footIndices: {
+          type: int_array,
+          default_value: [0, 0, 1, 1],
+          description: "Foot index for each contactFrames entry; G1 maps left heel/toe to 0 and right heel/toe to 1"
+        }
+        beta0: {
+          type: double_array,
+          default_value: [-20.0, -20.0, -20.0, -20.0],
+          description: "Logistic-regression bias per contact (torque-based contact estimator); one entry per contactFrame"
+        }
+        beta1: {
+          type: double_array,
+          default_value: [0.7, 0.7, 0.7, 0.7],
+          description: "Logistic-regression slope per contact; one entry per contactFrame"
+        }
+        forceCovarianceAlpha: { type: double, default_value: 100.0, description: "Contact force covariance scaling" }
+        probabilityThreshold: { type: double, default_value: 0.5, description: "Contact on/off probability threshold" }
+        dynamicEstimation: { type: bool, default_value: false, description: "Use full dynamics (true) or equilibrium (false) for contact estimation" }
+      lpf:
+        gyroCutoff: { type: double, default_value: 250.0, description: "LPF cutoff [Hz] for gyro" }
+        gyroAccelCutoff: { type: double, default_value: 250.0, description: "LPF cutoff [Hz] for gyro-derived angular acceleration" }
+        linAccelCutoff: { type: double, default_value: 250.0, description: "LPF cutoff [Hz] for linear acceleration" }
+        dqJCutoff: { type: double, default_value: 10.0, description: "LPF cutoff [Hz] for joint velocities" }
+        ddqJCutoff: { type: double, default_value: 5.0, description: "LPF cutoff [Hz] for joint accelerations" }
+        tauJCutoff: { type: double, default_value: 10.0, description: "LPF cutoff [Hz] for joint torques" }
 
   ocs2:
     interface:
@@ -192,6 +469,17 @@ humanoid_centroidal_mpc_controller:
         type: double,
         default_value: 0.0,
         description: "Minimum stance time inserted at phase transitions [s]"
+      }
+      useTerrainHeightEstimate: {
+        type: bool,
+        default_value: false,
+        description: "Use the measured stance-foot height as the swing planner's ground reference instead of assuming a flat floor at z=0. adaptToCurrentGroundHeight() computes that estimate and then discards it with a hardcoded 0.0; that constant is what the swing trajectory is built around, so it is the single thing preventing walking on sloped or stepped ground however well the estimator tracks the terrain. Off by default because the shipped gains were tuned against the flat assumption and on genuinely flat ground the estimate is strictly worse than the constant. Enable together with stateEstimator.height.source of 'inekf' or 'anchored' - 'kinematic' and 'blend' pin the feet to groundZ and would feed the flat assumption straight back in."
+      }
+      maxTerrainHeightStep: {
+        type: double,
+        default_value: 0.01,
+        description: "Bound [m] on how far the terrain-height reference may move in one solver iteration, so a mis-detected contact cannot demand an impossible swing",
+        validation: { gt: [0.0] }
       }
       verboseCppAd: {
         type: bool,
@@ -555,6 +843,54 @@ humanoid_centroidal_mpc_controller:
         validation: { fixed_size<>: [12] }
       }
 
+      captureFootPlacement:
+        enabled: {
+          type: bool,
+          default_value: false,
+          description: "Aim the swing foot at the capture point on flat ground. Without it there is NO foothold xy reference at all (the stair/terrain planners are inactive and the foot cost has zero position weight), so nothing arrests a lateral fall - and lateral walking dynamics are an inverted pendulum whose real authority is where the next foot lands."
+        }
+        gain: {
+          type: double,
+          default_value: 0.6,
+          description: "Scales the capture-point correction; 0 reproduces a fixed nominal foothold. Measured optimum is below 1: 0.6 -> 57.5 s, 1.0 -> 55.8, 1.5 -> 55.0, 2.0 -> 48.3 on the vx ladder at trackingWeight 100.",
+          validation: { gt_eq: [0.0] }
+        }
+        stepWidth: {
+          type: double,
+          default_value: 0.18,
+          description: "Nominal lateral spacing between the feet [m]",
+          validation: { gt: [0.0] }
+        }
+        maxAdjustment: {
+          type: double,
+          default_value: 0.20,
+          description: "Bound on the foothold correction away from nominal [m]; keeps a transient from commanding an unreachable step",
+          validation: { gt: [0.0] }
+        }
+        trackingWeight: {
+          type: double,
+          default_value: 1600.0,
+          description: "xy foothold tracking weight handed to the foot task-space cost during swing. This turned out to be the dominant knob and it wants to be LARGE: on the vx ladder, 30 -> 48.5 s, 60 -> 56.0, 100 -> 57.5, 200 -> 62.3, 400 -> 65.0, 800 -> 72.0, 1600 -> 78.6, 3200 -> 79.2 (saturating). A weak weight lets the optimizer ignore the foothold and fall back on the behaviour that had no foot-placement feedback at all.",
+          validation: { gt_eq: [0.0] }
+        }
+        footCenterOffset: {
+          type: double,
+          default_value: 0.035,
+          description: "Distance from the contact (ankle) frame to the centre of the foot's support polygon, along the heading [m]. The ankle is not centred on the sole: on the G1 it spans -0.055 m (heel) to +0.125 m (toe), so placing the ankle under the predicted base leaves 0.125 m of margin for a forward-travelling CoM and only 0.055 m for a backward-travelling one. That asymmetry accounted for every fall observed with foot placement enabled - forward 0.05-0.30 m/s never fell in six runs, while 4 of 4 falls were 1.6-3.8 s into the -0.10 m/s phase. Subtracting this centres the polygon and equalises both margins at 0.09 m. Measured: (0.125-0.055)/2."
+        }
+        stepLengthGain: {
+          type: double,
+          default_value: 0.0,
+          description: "Feedforward step length as a fraction of (velocity x step period). The capture point alone is the DEADBEAT STOPPING placement; steady walking needs the foot to land AHEAD of the base by about v*T_step/2 so the body can pass over it. At omega~3.7 the capture term gives only 0.27*v against the ~0.43*v an 0.85 s step needs, leaving the robot short every step and pitching forward - worse the faster it walks.",
+          validation: { gt_eq: [0.0] }
+        }
+        projectionHorizon: {
+          type: double,
+          default_value: 0.0,
+          description: "Seconds to propagate the capture point about the stance foot before placing the foot, capped at the time to touchdown. The DCM diverges as exp(omega*t) so projecting to touchdown is deadbeat in theory, but at omega~3.7 a 0.4 s horizon amplifies 4.5x, saturates maxAdjustment every step and measured WORSE than no projection. 0 = instantaneous capture point (best measured).",
+          validation: { gt_eq: [0.0] }
+        }
+
       icpErrorWeight: {
         type: double,
         default_value: 0.0,
@@ -782,11 +1118,46 @@ humanoid_centroidal_mpc_controller:
           gt_eq: [0.0]
         }
       }
+      useInertiaWeightedAngularMomentum: {
+        type: bool,
+        default_value: true,
+        description: "Build the angular part of the momentum reference as I_G(q)*omega/m (correct) instead of omega/m (the historical form, which for the G1 is 1.86x too large since I_zz = 0.539). Exposed so the correction can be cross-tested against the tuning that was fitted around the old value; see Claude.md."
+      }
       defaultJointState: {
         type: double_array,
         default_value: [],
-        description: "Default (standing) joint configuration, index-aligned with robot.jointNames"
+        description: "Default (standing) joint configuration, index-aligned with robot.jointNames. The ARM entries are also the nominal arm posture the arms hold while walking: with the swing below disabled, this is the whole arm reference. Keep it inside the self-collision-free envelope - the MPC has no self-collision constraint, so nothing else will."
       }
+
+      armSwing:
+        enabled: {
+          type: bool,
+          default_value: false,
+          description: "Superimpose a gait-phase-locked arm swing on the nominal arm posture. OFF by default, which makes the arm reference a fixed posture. Two reasons: at the shipped amplitude the motion is ~2.6 deg at 0.3 m/s, far too small to matter either way; and it fights the momentum reference, which asks for h_ang,x = h_ang,y = 0 with terminal weight 75 while this commands a swing that necessarily produces non-zero angular momentum. Turn it on as part of the phase-2 work that makes the arms regulate angular momentum for real."
+        }
+        shoulderPitchAmplitude: {
+          type: double,
+          default_value: 0.15,
+          description: "Shoulder-pitch swing amplitude per unit commanded forward speed [rad/(m/s)]",
+          validation: { gt_eq: [0.0] }
+        }
+        elbowAmplitude: {
+          type: double,
+          default_value: 0.15,
+          description: "Elbow swing amplitude per unit commanded forward speed [rad/(m/s)]",
+          validation: { gt_eq: [0.0] }
+        }
+        phaseOffset: {
+          type: double,
+          default_value: 0.15,
+          description: "Shifts the swing relative to the gait phase, in fractions of a cycle"
+        }
+        maxOffset: {
+          type: double,
+          default_value: 0.6,
+          description: "Hard bound on the swing offset away from the nominal posture [rad]. Sized from the collision-free envelope measured on the G1 model: at the shipped nominal (shoulder roll +-0.20, elbow 1.20) a +-0.6 rad shoulder-pitch excursion clears torso, pelvis and hips with no interpenetration and no near-miss inside a 20 mm margin. Since the MPC carries no self-collision constraint this clamp is the only thing keeping the arm reference inside that envelope.",
+          validation: { gt: [0.0] }
+        }
 
     gait:
       gaitLibraryFile: {

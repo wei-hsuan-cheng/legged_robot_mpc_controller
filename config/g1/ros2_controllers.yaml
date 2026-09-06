@@ -28,7 +28,8 @@ humanoid_wb_mpc_controller:
 
     robot:
       commandInterface: effort_pd
-      stateInterfaces: [position, velocity, effort]
+      stateInterfaces:
+        [position, velocity, effort]
       jointNames:
         - left_hip_pitch_joint
         - left_hip_roll_joint
@@ -56,28 +57,34 @@ humanoid_wb_mpc_controller:
 
     control:
       # DIAGNOSTIC: smooth simulator velocity dither out of the MPC observation.
-      observationVelocityFilterCutoffHz: 30.0
-      policyTimeOffset: 0.005
-      # Legacy WB MPC stand/balance feedback around the optimized policy.
-      mpcJointKp: [1200.0, 1200.0, 1200.0, 1200.0, 1200.0, 1200.0,
-                   1200.0, 1200.0, 1200.0, 1200.0, 1200.0, 1200.0,
-                   1200.0, 1200.0, 1200.0,
-                   1200.0, 1200.0, 1200.0, 1200.0,
-                   1200.0, 1200.0, 1200.0, 1200.0]
-      mpcJointKd: [10.0, 10.0, 10.0, 10.0, 10.0, 10.0,
-                   10.0, 10.0, 10.0, 10.0, 10.0, 10.0,
-                   10.0, 10.0, 10.0,
-                   10.0, 10.0, 10.0, 10.0,
-                   10.0, 10.0, 10.0, 10.0]
-      # Legacy WB controller behavior for the six joints excluded from the MPC model.
-      fixedJointKp: [100.0, 100.0, 100.0, 100.0, 100.0, 100.0]
-      fixedJointKd: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+      # Suppress estimator velocity noise before it enters normalized centroidal momentum.
+      # 12 Hz preserves the walking bandwidth while softening the GT-to-InEKF handoff.
+      observationVelocityFilterCutoffHz: 12.0
+      inverseDynamicsVelocity: measured
+      policyTimeOffset: 0.000
+      mpcJointKp:
+        [1200.0, 1200.0, 1200.0, 1200.0, 1200.0, 1200.0,
+         1200.0, 1200.0, 1200.0, 1200.0, 1200.0, 1200.0,
+         1200.0, 1200.0, 1200.0,
+         1200.0, 1200.0, 1200.0, 1200.0,
+         1200.0, 1200.0, 1200.0, 1200.0]
+      mpcJointKd:
+        [10.0, 10.0, 10.0, 10.0, 10.0, 10.0,
+         10.0, 10.0, 10.0, 10.0, 10.0, 10.0,
+         10.0, 10.0, 10.0,
+         10.0, 10.0, 10.0, 10.0,
+         10.0, 10.0, 10.0, 10.0]
+      fixedJointKp:
+        [100.0, 100.0, 100.0, 100.0, 100.0, 100.0]
+      fixedJointKd:
+        [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
       # Symmetric software clamp, index-aligned with robot.jointNames.
-      torqueLimit: [88.0, 88.0, 88.0, 139.0, 50.0, 50.0,
-                    88.0, 88.0, 88.0, 139.0, 50.0, 50.0,
-                    88.0, 50.0, 50.0,
-                    25.0, 25.0, 25.0, 25.0,
-                    25.0, 25.0, 25.0, 25.0]
+      torqueLimit:
+        [88.0, 88.0, 88.0, 139.0, 50.0, 50.0,
+         88.0, 88.0, 88.0, 139.0, 50.0, 50.0,
+         88.0, 50.0, 50.0,
+         25.0, 25.0, 25.0, 25.0,
+         25.0, 25.0, 25.0, 25.0]
 
     diagnostics:
       activate: true
@@ -88,7 +95,7 @@ humanoid_wb_mpc_controller:
       # Direct MuJoCo body state exposed through ros2_control state interfaces.
       # The odometry topic/TF publisher remains enabled for visualization and
       # other ROS nodes.
-      source: state_interfaces # state_interfaces (from state interface) | mujoco_ground_truth_odom (from topic)
+      source: ground_truth_state # ground_truth_state (from state interface) | mujoco_ground_truth_odom (from topic)
       stateInterfaceName: pelvis
       odometryTopic: /mujoco/ground_truth/odom
       baseFrame: pelvis
@@ -111,8 +118,10 @@ humanoid_wb_mpc_controller:
           - right_wrist_roll_joint
           - right_wrist_pitch_joint
           - right_wrist_yaw_joint
-        contactNames6DoF: [foot_l_contact, foot_r_contact]
-        contactParentJointNames: [left_ankle_roll_joint, right_ankle_roll_joint]
+        contactNames6DoF:
+          [foot_l_contact, foot_r_contact]
+        contactParentJointNames:
+          [left_ankle_roll_joint, right_ankle_roll_joint]
         # [left_shoulder_y, right_shoulder_y, left_elbow_y, right_elbow_y]
         armJointNames:
           - left_shoulder_pitch_joint
@@ -175,71 +184,71 @@ humanoid_wb_mpc_controller:
 
       # Arrays below are index-aligned with robot.jointNames:
       # 12 leg joints, 3 waist joints, 8 arm joints.
-      initialState:
-        basePose: [0.0, 0.0, 0.8, 0.0, 0.0, 0.0]  # [x, y, z, yaw, pitch, roll]
-        jointPositions: [-0.05, 0.0, 0.0, 0.1, -0.05, 0.0,
-                         -0.05, 0.0, 0.0, 0.1, -0.05, 0.0,
-                          0.0, 0.0, 0.0,
-                          0.0, 0.0, 0.0, 0.0,
-                          0.0, 0.0, 0.0, 0.0]
-        baseVelocity: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]  # [vx, vy, vz, wz, wy, wx]
-        jointVelocities: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-                          0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-                          0.0, 0.0, 0.0,
-                          0.0, 0.0, 0.0, 0.0,
-                          0.0, 0.0, 0.0, 0.0]
 
       costs:
         qScaling: 1.0
         rScaling: 0.001
         terminalCostScaling: 4.0
         q:
-          basePose: [0.0, 0.0, 10.0, 0.0, 20.0, 20.0]
-          jointPositions: [0.05, 0.2, 0.2, 0.1, 0.1, 0.1,
-                           0.05, 0.2, 0.2, 0.1, 0.1, 0.1,
-                           2.0, 2.0, 2.0,
-                           0.4, 2.0, 0.4, 0.4,
-                           0.4, 2.0, 0.4, 0.4]
-          baseVelocity: [3.0, 3.0, 3.0, 3.0, 3.0, 3.0]
-          jointVelocities: [0.001, 0.001, 0.001, 0.001, 0.001, 0.001,
-                            0.001, 0.001, 0.001, 0.001, 0.001, 0.001,
-                            0.2, 0.2, 0.2,
-                            0.02, 0.02, 0.02, 0.02,
-                            0.02, 0.02, 0.02, 0.02]
+          basePose:
+            [0.0, 0.0, 10.0, 0.0, 20.0, 20.0]
+          jointPositions:
+            [0.05, 0.2, 0.2, 0.1, 0.1, 0.1,
+             0.05, 0.2, 0.2, 0.1, 0.1, 0.1,
+             2.0, 2.0, 2.0,
+             0.4, 2.0, 0.4, 0.4,
+             0.4, 2.0, 0.4, 0.4]
+          baseVelocity:
+            [3.0, 3.0, 3.0, 3.0, 3.0, 3.0]
+          jointVelocities:
+            [0.001, 0.001, 0.001, 0.001, 0.001, 0.001,
+             0.001, 0.001, 0.001, 0.001, 0.001, 0.001,
+             0.2, 0.2, 0.2,
+             0.02, 0.02, 0.02, 0.02,
+             0.02, 0.02, 0.02, 0.02]
         qFinal:
-          basePose: [0.0, 0.0, 10.0, 0.0, 20.0, 20.0]
-          jointPositions: [0.05, 0.1, 0.1, 0.1, 0.1, 0.1,
-                           0.05, 0.1, 0.1, 0.1, 0.1, 0.1,
-                           2.0, 2.0, 2.0,
-                           0.4, 2.0, 0.4, 0.4,
-                           0.4, 2.0, 0.4, 0.4]
-          baseVelocity: [3.0, 3.0, 3.0, 3.0, 3.0, 3.0]
-          jointVelocities: [0.001, 0.001, 0.001, 0.001, 0.001, 0.001,
-                            0.001, 0.001, 0.001, 0.001, 0.001, 0.001,
-                            0.2, 0.2, 0.2,
-                            0.02, 0.02, 0.02, 0.02,
-                            0.02, 0.02, 0.02, 0.02]
+          basePose:
+            [0.0, 0.0, 10.0, 0.0, 20.0, 20.0]
+          jointPositions:
+            [0.05, 0.1, 0.1, 0.1, 0.1, 0.1,
+             0.05, 0.1, 0.1, 0.1, 0.1, 0.1,
+             2.0, 2.0, 2.0,
+             0.4, 2.0, 0.4, 0.4,
+             0.4, 2.0, 0.4, 0.4]
+          baseVelocity:
+            [3.0, 3.0, 3.0, 3.0, 3.0, 3.0]
+          jointVelocities:
+            [0.001, 0.001, 0.001, 0.001, 0.001, 0.001,
+             0.001, 0.001, 0.001, 0.001, 0.001, 0.001,
+             0.2, 0.2, 0.2,
+             0.02, 0.02, 0.02, 0.02,
+             0.02, 0.02, 0.02, 0.02]
         r:
           # [left fx, fy, fz, mx, my, mz, right fx, fy, fz, mx, my, mz]
-          contactWrenches: [0.003, 0.003, 0.001, 0.01, 0.01, 0.1,
-                            0.003, 0.003, 0.001, 0.01, 0.01, 0.1]
-          jointAccelerations: [0.005, 0.005, 0.005, 0.005, 0.005, 0.005,
-                               0.005, 0.005, 0.005, 0.005, 0.005, 0.005,
-                               0.005, 0.005, 0.005,
-                               0.005, 0.005, 0.005, 0.005,
-                               0.005, 0.005, 0.005, 0.005]
+          contactWrenches:
+            [0.003, 0.003, 0.001, 0.01, 0.01, 0.1,
+             0.003, 0.003, 0.001, 0.01, 0.01, 0.1]
+          jointAccelerations:
+            [0.005, 0.005, 0.005, 0.005, 0.005, 0.005,
+             0.005, 0.005, 0.005, 0.005, 0.005, 0.005,
+             0.005, 0.005, 0.005,
+             0.005, 0.005, 0.005, 0.005,
+             0.005, 0.005, 0.005, 0.005]
         # [pos xyz, orientation xyz, lin vel xyz, ang vel xyz, lin acc xyz, ang acc xyz]
-        taskSpaceFootCostWeights: [0.0, 0.0, 0.0,
-                                   10000.0, 10000.0, 0.0,
-                                   50.0, 50.0, 0.0,
-                                   100.0, 100.0, 100.0,
-                                   5.0, 5.0, 0.0,
-                                   2.0, 2.0, 2.0]
+        taskSpaceFootCostWeights:
+          [0.0, 0.0, 0.0,
+           10000.0, 10000.0, 0.0,
+           50.0, 50.0, 0.0,
+           100.0, 100.0, 100.0,
+           5.0, 5.0, 0.0,
+           2.0, 2.0, 2.0]
 
       constraints:
         contact:
-          frameTranslation: [0.035, 0.0, -0.035]  # parent joint -> contact frame [x, y, z]
-          rectangle: [0.09, -0.09, 0.03, -0.03]   # [x_max, x_min, y_max, y_min]
+          frameTranslation:
+            [0.035, 0.0, -0.035]  # parent joint -> contact frame [x, y, z]
+          rectangle:
+            [0.09, -0.09, 0.03, -0.03]   # [x_max, x_min, y_max, y_min]
         frictionCone:
           frictionCoefficient: 0.4
           mu: 0.2
@@ -267,20 +276,25 @@ humanoid_wb_mpc_controller:
         maxDisplacementVelocityY: 1.2
         maxDeltaPelvisHeight: 0.4
         maxRotationVelocity: 1.0
-        defaultBaseHeight: 0.7925
+        defaultBaseHeight: $(var refBaseHeight)
         basePosePositionTolerance: 0.02
         basePoseOrientationTolerance: 0.03
-        defaultJointState: [-0.05, 0.0, 0.0, 0.1, -0.05, 0.0,
-                            -0.05, 0.0, 0.0, 0.1, -0.05, 0.0,
-                             0.0, 0.0, 0.0,
-                            0.20, 0.20, 0.0, 1.20,
-                            0.20, -0.20, 0.0, 1.20]
+        useInertiaWeightedAngularMomentum: true
+        defaultJointState:
+          [-0.05, 0.0, 0.0, 0.1, -0.05, 0.0,
+           -0.05, 0.0, 0.0, 0.1, -0.05, 0.0,
+           0.0, 0.0, 0.0,
+           -0.30, 0.20, 0.0, 1.20,
+           -0.30, -0.20, 0.0, 1.20]
 
       gait:
         gaitLibraryFile: $(var gaitLibraryFile)
-        initialModeSequence: [STANCE, STANCE]
-        initialEventTimes: [0.5]
-        defaultModeSequence: [STANCE]
+        initialModeSequence:
+          [STANCE, STANCE]
+        initialEventTimes:
+          [0.5]
+        defaultModeSequence:
+          [STANCE, STANCE]
         defaultSwitchingTimes: [0.0, 0.5]
 
     visualization:
@@ -316,7 +330,8 @@ humanoid_centroidal_mpc_controller:
 
     robot:
       commandInterface: effort_pd
-      stateInterfaces: [position, velocity, effort]
+      stateInterfaces:
+        [position, velocity, effort]
       jointNames:
         - left_hip_pitch_joint
         - left_hip_roll_joint
@@ -344,29 +359,125 @@ humanoid_centroidal_mpc_controller:
 
     control:
       observationVelocityFilterCutoffHz: 30.0
-      policyTimeOffset: 0.005
-      # Legacy CentroidalMpcMrtJointController servo gains.
-      mpcJointKp: [1200.0, 1200.0, 1200.0, 1200.0, 1200.0, 1200.0,
-                   1200.0, 1200.0, 1200.0, 1200.0, 1200.0, 1200.0,
-                   1200.0, 1200.0, 1200.0,
-                   1200.0, 1200.0, 1200.0, 1200.0,
-                   1200.0, 1200.0, 1200.0, 1200.0]
-      mpcJointKd: [10.0, 10.0, 10.0, 10.0, 10.0, 10.0,
-                   10.0, 10.0, 10.0, 10.0, 10.0, 10.0,
-                   10.0, 10.0, 10.0,
-                   10.0, 10.0, 10.0, 10.0,
-                   10.0, 10.0, 10.0, 10.0]
-      fixedJointKp: [100.0, 100.0, 100.0, 100.0, 100.0, 100.0]
-      fixedJointKd: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+      policyTimeOffset: 0.000
+      mpcJointKp:
+        [1200.0, 1200.0, 1200.0, 1200.0, 1200.0, 1200.0,
+         1200.0, 1200.0, 1200.0, 1200.0, 1200.0, 1200.0,
+         1200.0, 1200.0, 1200.0,
+         1200.0, 1200.0, 1200.0, 1200.0,
+         1200.0, 1200.0, 1200.0, 1200.0]
+      mpcJointKd:
+        [10.0, 10.0, 10.0, 10.0, 10.0, 10.0,
+         10.0, 10.0, 10.0, 10.0, 10.0, 10.0,
+         10.0, 10.0, 10.0,
+         10.0, 10.0, 10.0, 10.0,
+         10.0, 10.0, 10.0, 10.0]
+      fixedJointKp:
+        [100.0, 100.0, 100.0, 100.0, 100.0, 100.0]
+      fixedJointKd:
+        [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
 
     diagnostics:
       statusLogPeriod: 2.0
+      log:
+        # (off unless you pass diagnosticsLog:=true). Produces two CSVs:
+        #   <prefix>_state.csv  control thread: InEKF covariance, NIS, per-contact
+        #                       innovations, contact transitions, estimate-vs-GT error,
+        #                       and the centroidal momentum recomputed from BOTH
+        #                       feedback sources through the same A_G(q).
+        #   <prefix>_cost.csv   solver thread: per-cost-term values at the current
+        #                       observation, plus the reference those terms track.
+        enabled: $(var diagnosticsLog)
+        pathPrefix: $(var diagnosticsLogPrefix)
+        stateRate: 200.0
+        logCost: true
+        costRate: 50.0
+        bufferRows: 8192
 
     floatingBase:
-      source: state_interfaces
+      source: $(var floatingBaseSource) # ground_truth_state | state_estimator; hybrid state_estimator_* values are diagnostic only
       stateInterfaceName: pelvis
       odometryTopic: /mujoco/ground_truth/odom
       baseFrame: pelvis
+
+    stateEstimator:
+      enabled: true
+      # inEKF    = contact-aided right-invariant EKF (Hartley et al. 2018).
+      #            Estimates attitude jointly with position/velocity on
+      #            SE_{N+2}(3), plus IMU biases.
+      # linearKF = two-stage filter of MIT Cheetah 3 (Bledt et al. 2018).
+      #            Attitude from the IMU, then a plain KF over base position,
+      #            base velocity and the contact-point positions. No bias states.
+      # Keys below are shared; per-estimator tuning is in the inEKF:/linearKF: blocks.
+      estimatorType: linearKF
+      imuInterfaceName: pelvis_imu
+      imuFrame: imu_in_pelvis
+      contactFrames:
+        [foot_l_heel_est, foot_l_toe_est, foot_r_heel_est, foot_r_toe_est]
+      odomTopic: /humanoid/state_estimate/odom
+      odomFrame: world
+      publishRate: 100.0
+      # How long the estimator runs alongside the ground-truth/hardware base before
+      # it is allowed to drive control.
+      warmupSeconds: 5.0
+
+      # ---- two-stage linear KF (estimatorType: linearKF) ----
+      # MIT Cheetah 3, Bledt et al. IROS 2018 Sec. III-H. Stage 1 takes attitude
+      # from pelvis_imu; stage 2 is a plain KF over base position, base velocity
+      # and the 4 contact-point positions (18 states).
+      linearKF:
+        # 0 = derive from inEKF.contact.footIndices ([0,0,1,1] -> 2 feet).
+        # The G1 has 2 FEET but 4 CONTACT POINTS (heel + toe each).
+        numFeet: 2
+        # 0.0, NOT legged_control's 0.02: that value compensates a SPHERICAL foot
+        # whose contact frame sits at the sphere centre (Unitree A1/Go1). The G1's
+        # foot_*_est frames are already at the sole (urdf origin z = -0.035 from the
+        # ankle), so a radius here biases the estimated base height up by exactly
+        # that amount - measured as a +20 mm offset before this was zeroed.
+        footRadius: 0.0
+        imuProcessNoisePosition: 0.02
+        imuProcessNoiseVelocity: 0.02
+        footProcessNoisePosition: 0.002
+        footSensorNoisePosition: 0.005
+        footSensorNoiseVelocity: 0.1
+        footHeightSensorNoise: 0.01
+        # A swing foot's noise is scaled by this, which is how the filter ignores
+        # a foot that is off the ground without resizing the problem.
+        swingNoiseMultiplier: 100.0
+
+      # ---- contact-aided invariant EKF (estimatorType: inEKF) ----
+      inEKF:
+        noise:
+          gyroscope: 1.0e-2
+          accelerometer: 1.5e0
+          gyroscopeBias: 1.0e-5
+          accelerometerBias: 1.0e-4
+          contact: 1.0e-2
+          contactPosition: 2.0e-3
+          contactRotation: 1.0e-2
+        height:
+          source: kinematic
+          kinematicWeight: 0.9
+          anchorUpdateThreshold: 0.05
+          groundZ: 0.0
+        contact:
+          source: scheduled
+          footIndices:
+            [0, 0, 1, 1]
+          beta0:
+            [-20.0, -20.0, -20.0, -20.0]
+          beta1:
+            [0.7, 0.7, 0.7, 0.7]
+          forceCovarianceAlpha: 10.0
+          probabilityThreshold: 0.5
+          dynamicEstimation: false
+        lpf:
+          gyroCutoff: 80.0
+          gyroAccelCutoff: 50.0
+          linAccelCutoff: 15.0
+          dqJCutoff: 10.0
+          ddqJCutoff: 5.0
+          tauJCutoff: 10.0
 
     ocs2:
       interface:
@@ -378,6 +489,10 @@ humanoid_centroidal_mpc_controller:
         robotName: g1
         centroidalModelType: 0  # FullCentroidalDynamics
         phaseTransitionStanceTime: 0.0
+        # Use the measured stance-foot height as the swing planner ground reference
+        # instead of a flat floor at z=0. Pair with height.source inekf/anchored.
+        useTerrainHeightEstimate: false
+        maxTerrainHeightStep: 0.002
         verboseCppAd: true
         recompileLibrariesCppAd: false
         fixedJointNames:
@@ -387,8 +502,10 @@ humanoid_centroidal_mpc_controller:
           - right_wrist_roll_joint
           - right_wrist_pitch_joint
           - right_wrist_yaw_joint
-        contactNames6DoF: [foot_l_contact, foot_r_contact]
-        contactParentJointNames: [left_ankle_roll_joint, right_ankle_roll_joint]
+        contactNames6DoF:
+          [foot_l_contact, foot_r_contact]
+        contactParentJointNames:
+          [left_ankle_roll_joint, right_ankle_roll_joint]
         armJointNames:
           - left_shoulder_pitch_joint
           - right_shoulder_pitch_joint
@@ -450,60 +567,81 @@ humanoid_centroidal_mpc_controller:
 
       # Arrays below are index-aligned with robot.jointNames:
       # 12 leg joints, 3 waist joints, 8 arm joints.
-      initialState:
-        centroidalMomentum: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-        basePose: [0.0, 0.0, 0.7925, 0.0, 0.0, 0.0]  # [x, y, z, yaw, pitch, roll]
-        jointPositions: [-0.05, 0.0, 0.0, 0.1, -0.05, 0.0,
-                         -0.05, 0.0, 0.0, 0.1, -0.05, 0.0,
-                          0.0, 0.0, 0.0,
-                          0.0, 0.0, 0.0, 0.0,
-                          0.0, 0.0, 0.0, 0.0]
 
       costs:
         qScaling: 1.0
         rScaling: 0.001
-        terminalCostScaling: 3.0
+        terminalCostScaling: 0.0
+        
         q:
-          centroidalMomentum: [8.0, 8.0, 15.0, 15.0, 15.0, 4.0]
-          basePose: [0.0, 0.0, 15.0, 0.0, 5.0, 5.0]
-          jointPositions: [0.02, 0.06, 4.0, 0.02, 0.01, 0.01,
-                           0.02, 0.06, 4.0, 0.02, 0.01, 0.01,
-                           2.0, 0.5, 0.5,
-                           10.0, 20.0, 2.0, 2.0,
-                           10.0, 20.0, 2.0, 2.0]
+          centroidalMomentum:
+            [8.0, 8.0, 15.0, 15.0, 15.0, 4.0]
+          basePose:
+            [0.0, 0.0, 100.0, 0.0, 100.0, 100.0]
+          jointPositions:
+            [1.0, 0.5, 4.0, 2.0, 0.5, 0.5,
+             1.0, 0.5, 4.0, 2.0, 0.5, 0.5,
+             2.0, 0.5, 0.5,
+             30.0, 30.0, 10.0, 20.0,
+             30.0, 30.0, 10.0, 20.0]
+
         qFinal:
-          centroidalMomentum: [25.0, 25.0, 25.0, 25.0, 25.0, 25.0]
-          basePose: [0.0, 0.0, 20.0, 0.0, 5.0, 5.0]
-          jointPositions: [0.02, 0.06, 8.0, 0.02, 0.01, 0.01,
-                           0.02, 0.06, 8.0, 0.02, 0.01, 0.01,
-                           2.0, 0.5, 0.5,
-                           10.0, 20.0, 2.0, 2.0,
-                           10.0, 20.0, 2.0, 2.0]
+          centroidalMomentum:
+            [25.0, 25.0, 25.0, 25.0, 25.0, 25.0]
+          basePose:
+            [0.0, 0.0, 20.0, 0.0, 5.0, 5.0]
+          jointPositions:
+            [0.02, 0.06, 8.0, 0.02, 0.01, 0.01,
+             0.02, 0.06, 8.0, 0.02, 0.01, 0.01,
+             2.0, 0.5, 0.5,
+             50.0, 50.0, 15.0, 30.0,
+             50.0, 50.0, 15.0, 30.0]
+
         r:
           # [left fx, fy, fz, mx, my, mz, right fx, fy, fz, mx, my, mz]
-          contactWrenches: [0.05, 0.05, 0.01, 0.05, 0.05, 0.2,
-                            0.05, 0.05, 0.01, 0.05, 0.05, 0.2]
-          jointVelocities: [20.0, 20.0, 200.0, 20.0, 20.0, 20.0,
-                            20.0, 20.0, 200.0, 20.0, 20.0, 20.0,
-                            2000.0, 800.0, 2000.0,
-                            200.0, 100.0, 100.0, 200.0,
-                            200.0, 100.0, 100.0, 200.0]
+          contactWrenches:
+            [0.05, 0.05, 0.01, 0.05, 0.05, 0.2,
+             0.05, 0.05, 0.01, 0.05, 0.05, 0.2]
+          jointVelocities:
+            [50.0, 50.0, 500.0, 50.0, 50.0, 50.0,
+             50.0, 50.0, 500.0, 50.0, 50.0, 50.0,
+             2000.0, 800.0, 2000.0,
+             2000.0, 1000.0, 1000.0, 2000.0,
+             2000.0, 1000.0, 1000.0, 2000.0]
+
         # [pos xyz, orientation xyz, lin vel xyz, ang vel xyz]
-        taskSpaceFootCostWeights: [0.0, 0.0, 0.0,
-                                   1000.0, 1000.0, 0.0,
-                                   10.0, 10.0, 0.0,
-                                   1.0, 1.0, 0.005]
+        taskSpaceFootCostWeights:
+          [0.0, 0.0, 0.0,
+           1000.0, 1000.0, 0.0,
+           10.0, 10.0, 0.0,
+           1.0, 1.0, 0.005]
+        
         icpErrorWeight: 0.0
+        
+        # Flat-ground capture-point foot placement. Without this there is no
+        # foothold xy reference at all, so nothing arrests a lateral fall.
+        captureFootPlacement:
+          enabled: true
+          gain: 0.1
+          stepWidth: 0.25
+          maxAdjustment: 0.20
+          trackingWeight: 100.0
+          footCenterOffset: 0.075
+          stepLengthGain: 0.0
+
         taskSpaceCosts:
-          names: [torso]
+          names:
+            [torso]
           torso:
             linkName: mid360_link
-            weights: [0.0, 0.0, 0.0,
-                      100.0, 100.0, 0.0,
-                      0.1, 0.1, 0.005,
-                      5.0, 5.0, 2.0]
+            weights:
+              [0.0, 0.0, 0.0,
+               100.0, 100.0, 0.0,
+               0.1, 0.1, 0.005,
+               5.0, 5.0, 2.0]
+
         legTorqueCost:
-          scaling: 0.0001
+          scaling: 0.001
           leftActiveJointNames:
             - left_hip_pitch_joint
             - left_hip_roll_joint
@@ -552,22 +690,37 @@ humanoid_centroidal_mpc_controller:
         maxDisplacementVelocityY: 1.2
         maxDeltaPelvisHeight: 0.4
         maxRotationVelocity: 1.0
-        defaultBaseHeight: 0.7925
+        defaultBaseHeight: $(var refBaseHeight)
         basePosePositionTolerance: 0.02
         basePoseOrientationTolerance: 0.03
-        defaultJointState: [-0.05, 0.0, 0.0, 0.1, -0.05, 0.0,
-                            -0.05, 0.0, 0.0, 0.1, -0.05, 0.0,
-                             0.0, 0.0, 0.0,
-                            0.20, 0.20, 0.0, 1.20,
-                            0.20, -0.20, 0.0, 1.20]
+        # Arms hang at the sides. The all-zero arm posture this replaced put the
+        # hands 0.20 m IN FRONT of the pelvis and 0.10 m above it, holding 7.04 kg
+        # of arm mass at +0.063 m forward of the pelvis. Shoulder roll +-0.20 and
+        # elbow 1.20 bring that to +0.025 m (-61%) with the forearms hanging beside
+        # the hips; at zero roll the hands interpenetrate the hip links by 12.6 mm,
+        # which is why the roll term is not optional.
+        #
+        # This is a POSTURE change, not a stability fix: standing pitch is
+        # unchanged (both under 0.6 deg) and forward pitch RMS is 10-20% WORSE,
+        # because the gains were tuned with the arms held forward. See Claude.md.
+        useInertiaWeightedAngularMomentum: true
+        defaultJointState:
+          [-0.05,   0.0, 0.0,  0.1, -0.05, 0.0,
+           -0.05,   0.0, 0.0,  0.1, -0.05, 0.0,
+             0.0,   0.0, 0.0,
+            0.20,  0.20, 0.0, 1.20,
+            0.20, -0.20, 0.0, 1.20]
 
       gait:
         gaitLibraryFile: $(var gaitLibraryFile)
         stairClimbingFile: $(var stairClimbingFile)
         terrainWalkingFile: $(var terrainWalkingFile)
-        initialModeSequence: [STANCE, STANCE]
-        initialEventTimes: [0.5]
-        defaultModeSequence: [STANCE]
+        initialModeSequence:
+          [STANCE, STANCE]
+        initialEventTimes:
+          [0.5]
+        defaultModeSequence:
+          [STANCE]
         defaultSwitchingTimes: [0.0, 0.5]
 
     visualization:

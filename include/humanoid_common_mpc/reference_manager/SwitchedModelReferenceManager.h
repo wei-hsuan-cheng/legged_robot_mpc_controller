@@ -49,6 +49,8 @@ namespace ocs2::humanoid {
  */
 class SwitchedModelReferenceManager : public ReferenceManager {
  public:
+  enum class BaseTrackingMode { RelativeTwist, AbsolutePose };
+
   SwitchedModelReferenceManager(std::shared_ptr<GaitSchedule> gaitSchedulePtr,
                                 std::shared_ptr<SwingTrajectoryPlanner> swingTrajectoryPtr,
                                 const PinocchioInterface& pinocchioInterface,
@@ -62,13 +64,185 @@ class SwitchedModelReferenceManager : public ReferenceManager {
   SwitchedModelReferenceManager& operator=(SwitchedModelReferenceManager&&) = delete;
   SwitchedModelReferenceManager(SwitchedModelReferenceManager&&) = delete;
 
+  /**
+   * Capture-point foot placement for flat ground.
+   *
+   * On flat ground there is no foothold reference at all: the stair plan and the
+   * terrain planner are both inactive, getSwingFootholdReference() returns false,
+   * and the foot task-space cost has zero position weight. The landing xy is then
+   * whatever the optimizer happens to produce. That is fine while the robot is
+   * upright, but it leaves nothing to arrest a lateral fall - and lateral walking
+   * dynamics are an inverted pendulum whose only real authority IS where the next
+   * foot lands. Measured behaviour matches: step width stayed pinned near 0.18 m
+   * while roll grew step over step until the robot went over.
+   *
+   * This closes that loop the standard way. The swing foot is aimed at the
+   * capture point (CoM plus CoM velocity over omega), offset laterally by half
+   * the nominal step width so the feet stay apart, with the correction clamped so
+   * a transient cannot command an unreachable step.
+   */
+  struct CaptureFootPlacementSettings {
+    bool enabled = false;
+    scalar_t gain = 0.6;             //!< scales the capture-point correction; 0 reproduces the nominal foothold
+    scalar_t stepWidth = 0.18;       //!< nominal lateral spacing between the feet [m]
+    scalar_t maxAdjustment = 0.20;   //!< bound on the correction away from nominal [m]
+    //! xy foothold tracking weight handed to the foot cost. The dominant knob,
+    //! and it wants to be LARGE: on the vx ladder 30 -> 48.5 s, 100 -> 57.5,
+    //! 400 -> 65.0, 1600 -> 78.6, 3200 -> 79.2 (saturating). Too weak and the
+    //! optimizer simply ignores the foothold.
+    scalar_t trackingWeight = 1600.0;
+    //! How far ahead to propagate the capture point about the stance foot, in
+    //! seconds, capped at the time remaining until touchdown. The DCM diverges as
+    //! exp(omega*t), so in principle projecting to touchdown makes the placement
+    //! deadbeat. In practice omega ~ 3.7 turns a 0.4 s projection into a 4.5x
+    //! amplification that saturates maxAdjustment on every step and destroys the
+    //! feedback it was meant to sharpen - measured worse than no projection.
+    //! Default 0 is the instantaneous capture point, which measured best; raise
+    //! it together with maxAdjustment if you want to explore the deadbeat end.
+    scalar_t projectionHorizon = 0.0;
+    //! Feedforward step length, as a fraction of (velocity x step period).
+    //!
+    //! The capture point alone is the DEADBEAT STOPPING placement: put the foot
+    //! there and the CoM comes to rest. Steady walking needs the opposite - the
+    //! foot must land ahead of the base by about v * T_step / 2 so the body can
+    //! keep passing over it. With omega ~ 3.7 the capture term supplies only
+    //! 0.27 * v against the ~0.43 * v that a 0.85 s step needs, leaving the robot
+    //! a few centimetres short on every step and slowly pitching forward - which
+    //! is worse the faster it walks.
+    //!
+    //! MEASURED NEUTRAL-TO-HARMFUL here, so it defaults to 0: the nominal already
+    //! advances by v * timeToTouchdown (see baseAtTouchdown), which covers most of
+    //! the same travel, and adding this term on top double-counts it. On the vx
+    //! ladder: 0.0 -> 56.3 s, 0.5 -> 56.1 s, 0.8 -> 55.5 s, 1.2 -> 47.1 s. Kept as
+    //! a knob because the right split between the two depends on the gait period.
+    scalar_t stepLengthGain = 0.0;
+    //! Distance from the contact (ankle) frame to the CENTRE of the foot's
+    //! support polygon, along the heading direction [m].
+    //!
+    //! The contact frame is the ankle, but the sole is not centred on it. On the
+    //! G1 it spans -0.055 m at the heel to +0.125 m at the toe, so the toe reach
+    //! is 2.27x the heel reach. Placing the ankle under the predicted base
+    //! therefore leaves 0.125 m of margin for a CoM travelling forward and only
+    //! 0.055 m for one travelling backward.
+    //!
+    //! That asymmetry was the dominant failure mode: with foot placement enabled,
+    //! forward walking at 0.05-0.30 m/s never fell across six runs, while every
+    //! single fall (4 of 4) happened 1.6-3.8 s into the -0.10 m/s phase.
+    //! Subtracting this offset centres the polygon under the base and equalises
+    //! the margins at 0.09 m - a 64% gain backward for a reduction forward that
+    //! the robot never came close to needing.
+    //!
+    //! Measured from the model geometry: (0.125 - 0.055) / 2 = 0.035.
+    scalar_t footCenterOffset = 0.035;
+  };
+
+  /**
+   * Use the measured stance-foot height as the swing planner's ground reference,
+   * instead of assuming a flat floor at z = 0.
+   *
+   * adaptToCurrentGroundHeight() computes a ground-height estimate from the
+   * stance feet and then, historically, discarded it with `terrainHeight = 0.0`.
+   * That constant is what the swing trajectory is built around and what the
+   * base-height target is offset by, so it hard-codes a flat floor at the world
+   * origin - and it is the single thing that stops this stack walking on sloped
+   * or stepped ground however well the state estimator tracks the terrain,
+   * because the swing foot is still aimed at z = 0.
+   *
+   * Off by default: the shipped gains were all tuned against the flat assumption,
+   * and on genuinely flat ground the estimate is strictly worse than the constant
+   * it replaces. Enable it together with an InEKF height source that does not
+   * itself assume a flat plane - "inekf" or "anchored". "kinematic" and "blend"
+   * both pin the stance feet to groundZ, which would feed the assumption straight
+   * back in and defeat the purpose.
+   *
+   * @param maxStepPerSolve bounds how far the reference may move in one solver
+   *        iteration, so a mis-detected contact cannot demand an impossible swing.
+   */
+  void setUseTerrainHeightEstimate(bool enabled, scalar_t maxStepPerSolve = 0.01) {
+    useTerrainHeightEstimate_ = enabled;
+    maxTerrainHeightStep_ = maxStepPerSolve;
+  }
+  bool usesTerrainHeightEstimate() const { return useTerrainHeightEstimate_; }
+
+  void setCaptureFootPlacementSettings(const CaptureFootPlacementSettings& settings) {
+    captureFootPlacement_ = settings;
+  }
+  const CaptureFootPlacementSettings& getCaptureFootPlacementSettings() const { return captureFootPlacement_; }
+
   contact_flag_t getContactFlags(scalar_t time) const;
 
   bool isInStancePhase(scalar_t time) const { return (getContactFlags(time)[0] && getContactFlags(time)[1]); }
 
   bool isInContact(scalar_t time, size_t contactIndex) const { return getContactFlags(time)[contactIndex]; };
 
-  void setArmSwingReferenceActive(bool armSwingReferenceActive) { armSwingReferenceActive_ = armSwingReferenceActive; }
+  /**
+   * Swing superimposed on the nominal arm posture while walking.
+   *
+   * Two separable pieces, kept deliberately apart because only the second one is
+   * going to be replaced:
+   *
+   *  - The NOMINAL arm posture is NOT here. It is the arm block of
+   *    `reference.defaultJointState`, which is the posture the arms hold when the
+   *    swing evaluates to zero. That is the right home for it - it is the same
+   *    posture the terminal cost and the stair planner track - and it is what
+   *    decides whether the arms hang at the sides or stick out in front.
+   *  - The SWING about that posture is configured here.
+   *
+   * WHAT THIS IS (phase 1): an open-loop sinusoid locked to the gait phase and
+   * scaled by the commanded forward speed. It is a kinematic mimicry of a human
+   * arm swing: it does not know what the trunk is actually doing and cannot react
+   * to a disturbance. Its only stabilising effect is indirect, through the yaw
+   * moment the counter-swinging arms apply against the one the swinging leg
+   * generates.
+   *
+   * WHAT IT IS BUILT FOR (phase 2): the two arms are 7.04 kg on ~0.25 m lever
+   * arms, so they are a genuine angular-momentum actuator, and the centroidal
+   * model already accounts for their contribution through A_G(q) - the momentum
+   * state the MPC optimises over ALREADY contains it. The seam for that work is
+   * addArmSwingOffsets(): it receives the current state, the reference and the
+   * model, so a momentum-regulating law can replace the sinusoid below without
+   * touching a single caller.
+   *
+   * One conflict has to be resolved before that will do anything useful: the
+   * momentum reference asks for h_ang,x = h_ang,y = 0 with terminal weight 75,
+   * while this term commands a swing that necessarily produces non-zero angular
+   * momentum. The two are currently fighting, which is why the arms are worth
+   * very little to balance today.
+   */
+  struct ArmSwingSettings {
+    bool enabled = false;
+    //! Shoulder-pitch amplitude per unit of commanded forward speed [rad/(m/s)].
+    scalar_t shoulderPitchAmplitude = 0.15;
+    //! Elbow amplitude per unit of commanded forward speed [rad/(m/s)].
+    scalar_t elbowAmplitude = 0.15;
+    //! Shifts the swing relative to the gait phase, in fractions of a cycle.
+    scalar_t phaseOffset = 0.15;
+    //! Hard bound on the offset away from the nominal posture [rad]. Sized from
+    //! the collision-free envelope measured on the G1 model: at the shipped
+    //! nominal (shoulder roll +-0.20, elbow 1.20) a shoulder-pitch excursion of
+    //! +-0.6 rad clears the torso, pelvis and hips with no interpenetration and
+    //! no near-miss inside a 20 mm margin. Since the MPC carries no
+    //! self-collision constraint, this clamp is the only thing keeping the arm
+    //! reference inside that envelope, and a phase-2 law must respect it too.
+    scalar_t maxOffset = 0.6;
+  };
+
+  void setArmSwingSettings(const ArmSwingSettings& settings) { armSwing_ = settings; }
+  const ArmSwingSettings& getArmSwingSettings() const { return armSwing_; }
+
+  void setArmSwingReferenceActive(bool armSwingReferenceActive) { armSwing_.enabled = armSwingReferenceActive; }
+
+  /**
+   * Selects how the base tracking cost interprets the target trajectory.
+   * RelativeTwist ignores the unobservable world x/y/yaw pose error and tracks
+   * horizontal motion in the target heading frame. AbsolutePose retains full
+   * world-frame pose tracking for explicit base-pose commands.
+   */
+  void setBaseTrackingMode(BaseTrackingMode mode) { baseTrackingMode_.setBuffer(mode); }
+  BaseTrackingMode getBaseTrackingMode() const { return baseTrackingMode_.get(); }
+  bool usesRelativeBaseTwistTracking() const {
+    return getBaseTrackingMode() == BaseTrackingMode::RelativeTwist;
+  }
 
   /**
    * External joint-target channel (command_type "joint", mirroring the
@@ -146,6 +320,23 @@ class SwitchedModelReferenceManager : public ReferenceManager {
 
   vector_t getDesiredState(const TargetTrajectories& targetTrajectories, const vector_t& state, scalar_t time) const;
 
+  /**
+   * Superimpose the arm swing on the nominal arm posture, in place.
+   *
+   * THIS IS THE PHASE-2 SEAM. Everything a momentum-regulating arm law needs is
+   * already an argument: the measured `state` (whose centroidal momentum block
+   * carries the arms' own contribution through A_G(q)), the reference `xNominal`
+   * being tracked, and `time` for the gait phase. Replacing the body below with
+   * such a law requires no change at any call site.
+   *
+   * @param desiredJointAngles [in/out] the nominal joint reference; only the four
+   *        arm entries are modified, each clamped to +-ArmSwingSettings::maxOffset.
+   */
+  void addArmSwingOffsets(vector_t& desiredJointAngles,
+                          const vector_t& xNominal,
+                          const vector_t& state,
+                          scalar_t time) const;
+
  protected:
   virtual void modifyReferences(scalar_t initTime,
                                 scalar_t finalTime,
@@ -162,11 +353,12 @@ class SwitchedModelReferenceManager : public ReferenceManager {
   const MpcRobotModelBase<scalar_t>* mpcRobotModelPtr_;
   ModeSchedule modeSchedule_;
 
-  bool armSwingReferenceActive_{false};
+  ArmSwingSettings armSwing_;
 
   BufferedValue<TargetTrajectories> externalJointTargets_{TargetTrajectories()};
   BufferedValue<FrameRelationTargets> externalFrameRelationTargets_{FrameRelationTargets()};
   BufferedValue<std::shared_ptr<const StairClimbingPlan>> stairClimbingPlan_{nullptr};
+  BufferedValue<BaseTrackingMode> baseTrackingMode_{BaseTrackingMode::RelativeTwist};
 
   // Terrain-aware walking: planner mutated only in modifyReferences (solver
   // thread, pre-solve); read-only during the solve, same pattern as the swing planner.
@@ -175,6 +367,17 @@ class SwitchedModelReferenceManager : public ReferenceManager {
 
   /// Measured feet (contact frame) world positions from FK of the current state.
   feet_array_t<vector3_t> computeFeetPositions(const vector_t& initState);
+
+  /// Recompute the capture-point footholds from the current state. Solver thread
+  /// only, called from modifyReferences() before the solve reads them.
+  void updateCaptureFootholds(scalar_t initTime, const vector_t& initState);
+
+  bool useTerrainHeightEstimate_ = false;
+  scalar_t maxTerrainHeightStep_ = 0.01;
+
+  CaptureFootPlacementSettings captureFootPlacement_;
+  feet_array_t<vector3_t> captureFoothold_{vector3_t::Zero(), vector3_t::Zero()};
+  feet_array_t<bool> captureFootholdValid_{false, false};
 
   std::shared_ptr<GaitSchedule> gaitSchedulePtr_;
   std::shared_ptr<SwingTrajectoryPlanner> swingTrajectoryPtr_;

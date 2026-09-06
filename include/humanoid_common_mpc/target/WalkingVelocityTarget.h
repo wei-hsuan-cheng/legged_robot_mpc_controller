@@ -35,6 +35,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <ocs2_core/reference/TargetTrajectories.h>
 
+#include <atomic>
+
 #include "humanoid_common_mpc/command/TargetTrajectoriesCalculatorBase.h"
 #include "humanoid_common_mpc/command/WalkingVelocityCommand.h"
 #include "humanoid_common_mpc/reference_manager/BreakFrequencyAlphaFilter.h"
@@ -47,10 +49,10 @@ namespace ocs2::humanoid {
  * It consolidates the three command-conditioning stages that used to be spread
  * across the ROS callback and the motion manager: scale the bounded command to
  * physical units, low-pass filter it, and generate the reference trajectory
- * through the injected per-model calculator (which also applies the heading
- * hold). evaluate() returns both the TargetTrajectories for the reference
- * manager and the conditioned command vector consumed by the gait selector, so
- * scaling and filtering happen exactly once per solver step.
+ * through the injected per-model calculator. evaluate() returns both the
+ * TargetTrajectories for the reference manager and the conditioned command
+ * vector consumed by the gait selector, so scaling and filtering happen exactly
+ * once per solver step.
  */
 class WalkingVelocityTarget {
  public:
@@ -60,7 +62,7 @@ class WalkingVelocityTarget {
 
   struct Output {
     TargetTrajectories targetTrajectories;
-    vector4_t conditionedCommand;  //!< scaled + filtered [v_x, v_y, pelvis_height, v_yaw]
+    vector4_t conditionedCommand;  //!< scaled + filtered [v_x, v_y, pelvis_height, yaw_rate]
   };
 
   WalkingVelocityTarget(const ReferenceConfig& referenceConfig, Generator generator);
@@ -71,6 +73,9 @@ class WalkingVelocityTarget {
   /// Scale + filter the latest command and build the reference trajectory.
   /// Must only be called from the solver thread (owns the filter state).
   Output evaluate(scalar_t initTime, scalar_t finalTime, const vector_t& initState);
+
+  /// Request a filter reset. The solver thread applies it using the latest command.
+  void requestFilterReset();
 
  private:
   WalkingVelocityCommand scaleCommand(WalkingVelocityCommand command) const;
@@ -84,6 +89,7 @@ class WalkingVelocityTarget {
 
   mutable std::mutex commandMutex_;
   WalkingVelocityCommand command_;
+  std::atomic_bool filterResetRequested_{true};
 };
 
 }  // namespace ocs2::humanoid

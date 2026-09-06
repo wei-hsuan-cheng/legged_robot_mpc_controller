@@ -113,6 +113,9 @@ class ProceduralMpcMotionManager : public SolverSynchronizedModule {
   /// Store the latest bounded walking command; conditioning happens in preSolverRun. Thread-safe.
   void setVelocityCommand(const WalkingVelocityCommand& command);
 
+  /// Reset walking-command filter history on the next solver update. Thread-safe.
+  void requestVelocityTargetFilterReset();
+
   void setBasePoseCommand(const BasePoseCommand& command);
 
   /// Stores the semantic stair climbing parameters; the plan itself is compiled

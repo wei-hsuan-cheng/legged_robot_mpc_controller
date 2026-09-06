@@ -94,6 +94,9 @@ class CentroidalMpcInterface final : public RobotInterface {
 
     CentroidalModelType centroidalModelType = CentroidalModelType::SingleRigidBodyDynamics;
     vector_t referenceJointState;  // default joint state used to build the centroidal model info
+    //! Build the angular momentum reference as I_G(q)*omega/m (true) or the
+    //! historical omega/m (false). See CentroidalMpcTargetTrajectoriesCalculator.
+    bool useInertiaWeightedAngularMomentum{true};
 
     ModeSchedule initialModeSchedule{{0.5}, {ModeNumber::STANCE, ModeNumber::STANCE}};
     ModeSequenceTemplate defaultModeSequenceTemplate{{0.0, 0.5}, {ModeNumber::STANCE}};
@@ -105,6 +108,17 @@ class CentroidalMpcInterface final : public RobotInterface {
     HumanoidCostConstraintFactory::Config costConstraintConfig;
     EndEffectorKinematicsWeights taskSpaceFootCostWeights;
     vector2_t icpCostWeights = vector2_t::Zero();
+
+    // Flat-ground capture-point foot placement; see
+    // SwitchedModelReferenceManager::CaptureFootPlacementSettings.
+    SwitchedModelReferenceManager::CaptureFootPlacementSettings captureFootPlacement;
+    SwitchedModelReferenceManager::ArmSwingSettings armSwing;
+
+    //! Use the measured stance-foot height as the swing planner's ground
+    //! reference instead of a flat floor at z = 0. See
+    //! SwitchedModelReferenceManager::setUseTerrainHeightEstimate().
+    bool useTerrainHeightEstimate = false;
+    scalar_t maxTerrainHeightStep = 0.01;
 
     std::vector<TaskSpaceCostConfig> taskSpaceCosts;   // optional additional task-space tracking costs
     std::vector<MimicJointConfig> mimicJoints;         // optional, empty = mimic constraints disabled

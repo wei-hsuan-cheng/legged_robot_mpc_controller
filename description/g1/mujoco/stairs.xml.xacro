@@ -65,6 +65,7 @@
             size="${D / 2.0} ${W / 2.0} ${ztop / 2.0}"
             pos="${xc} 0 ${ztop / 2.0}"
             rgba="${gray} ${gray} ${gray} 1"
+            priority="1"
             friction="${friction[0]} ${friction[1]} ${friction[2]}"/>
 
       <xacro:emit_step i="${i + 1}" x0="${x0 + D}" z0="${ztop}"/>

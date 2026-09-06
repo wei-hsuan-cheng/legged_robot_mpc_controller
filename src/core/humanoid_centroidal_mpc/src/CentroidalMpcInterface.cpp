@@ -95,9 +95,24 @@ CentroidalMpcInterface::CentroidalMpcInterface(Config config, bool setupOCP)
       centroidal_model::createCentroidalModelInfo(*pinocchioInterfacePtr_, config_.centroidalModelType, config_.referenceJointState,
                                                   modelSettings_.contactNames3DoF, modelSettings_.contactNames6DoF);
 
-  std::cout << "centroidalModelInfo_.numSixDofContacts: " << centroidalModelInfo_.numSixDofContacts << std::endl;
-  for (int i = 0; i < centroidalModelInfo_.numSixDofContacts; i++) {
-    std::cout << "frameIndices: " << centroidalModelInfo_.endEffectorFrameIndices[i] << std::endl;
+  // Pinocchio returns model.nframes when a frame name is not found. Catch that here: an out of range
+  // index silently propagates into data.oMf[...] and segfaults deep inside the solver setup instead.
+  const auto& pinocchioModel = pinocchioInterfacePtr_->getModel();
+  for (size_t i = 0; i < centroidalModelInfo_.endEffectorFrameIndices.size(); i++) {
+    if (centroidalModelInfo_.endEffectorFrameIndices[i] >= static_cast<size_t>(pinocchioModel.nframes)) {
+      throw std::invalid_argument("[CentroidalMpcInterface] contact frame '" + modelSettings_.contactNames[i] +
+                                  "' was not found in the Pinocchio model (got index " +
+                                  std::to_string(centroidalModelInfo_.endEffectorFrameIndices[i]) + " for a model with " +
+                                  std::to_string(pinocchioModel.nframes) + " frames).");
+    }
+  }
+
+  if (verbose_) {
+    std::cerr << "[CentroidalMpcInterface] numSixDofContacts: " << centroidalModelInfo_.numSixDofContacts << "\n";
+    for (size_t i = 0; i < centroidalModelInfo_.endEffectorFrameIndices.size(); i++) {
+      std::cerr << "[CentroidalMpcInterface] contact frame '" << modelSettings_.contactNames[i]
+                << "' -> frame index " << centroidalModelInfo_.endEffectorFrameIndices[i] << "\n";
+    }
   }
 
   // Setup Centroidal State Input Mapping
@@ -111,7 +126,10 @@ CentroidalMpcInterface::CentroidalMpcInterface(Config config, bool setupOCP)
   referenceManagerPtr_ = std::make_shared<SwitchedModelReferenceManager>(
       GaitSchedule::createGaitSchedule(config_.initialModeSchedule, config_.defaultModeSequenceTemplate, modelSettings_, verbose_),
       std::move(swingTrajectoryPlanner), *pinocchioInterfacePtr_, *mpcRobotModelPtr_);
-  referenceManagerPtr_->setArmSwingReferenceActive(true);
+  referenceManagerPtr_->setArmSwingSettings(config_.armSwing);
+  referenceManagerPtr_->setCaptureFootPlacementSettings(config_.captureFootPlacement);
+  referenceManagerPtr_->setUseTerrainHeightEstimate(config_.useTerrainHeightEstimate,
+                                                   config_.maxTerrainHeightStep);
 
   // initial state
   if (config_.initialState.size() != centroidalModelInfo_.stateDim) {

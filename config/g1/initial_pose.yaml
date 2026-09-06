@@ -20,7 +20,9 @@ g1_joints:
   waist_pitch_joint: 0.0
 
   # Shoulder, elbow, wrist joints
-  left_shoulder_pitch_joint: 0.0
+  # Arms hanging at the sides, matching reference.defaultJointState so the robot
+  # spawns in the posture the MPC reference asks it to hold.
+  left_shoulder_pitch_joint: 0.2
   left_shoulder_roll_joint: 0.20
   left_shoulder_yaw_joint: 0.0
   left_elbow_joint: 1.20
@@ -28,7 +30,7 @@ g1_joints:
   left_wrist_pitch_joint: 0.0
   left_wrist_yaw_joint: 0.0
 
-  right_shoulder_pitch_joint: 0.0
+  right_shoulder_pitch_joint: 0.2
   right_shoulder_roll_joint: -0.20
   right_shoulder_yaw_joint: 0.0
   right_elbow_joint: 1.20
