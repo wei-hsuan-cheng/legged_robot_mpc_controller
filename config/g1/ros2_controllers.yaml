@@ -279,16 +279,6 @@ humanoid_wb_mpc_controller:
         defaultBaseHeight: $(var refBaseHeight)
         basePosePositionTolerance: 0.02
         basePoseOrientationTolerance: 0.03
-        # Arms hang at the sides. The all-zero arm posture this replaced put the
-        # hands 0.20 m IN FRONT of the pelvis and 0.10 m above it, holding 7.04 kg
-        # of arm mass at +0.063 m forward of the pelvis. Shoulder roll +-0.20 and
-        # elbow 1.20 bring that to +0.025 m (-61%) with the forearms hanging beside
-        # the hips; at zero roll the hands interpenetrate the hip links by 12.6 mm,
-        # which is why the roll term is not optional.
-        #
-        # This is a POSTURE change, not a stability fix: standing pitch is
-        # unchanged (both under 0.6 deg) and forward pitch RMS is 10-20% WORSE,
-        # because the gains were tuned with the arms held forward. See Claude.md.
         useInertiaWeightedAngularMomentum: true
         defaultJointState:
           [-0.05, 0.0, 0.0, 0.1, -0.05, 0.0,
@@ -415,9 +405,14 @@ humanoid_centroidal_mpc_controller:
     # switched to "state_estimator".
     stateEstimator:
       enabled: true
-      # inEKF    = contact-aided right-invariant EKF (Hartley et al. 2018)
-      # linearKF = conventional linearised KF baseline; NOT implemented yet,
-      #            selecting it fails at configure time rather than falling back.
+      # linearKF = two-stage filter of MIT Cheetah 3 (Bledt et al. 2018): attitude
+      #            straight from the IMU, then a plain KF over base position,
+      #            base velocity and the contact-point positions. No bias states.
+      # inEKF    = contact-aided right-invariant EKF (Hartley et al. 2018).
+      #            Estimates attitude jointly with position/velocity on SE_{N+2}(3),
+      #            and estimates IMU biases.
+      # Everything from here to `validation` is shared by both; per-estimator
+      # tuning lives in the inEKF: / linearKF: blocks below.
       estimatorType: linearKF
       imuInterfaceName: pelvis_imu
       imuFrame: imu_in_pelvis
@@ -426,7 +421,8 @@ humanoid_centroidal_mpc_controller:
       odomTopic: /humanoid/state_estimate/odom
       odomFrame: world
       publishRate: 100.0
-      # Allow IMU biases and contact-aided velocity to settle before closing the loop.
+      # How long the estimator runs alongside the ground-truth/hardware base before
+      # it is allowed to drive control.
       warmupSeconds: 5.0
       # Simulation-only comparison against the MuJoCo floating-base state interfaces.
       validation:
@@ -434,12 +430,7 @@ humanoid_centroidal_mpc_controller:
         period: 0.5
         maxLinearVelocityError: 0.1
         maxAngularVelocityError: 0.2
-      # The pelvis accelerometer swings +-5 m/s^2 while standing (stiff PD/contact
-      # vibration), so trust it far less and low-pass it hard; lean on the contact
-      # height-anchor instead. Removes the ~4 cm height droop.
-      # ---- contact-aided invariant EKF (estimatorType: inEKF) ----
-      # Estimator-specific tuning. A future linearKF: block sits alongside this
-      # one; shared plumbing (imu*, contactFrames, odom*, validation) stays above.
+      
       # ---- two-stage linear KF (estimatorType: linearKF) ----
       # MIT Cheetah 3, Bledt et al. IROS 2018 Sec. III-H. Stage 1 takes attitude
       # from pelvis_imu; stage 2 is a plain KF over base position, base velocity
@@ -464,6 +455,7 @@ humanoid_centroidal_mpc_controller:
         # a foot that is off the ground without resizing the problem.
         swingNoiseMultiplier: 100.0
 
+      # ---- contact-aided invariant EKF (estimatorType: inEKF) ----
       inEKF:
         noise:
           gyroscope: 1.0e-2
