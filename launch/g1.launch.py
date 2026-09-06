@@ -109,6 +109,16 @@ def generate_launch_description():
         DeclareLaunchArgument("mpcFreq", default_value="100", description="MPC update frequency (should be integer) (100 for centroidal, 50 for whole-body)"),
         DeclareLaunchArgument("mrtFreq", default_value="1000", description="MRT update frequency (should be integer)"),
         DeclareLaunchArgument("controllersFile", default_value=controllers_file_default),
+        DeclareLaunchArgument(
+            "refBaseHeight",
+            default_value="0.7925",
+            description=(
+                "Nominal pelvis height [m]. Substituted into ocs2.reference.defaultBaseHeight "
+                "in the controllers yaml AND handed to the base-command GUI, so the slider's "
+                "centre and reset value cannot drift apart from what the MPC uses as its "
+                "reference."
+            ),
+        ),
         DeclareLaunchArgument("gaitLibraryFile", default_value=gait_library_file_default),
         DeclareLaunchArgument("stairClimbingFile", default_value=stair_climbing_file_default),
         DeclareLaunchArgument("terrainWalkingFile", default_value=terrain_walking_file_default),
@@ -300,9 +310,12 @@ def generate_launch_description():
         condition=IfCondition(LaunchConfiguration("baseCommandGui")),
         parameters=[
             {
-                "max_linear_velocity_y": 2.4,
+                "max_linear_velocity_x": 2.4,
                 "max_linear_velocity_y": 1.2,
                 "max_yaw_rate": 1.0,
+                "reference_base_height": ParameterValue(
+                    LaunchConfiguration("refBaseHeight"), value_type=float
+                ),
             }
         ],
     )

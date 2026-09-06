@@ -276,7 +276,7 @@ humanoid_wb_mpc_controller:
         maxDisplacementVelocityY: 1.2
         maxDeltaPelvisHeight: 0.4
         maxRotationVelocity: 1.0
-        defaultBaseHeight: 0.7925
+        defaultBaseHeight: $(var refBaseHeight)
         basePosePositionTolerance: 0.02
         basePoseOrientationTolerance: 0.03
         # Arms hang at the sides. The all-zero arm posture this replaced put the
@@ -700,7 +700,7 @@ humanoid_centroidal_mpc_controller:
         maxDisplacementVelocityY: 1.2
         maxDeltaPelvisHeight: 0.4
         maxRotationVelocity: 1.0
-        defaultBaseHeight: 0.7925
+        defaultBaseHeight: $(var refBaseHeight)
         basePosePositionTolerance: 0.02
         basePoseOrientationTolerance: 0.03
         # Arms hang at the sides. The all-zero arm posture this replaced put the
