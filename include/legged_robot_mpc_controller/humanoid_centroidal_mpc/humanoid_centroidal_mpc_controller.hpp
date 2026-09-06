@@ -91,7 +91,6 @@ private:
     const ocs2::SystemObservation& fallback) const;
   // Runs the InEKF state estimator each control tick (bootstraps from GT, publishes its odom).
   void update_state_estimator(const rclcpp::Time& time);
-  void log_state_estimator_validation(const rclcpp::Time& time);
   // Samples one row of the Phase-0 state diagnostics log (no-op when disabled).
   void record_diagnostics_state(
     const rclcpp::Time& time,
@@ -170,10 +169,6 @@ private:
   // Filter convergence window: the estimate only drives control after this time.
   double estimator_warmup_end_time_{-1.0};
   bool estimator_driving_control_{false};
-  double last_estimator_validation_time_{-1.0};
-  Eigen::Vector3d previous_gyroscope_bias_{Eigen::Vector3d::Zero()};
-  Eigen::Vector3d previous_accelerometer_bias_{Eigen::Vector3d::Zero()};
-  bool estimator_bias_validation_initialized_{false};
 
   // Phase-0 instrumentation. Null unless diagnostics.log.enabled is set; the
   // control thread feeds its state log and the solver thread feeds its cost log.

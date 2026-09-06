@@ -402,14 +402,13 @@ humanoid_centroidal_mpc_controller:
 
     stateEstimator:
       enabled: true
-      # linearKF = two-stage filter of MIT Cheetah 3 (Bledt et al. 2018): attitude
-      #            straight from the IMU, then a plain KF over base position,
-      #            base velocity and the contact-point positions. No bias states.
       # inEKF    = contact-aided right-invariant EKF (Hartley et al. 2018).
-      #            Estimates attitude jointly with position/velocity on SE_{N+2}(3),
-      #            and estimates IMU biases.
-      # Everything from here to `validation` is shared by both; per-estimator
-      # tuning lives in the inEKF: / linearKF: blocks below.
+      #            Estimates attitude jointly with position/velocity on
+      #            SE_{N+2}(3), plus IMU biases.
+      # linearKF = two-stage filter of MIT Cheetah 3 (Bledt et al. 2018).
+      #            Attitude from the IMU, then a plain KF over base position,
+      #            base velocity and the contact-point positions. No bias states.
+      # Keys below are shared; per-estimator tuning is in the inEKF:/linearKF: blocks.
       estimatorType: linearKF
       imuInterfaceName: pelvis_imu
       imuFrame: imu_in_pelvis
@@ -421,13 +420,7 @@ humanoid_centroidal_mpc_controller:
       # How long the estimator runs alongside the ground-truth/hardware base before
       # it is allowed to drive control.
       warmupSeconds: 5.0
-      # Simulation-only comparison against the MuJoCo floating-base state interfaces.
-      validation:
-        enabled: true
-        period: 0.5
-        maxLinearVelocityError: 0.1
-        maxAngularVelocityError: 0.2
-      
+
       # ---- two-stage linear KF (estimatorType: linearKF) ----
       # MIT Cheetah 3, Bledt et al. IROS 2018 Sec. III-H. Stage 1 takes attitude
       # from pelvis_imu; stage 2 is a plain KF over base position, base velocity
@@ -579,6 +572,7 @@ humanoid_centroidal_mpc_controller:
         qScaling: 1.0
         rScaling: 0.001
         terminalCostScaling: 0.0
+        
         q:
           centroidalMomentum:
             [8.0, 8.0, 15.0, 15.0, 15.0, 4.0]
@@ -590,6 +584,7 @@ humanoid_centroidal_mpc_controller:
              2.0, 0.5, 0.5,
              30.0, 30.0, 10.0, 20.0,
              30.0, 30.0, 10.0, 20.0]
+
         qFinal:
           centroidalMomentum:
             [25.0, 25.0, 25.0, 25.0, 25.0, 25.0]
@@ -601,6 +596,7 @@ humanoid_centroidal_mpc_controller:
              2.0, 0.5, 0.5,
              50.0, 50.0, 15.0, 30.0,
              50.0, 50.0, 15.0, 30.0]
+
         r:
           # [left fx, fy, fz, mx, my, mz, right fx, fy, fz, mx, my, mz]
           contactWrenches:
@@ -612,13 +608,16 @@ humanoid_centroidal_mpc_controller:
              2000.0, 800.0, 2000.0,
              2000.0, 1000.0, 1000.0, 2000.0,
              2000.0, 1000.0, 1000.0, 2000.0]
+
         # [pos xyz, orientation xyz, lin vel xyz, ang vel xyz]
         taskSpaceFootCostWeights:
           [0.0, 0.0, 0.0,
            1000.0, 1000.0, 0.0,
            10.0, 10.0, 0.0,
            1.0, 1.0, 0.005]
+        
         icpErrorWeight: 0.0
+        
         # Flat-ground capture-point foot placement. Without this there is no
         # foothold xy reference at all, so nothing arrests a lateral fall.
         captureFootPlacement:
@@ -629,6 +628,7 @@ humanoid_centroidal_mpc_controller:
           trackingWeight: 100.0
           footCenterOffset: 0.075
           stepLengthGain: 0.0
+
         taskSpaceCosts:
           names:
             [torso]
@@ -639,6 +639,7 @@ humanoid_centroidal_mpc_controller:
                100.0, 100.0, 0.0,
                0.1, 0.1, 0.005,
                5.0, 5.0, 2.0]
+
         legTorqueCost:
           scaling: 0.0001
           leftActiveJointNames:

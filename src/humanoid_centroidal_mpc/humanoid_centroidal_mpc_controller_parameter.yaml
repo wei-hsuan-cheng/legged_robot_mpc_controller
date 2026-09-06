@@ -250,30 +250,6 @@ humanoid_centroidal_mpc_controller:
       default_value: 3.0,
       description: "Convergence window [s] after activation during which the MPC keeps using the ground-truth/state-interface base even if floatingBase.source is state_estimator. The InEKF is seeded with zero velocity and unknown IMU biases, so its first ~2 s carry ~0.15 m/s of phantom base velocity; feeding that to the momentum-based centroidal MPC destabilizes the robot. On hardware this corresponds to holding the robot at a known pose until the filter converges."
     }
-    validation:
-      enabled: {
-        type: bool,
-        default_value: false,
-        description: "Enable simulation-only InEKF velocity validation against floating-base ground-truth state interfaces"
-      }
-      period: {
-        type: double,
-        default_value: 0.5,
-        description: "Period [s] of the rate-limited InEKF velocity and IMU-bias validation log",
-        validation: { gt: [0.0] }
-      }
-      maxLinearVelocityError: {
-        type: double,
-        default_value: 0.1,
-        description: "Maximum accepted norm of world-frame base linear-velocity estimation error [m/s]",
-        validation: { gt_eq: [0.0] }
-      }
-      maxAngularVelocityError: {
-        type: double,
-        default_value: 0.2,
-        description: "Maximum accepted norm of body-frame base angular-velocity estimation error [rad/s]",
-        validation: { gt_eq: [0.0] }
-      }
     # ---------------------------------------------------------------------
     # Parameters of the contact-aided invariant EKF (estimatorType: inEKF).
     #
