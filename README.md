@@ -94,7 +94,8 @@ ros2 launch legged_robot_mpc_controller g1.launch.py \
   mpcControllerName:=humanoid_centroidal_mpc_controller \
   mpcFreq:=100 \
   mrtFreq:=1000 \
-  mujoco_headless:=true \
+  rviz:=true \
+  mujoco_headless:=false \
   baseCommandGui:=true
 ```
 
@@ -124,7 +125,8 @@ Three things will bite you if you skip them:
 cd <workspace_dir>
 source install/setup.bash
 ros2 launch legged_robot_mpc_controller g1.launch.py \
-  mujoco_headless:=true \
+  rviz:=true \
+  mujoco_headless:=false \
   mujocoModelFile:=scene_flat.xml \
   baseCommandGui:=false \
   diagnosticsLog:=true diagnosticsLogPrefix:=/tmp/fig8_%t
@@ -221,7 +223,8 @@ ros2 launch legged_robot_mpc_controller g1.launch.py \
   mpcControllerName:=humanoid_centroidal_mpc_controller \
   mpcFreq:=100 \
   mrtFreq:=1000 \
-  mujoco_headless:=true \
+  rviz:=true \
+  mujoco_headless:=false \
   baseCommandGui:=false
 
 # Trigger the target mode
@@ -261,7 +264,8 @@ ros2 launch legged_robot_mpc_controller g1.launch.py \
   mpcControllerName:=humanoid_centroidal_mpc_controller \
   mpcFreq:=100 \
   mrtFreq:=1000 \
-  mujoco_headless:=true \
+  rviz:=true \
+  mujoco_headless:=false \
   baseCommandGui:=true
 
 # Trigger the target mode
@@ -340,7 +344,7 @@ ros2ControlCommandInterface:=effort | effort_pd | position
 mujocoEffortCommandMode:=actuator | qfrc_applied
 initialPoseFile:=<...>/initial_pose.yaml # initial joint state (config/g1/initial_pose.yaml)
 rviz:=true | false
-mujoco_headless:=true | false
+mujoco_headless:=false | true
 mujoco_wait_to_start:=true | false       # paused start + /mujoco_ros2_control/start service
 mujoco_real_time_factor:=1.0             # double
 mujoco_publish_rate:=100.0               # double
