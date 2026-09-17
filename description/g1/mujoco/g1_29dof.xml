@@ -150,6 +150,11 @@
             <geom pos="0.0039635 0 -0.054" quat="1 0 0 0" type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.7 0.7 0.7 1" mesh="waist_support_link"/>
             <geom pos="0.0039635 0 -0.054" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="waist_support_link"/>
             <site name="imu_in_torso" size="0.01" pos="-0.03959 -0.00224 0.13792"/>
+            <!-- Livox Mid-360, at the URDF mid360_joint pose (xyz 0.0002835 0.00003 0.40618,
+                 pitch 0.0401426 rad). Massless; only used when the ros2_control lidar
+                 sensor is enabled. Its origin is inside this body's head mesh, which the
+                 lidar excludes from the ray cast as its mount body. -->
+            <site name="mid360" size="0.01" pos="0.0002835 0.00003 0.40618" quat="0.9997985785 0 0.0200699388 0"/>
             <body name="left_shoulder_pitch_link" pos="0.0039563 0.10022 0.23778" quat="0.990264 0.139201 1.38722e-05 -9.86868e-05">
               <inertial pos="0 0.035892 -0.011628" quat="0.654152 0.0130458 -0.326267 0.68225" mass="0.718" diaginertia="0.000465864 0.000432842 0.000406394"/>
               <joint name="left_shoulder_pitch_joint" pos="0 0 0" axis="0 1 0" range="-3.0892 2.6704" actuatorfrcrange="-25 25" armature="0.00361" damping="10.0"/>

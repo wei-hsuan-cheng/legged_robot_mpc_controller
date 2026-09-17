@@ -133,6 +133,12 @@ def generate_launch_description():
             description="actuator: PD torque through MuJoCo motors (force limits apply); "
                         "qfrc_applied: unclamped direct generalized-force bypass.",
         ),
+        DeclareLaunchArgument(
+            "enableLidar",
+            default_value="false",
+            description="Simulate the Livox Mid-360 (PointCloud2 on /livox/lidar). "
+                        "Needs mujoco_ros2_control built with lidar support.",
+        ),
         DeclareLaunchArgument("initialPoseFile", default_value=initial_pose_default),
         DeclareLaunchArgument(
             "spawnMpcController",
@@ -175,6 +181,9 @@ def generate_launch_description():
             " ",
             "mujoco_effort_command_mode:=",
             LaunchConfiguration("mujocoEffortCommandMode"),
+            " ",
+            "use_lidar:=",
+            LaunchConfiguration("enableLidar"),
         ]
     )
     robot_description = {"robot_description": ParameterValue(robot_description_content, value_type=str)}

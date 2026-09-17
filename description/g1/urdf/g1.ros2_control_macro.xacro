@@ -72,7 +72,8 @@
       mujoco_position_kd:=500
       mujoco_position_i_max:=10000
       mujoco_position_i_min:=-10000
-      mujoco_effort_command_mode:=actuator">
+      mujoco_effort_command_mode:=actuator
+      use_lidar:=false">
     <ros2_control name="${system_name}" type="system">
       <hardware>
         <xacro:if value="${use_mujoco_sim}">
@@ -127,6 +128,22 @@
           <state_interface name="linear_acceleration.y"/>
           <state_interface name="linear_acceleration.z"/>
         </sensor>
+
+        <!-- Livox Mid-360 3D lidar, opt-in (enableLidar:=true). Publishes the cloud on
+             /livox/lidar in the livox_ros_driver2 PointCloud2 layout; the state
+             interfaces describe the latest completed frame. -->
+        <xacro:if value="${use_lidar}">
+          <sensor name="mid360_lidar">
+            <param name="mujoco_site_name">mid360</param>
+            <param name="scan_pattern">mid360</param>
+            <param name="frame_id">mid360_link</param>
+            <param name="topic">/livox/lidar</param>
+            <state_interface name="frame_count"/>
+            <state_interface name="stamp"/>
+            <state_interface name="num_points"/>
+            <state_interface name="min_range"/>
+          </sensor>
+        </xacro:if>
       </xacro:if>
 
       <xacro:g1_joint_ros2_control
