@@ -78,9 +78,8 @@
       <hardware>
         <xacro:if value="${use_mujoco_sim}">
           <plugin>mujoco_ros2_control/MujocoSystem</plugin>
-          <!-- 'actuator' drives the MuJoCo motors through ctrl (actuatorfrcrange limits apply,
-               legacy WB simulator behavior); 'qfrc_applied' bypasses the actuators and injects
-               the unclamped PD torque directly as a generalized force. -->
+          <!-- 'actuator' drives the MuJoCo motors through ctrl (actuatorfrcrange limits apply); 
+               'qfrc_applied' bypasses the actuators and injects the unclamped PD torque directly as a generalized force. -->
           <param name="mujoco_effort_command_mode">${mujoco_effort_command_mode}</param>
         </xacro:if>
         <xacro:unless value="${use_mujoco_sim}">
