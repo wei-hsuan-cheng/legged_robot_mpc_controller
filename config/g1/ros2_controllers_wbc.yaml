@@ -1,0 +1,439 @@
+controller_manager:
+  ros__parameters:
+    update_rate: $(var mrtFreq)
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    humanoid_centroidal_mpc_controller:
+      type: legged_robot_mpc_controller/HumanoidCentroidalMpcController
+
+humanoid_centroidal_mpc_controller:
+  ros__parameters:
+    update_rate: $(var mrtFreq)
+
+    paths:
+      urdfFile: $(var urdfFile)
+      libFolder: $(var libFolder)
+
+    target:
+      walkingVelocityTopic: /humanoid/walking_velocity_command
+      basePoseTopic: /humanoid/base_pose_command
+      modeTopic: /humanoid/target_mode
+      defaultMode: base_twist
+      globalFrame: world
+
+    robot:
+      commandInterface: effort_pd
+      stateInterfaces:
+        [position, velocity, effort]
+      jointNames:
+        - left_hip_pitch_joint
+        - left_hip_roll_joint
+        - left_hip_yaw_joint
+        - left_knee_joint
+        - left_ankle_pitch_joint
+        - left_ankle_roll_joint
+        - right_hip_pitch_joint
+        - right_hip_roll_joint
+        - right_hip_yaw_joint
+        - right_knee_joint
+        - right_ankle_pitch_joint
+        - right_ankle_roll_joint
+        - waist_yaw_joint
+        - waist_roll_joint
+        - waist_pitch_joint
+        - left_shoulder_pitch_joint
+        - left_shoulder_roll_joint
+        - left_shoulder_yaw_joint
+        - left_elbow_joint
+        - right_shoulder_pitch_joint
+        - right_shoulder_roll_joint
+        - right_shoulder_yaw_joint
+        - right_elbow_joint
+
+    control:
+      observationVelocityFilterCutoffHz: 30.0
+      policyTimeOffset: 0.000
+      # inverse_dynamics = RNEA feedforward at the policy wrenches (the original
+      # inner loop); wbc = whole-body QP. The WBC commands torque directly, so if
+      # you switch it on, drop mpcJointKp toward 0 and keep only light damping.
+      jointCommandMode: wbc
+      mpcJointKp:
+        [0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+         0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+         0.0, 0.0, 0.0,
+         0.0, 0.0, 0.0, 0.0,
+         0.0, 0.0, 0.0, 0.0]
+      mpcJointKd:
+        [2.0, 2.0, 2.0, 2.0, 2.0, 2.0,
+         2.0, 2.0, 2.0, 2.0, 2.0, 2.0,
+         2.0, 2.0, 2.0,
+         2.0, 2.0, 2.0, 2.0,
+         2.0, 2.0, 2.0, 2.0]
+      fixedJointKp:
+        [100.0, 100.0, 100.0, 100.0, 100.0, 100.0]
+      fixedJointKd:
+        [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+
+    diagnostics:
+      statusLogPeriod: 2.0
+      log:
+        # (off unless you pass diagnosticsLog:=true). Produces two CSVs:
+        #   <prefix>_state.csv  control thread: InEKF covariance, NIS, per-contact
+        #                       innovations, contact transitions, estimate-vs-GT error,
+        #                       and the centroidal momentum recomputed from BOTH
+        #                       feedback sources through the same A_G(q).
+        #   <prefix>_cost.csv   solver thread: per-cost-term values at the current
+        #                       observation, plus the reference those terms track.
+        enabled: $(var diagnosticsLog)
+        pathPrefix: $(var diagnosticsLogPrefix)
+        stateRate: 200.0
+        logCost: true
+        costRate: 50.0
+        bufferRows: 8192
+
+    floatingBase:
+      source: $(var floatingBaseSource) # ground_truth_state | state_estimator; hybrid state_estimator_* values are diagnostic only
+      stateInterfaceName: pelvis
+      odometryTopic: /mujoco/ground_truth/odom
+      baseFrame: pelvis
+
+    stateEstimator:
+      enabled: true
+      # inEKF    = contact-aided right-invariant EKF (Hartley et al. 2018).
+      #            Estimates attitude jointly with position/velocity on
+      #            SE_{N+2}(3), plus IMU biases.
+      # linearKF = two-stage filter of MIT Cheetah 3 (Bledt et al. 2018).
+      #            Attitude from the IMU, then a plain KF over base position,
+      #            base velocity and the contact-point positions. No bias states.
+      # Keys below are shared; per-estimator tuning is in the inEKF:/linearKF: blocks.
+      estimatorType: linearKF
+      imuInterfaceName: pelvis_imu
+      imuFrame: imu_in_pelvis
+      contactFrames:
+        [foot_l_heel_est, foot_l_toe_est, foot_r_heel_est, foot_r_toe_est]
+      odomTopic: /humanoid/state_estimate/odom
+      odomFrame: world
+      publishRate: 100.0
+      # How long the estimator runs alongside the ground-truth/hardware base before
+      # it is allowed to drive control.
+      warmupSeconds: 5.0
+
+      # ---- two-stage linear KF (estimatorType: linearKF) ----
+      # MIT Cheetah 3, Bledt et al. IROS 2018 Sec. III-H. Stage 1 takes attitude
+      # from pelvis_imu; stage 2 is a plain KF over base position, base velocity
+      # and the 4 contact-point positions (18 states).
+      linearKF:
+        # 0 = derive from inEKF.contact.footIndices ([0,0,1,1] -> 2 feet).
+        # The G1 has 2 FEET but 4 CONTACT POINTS (heel + toe each).
+        numFeet: 2
+        # 0.0, NOT legged_control's 0.02: that value compensates a SPHERICAL foot
+        # whose contact frame sits at the sphere centre (Unitree A1/Go1). The G1's
+        # foot_*_est frames are already at the sole (urdf origin z = -0.035 from the
+        # ankle), so a radius here biases the estimated base height up by exactly
+        # that amount - measured as a +20 mm offset before this was zeroed.
+        footRadius: 0.0
+        imuProcessNoisePosition: 0.02
+        imuProcessNoiseVelocity: 0.02
+        footProcessNoisePosition: 0.002
+        footSensorNoisePosition: 0.005
+        footSensorNoiseVelocity: 0.1
+        footHeightSensorNoise: 0.01
+        # A swing foot's noise is scaled by this, which is how the filter ignores
+        # a foot that is off the ground without resizing the problem.
+        swingNoiseMultiplier: 100.0
+
+      # ---- contact-aided invariant EKF (estimatorType: inEKF) ----
+      inEKF:
+        noise:
+          gyroscope: 1.0e-2
+          accelerometer: 1.5e0
+          gyroscopeBias: 1.0e-5
+          accelerometerBias: 1.0e-4
+          contact: 1.0e-2
+          contactPosition: 2.0e-3
+          contactRotation: 1.0e-2
+        height:
+          source: kinematic
+          kinematicWeight: 0.9
+          anchorUpdateThreshold: 0.05
+          groundZ: 0.0
+        contact:
+          source: scheduled
+          footIndices:
+            [0, 0, 1, 1]
+          beta0:
+            [-20.0, -20.0, -20.0, -20.0]
+          beta1:
+            [0.7, 0.7, 0.7, 0.7]
+          forceCovarianceAlpha: 10.0
+          probabilityThreshold: 0.5
+          dynamicEstimation: false
+        lpf:
+          gyroCutoff: 80.0
+          gyroAccelCutoff: 50.0
+          linAccelCutoff: 15.0
+          dqJCutoff: 10.0
+          ddqJCutoff: 5.0
+          tauJCutoff: 10.0
+
+    ocs2:
+      interface:
+        verbose: false
+        useAnalyticalGradientsDynamics: false
+        useAnalyticalGradientsConstraints: false
+
+      model:
+        robotName: g1
+        centroidalModelType: 0  # FullCentroidalDynamics
+        phaseTransitionStanceTime: 0.0
+        # Use the measured stance-foot height as the swing planner ground reference
+        # instead of a flat floor at z=0. Pair with height.source inekf/anchored.
+        useTerrainHeightEstimate: false
+        maxTerrainHeightStep: 0.002
+        verboseCppAd: true
+        recompileLibrariesCppAd: false
+        fixedJointNames:
+          - left_wrist_roll_joint
+          - left_wrist_pitch_joint
+          - left_wrist_yaw_joint
+          - right_wrist_roll_joint
+          - right_wrist_pitch_joint
+          - right_wrist_yaw_joint
+        contactNames6DoF:
+          [foot_l_contact, foot_r_contact]
+        contactParentJointNames:
+          [left_ankle_roll_joint, right_ankle_roll_joint]
+        armJointNames:
+          - left_shoulder_pitch_joint
+          - right_shoulder_pitch_joint
+          - left_elbow_joint
+          - right_elbow_joint
+        footConstraint:
+          positionErrorGain_z: 5.0
+          orientationErrorGain: 20.0
+          linearVelocityErrorGain_z: 1.0
+          linearVelocityErrorGain_xy: 1.0
+          angularVelocityErrorGain: 1.0
+          linearAccelerationErrorGain_z: 0.0
+          linearAccelerationErrorGain_xy: 0.0
+          angularAccelerationErrorGain: 0.0
+
+      swingTrajectory:
+        liftOffVelocity: 0.05
+        touchDownVelocity: -0.0
+        swingHeight: 0.08
+        touchDownHeightOffset: -0.001
+        swingTimeScale: 0.4
+        impactProximityFactorLiftOffVelocity: -0.15
+        impactProximityFactorTouchDownVelocity: 0.3
+        impactProximityFactorMidPointValue: 0.0
+
+      sqp:
+        nThreads: 5
+        dt: 0.02
+        sqpIteration: 1
+        deltaTol: 0.0001
+        g_max: 0.01
+        g_min: 0.000001
+        inequalityConstraintMu: 0.1
+        inequalityConstraintDelta: 5.0
+        projectStateInputEqualityConstraints: true
+        printSolverStatistics: true
+        printSolverStatus: false
+        printLinesearch: false
+        useFeedbackPolicy: false
+        integratorType: RK4
+        threadPriority: 50
+
+      rollout:
+        AbsTolODE: 0.00005
+        RelTolODE: 0.005
+        timeStep: 0.02
+        integratorType: ODE45
+        maxNumStepsPerSecond: 10000
+        checkNumericalStability: false
+
+      mpc:
+        solverType: sqp
+        mpcDesiredFrequency: $(var mpcFreq)
+        mrtDesiredFrequency: $(var mrtFreq)
+        timeHorizon: 1.0
+        solutionTimeWindow: -1.0
+        coldStart: false
+        debugPrint: false
+
+      # Arrays below are index-aligned with robot.jointNames:
+      # 12 leg joints, 3 waist joints, 8 arm joints.
+
+      costs:
+        qScaling: 1.0
+        rScaling: 0.001
+        terminalCostScaling: 0.0
+        
+        q:
+          centroidalMomentum:
+            [8.0, 8.0, 15.0, 15.0, 15.0, 4.0]
+          basePose:
+            [0.0, 0.0, 100.0, 0.0, 100.0, 100.0]
+          jointPositions:
+            [1.0, 0.5, 4.0, 2.0, 0.5, 0.5,
+             1.0, 0.5, 4.0, 2.0, 0.5, 0.5,
+             2.0, 0.5, 0.5,
+             30.0, 30.0, 10.0, 20.0,
+             30.0, 30.0, 10.0, 20.0]
+
+        qFinal:
+          centroidalMomentum:
+            [25.0, 25.0, 25.0, 25.0, 25.0, 25.0]
+          basePose:
+            [0.0, 0.0, 20.0, 0.0, 5.0, 5.0]
+          jointPositions:
+            [0.02, 0.06, 8.0, 0.02, 0.01, 0.01,
+             0.02, 0.06, 8.0, 0.02, 0.01, 0.01,
+             2.0, 0.5, 0.5,
+             50.0, 50.0, 15.0, 30.0,
+             50.0, 50.0, 15.0, 30.0]
+
+        r:
+          # [left fx, fy, fz, mx, my, mz, right fx, fy, fz, mx, my, mz]
+          contactWrenches:
+            [0.05, 0.05, 0.01, 0.05, 0.05, 0.2,
+             0.05, 0.05, 0.01, 0.05, 0.05, 0.2]
+          jointVelocities:
+            [50.0, 50.0, 500.0, 50.0, 50.0, 50.0,
+             50.0, 50.0, 500.0, 50.0, 50.0, 50.0,
+             2000.0, 800.0, 2000.0,
+             2000.0, 1000.0, 1000.0, 2000.0,
+             2000.0, 1000.0, 1000.0, 2000.0]
+
+        # [pos xyz, orientation xyz, lin vel xyz, ang vel xyz]
+        taskSpaceFootCostWeights:
+          [0.0, 0.0, 0.0,
+           1000.0, 1000.0, 0.0,
+           10.0, 10.0, 0.0,
+           1.0, 1.0, 0.005]
+        
+        icpErrorWeight: 0.0
+        
+        # Flat-ground capture-point foot placement. Without this there is no
+        # foothold xy reference at all, so nothing arrests a lateral fall.
+        captureFootPlacement:
+          enabled: true
+          gain: 0.1
+          stepWidth: 0.25
+          maxAdjustment: 0.20
+          trackingWeight: 100.0
+          footCenterOffset: 0.075
+          stepLengthGain: 0.0
+
+        taskSpaceCosts:
+          names:
+            [torso]
+          torso:
+            linkName: mid360_link
+            weights:
+              [0.0, 0.0, 0.0,
+               100.0, 100.0, 0.0,
+               0.1, 0.1, 0.005,
+               5.0, 5.0, 2.0]
+
+        legTorqueCost:
+          scaling: 0.001
+          leftActiveJointNames:
+            - left_hip_pitch_joint
+            - left_hip_roll_joint
+            - left_hip_yaw_joint
+            - left_knee_joint
+            - left_ankle_pitch_joint
+            - left_ankle_roll_joint
+          leftWeights: [2.0, 2.0, 1.0, 8.0, 0.2, 0.2]
+          rightActiveJointNames:
+            - right_hip_pitch_joint
+            - right_hip_roll_joint
+            - right_hip_yaw_joint
+            - right_knee_joint
+            - right_ankle_pitch_joint
+            - right_ankle_roll_joint
+          rightWeights: [2.0, 2.0, 1.0, 8.0, 0.2, 0.2]
+
+      constraints:
+        contact:
+          frameTranslation: [0.035, 0.0, -0.035]
+          rectangle: [0.09, -0.09, 0.03, -0.03]
+        frictionCone:
+          frictionCoefficient: 0.4
+          mu: 0.2
+          delta: 5.0
+        contactMomentXY:
+          mu: 0.6
+          delta: 0.03
+        jointLimits:
+          mu: 1200.0
+          delta: 0.1
+        footCollision:
+          leftAnkleFrame: left_ankle_roll_joint
+          rightAnkleFrame: right_ankle_roll_joint
+          footCollisionSphereRadius: 0.065
+          leftKneeFrame: left_knee_joint
+          rightKneeFrame: right_knee_joint
+          kneeCollisionSphereRadius: 0.07
+          mu: 30000.0
+          delta: 0.05
+
+      reference:
+        targetDisplacementVelocity: 0.5
+        targetRotationVelocity: 0.5
+        maxDisplacementVelocityX: 2.4
+        maxDisplacementVelocityY: 1.2
+        maxDeltaPelvisHeight: 0.4
+        maxRotationVelocity: 1.0
+        defaultBaseHeight: $(var refBaseHeight)
+        basePosePositionTolerance: 0.02
+        basePoseOrientationTolerance: 0.03
+        # Arms hang at the sides. The all-zero arm posture this replaced put the
+        # hands 0.20 m IN FRONT of the pelvis and 0.10 m above it, holding 7.04 kg
+        # of arm mass at +0.063 m forward of the pelvis. Shoulder roll +-0.20 and
+        # elbow 1.20 bring that to +0.025 m (-61%) with the forearms hanging beside
+        # the hips; at zero roll the hands interpenetrate the hip links by 12.6 mm,
+        # which is why the roll term is not optional.
+        #
+        # This is a POSTURE change, not a stability fix: standing pitch is
+        # unchanged (both under 0.6 deg) and forward pitch RMS is 10-20% WORSE,
+        # because the gains were tuned with the arms held forward. See Claude.md.
+        useInertiaWeightedAngularMomentum: true
+        defaultJointState:
+          [-0.05,   0.0, 0.0,  0.1, -0.05, 0.0,
+           -0.05,   0.0, 0.0,  0.1, -0.05, 0.0,
+             0.0,   0.0, 0.0,
+            0.20,  0.20, 0.0, 1.20,
+            0.20, -0.20, 0.0, 1.20]
+
+      gait:
+        gaitLibraryFile: $(var gaitLibraryFile)
+        stairClimbingFile: $(var stairClimbingFile)
+        terrainWalkingFile: $(var terrainWalkingFile)
+        initialModeSequence:
+          [STANCE, STANCE]
+        initialEventTimes:
+          [0.5]
+        defaultModeSequence:
+          [STANCE]
+        defaultSwitchingTimes: [0.0, 0.5]
+
+    visualization:
+      frameId: world
+      update_rate: 30.0
+      trajectory:
+        activate: true
+        markerTopic: /performance_visualization/optimizedStateTrajectory
+        frame_names:
+          - pelvis
+          - mid360_link
+          - left_wrist_yaw_link
+          - right_wrist_yaw_link
+          - foot_l_contact
+          - foot_r_contact
+        lineWidth: 0.005
+        pointScale: 0.01

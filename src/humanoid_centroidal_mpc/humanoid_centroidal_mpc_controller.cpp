@@ -101,6 +101,8 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_configu
     inverse_dynamics_velocity_ = (mode == "zero")     ? InverseDynamicsVelocity::Zero
                                : (mode == "policy")   ? InverseDynamicsVelocity::Policy
                                                       : InverseDynamicsVelocity::Measured;
+    joint_command_mode_ = (parameters_.control.jointCommandMode == "wbc") ? JointCommandMode::Wbc
+                                                                          : JointCommandMode::InverseDynamics;
     RCLCPP_INFO(
       get_node()->get_logger(),
       "[HumanoidCentroidalMpcController] inverse-dynamics feedforward velocity: %s",
@@ -135,6 +137,44 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_configu
       std::make_unique<ocs2::PinocchioInterface>(mpc_interface_->getPinocchioInterface());
 
     const auto joint_dim = static_cast<Eigen::Index>(control_model_->getJointDim());
+
+    if (joint_command_mode_ == JointCommandMode::Wbc) {
+      configure_stage = "building the whole-body controller";
+      ocs2::humanoid::WbcSettings wbc_settings;
+      const auto& wbc_params = parameters_.wbc;
+      wbc_settings.frictionCoefficient = wbc_params.frictionCoefficient;
+      wbc_settings.torsionalFrictionCoefficient = wbc_params.torsionalFrictionCoefficient;
+      wbc_settings.minContactForceZ = wbc_params.minContactForceZ;
+      wbc_settings.copMarginScale = wbc_params.copMarginScale;
+      wbc_settings.baseKp = wbc_params.baseKp;
+      wbc_settings.baseKd = wbc_params.baseKd;
+      wbc_settings.jointKp = wbc_params.jointKp;
+      wbc_settings.jointKd = wbc_params.jointKd;
+      wbc_settings.swingKp = wbc_params.swingKp;
+      wbc_settings.swingKd = wbc_params.swingKd;
+      wbc_settings.weightBaseAccel = wbc_params.weightBaseAccel;
+      wbc_settings.weightJointAccel = wbc_params.weightJointAccel;
+      wbc_settings.weightSwing = wbc_params.weightSwing;
+      wbc_settings.weightContactWrench = wbc_params.weightContactWrench;
+      wbc_settings.weightTorqueReg = wbc_params.weightTorqueReg;
+      wbc_settings.weightAccelReg = wbc_params.weightAccelReg;
+      // The WBC bounds its own torques, so the software clamp doubles as the QP limit.
+      if (static_cast<Eigen::Index>(parameters_.control.torqueLimit.size()) == joint_dim) {
+        wbc_settings.torqueLimits =
+          Eigen::Map<const vector_t>(parameters_.control.torqueLimit.data(), joint_dim);
+      }
+      wbc_ = std::make_unique<ocs2::humanoid::WeightedWbc>(
+        *control_pinocchio_, *control_model_, mpc_interface_->modelSettings(), wbc_settings);
+      RCLCPP_INFO(
+        get_node()->get_logger(),
+        "[HumanoidCentroidalMpcController] inner loop: whole-body QP (%ld decision variables)",
+        static_cast<long>(control_pinocchio_->getModel().nv + 6 * ocs2::N_CONTACTS + joint_dim));
+    } else {
+      RCLCPP_INFO(
+        get_node()->get_logger(),
+        "[HumanoidCentroidalMpcController] inner loop: closed-form inverse dynamics");
+    }
+
     mpc_joint_kp_ = make_vector(parameters_.control.mpcJointKp, joint_dim, 1200.0, "control.mpcJointKp");
     mpc_joint_kd_ = make_vector(parameters_.control.mpcJointKd, joint_dim, 10.0, "control.mpcJointKd");
     const auto fixed_joint_dim = static_cast<Eigen::Index>(parameters_.ocs2.model.fixedJointNames.size());
@@ -1347,6 +1387,27 @@ HumanoidCentroidalMpcController::compute_mpc_joint_action(const ocs2::SystemObse
     control_model_->getContactWrench(policy_input, 1)};
 
   const vector_t q = control_model_->getGeneralizedCoordinates(observation.state);
+
+  if (joint_command_mode_ == JointCommandMode::Wbc && wbc_) {
+    // The QP resolves redundancy against the measured state, so it gets the
+    // measured generalized velocity; unlike the RNEA feedforward there is no
+    // choice to make, because the contact and swing constraints are only
+    // meaningful at the state the robot is actually in.
+    const vector_t v = control_model_->getGeneralizedVelocities(observation.state, observation.input);
+    const auto wbc_solution = wbc_->update(policy_state, policy_input, q, v, policy_mode);
+    if (wbc_solution.success) {
+      command.feedforward = wbc_solution.jointTorques;
+      return command;
+    }
+    // A diverged QP must not command garbage: fall back to the closed-form
+    // inverse dynamics for this tick and report, rather than holding the last
+    // torque or sending zeros.
+    ++wbc_failure_count_;
+    RCLCPP_WARN_THROTTLE(
+      get_node()->get_logger(), *get_node()->get_clock(), 2000,
+      "[HumanoidCentroidalMpcController] WBC QP did not converge (%lu so far); using inverse dynamics this tick",
+      static_cast<unsigned long>(wbc_failure_count_));
+  }
 
   // Which generalized velocity feeds the inverse dynamics.
   //

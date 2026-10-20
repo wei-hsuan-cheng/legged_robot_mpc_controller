@@ -71,6 +71,7 @@ target_include_directories(legged_robot_humanoid_common_core
 ament_target_dependencies(legged_robot_humanoid_common_core PUBLIC
   ament_index_cpp
   ocs2_core
+  ocs2_sqp
   ocs2_msgs
   ocs2_mpc
   ocs2_pinocchio_interface

@@ -79,6 +79,15 @@ humanoid_centroidal_mpc_controller:
       }
     }
 
+    jointCommandMode: {
+      type: string,
+      default_value: "inverse_dynamics",
+      description: "Inner loop that turns the MPC policy into joint torques. 'inverse_dynamics' evaluates RNEA at the policy's contact wrenches with qdd=0 and relies on the joint PD to close the loop - the planned wrench is applied open loop whether or not it is feasible for the measured state. 'wbc' instead solves a QP each tick over [qddot, contact wrenches, torques] subject to the floating-base equation of motion, stance contact constraints, friction/CoP/torsional limits and torque limits, tracking the policy in least squares. The WBC resolves redundancy against the MEASURED state, so it needs a trustworthy base estimate; it also expects much lower joint PD gains, since it commands torque directly.",
+      validation: {
+        one_of<>: [["inverse_dynamics", "wbc"]]
+      }
+    }
+
     inverseDynamicsVelocity: {
       type: string,
       default_value: "measured",
@@ -125,6 +134,104 @@ humanoid_centroidal_mpc_controller:
       type: double_array,
       default_value: [],
       description: "Symmetric command torque limits for robot.jointNames. Empty means no software clamp."
+    }
+
+  wbc:
+    frictionCoefficient: {
+      type: double,
+      default_value: 0.7,
+      description: "Linearised friction pyramid coefficient for the stance contact force.",
+      validation: { gt: [0.0] }
+    }
+    torsionalFrictionCoefficient: {
+      type: double,
+      default_value: 0.1,
+      description: "Bound on the contact yaw moment as |m_z| <= this * f_z. A flat foot can carry yaw torque; a point contact cannot, which is why the quadruped reference has no such term.",
+      validation: { gt_eq: [0.0] }
+    }
+    minContactForceZ: {
+      type: double,
+      default_value: 10.0,
+      description: "Lower bound on the normal force of a stance foot [N]. Keeps the foot loaded so the friction cone and the CoP bound stay well posed.",
+      validation: { gt_eq: [0.0] }
+    }
+    copMarginScale: {
+      type: double,
+      default_value: 0.9,
+      description: "Shrinks the foot rectangle used for the centre-of-pressure bound, so the CoP is kept strictly inside the sole rather than on its edge.",
+      validation: { gt: [0.0], lt_eq: [1.0] }
+    }
+    baseKp: {
+      type: double,
+      default_value: 100.0,
+      description: "Base pose error gain of the acceleration-level base task.",
+      validation: { gt_eq: [0.0] }
+    }
+    baseKd: {
+      type: double,
+      default_value: 20.0,
+      description: "Base twist error gain of the acceleration-level base task.",
+      validation: { gt_eq: [0.0] }
+    }
+    jointKp: {
+      type: double,
+      default_value: 100.0,
+      description: "Joint position error gain of the acceleration-level joint task.",
+      validation: { gt_eq: [0.0] }
+    }
+    jointKd: {
+      type: double,
+      default_value: 20.0,
+      description: "Joint velocity error gain of the acceleration-level joint task.",
+      validation: { gt_eq: [0.0] }
+    }
+    swingKp: {
+      type: double,
+      default_value: 350.0,
+      description: "Swing foot pose error gain, in foot Cartesian space.",
+      validation: { gt_eq: [0.0] }
+    }
+    swingKd: {
+      type: double,
+      default_value: 37.0,
+      description: "Swing foot twist error gain, in foot Cartesian space.",
+      validation: { gt_eq: [0.0] }
+    }
+    weightBaseAccel: {
+      type: double,
+      default_value: 200.0,
+      description: "Weight of the base acceleration task in the QP cost.",
+      validation: { gt_eq: [0.0] }
+    }
+    weightJointAccel: {
+      type: double,
+      default_value: 1.0,
+      description: "Weight of the joint acceleration task in the QP cost.",
+      validation: { gt_eq: [0.0] }
+    }
+    weightSwing: {
+      type: double,
+      default_value: 100.0,
+      description: "Weight of the swing foot task in the QP cost.",
+      validation: { gt_eq: [0.0] }
+    }
+    weightContactWrench: {
+      type: double,
+      default_value: 1.0,
+      description: "Weight pulling the stance wrenches toward the ones the MPC optimised.",
+      validation: { gt_eq: [0.0] }
+    }
+    weightTorqueReg: {
+      type: double,
+      default_value: 0.001,
+      description: "Torque regularisation. Also keeps the QP Hessian positive definite.",
+      validation: { gt: [0.0] }
+    }
+    weightAccelReg: {
+      type: double,
+      default_value: 0.0001,
+      description: "Generalized acceleration regularisation.",
+      validation: { gt: [0.0] }
     }
 
   diagnostics:

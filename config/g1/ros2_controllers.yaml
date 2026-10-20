@@ -55,6 +55,10 @@ humanoid_centroidal_mpc_controller:
     control:
       observationVelocityFilterCutoffHz: 30.0
       policyTimeOffset: 0.000
+      # inverse_dynamics = RNEA feedforward at the policy wrenches (the original
+      # inner loop); wbc = whole-body QP. The WBC commands torque directly, so if
+      # you switch it on, drop mpcJointKp toward 0 and keep only light damping.
+      jointCommandMode: inverse_dynamics
       mpcJointKp:
         [1200.0, 1200.0, 1200.0, 1200.0, 1200.0, 1200.0,
          1200.0, 1200.0, 1200.0, 1200.0, 1200.0, 1200.0,

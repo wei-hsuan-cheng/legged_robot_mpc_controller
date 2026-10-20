@@ -27,6 +27,7 @@
 
 #include <humanoid_centroidal_mpc/CentroidalMpcInterface.h>
 #include <humanoid_common_mpc/gait/MotionPhaseDefinition.h>
+#include <humanoid_common_mpc/whole_body_control/WeightedWbc.h>
 #include <humanoid_centroidal_mpc/command/CentroidalMpcTargetTrajectoriesCalculator.h>
 #include <humanoid_centroidal_mpc/common/CentroidalMpcRobotModel.h>
 
@@ -106,6 +107,10 @@ private:
 
   //! Which generalized velocity feeds the RNEA feedforward. See
   //! compute_mpc_joint_action() for why this is a choice and not a constant.
+  //! Which inner loop turns the MPC policy into joint torques.
+  enum class JointCommandMode { InverseDynamics, Wbc };
+  JointCommandMode joint_command_mode_{JointCommandMode::InverseDynamics};
+
   enum class InverseDynamicsVelocity { Zero, Measured, Policy };
   InverseDynamicsVelocity inverse_dynamics_velocity_{InverseDynamicsVelocity::Measured};
   void write_joint_action_command(
@@ -119,6 +124,10 @@ private:
   // Controller-owned pinocchio copy for the observation momentum mapping and the
   // feedforward inverse dynamics (the solver owns its own instances).
   std::unique_ptr<ocs2::PinocchioInterface> control_pinocchio_;
+  //! Whole-body controller; built only when jointCommandMode is 'wbc'.
+  std::unique_ptr<ocs2::humanoid::WeightedWbc> wbc_;
+  //! Counts QP failures, so a persistent problem is visible instead of silent.
+  uint64_t wbc_failure_count_{0};
   std::unique_ptr<ocs2::humanoid::CentroidalMpcTargetTrajectoriesCalculator> target_trajectories_calculator_;
   std::shared_ptr<Ros2ProceduralMpcMotionManager> motion_manager_;
   std::unique_ptr<ocs2::MPC_BASE> mpc_solver_;
