@@ -47,9 +47,16 @@ Against the previously shipped configuration this is: falls 6/29 -> 0/16, pitch 
 0.0138 -> 0.0110, settled tilt 0.216 -> 0.034, estimator \|e_pitch\| 0.0113 ->
 0.0074, and on `stop_cycles` 1/3 -> 0/4 with settled tilt 0.566 -> 0.028.
 
+Every number above is with the **closed-form inverse-dynamics inner loop**
+(`control.jointCommandMode: inverse_dynamics`). The WBC alternative on
+`feat/wbc` has no comparable walking measurement yet - see the WBC section
+below.
+
 **Shipped configuration** (`config/g1/ros2_controllers.yaml`):
 
 ```yaml
+control:
+  jointCommandMode: inverse_dynamics
 stateEstimator:
   height:  { source: kinematic }
   contact: { source: scheduled }
@@ -68,6 +75,186 @@ ocs2:
       stepLengthGain: 0.0
       footCenterOffset: 0.075
 ```
+
+## WBC inner loop: implemented and converging, walking NOT yet validated
+
+The centroidal MPC optimises foot wrenches and swing trajectories; those were
+handed to a closed-form RNEA inverse dynamics (`computeJointTorques`), which
+evaluates `tau = C(q,qd)qd + g(q) - J^T F` at the *planned* wrench and applies it
+open loop. The original OCS2 paper uses a WBC there instead. This adds one, on
+branch `feat/wbc`, following the method in `qiayuanl/legged_control` adapted from
+4 point contacts to 2 flat 6-DoF contacts.
+
+**It is selectable, and the ID path remains the default** in
+`ros2_controllers.yaml`:
+
+```yaml
+control:
+  jointCommandMode: inverse_dynamics   # or: wbc
+```
+
+The ID path is also the per-tick fallback: if the QP fails to converge on a tick,
+that tick falls through to inverse dynamics and a throttled warning counts it. A
+WBC must never throw in the control loop.
+
+### The QP
+
+One dense QP per control tick over
+
+```
+x = [ qddot (nv=29) | w_l w_r (6 each) | tau (nj=23) ]   -> 64 variables
+```
+
+| | rows, double support | rows, single support |
+|---|---|---|
+| floating-base EoM `M qddot + nle = J^T w + S^T tau` | 29 eq | 29 eq |
+| stance no-motion `J qddot + Jdot v = 0` (all 6 rows) | 12 eq | 6 eq |
+| zero wrench on the swing foot | 0 eq | 6 eq |
+| **equalities** | **41** | **41** |
+| contact cone, 11 per stance foot | 22 ineq | 11 ineq |
+| torque box bounds | 23 | 23 |
+| weighted objective rows | 93 | 93 |
+
+The equality and objective row counts are the same in both phases by
+construction - a foot either carries a wrench and cannot move, or moves and
+carries none - which is why only three distinct problem shapes ever occur and the
+HPIPM workspaces are rebuilt essentially never after startup.
+
+The 11 cone rows per stance foot, with `f = w.head(3)`, `m = w.tail(3)` in
+LOCAL_WORLD_ALIGNED:
+
+| rows | constraint |
+|---|---|
+| 1 | unilateral, `-f_z <= -minContactForceZ` |
+| 4 | friction pyramid, `+-f_x - mu f_z <= 0`, `+-f_y - mu f_z <= 0` |
+| 4 | centre of pressure inside the sole rectangle |
+| 2 | torsional friction, `+-m_z - mu_t f_z <= 0` |
+
+CoP is `p_x = -m_y/f_z`, `p_y = m_x/f_z`, bounded by the foot rectangle from
+`ContactPolygon::getBounds()` shrunk by `copMarginScale`. Multiplying through by
+`f_z > 0` keeps the rows linear.
+
+Weighted objectives, stacked with sqrt-weights so a plain row stack reproduces the
+weighted sum of squares: base acceleration PD on the policy pose/twist, joint
+acceleration PD, swing-foot 6-D PD (orientation error via `pinocchio::log3`),
+stance-wrench tracking toward the MPC's optimised wrench, and a torque/
+acceleration regulariser that also keeps `H` positive definite.
+
+### Four things that differ from the quadruped reference
+
+1. **6-DoF flat contacts, not 3-DoF points.** A point contact needs only the
+   unilateral and friction rows. A flat foot carries moment, so it gains the CoP
+   and torsional-friction rows, and the contact Jacobians are the full 6 rows -
+   including in the no-motion constraint, because a stance foot must not rotate
+   either.
+2. **Two contacts, not four.** The biped has no stance redundancy to spare: in
+   single support one foot carries everything, which is exactly why the CoP bound
+   matters here and is optional on a quadruped.
+3. **Base/joint acceleration PD instead of a centroidal-momentum-rate task.** The
+   reference differentiates the desired input numerically to get `hdot_ref`. The
+   MPC policy here already supplies a full state and input trajectory, so an
+   acceleration-level PD on it avoids that derivative entirely.
+4. **HPIPM, not qpOASES.** qpOASES is not in this workspace; HPIPM already comes
+   in through `ocs2_sqp`, so `CMakeLists.txt` only needed `ocs2_sqp` added to
+   `legged_robot_humanoid_common_core`.
+
+### HPIPM does not want infinite box bounds
+
+The first working build produced **19 QP convergence failures in plain stance**.
+The cause was giving all 64 variables a two-sided box bound with `+-inf` on the
+ones that are genuinely unbounded. HPIPM's interior-point method then chases
+infinite slacks and stalls.
+
+The fix is to express "no bound" by *omission* rather than by infinity:
+`boundedIndices` lists only the 23 torque variables, and the one-sided
+inequality rows use `d_dense_qp_set_lg_mask` / `ug_mask` with a zero lower mask
+instead of `lg = -inf`. **19 failures -> 0.** Worth remembering for any future
+HPIPM use in this workspace.
+
+### Rate
+
+The WBC runs at **1 kHz, the same rate as the MRT policy evaluation**, not the
+100 Hz MPC rate. `controller_manager.update_rate` is `$(var mrtFreq)` = 1000, and
+`update_and_write_commands` -> `compute_mpc_joint_action` -> `wbc_->update` is
+unconditional, with no decimation. Closing on the measured state is the whole
+point of the inner loop, so running it slower than the control tick would defeat
+it.
+
+A headless stance run reached 228.3 s of sim time inside a 230 s wall timeout at
+`mujoco_real_time_factor: 1.0`, so the 64-variable QP plus two Pinocchio passes
+fit the 1 ms budget on average. Two caveats: double support is the *largest* QP,
+so walking is not heavier; and in simulation a slow controller does not miss a
+deadline, it slips behind real time - there is no RT-overrun warning to look for.
+Hardware needs an actual per-tick solve-time histogram before this is trusted. If
+timing ever binds, the `updateDesired` Pinocchio pass is the cheaper thing to cut
+(it feeds only the swing and wrench references, which change at 100 Hz anyway).
+
+### What is measured, and what is not
+
+| | status |
+|---|---|
+| builds, activates, holds rate | yes |
+| QP convergence | **0 failures** over two 228 s runs |
+| standing posture | peak pitch 0.008 rad, roll 0.000 |
+| **walking** | **NOT validated** |
+
+**The first "successful" walking batch was a harness bug and proves nothing about
+walking.** It reported `SURVIVED t=228.3s dist=0.09m` twice, which reads like a
+pass until the distance is noticed: the test script passed
+`--sequence there_and_back`, which is not one of the sequences
+`command_sequence.py` accepts, so it exited on the argparse error and **no
+velocity command was ever published**. The robot stood still for 228 s. Both
+results are stance-only.
+
+This is the same trap as the rest of this file: a survival time means nothing
+without the quantity that says the commanded motion actually happened. Check
+`<tag>_cmd.log` is empty of argparse errors before reading any result. Valid
+sequence names come from `command_sequence.py --list`; `vx_ladder` is the standard
+comparison.
+
+### Config
+
+`config/g1/ros2_controllers_wbc.yaml` is byte-identical to the shipped config
+except for the inner loop. The gain change is not cosmetic:
+
+| key | `ros2_controllers.yaml` | `ros2_controllers_wbc.yaml` |
+|---|---|---|
+| `jointCommandMode` | `inverse_dynamics` | `wbc` |
+| `mpcJointKp` (x23) | 1200.0 | **0.0** |
+| `mpcJointKd` (x23) | 10.0 | 2.0 |
+
+With the ID inner loop, `effort_pd` runs `kp(q_des-q) + kd(qd_des-qd) + tau_ff`
+and at kp = 1200 that stiff joint-space PD does most of the work, with the RNEA
+feedforward as a correction. The WBC computes the *complete* joint torque, so any
+kp on top of it is a second controller fighting the first. Hence kp = 0, with
+kd = 2.0 left as light actuator damping rather than a tracking term.
+
+All 16 `wbc:` settings are now written out in that file at their defaults
+(friction 0.7, torsional 0.1, `minContactForceZ` 10, `copMarginScale` 0.9, base
+100/20, joint 100/20, swing 350/37, weights 200/1/100/1/1e-3/1e-4), so tuning
+needs no rebuild. The ratio to move first is `weightBaseAccel : weightJointAccel`,
+currently 200:1 - that is what decides whether the solver spends the redundancy
+holding the base or holding the nominal posture.
+
+**`control.torqueLimit` was empty, and for the WBC that is not a missing clamp.**
+It means the `tau` block of the decision vector had **no box constraints at all**,
+so the QP could return a torque no G1 actuator can produce. It is now set from the
+`effort` limits in `g1_29dof.urdf`: 88 hip / 139 knee / 50 ankle, 88/50/50 waist,
+25 arms. Deliberately left out of `ros2_controllers.yaml` so the ID configuration
+that measures 0/16 falls is untouched.
+
+### Files
+
+| file | what |
+|---|---|
+| `include/humanoid_common_mpc/whole_body_control/Task.h` | task algebra, `A x = b` / `D x <= f`, `operator+` and sqrt-weight `operator*` |
+| `.../HpipmDenseQp.h/.cpp` | HPIPM dense-QP wrapper, workspaces rebuilt only on shape change |
+| `.../WeightedWbc.h/.cpp` | `WbcSettings`, the nine task formulations, `update()` |
+
+Note the branch currently has `g1.launch.py` defaulting `controllersFile` to
+`ros2_controllers_wbc.yaml`, so a plain launch brings up the WBC and the ID
+baseline needs `controllersFile:=ros2_controllers.yaml`. **Flip that back before
+this merges to main**, since walking under the WBC is unvalidated.
 
 ## Angular momentum reference: now correct, and it costs something
 
@@ -1004,7 +1191,16 @@ arm pair has authority over.
 
 ## Open work, in priority order
 
-1. **Backward walking remains the weak direction, even after the foothold fix.**
+1. **Validate the WBC on walking - it has only ever been measured standing.**
+   The QP converges (0 failures in 2 x 228 s) and the standing posture is good,
+   but the one walking batch run against it never published a velocity command,
+   so there is no walking result at all. Re-run `vx_ladder` on `scene_flat.xml`
+   with `floatingBaseSource:=ground_truth_state` first, to separate the WBC from
+   the estimator, then A/B against `inverse_dynamics` on the same sequence. The
+   knob most likely to need moving is `weightBaseAccel : weightJointAccel`
+   (200:1). Also flip `g1.launch.py`'s `controllersFile` default back to
+   `ros2_controllers.yaml` before merging.
+2. **Backward walking remains the weak direction, even after the foothold fix.**
    The single fall in the N=6 height comparison was again `vx_neg10`, and the one
    remaining fall mode anywhere is that phase. `footCenterOffset` equalised the
    static margins at 0.09 m each, which is what removed most of it, but the gait
@@ -1012,43 +1208,43 @@ arm pair has authority over.
    the step timing are both tuned around forward travel. Next step would be to
    measure the actual CoM excursion relative to the support polygon edge during
    the reversal rather than reasoning from the static geometry.
-2. **Bound the estimator's absolute-z drift (Phase 2.5).** This is the blocker for
+3. **Bound the estimator's absolute-z drift (Phase 2.5).** This is the blocker for
    terrain walking and the reason the terrain reference ships off. The right fix
    is a height pseudo-measurement *inside* the InEKF, so the filter's own z is
    corrected, instead of the blend currently applied outside it which leaves the
    internal z drifting uncorrected and lets `anchored` feed that drift back
    through the touchdown anchors.
-3. **[SUPERSEDED - see item 1] Backward walking.** Every vx-ladder fall observed lands
+4. **[SUPERSEDED - see item 2] Backward walking.** Every vx-ladder fall observed lands
    1.3-2.3 s after the reversal to -0.10 m/s; all forward speeds up to 0.30 m/s
    complete every time, with either arm posture. Look at the feedforward terms in
    the foot-placement path first (`baseAtTouchdown`, `stepLengthGain`) - they were
    derived for forward travel and reversal inverts their sign convention, while
    the capture-point correction itself is sign-symmetric.
-4. **Retune pitch against the arms-down posture.** Moving 7 kg of arm mass down and
+5. **Retune pitch against the arms-down posture.** Moving 7 kg of arm mass down and
    back cost 10-20% in forward pitch RMS at every speed (table under "Arm
    posture"). The gains were fitted with the arms held forward.
-5. **Re-measure the vy / yaw / combined ladders on the shipped configuration.**
+6. **Re-measure the vy / yaw / combined ladders on the shipped configuration.**
    Only the vx ladder and the figure-eight were re-run after the weight was moved
    back to 100 with ICP on; the lateral and yaw limits quoted further down this
    file predate that and are stale. (The `trackingWeight: 1600` follow-ups that
    used to be items 2 and 3 here are withdrawn - that weight overfit the vx
    ladder and is no longer shipped.)
-6. **The height command is not tracked during walking.** The figure-eight plot
+7. **The height command is not tracked during walking.** The figure-eight plot
    shows a commanded 0.77↔0.80 m sinusoid at 13 s producing only step-frequency
    bounce with a slow upward creep. Same family as the 13 mm squat offset, but a
    whole command being ignored rather than a small bias.
-7. **Roll oscillates ±8° per step** at 0.22 m/s, much larger than expected, and is
+8. **Roll oscillates ±8° per step** at 0.22 m/s, much larger than expected, and is
    the precursor to most falls.
-8. **[FIXED, needs retuning] `targetMomentum` angular part.** Now `I_G(q)*omega/m`.
+9. **[FIXED, needs retuning] `targetMomentum` angular part.** Now `I_G(q)*omega/m`.
    Note the earlier entry here said "off by roughly the z inertia" implying too
    small; it was 1.86x too LARGE, since I_zz = 0.539 < 1. The correction measures
    neutral-to-worse (stop_cycles 0/4 -> 3/10, p ~ 0.51) because the weight-75
    terminal term was tuned against the inflated target. Retune it in Phase 2.
-9. **Arm-swing vs zero angular-momentum reference conflict** (Phase 3 item 1). Now
+10. **Arm-swing vs zero angular-momentum reference conflict** (Phase 3 item 1). Now
    the blocker for phase 2 of the arm work: the swing ships disabled precisely
    because of this, and it must be resolved before a momentum-regulating arm law
    can do anything. See "Arm swing: shipped off, with a seam for phase 2".
-10. **Phase 2 contact model (B1):** double-support NIS is ~2x over-confident,
+11. **Phase 2 contact model (B1):** double-support NIS is ~2x over-confident,
    consistent with heel and toe being fed in as independent landmarks when they
    are rigidly linked.
 
