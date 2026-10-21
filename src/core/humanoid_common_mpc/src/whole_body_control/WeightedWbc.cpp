@@ -50,7 +50,7 @@ WeightedWbc::WeightedWbc(PinocchioInterface pinocchioInterface,
       pinocchioDesired_(std::move(pinocchioInterface)),
       mpcRobotModel_(mpcRobotModel.clone()),
       settings_(std::move(settings)),
-      qp_(std::make_unique<HpipmDenseQp>()) {
+      qp_(std::make_unique<HpipmDenseQp>(settings_.qp)) {
   const auto& model = pinocchioMeasured_.getModel();
   nv_ = static_cast<size_t>(model.nv);
   nj_ = mpcRobotModel_->getJointDim();
@@ -239,7 +239,9 @@ Task WeightedWbc::formulateBaseAccelTask() const {
   // difference is the correct error for both halves at small angles.
   const vector6_t poseError = qDesired_.head(6) - qMeasured_.head(6);
   const vector6_t twistError = vDesired_.head(6) - vMeasured_.head(6);
-  const vector6_t b = settings_.baseKp * poseError + settings_.baseKd * twistError;
+  // Element-wise: the x/y/yaw position gains are zero, so those axes track
+  // velocity only. See the note on WbcSettings::baseKp.
+  const vector6_t b = settings_.baseKp.cwiseProduct(poseError) + settings_.baseKd.cwiseProduct(twistError);
 
   return {a, b, matrix_t(), vector_t()};
 }
@@ -366,6 +368,7 @@ WeightedWbc::Solution WeightedWbc::update(const vector_t& stateDesired,
   solution.success =
       qp_->solve(H, g, constraints.a_, constraints.b_, cone.d_, cone.f_, boundedIndices, lowerBound, upperBound, x);
   solution.iterations = qp_->lastIterationCount();
+  solution.status = qp_->lastStatus();
 
   if (!solution.success || x.size() != static_cast<Eigen::Index>(numDecisionVars_)) {
     solution.jointTorques = vector_t::Zero(nj_);

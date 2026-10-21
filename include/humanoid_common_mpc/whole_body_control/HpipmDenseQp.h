@@ -27,6 +27,7 @@ THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #pragma once
 
 #include <memory>
+#include <string>
 #include <vector>
 
 #include <ocs2_core/Types.h>
@@ -53,13 +54,23 @@ namespace ocs2::humanoid {
 class HpipmDenseQp {
  public:
   struct Settings {
-    int iterMax{30};
-    scalar_t tolStat{1e-6};   //!< stationarity
-    scalar_t tolEq{1e-7};     //!< equality-constraint residual
-    scalar_t tolIneq{1e-7};   //!< inequality-constraint residual
-    scalar_t tolComp{1e-7};   //!< complementarity
+    // 30 iterations with 1e-6/1e-7 tolerances was the first guess and it is far
+    // too tight for a control QP: once the friction cone and the torque bounds
+    // are both active the interior-point method needs more steps than that, and
+    // a QP that stops at the iteration limit is reported as a failure. These are
+    // control-grade values - the equality rows are the physics, so they stay
+    // tighter than the rest.
+    int iterMax{100};
+    scalar_t tolStat{1e-4};   //!< stationarity
+    scalar_t tolEq{1e-6};     //!< equality-constraint residual
+    scalar_t tolIneq{1e-6};   //!< inequality-constraint residual
+    scalar_t tolComp{1e-6};   //!< complementarity
     scalar_t regPrim{1e-8};   //!< primal regularisation, keeps H positive definite
+    std::string mode{"balance"};  //!< speed | balance | robust, HPIPM's own presets
   };
+
+  /** Human-readable form of HPIPM's status code, for the diagnostics. */
+  static const char* statusString(int status);
 
   HpipmDenseQp();
   explicit HpipmDenseQp(Settings settings);

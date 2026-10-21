@@ -146,8 +146,10 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_configu
       wbc_settings.torsionalFrictionCoefficient = wbc_params.torsionalFrictionCoefficient;
       wbc_settings.minContactForceZ = wbc_params.minContactForceZ;
       wbc_settings.copMarginScale = wbc_params.copMarginScale;
-      wbc_settings.baseKp = wbc_params.baseKp;
-      wbc_settings.baseKd = wbc_params.baseKd;
+      if (wbc_params.baseKp.size() == 6 && wbc_params.baseKd.size() == 6) {
+        wbc_settings.baseKp = Eigen::Map<const ocs2::vector6_t>(wbc_params.baseKp.data());
+        wbc_settings.baseKd = Eigen::Map<const ocs2::vector6_t>(wbc_params.baseKd.data());
+      }
       wbc_settings.jointKp = wbc_params.jointKp;
       wbc_settings.jointKd = wbc_params.jointKd;
       wbc_settings.swingKp = wbc_params.swingKp;
@@ -158,6 +160,13 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_configu
       wbc_settings.weightContactWrench = wbc_params.weightContactWrench;
       wbc_settings.weightTorqueReg = wbc_params.weightTorqueReg;
       wbc_settings.weightAccelReg = wbc_params.weightAccelReg;
+      wbc_settings.qp.iterMax = static_cast<int>(wbc_params.qp.iterMax);
+      wbc_settings.qp.tolStat = wbc_params.qp.tolStat;
+      wbc_settings.qp.tolEq = wbc_params.qp.tolEq;
+      wbc_settings.qp.tolIneq = wbc_params.qp.tolIneq;
+      wbc_settings.qp.tolComp = wbc_params.qp.tolComp;
+      wbc_settings.qp.regPrim = wbc_params.qp.regPrim;
+      wbc_settings.qp.mode = wbc_params.qp.mode;
       // The WBC bounds its own torques, so the software clamp doubles as the QP limit.
       if (static_cast<Eigen::Index>(parameters_.control.torqueLimit.size()) == joint_dim) {
         wbc_settings.torqueLimits =
@@ -1405,7 +1414,9 @@ HumanoidCentroidalMpcController::compute_mpc_joint_action(const ocs2::SystemObse
     ++wbc_failure_count_;
     RCLCPP_WARN_THROTTLE(
       get_node()->get_logger(), *get_node()->get_clock(), 2000,
-      "[HumanoidCentroidalMpcController] WBC QP did not converge (%lu so far); using inverse dynamics this tick",
+      "[HumanoidCentroidalMpcController] WBC QP did not converge: %s after %d iterations "
+      "(%lu so far); using inverse dynamics this tick",
+      ocs2::humanoid::HpipmDenseQp::statusString(wbc_solution.status), wbc_solution.iterations,
       static_cast<unsigned long>(wbc_failure_count_));
   }
 

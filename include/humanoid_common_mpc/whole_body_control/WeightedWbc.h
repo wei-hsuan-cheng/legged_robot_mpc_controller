@@ -51,17 +51,34 @@ struct WbcSettings {
   vector_t torqueLimits{};                     //!< per joint, symmetric; empty means unbounded
 
   // --- task gains -----------------------------------------------------------
-  scalar_t baseKp{100.0}, baseKd{20.0};    //!< base pose / twist -> base acceleration
+  // Per axis, ordered [x, y, z, yaw, pitch, roll] to match the base coordinates.
+  //
+  // The position gains MUST be zero on x, y and yaw. Those are gauge states: the
+  // MPC itself weights them at zero (`q.basePose` is [0,0,100,0,100,100]) and the
+  // contact-aided estimator is free to drift in them. Feeding a position error on
+  // x back as a base acceleration makes the WBC chase a reference position the
+  // rest of the stack never promised to hold - the error then grows with every
+  // step the robot lags behind the plan, and the demanded acceleration grows with
+  // it. Walking x/y is driven by the VELOCITY term instead.
+  vector6_t baseKp{(vector6_t() << 0.0, 0.0, 100.0, 0.0, 100.0, 100.0).finished()};
+  vector6_t baseKd{(vector6_t() << 20.0, 20.0, 20.0, 20.0, 20.0, 20.0).finished()};
   scalar_t jointKp{100.0}, jointKd{20.0};  //!< joint position / velocity -> joint acceleration
   scalar_t swingKp{350.0}, swingKd{37.0};  //!< swing foot pose / twist -> foot acceleration
 
   // --- task weights (relative; the QP minimises the weighted square sum) -----
-  scalar_t weightBaseAccel{200.0};
+  // contactWrench must dominate baseAccel: the MPC already optimised the
+  // balancing wrench, and the WBC is there to realise it, not to replace it with
+  // a base PD. Reversed (200 : 1) the robot cannot come to rest - see the note in
+  // config/g1/ros2_controllers_wbc.yaml.
+  scalar_t weightBaseAccel{20.0};
   scalar_t weightJointAccel{1.0};
   scalar_t weightSwing{100.0};
-  scalar_t weightContactWrench{1.0};
+  scalar_t weightContactWrench{100.0};
   scalar_t weightTorqueReg{1e-3};  //!< regularisation, also makes the Hessian positive definite
   scalar_t weightAccelReg{1e-4};
+
+  // --- solver -----------------------------------------------------------------
+  HpipmDenseQp::Settings qp{};
 };
 
 /**
@@ -99,6 +116,7 @@ class WeightedWbc {
     feet_array_t<vector6_t> contactWrenches{};  //!< as resolved by the QP, LOCAL_WORLD_ALIGNED
     bool success{false};                        //!< false means the QP did not converge
     int iterations{0};
+    int status{0};                              //!< HPIPM status; see HpipmDenseQp::statusString
   };
 
   WeightedWbc(PinocchioInterface pinocchioInterface,

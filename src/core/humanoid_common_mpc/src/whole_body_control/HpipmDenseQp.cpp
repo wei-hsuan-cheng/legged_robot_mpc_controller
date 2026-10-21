@@ -75,7 +75,15 @@ struct HpipmDenseQp::Impl {
 
     argMem.assign(static_cast<size_t>(d_dense_qp_ipm_arg_memsize(&dim)), 0);
     d_dense_qp_ipm_arg_create(&dim, &arg, argMem.data());
-    d_dense_qp_ipm_arg_set_default(::SPEED, &arg);
+    // SPEED skips safeguards that matter once several inequalities are active at
+    // once, which on this problem is every single-support tick.
+    hpipm_mode hpipmMode = ::BALANCE;
+    if (s.mode == "speed") {
+      hpipmMode = ::SPEED;
+    } else if (s.mode == "robust") {
+      hpipmMode = ::ROBUST;
+    }
+    d_dense_qp_ipm_arg_set_default(hpipmMode, &arg);
 
     int iterMax = s.iterMax;
     auto tolStat = s.tolStat;
@@ -100,6 +108,23 @@ struct HpipmDenseQp::Impl {
     idxb.resize(static_cast<size_t>(nb));
   }
 };
+
+const char* HpipmDenseQp::statusString(int status) {
+  switch (status) {
+    case 0:
+      return "SUCCESS";
+    case 1:
+      return "MAX_ITER";
+    case 2:
+      return "MIN_STEP";
+    case 3:
+      return "NAN_SOL";
+    case 4:
+      return "INCONS_EQ";
+    default:
+      return "UNKNOWN";
+  }
+}
 
 HpipmDenseQp::HpipmDenseQp() : HpipmDenseQp(Settings{}) {}
 

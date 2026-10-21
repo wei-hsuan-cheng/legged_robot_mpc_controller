@@ -162,16 +162,16 @@ humanoid_centroidal_mpc_controller:
       validation: { gt: [0.0], lt_eq: [1.0] }
     }
     baseKp: {
-      type: double,
-      default_value: 100.0,
-      description: "Base pose error gain of the acceleration-level base task.",
-      validation: { gt_eq: [0.0] }
+      type: double_array,
+      default_value: [0.0, 0.0, 100.0, 0.0, 100.0, 100.0],
+      description: "Base POSITION error gains of the acceleration-level base task, per axis [x, y, z, yaw, pitch, roll]. Must be zero on x, y and yaw: those are gauge states that the MPC weights at zero and the estimator may drift in, so a position gain there makes the WBC chase a reference the rest of the stack never promised to hold. Walking x/y is driven by baseKd instead.",
+      validation: { fixed_size<>: [6] }
     }
     baseKd: {
-      type: double,
-      default_value: 20.0,
-      description: "Base twist error gain of the acceleration-level base task.",
-      validation: { gt_eq: [0.0] }
+      type: double_array,
+      default_value: [20.0, 20.0, 20.0, 20.0, 20.0, 20.0],
+      description: "Base VELOCITY error gains of the acceleration-level base task, per axis [x, y, z, yaw, pitch, roll]. This is what makes the robot track a commanded walking velocity.",
+      validation: { fixed_size<>: [6] }
     }
     jointKp: {
       type: double,
@@ -199,7 +199,7 @@ humanoid_centroidal_mpc_controller:
     }
     weightBaseAccel: {
       type: double,
-      default_value: 200.0,
+      default_value: 20.0,
       description: "Weight of the base acceleration task in the QP cost.",
       validation: { gt_eq: [0.0] }
     }
@@ -217,7 +217,7 @@ humanoid_centroidal_mpc_controller:
     }
     weightContactWrench: {
       type: double,
-      default_value: 1.0,
+      default_value: 100.0,
       description: "Weight pulling the stance wrenches toward the ones the MPC optimised.",
       validation: { gt_eq: [0.0] }
     }
@@ -233,6 +233,50 @@ humanoid_centroidal_mpc_controller:
       description: "Generalized acceleration regularisation.",
       validation: { gt: [0.0] }
     }
+
+    qp:
+      iterMax: {
+        type: int,
+        default_value: 100,
+        description: "Maximum interior-point iterations. A QP that stops at this limit is reported as a failure and the tick falls back to inverse dynamics, so this has to be large enough for the hardest tick, not the typical one.",
+        validation: { gt: [0] }
+      }
+      tolStat: {
+        type: double,
+        default_value: 1.0e-4,
+        description: "Stationarity tolerance. Control-grade; tightening it toward 1e-6 costs iterations for accuracy the actuators cannot express.",
+        validation: { gt: [0.0] }
+      }
+      tolEq: {
+        type: double,
+        default_value: 1.0e-6,
+        description: "Equality-residual tolerance. These rows are the equation of motion and the stance constraint, so this stays tighter than the others.",
+        validation: { gt: [0.0] }
+      }
+      tolIneq: {
+        type: double,
+        default_value: 1.0e-6,
+        description: "Inequality-residual tolerance (friction cone, CoP, torque bounds).",
+        validation: { gt: [0.0] }
+      }
+      tolComp: {
+        type: double,
+        default_value: 1.0e-6,
+        description: "Complementarity tolerance.",
+        validation: { gt: [0.0] }
+      }
+      regPrim: {
+        type: double,
+        default_value: 1.0e-8,
+        description: "Primal regularisation added to the Hessian.",
+        validation: { gt_eq: [0.0] }
+      }
+      mode: {
+        type: string,
+        default_value: "balance",
+        description: "HPIPM preset. speed drops safeguards that matter once several inequalities are active at once; robust is the most reliable and the slowest.",
+        validation: { one_of<>: [["speed", "balance", "robust"]] }
+      }
 
   diagnostics:
     statusLogPeriod: {

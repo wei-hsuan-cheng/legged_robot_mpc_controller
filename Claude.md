@@ -76,7 +76,7 @@ ocs2:
       footCenterOffset: 0.075
 ```
 
-## WBC inner loop: implemented and converging, walking NOT yet validated
+## WBC inner loop: working, 6/6 on the vx ladder
 
 The centroidal MPC optimises foot wrenches and swing trajectories; those were
 handed to a closed-form RNEA inverse dynamics (`computeJointTorques`), which
@@ -189,28 +189,131 @@ Hardware needs an actual per-tick solve-time histogram before this is trusted. I
 timing ever binds, the `updateDesired` Pinocchio pass is the cheaper thing to cut
 (it feeds only the swing and wrench references, which change at 100 Hz anyway).
 
-### What is measured, and what is not
+### Measured on the vx ladder, flat scene, GT base
 
-| | status |
-|---|---|
-| builds, activates, holds rate | yes |
-| QP convergence | **0 failures** over two 228 s runs |
-| standing posture | peak pitch 0.008 rad, roll 0.000 |
-| **walking** | **NOT validated** |
+`6/6 runs survived, 0 QP failures`, and the spread is tight enough to be a
+property of the configuration rather than luck - which matters on a ladder this
+file elsewhere describes as near-bimodal.
 
-**The first "successful" walking batch was a harness bug and proves nothing about
-walking.** It reported `SURVIVED t=228.3s dist=0.09m` twice, which reads like a
-pass until the distance is noticed: the test script passed
-`--sequence there_and_back`, which is not one of the sequences
-`command_sequence.py` accepts, so it exited on the argparse error and **no
-velocity command was ever published**. The robot stood still for 228 s. Both
-results are stance-only.
+| | ID (shipped) | WBC |
+|---|---|---|
+| ladder outcome | 2/2 survived | **6/6 survived** |
+| QP failures | - | **0** |
+| peak pitch | 0.059-0.062 | 0.063-0.071 |
+| peak roll | 0.063-0.066 | 0.067-0.072 |
+| rest-phase pitch sd | 0.0010-0.0020 | **0.0004** |
 
-This is the same trap as the rest of this file: a survival time means nothing
-without the quantity that says the commanded motion actually happened. Check
-`<tag>_cmd.log` is empty of argparse errors before reading any result. Valid
-sequence names come from `command_sequence.py --list`; `vx_ladder` is the standard
-comparison.
+Commanded vs achieved forward speed, body frame, mean over the last 60% of each
+phase:
+
+| cmd vx | ID | WBC |
+|---|---|---|
+| +0.05 | +0.01 | +0.02 |
+| +0.10 | +0.05 | **+0.06** |
+| +0.20 | +0.10 | **+0.11** |
+| +0.30 | +0.14 | **+0.16** |
+| -0.10 | -0.18 | -0.19 |
+| every rest phase | -0.00 | **-0.00** |
+
+So the WBC tracks velocity slightly *better* than the closed-form inverse
+dynamics, is quieter at rest, and is marginally worse in peak pitch.
+
+### The weight ratio is the whole ballgame
+
+`weightContactWrench` **must dominate** `weightBaseAccel`. The first guess had it
+the other way round (200 : 1) and that configuration **cannot come to rest**:
+
+| | base 200 / wrench 1 | base 20 / wrench 100 |
+|---|---|---|
+| rest-phase speed | **+0.07 to +0.08 m/s** | -0.00 m/s |
+| ladder outcome | **fell 4/4**, 42.6-43.1 s | survived 6/6 |
+
+The mechanism is a feedback loop, not a tuning preference. The MPC has already
+optimised the balancing wrench over its whole horizon; at 200 : 1 the QP throws
+that away and substitutes a crude base PD, which cannot bring the robot to a
+stop. It then creeps forward through every commanded stop - and
+`transitionToSlowerGait` gates entry to stance on the *measured* speed, so a
+creeping robot never stops stepping, keeps creeping, and goes over at the second
+stop. Every fall landed in `rest2`.
+
+The WBC's job is to **realise** the MPC's wrench against the measured state
+subject to the physical limits, not to re-derive the balance. The weights now say
+so, and the reasoning is recorded in the config next to the numbers because this
+is exactly the sort of ratio that gets "tidied" back later.
+
+### The QP settings were unreachable, which hid everything else
+
+`WeightedWbc`'s constructor called `make_unique<HpipmDenseQp>()` with no argument,
+so `settings_.qp` was silently discarded and the solver always ran at the
+hardcoded `iterMax: 30` with 1e-6/1e-7 tolerances. That is far too tight for a
+control QP: once the friction cone and the torque bounds are both active the
+interior-point method needs more steps, and a QP that stops at the iteration
+limit is reported as a failure.
+
+| | before | after |
+|---|---|---|
+| `iterMax` | 30 | 100 |
+| `tolStat` | 1e-6 | 1e-4 |
+| `tolEq` | 1e-7 | 1e-6 |
+| HPIPM mode | `speed` | `balance` |
+| failures on the ladder | 73304 (~37% of ticks) | 1931 -> 0 |
+
+`tolEq` stays tightest because those rows are the equation of motion and the
+stance constraint - the physics, not a preference. `SPEED` drops safeguards that
+matter once several inequalities are active at once, which here is every
+single-support tick. All seven settings are now `wbc.qp.*`, so tuning needs no
+rebuild.
+
+**The warning now names the HPIPM status** (`MAX_ITER after 100 iterations`) via
+`HpipmDenseQp::statusString`. Without it a throttled "did not converge" with a
+silent 37% fallback to inverse dynamics is indistinguishable from a healthy WBC -
+which is precisely how the stance-only "0 failures" result below misled this
+effort for an afternoon.
+
+### Torque limits: needed, and not binding
+
+With `control.torqueLimit` set, no joint ever exceeds its bound and 0 of 23 are
+over at any sample. The tightest sustained user is the ankle at 78% of 50 Nm. The
+shoulders touch 25.0 Nm but at a **0.018% duty cycle** against a 0.45 Nm median,
+i.e. a one-or-two-tick transient at activation, and the arms move only 1.5 deg
+peak-to-peak. So the bounds are doing their job without shaping the gait.
+
+### What was NOT the WBC's fault
+
+**The ~50% forward velocity deficit is a property of the MPC, not the inner
+loop.** The ID baseline on the identical harness achieves `0.01 / 0.05 / 0.10 /
+0.14` against commands of `0.05 / 0.10 / 0.20 / 0.30`, and -0.18 against a -0.10
+command - i.e. forward tracks at about half and backward overshoots by ~80%. The
+WBC reproduces the same pattern. Nothing in this file had measured commanded vs
+achieved speed before, so this was invisible; it is now open item 2.
+
+The per-axis `baseKp` change (zero on x, y, yaw) measured **neutral** - it did not
+move the fall time at all. It is kept because zero gain on the gauge states is
+correct in principle and mirrors the MPC's own `q.basePose` of
+`[0,0,100,0,100,100]`, but it should not be cited as the fix.
+
+### Three harness traps found while measuring this
+
+1. **The first "successful" walking batch was a harness bug.** It reported
+   `SURVIVED t=228.3s dist=0.09m` twice, which reads like a pass until the
+   distance is noticed: the script passed `--sequence there_and_back`, which
+   `command_sequence.py` does not accept, so it died on the argparse error and
+   **no velocity command was ever published**. Check `<tag>_cmd.log` for argparse
+   errors before reading any result; valid names come from `--list`.
+2. **`controllersFile` needs an absolute path.** A bare filename throws
+   `[Errno 2] No such file or directory` and the harness then waits out its whole
+   activation timeout against a sim that does not exist.
+3. **`torqueLimit: []` is rejected by rclcpp** - `parameter_value_from failed:
+   No parameter value set`, because an empty YAML sequence has no inferable type.
+   "No limits" means omitting the key, not emptying it.
+
+Also worth knowing: **`command_sequence.py` has `NOMINAL_HEIGHT = 0.6`**, so every
+sequence in this repo commands a 0.600 m pelvis against the MPC's 0.7925 m
+nominal. The knee torques (max 22.6 Nm of 139) prove no deep squat actually
+happens, which independently confirms open item 7 - the height command is not
+tracked. It applies identically to both inner loops, so it does not bias the
+comparison, but no ladder result in this file is at the height it appears to
+command.
 
 ### Config
 
@@ -1191,16 +1294,22 @@ arm pair has authority over.
 
 ## Open work, in priority order
 
-1. **Validate the WBC on walking - it has only ever been measured standing.**
-   The QP converges (0 failures in 2 x 228 s) and the standing posture is good,
-   but the one walking batch run against it never published a velocity command,
-   so there is no walking result at all. Re-run `vx_ladder` on `scene_flat.xml`
-   with `floatingBaseSource:=ground_truth_state` first, to separate the WBC from
-   the estimator, then A/B against `inverse_dynamics` on the same sequence. The
-   knob most likely to need moving is `weightBaseAccel : weightJointAccel`
-   (200:1). Also flip `g1.launch.py`'s `controllersFile` default back to
-   `ros2_controllers.yaml` before merging.
-2. **Backward walking remains the weak direction, even after the foothold fix.**
+1. **Finish validating the WBC beyond the vx ladder.** It is 6/6 with 0 QP
+   failures on `vx_ladder` with a GT base, but that is one sequence on flat
+   ground. Still to run: `stop_cycles` (the hardest case for this stack, and the
+   WBC's old failure mode was precisely an inability to stop), `vy_ladder`,
+   `yaw_ladder`, `combined`, the figure-eight, and the whole set again with
+   `floatingBaseSource:=state_estimator` instead of ground truth. Also flip
+   `g1.launch.py`'s `controllersFile` default back to `ros2_controllers.yaml`
+   before merging to main.
+2. **Commanded velocity is not tracked, in EITHER inner loop.** Forward comes out
+   at about half (0.30 -> 0.14 with ID, 0.16 with the WBC) and backward overshoots
+   by ~80% (-0.10 -> -0.18). Both inner loops agree closely, so this lives in the
+   MPC or the command path, not the inner loop. It had never been measured because
+   no analysis in this repo compared commanded against achieved speed - the
+   per-phase table in `metric2.py` is what surfaced it. The backward overshoot is
+   plausibly the same forward-bias asymmetry as open item 3.
+3. **Backward walking remains the weak direction, even after the foothold fix.**
    The single fall in the N=6 height comparison was again `vx_neg10`, and the one
    remaining fall mode anywhere is that phase. `footCenterOffset` equalised the
    static margins at 0.09 m each, which is what removed most of it, but the gait
@@ -1208,43 +1317,43 @@ arm pair has authority over.
    the step timing are both tuned around forward travel. Next step would be to
    measure the actual CoM excursion relative to the support polygon edge during
    the reversal rather than reasoning from the static geometry.
-3. **Bound the estimator's absolute-z drift (Phase 2.5).** This is the blocker for
+4. **Bound the estimator's absolute-z drift (Phase 2.5).** This is the blocker for
    terrain walking and the reason the terrain reference ships off. The right fix
    is a height pseudo-measurement *inside* the InEKF, so the filter's own z is
    corrected, instead of the blend currently applied outside it which leaves the
    internal z drifting uncorrected and lets `anchored` feed that drift back
    through the touchdown anchors.
-4. **[SUPERSEDED - see item 2] Backward walking.** Every vx-ladder fall observed lands
+5. **[SUPERSEDED - see item 3] Backward walking.** Every vx-ladder fall observed lands
    1.3-2.3 s after the reversal to -0.10 m/s; all forward speeds up to 0.30 m/s
    complete every time, with either arm posture. Look at the feedforward terms in
    the foot-placement path first (`baseAtTouchdown`, `stepLengthGain`) - they were
    derived for forward travel and reversal inverts their sign convention, while
    the capture-point correction itself is sign-symmetric.
-5. **Retune pitch against the arms-down posture.** Moving 7 kg of arm mass down and
+6. **Retune pitch against the arms-down posture.** Moving 7 kg of arm mass down and
    back cost 10-20% in forward pitch RMS at every speed (table under "Arm
    posture"). The gains were fitted with the arms held forward.
-6. **Re-measure the vy / yaw / combined ladders on the shipped configuration.**
+7. **Re-measure the vy / yaw / combined ladders on the shipped configuration.**
    Only the vx ladder and the figure-eight were re-run after the weight was moved
    back to 100 with ICP on; the lateral and yaw limits quoted further down this
    file predate that and are stale. (The `trackingWeight: 1600` follow-ups that
    used to be items 2 and 3 here are withdrawn - that weight overfit the vx
    ladder and is no longer shipped.)
-7. **The height command is not tracked during walking.** The figure-eight plot
+8. **The height command is not tracked during walking.** The figure-eight plot
    shows a commanded 0.77↔0.80 m sinusoid at 13 s producing only step-frequency
    bounce with a slow upward creep. Same family as the 13 mm squat offset, but a
    whole command being ignored rather than a small bias.
-8. **Roll oscillates ±8° per step** at 0.22 m/s, much larger than expected, and is
+9. **Roll oscillates ±8° per step** at 0.22 m/s, much larger than expected, and is
    the precursor to most falls.
-9. **[FIXED, needs retuning] `targetMomentum` angular part.** Now `I_G(q)*omega/m`.
+10. **[FIXED, needs retuning] `targetMomentum` angular part.** Now `I_G(q)*omega/m`.
    Note the earlier entry here said "off by roughly the z inertia" implying too
    small; it was 1.86x too LARGE, since I_zz = 0.539 < 1. The correction measures
    neutral-to-worse (stop_cycles 0/4 -> 3/10, p ~ 0.51) because the weight-75
    terminal term was tuned against the inflated target. Retune it in Phase 2.
-10. **Arm-swing vs zero angular-momentum reference conflict** (Phase 3 item 1). Now
+11. **Arm-swing vs zero angular-momentum reference conflict** (Phase 3 item 1). Now
    the blocker for phase 2 of the arm work: the swing ships disabled precisely
    because of this, and it must be resolved before a momentum-regulating arm law
    can do anything. See "Arm swing: shipped off, with a seam for phase 2".
-11. **Phase 2 contact model (B1):** double-support NIS is ~2x over-confident,
+12. **Phase 2 contact model (B1):** double-support NIS is ~2x over-confident,
    consistent with heel and toe being fed in as independent landmarks when they
    are rigidly linked.
 
