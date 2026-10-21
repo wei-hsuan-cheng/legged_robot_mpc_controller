@@ -60,21 +60,92 @@ humanoid_centroidal_mpc_controller:
       # you switch it on, drop mpcJointKp toward 0 and keep only light damping.
       jointCommandMode: inverse_dynamics
       mpcJointKp:
-        [1200.0, 1200.0, 1200.0, 1200.0, 1200.0, 1200.0,
-         1200.0, 1200.0, 1200.0, 1200.0, 1200.0, 1200.0,
-         1200.0, 1200.0, 1200.0,
-         1200.0, 1200.0, 1200.0, 1200.0,
-         1200.0, 1200.0, 1200.0, 1200.0]
+        [0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+         0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+         0.0, 0.0, 0.0,
+         0.0, 0.0, 0.0, 0.0,
+         0.0, 0.0, 0.0, 0.0]
       mpcJointKd:
-        [10.0, 10.0, 10.0, 10.0, 10.0, 10.0,
-         10.0, 10.0, 10.0, 10.0, 10.0, 10.0,
-         10.0, 10.0, 10.0,
-         10.0, 10.0, 10.0, 10.0,
-         10.0, 10.0, 10.0, 10.0]
+        [2.0, 2.0, 2.0, 2.0, 2.0, 2.0,
+         2.0, 2.0, 2.0, 2.0, 2.0, 2.0,
+         2.0, 2.0, 2.0,
+         2.0, 2.0, 2.0, 2.0,
+         2.0, 2.0, 2.0, 2.0]
       fixedJointKp:
         [100.0, 100.0, 100.0, 100.0, 100.0, 100.0]
       fixedJointKd:
         [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+      # Symmetric torque clamp, index-aligned with robot.jointNames. Taken from the
+      # effort limits in g1_29dof.urdf. The WBC bounds its own torques, so these
+      # become the box constraints on the tau block of the QP - leave them empty
+      # and the QP is free to ask for a torque the actuator cannot deliver.
+      torqueLimit:
+        [88.0, 88.0, 88.0, 139.0, 50.0, 50.0,
+         88.0, 88.0, 88.0, 139.0, 50.0, 50.0,
+         88.0, 50.0, 50.0,
+         25.0, 25.0, 25.0, 25.0,
+         25.0, 25.0, 25.0, 25.0]
+
+    # Whole-body QP inner loop. Read only when control.jointCommandMode is wbc.
+    # One QP per control tick (1 kHz) over
+    #   x = [qddot (29) | w_l w_r (6 each) | tau (23)]   -> 64 variables
+    # subject to the floating-base EoM, stance no-motion, the contact cones and
+    # torqueLimit above, tracking the MPC policy in least squares.
+    wbc:
+      # Stance contact wrench limits (hard constraints).
+      frictionCoefficient: 0.7
+      torsionalFrictionCoefficient: 0.1   # |m_z| <= this * f_z; a flat foot can carry yaw torque
+      minContactForceZ: 10.0              # [N] keeps a stance foot loaded so the cone stays well posed
+      copMarginScale: 0.9                 # shrinks the sole rectangle used for the CoP bound
+
+      # Acceleration-level PD gains of the tracking tasks.
+      # Base gains are per axis, [x, y, z, yaw, pitch, roll].
+      # The POSITION gains are zero on x, y and yaw on purpose: the MPC weights
+      # those at zero too (see ocs2.costs.q.basePose below) because they are gauge
+      # states. A position gain there makes the WBC chase a reference position
+      # nothing else in the stack holds, and the demanded acceleration then grows
+      # with every step the robot lags the plan. x/y walking comes from baseKd.
+      baseKp: [0.0, 0.0, 100.0, 0.0, 100.0, 100.0]
+      baseKd: [20.0, 20.0, 20.0, 20.0, 20.0, 20.0]
+      jointKp: 100.0
+      jointKd: 20.0
+      swingKp: 350.0
+      swingKd: 37.0
+
+      # Relative task weights; the QP minimises the weighted square sum, so only
+      # the ratios matter.
+      #
+      # contactWrench MUST dominate baseAccel. The MPC already solved for the
+      # balancing wrench over its whole horizon; the WBC's job is to realise that
+      # wrench on the measured state subject to the physical limits, not to
+      # re-derive the balance itself. At the first-guess 200:1 the other way round
+      # the QP substituted a crude base PD for the MPC's plan, and the robot then
+      # could not come to rest: it crept forward at 0.07-0.08 m/s through every
+      # commanded stop, which kept transitionToSlowerGait out of stance, which
+      # kept it stepping, and it fell at the second stop in 4 of 4 runs. At 100:20
+      # it stops dead (-0.00 m/s) and tracks velocity slightly better than the
+      # closed-form inverse dynamics.
+      weightBaseAccel: 20.0
+      weightJointAccel: 1.0
+      weightSwing: 100.0
+      weightContactWrench: 100.0
+      weightTorqueReg: 0.001              # also keeps the Hessian positive definite
+      weightAccelReg: 0.0001
+
+      # HPIPM interior-point settings. A QP that stops at iterMax counts as a
+      # failure and the tick falls back to inverse dynamics, so iterMax has to
+      # cover the hardest tick (both feet loaded, cone and torque bounds active),
+      # not the typical one. The tolerances are control-grade: the equality rows
+      # are the equation of motion so they stay tight, the rest do not need
+      # accuracy the actuators cannot express.
+      qp:
+        iterMax: 100
+        tolStat: 1.0e-4
+        tolEq: 1.0e-6
+        tolIneq: 1.0e-6
+        tolComp: 1.0e-6
+        regPrim: 1.0e-8
+        mode: balance                     # speed | balance | robust
 
     diagnostics:
       statusLogPeriod: 2.0
