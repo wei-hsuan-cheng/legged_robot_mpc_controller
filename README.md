@@ -4,8 +4,6 @@ ROS 2 controller integration for legged robot MPC using [OCS2](https://github.co
 
 This is the **ROS 2 Jazzy** branch (Ubuntu 24.04, ros2_control 4.x, Pinocchio 4). The Humble version is on `main`.
 
-The humanoid centroidal MPC is migrated from the original implementaion of [`wb_humanoid_mpc`](https://github.com/manumerous/wb_humanoid_mpc.git).
-
 
 ## Build and Install
 
@@ -30,21 +28,6 @@ The humanoid centroidal MPC is migrated from the original implementaion of [`wb_
   rosdep install --ignore-src --from-paths src -y -r
   ```
 
-- Build `mujoco`-related pkg. (See **troubleshooting section** [here](https://github.com/wei-hsuan-cheng/mujoco_ros2_control) if needed)
-  ```bash
-  cd <workspace_dir>
-  NUM_JOBS=2 && \
-  export CMAKE_BUILD_PARALLEL_LEVEL=${NUM_JOBS} && \
-  export MAKEFLAGS=-j${NUM_JOBS} && \
-  export NINJAFLAGS=-j${NUM_JOBS} && \
-  colcon build --symlink-install \
-    --packages-up-to mujoco_ros2_control mujoco_ros2_control_demos \
-    --executor sequential --parallel-workers ${NUM_JOBS} \
-    --cmake-force-configure \
-    --cmake-args -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release && \
-    . install/setup.bash
-  ```
-
 - Build pkgs up-to `legged_robot_mpc_controller`
   ```bash
   cd <workspace_dir>
@@ -53,7 +36,7 @@ The humanoid centroidal MPC is migrated from the original implementaion of [`wb_
   export MAKEFLAGS=-j${NUM_JOBS} && \
   export NINJAFLAGS=-j${NUM_JOBS} && \
   colcon build --symlink-install \
-    --packages-select legged_robot_mpc_controller \
+    --packages-up-to legged_robot_mpc_controller \
     --executor sequential --parallel-workers ${NUM_JOBS} \
     --cmake-force-configure \
     --cmake-args -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release && \
