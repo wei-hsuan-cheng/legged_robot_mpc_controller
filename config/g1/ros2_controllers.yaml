@@ -471,6 +471,7 @@ humanoid_centroidal_mpc_controller:
 # Contact-aided right-invariant EKF (Hartley et al. 2018). The default.
 humanoid_inekf:
   ros__parameters:
+    update_rate: $(var mrtFreq)
     urdfFile: $(var urdfFile)
     baseFrame: pelvis
     # Read by name, so the order is free; the MPC's robot.jointNames.
@@ -556,6 +557,7 @@ humanoid_inekf:
 # sequences, where the InEKF survived 6 of 6. Kept for comparison.
 humanoid_linear_kf:
   ros__parameters:
+    update_rate: $(var mrtFreq)
     urdfFile: $(var urdfFile)
     baseFrame: pelvis
     # Read by name, so the order is free; the MPC's robot.jointNames.
