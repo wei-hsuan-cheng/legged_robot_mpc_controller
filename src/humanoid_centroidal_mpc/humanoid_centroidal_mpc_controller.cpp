@@ -591,7 +591,7 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_deactiv
 {
   stop_solver_thread();
   for (auto& command_interface : command_interfaces_) {
-    command_interface.set_value(0.0);
+    (void)command_interface.set_value(0.0);
   }
   if (diagnostics_) {
     // The solver thread is already joined, so no more cost rows can arrive.
@@ -705,7 +705,9 @@ HumanoidCentroidalMpcController::state_interface_configuration() const
   return config;
 }
 
-controller_interface::return_type HumanoidCentroidalMpcController::update_reference_from_subscribers()
+controller_interface::return_type HumanoidCentroidalMpcController::update_reference_from_subscribers(
+  const rclcpp::Time&,
+  const rclcpp::Duration&)
 {
   return controller_interface::return_type::OK;
 }
@@ -1085,7 +1087,7 @@ std::optional<double> HumanoidCentroidalMpcController::get_state_interface_value
   if (state_handle == state_interfaces_.end()) {
     return std::nullopt;
   }
-  return state_handle->get_value();
+  return state_handle->get_optional();
 }
 
 bool HumanoidCentroidalMpcController::read_joint_state(vector_t& q, vector_t& v)
@@ -1121,10 +1123,13 @@ bool HumanoidCentroidalMpcController::read_joint_state(vector_t& q, vector_t& v)
   q.resize(static_cast<Eigen::Index>(n));
   v.resize(static_cast<Eigen::Index>(n));
   for (size_t i = 0; i < n; ++i) {
-    q[static_cast<Eigen::Index>(i)] =
-      state_interfaces_[i * stride + *position_offset].get_value();
-    v[static_cast<Eigen::Index>(i)] =
-      state_interfaces_[i * stride + *velocity_offset].get_value();
+    const auto qi = state_interfaces_[i * stride + *position_offset].get_optional();
+    const auto vi = state_interfaces_[i * stride + *velocity_offset].get_optional();
+    if (!qi || !vi) {
+      return false;
+    }
+    q[static_cast<Eigen::Index>(i)] = *qi;
+    v[static_cast<Eigen::Index>(i)] = *vi;
   }
   return true;
 }
@@ -1829,16 +1834,16 @@ void HumanoidCentroidalMpcController::write_joint_action_command(
   auto safe = [](double v) { return std::isfinite(v) ? v : 0.0; };
   for (size_t i = 0; i < mpc_joint_count; ++i) {
     const auto idx = static_cast<Eigen::Index>(i);
-    command_interfaces_[3 * i + 0].set_value(safe(i < static_cast<size_t>(q_des.size()) ? q_des[idx] : 0.0));
-    command_interfaces_[3 * i + 1].set_value(safe(i < static_cast<size_t>(qd_des.size()) ? qd_des[idx] : 0.0));
-    command_interfaces_[3 * i + 2].set_value(safe(i < static_cast<size_t>(tau_ff.size()) ? tau_ff[idx] : 0.0));
+    (void)command_interfaces_[3 * i + 0].set_value(safe(i < static_cast<size_t>(q_des.size()) ? q_des[idx] : 0.0));
+    (void)command_interfaces_[3 * i + 1].set_value(safe(i < static_cast<size_t>(qd_des.size()) ? qd_des[idx] : 0.0));
+    (void)command_interfaces_[3 * i + 2].set_value(safe(i < static_cast<size_t>(tau_ff.size()) ? tau_ff[idx] : 0.0));
   }
   // Joints excluded from the MPC model (wrists): hold zero, soft hardware gains.
   for (size_t i = 0; i < fixed_joint_count; ++i) {
     const size_t base = 3 * (mpc_joint_count + i);
-    command_interfaces_[base + 0].set_value(0.0);
-    command_interfaces_[base + 1].set_value(0.0);
-    command_interfaces_[base + 2].set_value(0.0);
+    (void)command_interfaces_[base + 0].set_value(0.0);
+    (void)command_interfaces_[base + 1].set_value(0.0);
+    (void)command_interfaces_[base + 2].set_value(0.0);
   }
 }
 

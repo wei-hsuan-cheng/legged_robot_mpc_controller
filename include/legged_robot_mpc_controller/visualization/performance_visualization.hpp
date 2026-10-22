@@ -9,7 +9,7 @@
 #include <ocs2_core/Types.h>
 #include <ocs2_pinocchio_interface/PinocchioInterface.h>
 #include <rclcpp_lifecycle/lifecycle_node.hpp>
-#include <realtime_tools/realtime_box_best_effort.hpp>
+#include <realtime_tools/realtime_thread_safe_box.hpp>
 
 #include <humanoid_common_mpc/common/MpcRobotModelBase.h>
 
@@ -44,7 +44,7 @@ private:
   std::shared_ptr<rclcpp_lifecycle::LifecycleNode> node_;
   Settings settings_;
   std::unique_ptr<OptimizedStateTrajectoryVisualization> trajectory_visualization_;
-  realtime_tools::RealtimeBoxBestEffort<ocs2::vector_array_t> latest_optimized_state_trajectory_;
+  realtime_tools::RealtimeThreadSafeBox<ocs2::vector_array_t> latest_optimized_state_trajectory_;
   std::thread visualization_thread_;
   std::chrono::duration<double> period_{0.2};
   std::atomic_bool running_{false};

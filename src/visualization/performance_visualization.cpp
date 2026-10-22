@@ -61,7 +61,7 @@ PerformanceVisualization::~PerformanceVisualization()
 void PerformanceVisualization::update_visualization(
   const ocs2::vector_array_t& optimizedStateTrajectory)
 {
-  if (latest_optimized_state_trajectory_.trySet(optimizedStateTrajectory)) {
+  if (latest_optimized_state_trajectory_.try_set(optimizedStateTrajectory)) {
     has_optimized_state_trajectory_.store(true);
   }
 }
@@ -73,7 +73,7 @@ void PerformanceVisualization::visualization_loop()
 
     try {
       if (trajectory_visualization_ && has_optimized_state_trajectory_.load()) {
-        const auto optimized_state_trajectory = latest_optimized_state_trajectory_.tryGet();
+        const auto optimized_state_trajectory = latest_optimized_state_trajectory_.try_get();
         if (optimized_state_trajectory.has_value()) {
           trajectory_visualization_->publish(*optimized_state_trajectory);
         }
