@@ -485,7 +485,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
       globalFrame: world
       # [ax, ay (m/s^2), height rate (m/s), yaw acceleration (rad/s^2)]
       velocityCommandRateLimits: 
-        [0.5, 0.25, 0.1, 0.2]
+        [0.5, 0.5, 0.1, 0.75]
 
     robot:
       commandInterface: effort_pd
