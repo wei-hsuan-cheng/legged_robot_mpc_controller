@@ -49,6 +49,9 @@ public:
     const Eigen::Vector3d& base_position,
     const Eigen::Quaterniond& base_orientation,
     const std::vector<double>& joint_positions) override;
+  void initializeFromStance(
+    const Eigen::Quaterniond& imu_orientation_world,
+    const std::vector<double>& joint_positions) override;
 
   /// One estimator step. IMU quantities are body-local raw measurements; joint
   /// vectors are in the controller's jointNames order.

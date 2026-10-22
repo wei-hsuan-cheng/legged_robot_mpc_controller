@@ -21,7 +21,7 @@ def generate_launch_description():
     mpc_share_dir = get_package_share_directory("legged_robot_mpc_controller")
 
     rviz_default = os.path.join(mpc_share_dir, "config", "rviz", "humanoid.rviz")
-    initial_pose_default = os.path.join(mpc_share_dir, "config", "g1", "initial_pose.yaml")
+    initial_pose_default = os.path.join(mpc_share_dir, "config", "g1", "initial_pose_crouch.yaml")
     # Per-branch CppAD cache. The generated libraries are keyed by model NAME
     # only, with nothing recording the dimensions they were built for, so two
     # branches whose costs differ in parameter count will silently load each
@@ -95,9 +95,10 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             "floatingBaseSource", default_value="state_estimator",
+            choices=["ground_truth_state", "state_estimator"],
             description="Floating-base feedback source for the centroidal MPC: "
-                        "ground_truth_state (simulator/hardware body state) | state_estimator (proprioceptive InEKF). "
-                        "The InEKF always runs in parallel and publishes /humanoid/state_estimate/odom."),
+                        "ground_truth_state (simulator/hardware body state) | state_estimator (the "
+                        "estimator named by floatingBaseEstimator)."),
         DeclareLaunchArgument(
             "diagnosticsLog", default_value="false",
             description="Write the per-tick CSV diagnostics (estimator internals + per-cost-term breakdown) for a tuning/diagnosis run",
@@ -106,6 +107,13 @@ def generate_launch_description():
             "diagnosticsLogPrefix", default_value="/tmp/centroidal_mpc_diag_%t",
             description="Output path prefix for the diagnostics CSVs; '_state.csv'/'_cost.csv' are appended and '%t' expands to the run start time",
         ),
+        DeclareLaunchArgument(
+            "floatingBaseEstimator", default_value="humanoid_inekf",
+            choices=["none", "humanoid_inekf", "humanoid_linear_kf"],
+            description="Floating-base estimator the MPC controller runs, first in every "
+                        "control tick. With floatingBaseSource:=state_estimator it drives "
+                        "control; with ground_truth_state it runs alongside and is logged "
+                        "against ground truth. none runs no estimator (ground_truth_state only)."),
         DeclareLaunchArgument("mpcFreq", default_value="100", description="MPC update frequency (should be integer)"),
         DeclareLaunchArgument("mrtFreq", default_value="1000", description="MRT update frequency (should be integer)"),
         DeclareLaunchArgument("controllersFile", default_value=controllers_file_default),
@@ -211,6 +219,7 @@ def generate_launch_description():
             '" == "true" else "none"',
         ]
     )
+
 
     ros2_control_node = Node(
         package="controller_manager",

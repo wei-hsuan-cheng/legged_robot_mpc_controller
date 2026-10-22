@@ -32,6 +32,7 @@ set(THIS_PACKAGE_INCLUDE_DEPENDS
   rclcpp_lifecycle
   realtime_tools
   std_msgs
+  std_srvs
   tf2_ros
   tf2_geometry_msgs
   urdf
@@ -50,6 +51,12 @@ endforeach()
 
 generate_parameter_library(humanoid_centroidal_mpc_controller_parameters
   src/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller_parameter.yaml
+)
+generate_parameter_library(humanoid_inekf_parameters
+  src/humanoid_state_estimation/humanoid_inekf_parameter.yaml
+)
+generate_parameter_library(humanoid_linear_kf_parameters
+  src/humanoid_state_estimation/humanoid_linear_kf_parameter.yaml
 )
 
 file(GLOB_RECURSE HUMANOID_COMMON_CORE_SOURCES CONFIGURE_DEPENDS
@@ -120,6 +127,9 @@ add_library(${PROJECT_NAME} SHARED
   src/common/target/mpc_targets_parser.cpp
   src/humanoid_state_estimation/inekf_floating_base_estimator.cpp
   src/humanoid_state_estimation/linear_kf_floating_base_estimator.cpp
+  src/humanoid_state_estimation/humanoid_state_estimator.cpp
+  src/humanoid_state_estimation/humanoid_inekf.cpp
+  src/humanoid_state_estimation/humanoid_linear_kf.cpp
   src/humanoid_centroidal_mpc/centroidal_mpc_config_builder.cpp
   src/humanoid_centroidal_mpc/centroidal_mpc_diagnostics.cpp
   src/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller.cpp
@@ -136,6 +146,8 @@ target_link_libraries(${PROJECT_NAME}
   PUBLIC
     Eigen3::Eigen
     humanoid_centroidal_mpc_controller_parameters
+    humanoid_inekf_parameters
+    humanoid_linear_kf_parameters
     legged_robot_humanoid_centroidal_core
     legged_state_estimator::legged_state_estimator
     yaml-cpp
@@ -183,6 +195,8 @@ install(FILES legged_robot_mpc_controller_plugin.xml
 install(TARGETS
   ${PROJECT_NAME}
   humanoid_centroidal_mpc_controller_parameters
+  humanoid_inekf_parameters
+  humanoid_linear_kf_parameters
   legged_robot_humanoid_common_core
   legged_robot_humanoid_centroidal_core
   EXPORT export_${PROJECT_NAME}

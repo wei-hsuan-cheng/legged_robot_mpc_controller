@@ -443,32 +443,131 @@ together.
 
 ## Floating-Base State (ground truth vs. state estimator)
 
-The floating-base feedback source is chosen with the **`floatingBaseSource`** launch argument (centroidal MPC):
+The floating-base feedback is chosen with two launch arguments: **`floatingBaseSource`** (what drives the MPC) and **`floatingBaseEstimator`** (which filter runs).
 
 ```bash
-# (default) simulator/hardware body state - MuJoCo ground truth in simulation
+# (default) the estimator drives the MPC: IMU + joint encoders + scheduled contacts
 ros2 launch legged_robot_mpc_controller g1.launch.py \
-  mpcControllerName:=humanoid_centroidal_mpc_controller \
-  floatingBaseSource:=ground_truth_state
+  floatingBaseSource:=state_estimator \
+  floatingBaseEstimator:=humanoid_inekf         # or humanoid_linear_kf
 
-# proprioceptive InEKF drives the MPC: IMU + joint encoders + scheduled contacts,
-# no ground-truth body in the control loop
+# simulator/hardware body state drives the MPC; the estimator still runs alongside
 ros2 launch legged_robot_mpc_controller g1.launch.py \
-  mpcControllerName:=humanoid_centroidal_mpc_controller \
-  floatingBaseSource:=state_estimator
+  floatingBaseSource:=ground_truth_state
 ```
 
 | `floatingBaseSource` | Feedback used by the MPC |
 |---|---|
-| `ground_truth_state` *(default)* | Body pose/twist from `ros2_control` state interfaces (MuJoCo ground truth in simulation; the robot's own base state on hardware). |
-| `state_estimator` | Contact-aided **InEKF** estimate (pose, world linear velocity, body angular velocity). Ground truth is used only for the brief filter warm-up and for evaluation. |
+| `state_estimator` *(default)* | The estimate of the filter named by `floatingBaseEstimator`. Ground truth seeds the filter and is used until the filter reports itself converged (`ready`, from its own covariance), then the estimate drives control for the rest of the run. |
+| `ground_truth_state` | Body pose/twist from `ros2_control` state interfaces (MuJoCo ground truth in simulation; the robot's own base state on hardware). |
 
-The estimator can also run **in parallel** while ground truth drives control, which is the way to compare it against GT without risking the robot — set `stateEstimator.enabled: true` and keep `floatingBaseSource:=ground_truth_state`. Either way it publishes its estimate for evaluation:
+| `floatingBaseEstimator` | Filter | Tuning |
+|---|---|---|
+| `humanoid_inekf` *(default)* | contact-aided invariant EKF (Hartley et al. 2018) | `humanoid_inekf:` in [`ros2_controllers.yaml`](./config/g1/ros2_controllers.yaml) |
+| `humanoid_linear_kf` | two-stage linear KF (Bledt et al. 2018); falls on varied commands, kept for comparison | `humanoid_linear_kf:` in [`ros2_controllers.yaml`](./config/g1/ros2_controllers.yaml) |
+| `none` | — (only valid with `ground_truth_state`) | |
+
+The estimator runs **inside** the MPC controller, as the first step of every control tick — the arrangement [`legged_control`](https://github.com/qiayuanl/legged_control) and [`quadruped_ros2_control`](https://github.com/legubiao/quadruped_ros2_control) use. That guarantees the observation is built from that tick's estimate, and keeps the filter's internals (covariance, NIS, innovations) in the same diagnostics log as the MPC state. With `ground_truth_state` the estimator still runs, which is the way to compare it against ground truth without risking the robot. Either way it publishes its estimate for evaluation:
 
 ```bash
 ros2 topic echo /mujoco/ground_truth/odom        # ground truth (also used for RViz/TF)
-ros2 topic echo /humanoid/state_estimate/odom    # InEKF estimate
+ros2 topic echo /humanoid/state_estimate/odom    # the running estimator
 ```
+
+### Bring-up (no ground truth)
+
+With `floatingBaseSource:=state_estimator` the controller never uses ground truth, so it can run unchanged on hardware. It follows MIT Cheetah's `Passive → StandUp → Locomotion`, adapted to a humanoid that starts crouched with its feet flat:
+
+| phase | command | estimator | leaves when |
+|---|---|---|---|
+| Passive | joint damping only | off | `~/stand_up` (or `bringUp.autoStart`) |
+| StandUp | joint PD to `reference.defaultJointState`, gravity compensation from the IMU attitude | off | interpolation done (`standUpSeconds`) |
+| Settle | hold the nominal pose | off | trunk at rest per the IMU for `settleSeconds`, **and** `~/start_locomotion` (or `autoStart`) |
+| Converge | hold | initialised from stance (IMU attitude, joint encoders), then running | `readiness.minSeconds` elapsed and divergence guards pass |
+| StartingMpc | hold | running | first policy (solver built off the RT thread, seeded from the estimate) |
+| Blend → Locomotion | stand → MPC over `blendSeconds`, then MPC only | running | — |
+| Fault | joint damping, latched | — | trunk tilt past `bringUp.tiltLimit` in any phase |
+
+In simulation `bringUp.autoStart: true` runs it end to end (about 10 s). The robot spawns **crouched** by default (`config/g1/initial_pose_crouch.yaml`), as a real robot would start, so every launch exercises the stand-up. For a standing spawn, which `floatingBaseSource:=ground_truth_state` needs because it has no stand-up:
+
+```bash
+ros2 launch legged_robot_mpc_controller g1.launch.py mujocoModelFile:=scene_flat.xml \
+  initialPoseFile:=$(ros2 pkg prefix legged_robot_mpc_controller)/share/legged_robot_mpc_controller/config/g1/initial_pose.yaml
+```
+
+#### Manual bring-up (`bringUp.autoStart: false`)
+
+This is the procedure for the real robot, and the way to rehearse it in simulation. Set in `config/g1/ros2_controllers.yaml`:
+
+```yaml
+humanoid_centroidal_mpc_controller:
+  ros__parameters:
+    floatingBase:
+      stateInterfaceName: ""      # hardware only: the robot exports no body pose to claim
+    bringUp:
+      autoStart: false
+```
+
+The config is symlinked into the install, so a relaunch picks it up without rebuilding. In simulation the default crouched spawn gives the stand-up something to do.
+
+**1. Launch, with the robot hanging on a hoist or crouched on the floor.** The controller activates in `passive` and holds the joint pose it measured at activation, on the joint servo alone with no feed-forward, so this is safe whether the feet carry weight or not:
+
+```
+[HumanoidCentroidalMpcController] activated in bring-up (passive); ...
+[HumanoidCentroidalMpcController] bring-up: passive (holding the activation pose); call ~/stand_up with the feet on the floor.
+```
+
+**2. If it is hanging, lower it until both soles are flat on the floor.** The stand-up assumes the weight is on the feet.
+
+**3. Stand up:**
+
+```bash
+ros2 service call /humanoid_centroidal_mpc_controller/stand_up std_srvs/srv/Trigger
+# response: success=True, message='standing up'
+```
+
+The joints interpolate to the nominal pose over `bringUp.standUpSeconds` (3 s), then hold it:
+
+```
+bring-up: passive -> standing up
+bring-up: standing up -> settling
+bring-up: settling | gyro 0.012/0.10 rad/s | |accel|-g +0.031/0.50 m/s^2 | not at rest yet
+bring-up: settling | gyro 0.004/0.10 rad/s | |accel|-g +0.008/0.50 m/s^2 | at rest; call ~/start_locomotion
+```
+
+**4. Wait for `at rest; call ~/start_locomotion`.** It appears once the IMU has seen the trunk still for `bringUp.settleSeconds`. On a hoist, take the load off now, but leave the robot attached.
+
+**5. Start locomotion:**
+
+```bash
+ros2 service call /humanoid_centroidal_mpc_controller/start_locomotion std_srvs/srv/Trigger
+# response: success=True, message='initialising the estimator; the MPC starts once it is ready'
+```
+
+The estimator initialises from the IMU and the joint encoders, converges for `readiness.minSeconds` (5 s), and then the MPC starts from its estimate on its own:
+
+```
+bring-up: settling -> estimator converging
+bring-up: estimator converging | running 2.0/5.0 s | roll/pitch std 0.0255/0.10 | height std 0.0123/0.10 | velocity std 0.1322/0.50
+bring-up: estimator converging -> starting MPC
+bring-up: starting MPC -> blending into MPC
+bring-up: blending into MPC -> locomotion
+```
+
+**6. Only after `-> locomotion`, send velocity commands** (base command GUI, or `/humanoid/walking_velocity_command`). Before that the MPC is not running, and a command sent early is buffered and acted on the moment it starts.
+
+**Calls at the wrong time are refused, not remembered.** Nothing is queued for later, so call again at the right step:
+
+| call | refused when | response |
+|---|---|---|
+| `stand_up` | not in `passive` | `success=False`, `refused: stand_up is only valid in 'passive'; bring-up is in '...'` |
+| `start_locomotion` | not in `settling` | `success=False`, `refused: start_locomotion is only valid in 'settling'; ...` |
+| `start_locomotion` | in `settling`, trunk not at rest yet | `success=False`, `refused: the trunk is not at rest yet ...; retry` |
+
+This is deliberate. A `start_locomotion` remembered from too early, with the robot still hanging, would initialise the estimator in the air, because its stance initialisation assumes the feet are on the ground.
+
+**Fault.** If the trunk tilts past `bringUp.tiltLimit` (0.8 rad) in any phase after `passive`, the controller logs `bring-up FAULT: trunk tilt ...`, switches to joint damping and stays there. To retry, restart the controller, i.e. relaunch. Note that deactivating it writes zero to the joint commands, which the `effort_pd` servo turns into a move toward the zero pose, so support the robot before doing that on hardware.
+
 
 **Closed-loop status:** verified on flat ground — `tests/state_estimator_closed_loop_test.sh` reports `VERDICT: SUCCESS` (2.1 m of walking, height error 1.8 mm, roll/pitch < 0.6°, body-velocity error 0.026 m/s). Backward, lateral and turning motions all match the ground-truth-driven behaviour. Note the default scene has a staircase in front of the robot, so plain forward walking runs into it and falls **with ground truth as well** — flat-ground tests command motion away from the stairs.
 

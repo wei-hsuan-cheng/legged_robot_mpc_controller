@@ -160,6 +160,23 @@ void LinearKfFloatingBaseEstimator::initialize(
   initialized_ = true;
 }
 
+void LinearKfFloatingBaseEstimator::initializeFromStance(
+  const Eigen::Quaterniond & imu_orientation_world,
+  const std::vector<double> & joint_positions)
+{
+  // Stage 1 takes attitude straight from the IMU, so seed it the same way.
+  // Seed once at height 0: the contacts' z in the state are then their heights
+  // relative to the base, and the height that puts them on the ground plane is
+  // ground - mean(relative). Re-seed at that height.
+  initialize(Eigen::Vector3d::Zero(), imu_orientation_world, joint_positions);
+  double sum = 0.0;
+  for (Eigen::Index i = 0; i < num_contacts_; ++i) {
+    sum += settings_.height_ground_z - x_hat_(6 + 3 * i + 2);
+  }
+  const double height = num_contacts_ > 0 ? sum / static_cast<double>(num_contacts_) : 0.0;
+  initialize(Eigen::Vector3d(0.0, 0.0, height), imu_orientation_world, joint_positions);
+}
+
 FloatingBaseEstimate LinearKfFloatingBaseEstimator::update(
   const Eigen::Vector3d & imu_angular_velocity_body,
   const Eigen::Vector3d & imu_linear_acceleration_body,

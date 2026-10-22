@@ -231,6 +231,21 @@ public:
     const Eigen::Quaterniond & base_orientation,
     const std::vector<double> & joint_positions) = 0;
 
+  /**
+   * Initialize from the robot's own sensors only, as on hardware - no external
+   * pose. Attitude comes from the IMU; x and y are set to zero (gauge states,
+   * there is nothing better to assert and nothing downstream weights them); the
+   * height is the one that puts every contact on the ground plane
+   * (height_ground_z), from forward kinematics at the measured joints; velocity
+   * starts at zero.
+   *
+   * Valid only while the robot stands still on all its contacts, which is what
+   * the controller's stand phase guarantees before it calls this.
+   */
+  virtual void initializeFromStance(
+    const Eigen::Quaterniond & imu_orientation_world,
+    const std::vector<double> & joint_positions) = 0;
+
   virtual FloatingBaseEstimate update(
     const Eigen::Vector3d & imu_angular_velocity_body,
     const Eigen::Vector3d & imu_linear_acceleration_body,

@@ -327,263 +327,83 @@ humanoid_centroidal_mpc_controller:
     source: {
       type: string,
       default_value: "ground_truth_state",
-      description: "Floating-base feedback source. ground_truth_state = simulator/hardware body state (ground truth in MuJoCo); state_estimator = proprioceptive InEKF (IMU + encoders + contacts); mujoco_ground_truth_odom is a topic fallback.",
+      description: "Where the floating-base state comes from. ground_truth_state = the simulator/hardware body state (ground truth in MuJoCo). state_estimator = the estimator named by floatingBase.estimator, which this controller runs as the first step of every control tick; it drives control once the filter reports itself converged (`ready`), and the ground-truth body is used until then.",
       validation: {
-        one_of<>: [["mujoco_ground_truth_odom", "ground_truth_state", "state_estimator"]]
+        one_of<>: [["ground_truth_state", "state_estimator"]]
+      }
+    }
+
+    estimator: {
+      type: string,
+      default_value: "none",
+      description: "Floating-base estimator to run: humanoid_inekf (contact-aided invariant EKF), humanoid_linear_kf (two-stage linear KF), or none. Each declares its own parameters under its own name on this node, from its own block in config/g1/ros2_controllers.yaml. Required when source is state_estimator; with ground_truth_state it still runs, so its estimate is logged against ground truth.",
+      validation: {
+        one_of<>: [["none", "humanoid_inekf", "humanoid_linear_kf"]]
       }
     }
 
     stateInterfaceName: {
       type: string,
       default_value: "pelvis",
-      description: "ros2_control sensor/state-interface prefix for the floating-base body state"
-    }
-
-    odometryTopic: {
-      type: string,
-      default_value: "/mujoco/ground_truth/odom",
-      description: "nav_msgs/Odometry topic published by mujoco_ros2_control for the floating-base torso body"
+      description: "ros2_control state-interface prefix of the ground-truth floating-base body. Drives control with ground_truth_state. With state_estimator it is read for the diagnostics log only - never for control - and may be left empty on a robot that exports no body pose."
     }
 
     baseFrame: {
       type: string,
       default_value: "pelvis",
-      description: "Floating-base body frame used as the MPC base (URDF root / MuJoCo free-joint body)"
+      description: "Floating-base body frame used as the MPC base (URDF root / MuJoCo free-joint body); the child frame of the estimate's odometry."
     }
 
-  stateEstimator:
-    enabled: {
+
+
+  bringUp:
+    autoStart: {
       type: bool,
-      default_value: false,
-      description: "Run the InEKF floating-base estimator in parallel (publishes its odom; drives control only when floatingBase.source == state_estimator)"
+      default_value: true,
+      description: "With state_estimator: run the whole bring-up by itself. Set false on hardware, where the operator calls ~/stand_up (Passive -> StandUp) and then ~/start_locomotion once the robot is on its feet (Settle -> Converge, after which the MPC starts by itself when the estimator is ready)."
     }
-    estimatorType: {
-      type: string,
-      default_value: "inEKF",
-      description: "Which floating-base state estimator to run. 'inEKF' is the contact-aided right-invariant EKF of Hartley et al. 2018: an IMU+contact process model on SE_{N+2}(3) corrected by forward-kinematics position measurements, whose error dynamics are log-linear and therefore convergent independently of the operating point. 'linearKF' is reserved for a conventional linearised Kalman filter so the two can be compared on the same logs; it is NOT implemented yet and selecting it fails at configure time rather than silently falling back. Estimator-specific tuning lives in the matching block below (inEKF:), so each filter declares only what applies to it.",
-      validation: {
-        one_of<>: [["inEKF", "linearKF"]]
-      }
-    }
-
-    imuInterfaceName: {
-      type: string,
-      default_value: "pelvis_imu",
-      description: "ros2_control sensor prefix exposing IMU orientation/angular_velocity/linear_acceleration"
-    }
-    imuFrame: {
-      type: string,
-      default_value: "imu_in_pelvis",
-      description: "URDF frame of the IMU used by the estimator"
-    }
-    contactFrames: {
-      type: string_array,
-      default_value: ["foot_l_heel_est", "foot_l_toe_est", "foot_r_heel_est", "foot_r_toe_est"],
-      description: "URDF contact frames fused by the InEKF. The library requires exactly 4 point contacts, so each flat foot contributes a heel + toe point. Distinct '_est' names avoid a Pinocchio frame collision with the MPC's foot_l/r_contact frames."
-    }
-    odomTopic: {
-      type: string,
-      default_value: "/humanoid/state_estimate/odom",
-      description: "nav_msgs/Odometry topic for the InEKF estimate (published for evaluation vs GT)"
-    }
-    odomFrame: {
-      type: string,
-      default_value: "world",
-      description: "Header frame of the published estimate odometry"
-    }
-    publishRate: {
-      type: double,
-      default_value: 100.0,
-      description: "Rate [Hz] at which the estimate odometry is published"
-    }
-    warmupSeconds: {
+    standUpSeconds: {
       type: double,
       default_value: 3.0,
-      description: "Convergence window [s] after activation during which the MPC keeps using the ground-truth/state-interface base even if floatingBase.source is state_estimator. The InEKF is seeded with zero velocity and unknown IMU biases, so its first ~2 s carry ~0.15 m/s of phantom base velocity; feeding that to the momentum-based centroidal MPC destabilizes the robot. On hardware this corresponds to holding the robot at a known pose until the filter converges."
+      description: "Time to interpolate the joints from the pose measured on leaving Passive to reference.defaultJointState [s]. Joint-space with IMU-attitude gravity compensation, so it needs no floating-base state.",
+      validation: { gt_eq: [0.0] }
     }
-    # ---------------------------------------------------------------------
-    # Parameters of the contact-aided invariant EKF (estimatorType: inEKF).
-    #
-    # Nested so a second estimator can declare its own block without either
-    # inheriting tuning that does not apply to it. `noise` in particular is
-    # InEKF-specific: gyroscope/accelerometer/*Bias/contact are the PROCESS
-    # noise of the SE_{N+2}(3) propagation, and contactPosition/contactRotation
-    # are the forward-kinematics MEASUREMENT noise. A linear KF parameterises
-    # its Q and R differently and would declare its own linearKF: block.
-    # ---------------------------------------------------------------------
-    # ---------------------------------------------------------------------
-    # Parameters of the two-stage linear Kalman filter (estimatorType: linearKF),
-    # after MIT Cheetah 3 (Bledt et al., IROS 2018, Sec. III-H).
-    #
-    # Stage 1 takes attitude from the IMU; stage 2 is a plain KF over base
-    # position, base velocity and the contact-point positions. Because attitude
-    # is treated as known the remaining process is linear, which is what allows a
-    # conventional KF where the InEKF needs a Lie-group formulation.
-    #
-    # Defaults are the values used in qiayuanl/legged_control.
-    # ---------------------------------------------------------------------
-    linearKF:
-      numFeet: {
-        type: int,
-        default_value: 0,
-        description: "Number of physical FEET, which is not the number of contact frames. The G1 has 2 feet but 4 contact points (heel and toe per foot), so contactFrames has 4 entries while the gait schedule yields 2 contact flags; inEKF.contact.footIndices ([0,0,1,1]) maps between them. 0 means derive it as max(footIndices)+1, which is right whenever the mapping is dense; set it explicitly only to assert a value.",
-        validation: { gt_eq: [0] }
-      }
-      footRadius: {
-        type: double,
-        default_value: 0.0,
-        description: "Contact-point sphere radius added to the measured foot height [m]. legged_control uses 0.02 because its robots have spherical feet whose contact frame is at the sphere CENTRE; a frame already defined at the sole needs 0.0, otherwise the estimated base height is biased up by exactly this value.",
-        validation: { gt_eq: [0.0] }
-      }
-      imuProcessNoisePosition: {
-        type: double,
-        default_value: 0.02,
-        description: "Process noise on the IMU-integrated base position",
-        validation: { gt: [0.0] }
-      }
-      imuProcessNoiseVelocity: {
-        type: double,
-        default_value: 0.02,
-        description: "Process noise on the IMU-integrated base velocity",
-        validation: { gt: [0.0] }
-      }
-      footProcessNoisePosition: {
-        type: double,
-        default_value: 0.002,
-        description: "Process noise on a stance foot's world position, i.e. how much slip is tolerated",
-        validation: { gt: [0.0] }
-      }
-      footSensorNoisePosition: {
-        type: double,
-        default_value: 0.005,
-        description: "Measurement noise on the forward-kinematic foot position",
-        validation: { gt: [0.0] }
-      }
-      footSensorNoiseVelocity: {
-        type: double,
-        default_value: 0.1,
-        description: "Measurement noise on the forward-kinematic foot velocity",
-        validation: { gt: [0.0] }
-      }
-      footHeightSensorNoise: {
-        type: double,
-        default_value: 0.01,
-        description: "Measurement noise on the assumed contact height",
-        validation: { gt: [0.0] }
-      }
-      swingNoiseMultiplier: {
-        type: double,
-        default_value: 100.0,
-        description: "Multiplier on a SWING foot's process and measurement noise, which is how the filter ignores a foot that is off the ground while keeping the matrix dimensions fixed across contact transitions. Cheetah 3 raises the covariance 'to a high value'; 100 is the value used there.",
-        validation: { gt: [1.0] }
-      }
-
-    inEKF:
-      noise:
-        gyroscope: { type: double, default_value: 0.01, description: "InEKF gyroscope noise std-dev" }
-        accelerometer: { type: double, default_value: 0.1, description: "InEKF accelerometer noise std-dev" }
-        gyroscopeBias: { type: double, default_value: 1.0e-5, description: "InEKF gyroscope bias noise std-dev" }
-        accelerometerBias: { type: double, default_value: 1.0e-4, description: "InEKF accelerometer bias noise std-dev" }
-        contact: { type: double, default_value: 0.1, description: "InEKF contact noise std-dev" }
-        contactPosition: { type: double, default_value: 0.01, description: "Contact position measurement noise" }
-        contactRotation: { type: double, default_value: 0.01, description: "Contact rotation measurement noise (surface contacts)" }
-      initialCovariance:
-        attitude: {
-          type: double,
-          default_value: 0.01,
-          description: "Initial attitude std-dev [rad]. The InEKF state defaults to P = I(15), i.e. 1 rad of attitude uncertainty, 1 m/s of velocity and 1 m of position - even when the filter is seeded from an exactly known pose. The first contact correction, whose noise is millimetres, then yanks the state; that transient is easily mistaken for slow bias convergence. Seeded from ground truth: keep tight. On hardware: tight roll/pitch (gravity is observable at rest), loose yaw/xy (a gauge freedom).",
-          validation: { gt: [0.0] }
-        }
-        velocity: {
-          type: double,
-          default_value: 0.01,
-          description: "Initial base linear velocity std-dev [m/s]",
-          validation: { gt: [0.0] }
-        }
-        position: {
-          type: double,
-          default_value: 0.01,
-          description: "Initial base position std-dev [m]",
-          validation: { gt: [0.0] }
-        }
-        gyroscopeBias: {
-          type: double,
-          default_value: 0.01,
-          description: "Initial gyroscope bias std-dev [rad/s]. Must be non-zero for bias estimation to do anything: the kinematic measurement Jacobian has no bias columns, so the bias is observable ONLY through its cross-covariance with the attitude/velocity/position block.",
-          validation: { gt: [0.0] }
-        }
-        accelerometerBias: {
-          type: double,
-          default_value: 0.1,
-          description: "Initial accelerometer bias std-dev [m/s^2]; see gyroscopeBias",
-          validation: { gt: [0.0] }
-        }
-      estimateImuBias: {
-        type: bool,
-        default_value: true,
-        description: "Estimate the IMU biases. When false the bias block is decoupled from the rest of the covariance every propagation, freezing the bias at its seeded value."
-      }
-      height:
-        source: {
-          type: string,
-          default_value: "anchored",
-          description: "Base-height conditioning. The centroidal MPC references foot targets to a ground plane, so a base-height error shifts every foot height relative to it 1:1 - a few cm is a large fraction of the 0.08 m swing height and breaks contact timing. inekf = raw filter height (noisy). kinematic/blend = stance feet on a FLAT plane at groundZ (precise, flat ground only). anchored = per-contact, time-varying ground height recorded at each touchdown (precise AND valid on stairs/slopes, no terrain map needed).",
-          validation: {
-            one_of<>: [["inekf", "kinematic", "blend", "anchored"]]
-          }
-        }
-        kinematicWeight: {
-          type: double,
-          default_value: 0.9,
-          description: "Weight on the kinematic (stance-foot) height when height.source is 'blend'; 1.0 = pure kinematic",
-          validation: { bounds<>: [0.0, 1.0] }
-        }
-        anchorUpdateThreshold: {
-          type: double,
-          default_value: 0.05,
-          description: "anchored only: a touchdown re-anchors a contact just when the measured landing height differs from its current anchor by more than this [m]. Must exceed the filter height noise (~0.03 m) so flat ground keeps a noise-free anchor, and stay below a stair riser (0.17 m) so real steps are captured.",
-          validation: { gt_eq: [0.0] }
-        }
-        groundZ: {
-          type: double,
-          default_value: 0.0,
-          description: "Assumed ground-plane height [m] the stance feet rest on; must match the plane the MPC references (terrainHeight = 0)"
-        }
-      contact:
-        source: {
-          type: string,
-          default_value: "scheduled",
-          description: "Contact source for InEKF kinematic updates: scheduled uses the MPC gait schedule; torque uses the estimator library contact classifier",
-          validation: {
-            one_of<>: [["scheduled", "torque"]]
-          }
-        }
-        footIndices: {
-          type: int_array,
-          default_value: [0, 0, 1, 1],
-          description: "Foot index for each contactFrames entry; G1 maps left heel/toe to 0 and right heel/toe to 1"
-        }
-        beta0: {
-          type: double_array,
-          default_value: [-20.0, -20.0, -20.0, -20.0],
-          description: "Logistic-regression bias per contact (torque-based contact estimator); one entry per contactFrame"
-        }
-        beta1: {
-          type: double_array,
-          default_value: [0.7, 0.7, 0.7, 0.7],
-          description: "Logistic-regression slope per contact; one entry per contactFrame"
-        }
-        forceCovarianceAlpha: { type: double, default_value: 100.0, description: "Contact force covariance scaling" }
-        probabilityThreshold: { type: double, default_value: 0.5, description: "Contact on/off probability threshold" }
-        dynamicEstimation: { type: bool, default_value: false, description: "Use full dynamics (true) or equilibrium (false) for contact estimation" }
-      lpf:
-        gyroCutoff: { type: double, default_value: 250.0, description: "LPF cutoff [Hz] for gyro" }
-        gyroAccelCutoff: { type: double, default_value: 250.0, description: "LPF cutoff [Hz] for gyro-derived angular acceleration" }
-        linAccelCutoff: { type: double, default_value: 250.0, description: "LPF cutoff [Hz] for linear acceleration" }
-        dqJCutoff: { type: double, default_value: 10.0, description: "LPF cutoff [Hz] for joint velocities" }
-        ddqJCutoff: { type: double, default_value: 5.0, description: "LPF cutoff [Hz] for joint accelerations" }
-        tauJCutoff: { type: double, default_value: 10.0, description: "LPF cutoff [Hz] for joint torques" }
-
+    settleSeconds: {
+      type: double,
+      default_value: 0.5,
+      description: "How long the trunk must stay at rest (per the IMU tests below) before the estimator may be initialised [s]. Its stance initialisation assumes the robot is at rest.",
+      validation: { gt_eq: [0.0] }
+    }
+    settleGyroMax: {
+      type: double,
+      default_value: 0.10,
+      description: "At rest: low-passed IMU angular speed below this [rad/s]. Zero-velocity detection on the trunk, not the joints - the ankles chatter at tens of Hz under the stiff joint servo while the trunk is still. Measured holding the stand in sim: 0.07 peak after a 5 Hz low-pass.",
+      validation: { gt: [0.0] }
+    }
+    settleAccelTolerance: {
+      type: double,
+      default_value: 0.5,
+      description: "At rest: low-passed accelerometer magnitude within this of g [m/s^2].",
+      validation: { gt: [0.0] }
+    }
+    settleFilterHz: {
+      type: double,
+      default_value: 2.0,
+      description: "Cutoff of the first-order low-pass applied to the IMU rest tests [Hz].",
+      validation: { gt: [0.0] }
+    }
+    blendSeconds: {
+      type: double,
+      default_value: 0.5,
+      description: "Time to blend the stand command into the first MPC commands [s], so the hand-over is not a torque step.",
+      validation: { gt_eq: [0.0] }
+    }
+    tiltLimit: {
+      type: double,
+      default_value: 0.8,
+      description: "Trunk tilt (angle between its vertical axis and the world's, from the IMU) past which the robot is treated as falling: the controller switches to joint damping and stays there [rad].",
+      validation: { gt: [0.0] }
+    }
   ocs2:
     interface:
       verbose: {

@@ -270,6 +270,7 @@
     mujoco_position_i_max="$(arg mujoco_position_i_max)"
     mujoco_position_i_min="$(arg mujoco_position_i_min)"
     mujoco_effort_command_mode="$(arg mujoco_effort_command_mode)"
-    use_lidar="$(arg use_lidar)"/>
+    use_lidar="$(arg use_lidar)"
+    base_height="${initial_pose['g1_base']['z'] if 'g1_base' in initial_pose else ''}"/>
 
 </robot>

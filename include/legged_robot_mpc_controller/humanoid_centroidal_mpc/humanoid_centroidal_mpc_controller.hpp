@@ -8,6 +8,8 @@
 #include <optional>
 #include <string>
 #include <thread>
+
+#include <std_srvs/srv/trigger.hpp>
 #include <vector>
 
 #include <controller_interface/chainable_controller_interface.hpp>
@@ -34,6 +36,7 @@
 #include "legged_robot_mpc_controller/common/yaw_unwrapper.hpp"
 #include "legged_robot_mpc_controller/humanoid_centroidal_mpc/centroidal_mpc_diagnostics.hpp"
 #include "legged_robot_mpc_controller/humanoid_state_estimation/inekf_floating_base_estimator.hpp"
+#include "legged_robot_mpc_controller/humanoid_state_estimation/humanoid_state_estimator.hpp"
 #include "legged_robot_mpc_controller/common/ros2_procedural_mpc_motion_manager.hpp"
 #include "legged_robot_mpc_controller/humanoid_centroidal_mpc_controller_parameters.hpp"
 #include "legged_robot_mpc_controller/visualization/performance_visualization.hpp"
@@ -90,7 +93,9 @@ private:
   /// the supplied fallback if none has been read yet.
   ocs2::SystemObservation hold_last_hardware_observation(
     const ocs2::SystemObservation& fallback) const;
-  // Runs the InEKF state estimator each control tick (bootstraps from GT, publishes its odom).
+  // Runs the floating-base estimator as the FIRST step of every control tick, so
+  // build_observation always sees this tick's estimate (bootstraps from the
+  // ground-truth body on its first tick, publishes its odometry).
   void update_state_estimator(const rclcpp::Time& time);
   // Samples one row of the Phase-0 state diagnostics log (no-op when disabled).
   void record_diagnostics_state(
@@ -100,10 +105,54 @@ private:
   ocs2::TargetTrajectories current_observation_to_reset_trajectory(
     const ocs2::SystemObservation& observation);
   void start_solver_thread(const ocs2::SystemObservation& initial_observation);
+  /// Build the SQP solver and the MRT, seeded from `initial_observation`. Heavy
+  /// (allocations, problem setup), so it never runs on the control thread.
+  void construct_solver(const ocs2::SystemObservation& initial_observation);
   void stop_solver_thread();
   void solver_worker();
   vector_t compute_weight_compensating_torque(const ocs2::SystemObservation& observation);
   JointActionCommand compute_mpc_joint_action(const ocs2::SystemObservation& observation);
+
+  // ---- bring-up (floatingBase.source == state_estimator) -----------------------
+  //
+  // A real robot has no ground truth to start from, so the MPC must not run until
+  // the estimator has something trustworthy to give it - and the estimator can
+  // only be initialised once the robot is standing still on both feet. The
+  // bring-up therefore follows MIT Cheetah's Passive -> StandUp -> Locomotion,
+  // adapted to a humanoid that starts crouched with its feet flat (the humanoid
+  // equivalent of Cheetah lying on its folded legs):
+  //
+  //   Passive      hold the pose measured at activation on the joint servo, no
+  //                feed-forward - valid hanging on a hoist or crouched on the floor.
+  //                Pure damping is NOT safe here: a humanoid on its feet with only
+  //                damping folds up. Waits for ~/stand_up (or bringUp.autoStart).
+  //   StandUp      joint PD from the measured pose to the nominal one, with gravity
+  //                compensation from the IMU attitude. Uses no floating-base state.
+  //   Settle       hold the nominal pose until the joints are still.
+  //   Converge     waits for ~/start_locomotion (or autoStart) - so on hardware the
+  //                operator can lower the robot onto its feet first - then
+  //                initialises the estimator from stance and lets it converge.
+  //   StartingMpc  hold while a worker thread builds the solver, seeded from the
+  //                ESTIMATED observation, and computes the first policy.
+  //   Blend        stand command blended into the MPC command.
+  //   Locomotion   MPC only.
+  //   Fault        joint damping, latched, if the trunk tilts past bringUp.tiltLimit.
+  //
+  // Ground truth plays no part in any of it.
+  enum class BringUpPhase { Passive, StandUp, Settle, Converge, StartingMpc, Blend, Locomotion, Fault };
+  JointActionCommand run_bring_up(const rclcpp::Time& time, const ocs2::SystemObservation& observation);
+  /// Hold `q_target` with gravity compensated from the IMU attitude and the
+  /// measured joints - the stand phases' command, independent of the estimator.
+  JointActionCommand hold_command(const vector_t& q_target, const vector_t& q_measured,
+                                  const std::optional<Eigen::Quaterniond>& imu_orientation);
+  /// q_des = measured, so the joint servo's stiffness term is zero and only its
+  /// damping acts.
+  JointActionCommand damping_command(const vector_t& q_measured) const;
+  std::optional<Eigen::Quaterniond> read_imu_orientation();
+  /// IMU gyro and accelerometer, body frame; false if not readable.
+  bool read_imu_rates(Eigen::Vector3d& gyro, Eigen::Vector3d& accel);
+  void enter_bring_up_phase(BringUpPhase phase, double time);
+  static const char* to_string(BringUpPhase phase);
 
   //! Which generalized velocity feeds the RNEA feedforward. See
   //! compute_mpc_joint_action() for why this is a choice and not a constant.
@@ -168,15 +217,14 @@ private:
   vector_t filtered_generalized_velocity_;
   double last_visualization_time_{-1.0};
 
-  // Optional InEKF floating-base estimator. When enabled it runs in parallel and
-  // publishes its odometry; when floatingBase.source == "state_estimator" its
-  // output drives the observation instead of the MuJoCo ground-truth body frame.
-  std::unique_ptr<state_estimation::FloatingBaseEstimatorInterface> state_estimator_;
+  // Floating-base estimator named by floatingBase.estimator (HumanoidInEkf or
+  // HumanoidLinearKf), null for none. It always runs and publishes its odometry;
+  // when floatingBase.source == "state_estimator" its output drives the
+  // observation instead of the ground-truth body, once it reports itself ready.
+  std::unique_ptr<HumanoidStateEstimator> state_estimator_;
   state_estimation::FloatingBaseEstimate last_estimate_;
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr state_estimate_odom_publisher_;
   double last_estimate_publish_time_{-1.0};
-  // Filter convergence window: the estimate only drives control after this time.
-  double estimator_warmup_end_time_{-1.0};
   bool estimator_driving_control_{false};
 
   // Phase-0 instrumentation. Null unless diagnostics.log.enabled is set; the
@@ -195,6 +243,37 @@ private:
 
   std::jthread solver_thread_;
   std::atomic_bool terminate_solver_thread_{false};
+
+  // Bring-up state. The phase and the times are control-thread only; the atomics
+  // and start_observation_ are the hand-off to the worker that builds the solver.
+  //! Atomic because the service callbacks read it, on the executor's thread.
+  std::atomic<BringUpPhase> bring_up_phase_{BringUpPhase::Passive};
+  //! Settle's rest test, published for ~/start_locomotion to check.
+  std::atomic_bool at_rest_{false};
+  vector_t passive_hold_joints_;  //!< measured at activation
+  double phase_start_time_{-1.0};
+  double settled_since_{-1.0};    //!< first tick the trunk was at rest, or -1
+  // Rest detection from the IMU (zero-velocity detection): low-passed gyro speed
+  // and accelerometer magnitude. Joint velocities are the wrong test - the ankles
+  // chatter at tens of Hz under the stiff joint servo while the trunk is still.
+  // Filtered as VECTORS, then normed: the norm of g plus a zero-mean vibration is
+  // biased upward (~sqrt(g^2 + sigma^2)), and the ankle chatter alone shakes the
+  // pelvis accelerometer by several m/s^2.
+  Eigen::Vector3d rest_gyro_lpf_{Eigen::Vector3d::Zero()};
+  Eigen::Vector3d rest_accel_lpf_{Eigen::Vector3d::Zero()};
+  bool rest_filter_initialized_{false};
+  vector_t stand_up_start_joints_;  //!< measured on entering StandUp
+  vector_t stand_nominal_joints_;   //!< reference.defaultJointState
+  //! The estimator runs only once the robot stands still on both feet - the
+  //! condition its stance initialisation needs. Always true with ground_truth_state.
+  bool estimator_enabled_{true};
+  ocs2::SystemObservation start_observation_;     //!< written before locomotion_requested_ is set
+  std::atomic_bool locomotion_requested_{false};  //!< control thread -> worker: build the solver
+  std::atomic_bool mpc_ready_{false};             //!< worker -> control thread: mrt_interface_ is usable
+  std::atomic_bool stand_up_requested_{false};    //!< ~/stand_up was called
+  std::atomic_bool start_requested_{false};       //!< ~/start_locomotion was called
+  rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr stand_up_service_;
+  rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr start_locomotion_service_;
 
   /**
    * The MPC observation is built entirely from the hardware interfaces - all 35

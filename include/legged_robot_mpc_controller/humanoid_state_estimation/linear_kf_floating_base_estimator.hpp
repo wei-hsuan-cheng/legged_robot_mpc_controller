@@ -59,6 +59,9 @@ public:
     const Eigen::Vector3d & base_position,
     const Eigen::Quaterniond & base_orientation,
     const std::vector<double> & joint_positions) override;
+  void initializeFromStance(
+    const Eigen::Quaterniond & imu_orientation_world,
+    const std::vector<double> & joint_positions) override;
 
   FloatingBaseEstimate update(
     const Eigen::Vector3d & imu_angular_velocity_body,

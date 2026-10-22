@@ -214,6 +214,29 @@ void InekfFloatingBaseEstimator::initialize(
   initialized_ = true;
 }
 
+void InekfFloatingBaseEstimator::initializeFromStance(
+  const Eigen::Quaterniond& imu_orientation_world,
+  const std::vector<double>& joint_positions)
+{
+  // The IMU reports its own frame; the filter is seeded with the pelvis pose and
+  // converts back to the IMU frame inside initialize().
+  const Eigen::Quaterniond base_orientation(
+    (imu_orientation_world.normalized().toRotationMatrix() * base_to_imu_rotation_.transpose()));
+
+  // Every contact on the ground plane: base height = ground - (contact height
+  // relative to the base), averaged over the contacts.
+  remapToEstimatorOrder(joint_positions, qj_);
+  contactHeightsRelativeToBase(base_orientation, contact_relative_heights_);
+  double sum = 0.0;
+  for (const double relative : contact_relative_heights_) {
+    sum += settings_.height_ground_z - relative;
+  }
+  const double height = contact_relative_heights_.empty()
+    ? 0.0 : sum / static_cast<double>(contact_relative_heights_.size());
+
+  initialize(Eigen::Vector3d(0.0, 0.0, height), base_orientation, joint_positions);
+}
+
 FloatingBaseEstimate InekfFloatingBaseEstimator::update(
   const Eigen::Vector3d& imu_gyro_body,
   const Eigen::Vector3d& imu_linear_acceleration_body,
@@ -495,7 +518,7 @@ EstimatorType estimatorTypeFromString(const std::string & name)
     return EstimatorType::LinearKF;
   }
   throw std::invalid_argument(
-    "[FloatingBaseEstimator] unknown stateEstimator.estimatorType '" + name +
+    "[FloatingBaseEstimator] unknown estimator typeestimatorType '" + name +
     "'. Expected 'inEKF' or 'linearKF'.");
 }
 

@@ -359,6 +359,184 @@ Note the branch currently has `g1.launch.py` defaulting `controllersFile` to
 baseline needs `controllersFile:=ros2_controllers.yaml`. **Flip that back before
 this merges to main**, since walking under the WBC is unvalidated.
 
+## State estimator: in the controller, two separate filters, InEKF by default
+
+**Structure.** `HumanoidInEkf` and `HumanoidLinearKf` are two separate classes
+(`src/humanoid_state_estimation/humanoid_{inekf,linear_kf}.cpp`), each declaring
+only its own parameters under its own prefix on the MPC node, from its own file
+(its own block of `config/g1/ros2_controllers.yaml`). The MPC controller builds the one
+named by `floatingBase.estimator` and runs it as the **first step of every
+control tick**, so the observation is always built from that tick's estimate.
+`floatingBase.source` has exactly two values, `ground_truth_state` and
+`state_estimator`. The URDF and joint list are handed over by the controller, so
+there is no second copy of the joint order.
+
+**Why not separate ros2_control controllers.** That was built and then dropped.
+On Humble (ros2_control 2.53.1) a controller can export only reference
+interfaces, never state interfaces, and the dependency is a cycle (the filter
+needs the gait's contact flags, the MPC needs the filter's pose) that chaining
+cannot express. A hardware component carrying the estimate worked, but needed
+`mujoco_ros2_control` patched to load it, which says it was the wrong
+abstraction. Both reference stacks do it this way instead: legged_control and
+legubiao/quadruped_ros2_control keep the estimator as a library inside the one
+controller, picked by a parameter and updated first in `update()`. On Jazzy,
+`on_export_state_interfaces()` is what would make a separate estimator
+controller standard.
+
+**Behaviour is unchanged from before the refactor.** A/B against `HEAD`
+(`9f62fd1`) built as an overlay, each with its own shipped config, ID inner loop,
+`state_estimator`, linear KF, flat scene. All 182 shared config keys compared
+equal; the 43 moved estimator values match exactly.
+
+| sequence | `HEAD` fell at | new code fell at |
+|---|---|---|
+| robustness | 36.6, 68.1 s | 58.8, 49.8 s |
+| combined | 63.0, 66.9 s | 65.5, 46.0 s |
+
+**The falls are the linear KF.** On `robustness` and `combined`, linear KF
+driving control: 0/8 (both code versions). InEKF: 6/6 (`robustness` 4/4, peak
+pitch 0.08; `combined` 2/2, peak pitch 0.045). So the default is now
+`humanoid_inekf`; `HEAD` shipped the linear KF.
+
+**`control.mpcJointKp` / `mpcJointKd` / `fixedJointKp` / `fixedJointKd` are
+dead.** They are read into `mpc_joint_kp_` etc. at configure and never read
+again; the controller writes only `q_des`, `qd_des`, `tau_ff`. The joint PD that
+actually runs is `mujoco_ros2_control`'s `effort_pd` servo, at the physics rate,
+with gains from the URDF xacro (`effort_pd_kp:=1200.0`, `effort_pd_kd:=10.0` in
+`g1.ros2_control_macro.xacro`). Consequences:
+
+- The "kp 0 vs kp 1200" runs in this section changed nothing - every run had
+  1200/10. They count as repeats, not as a gain test.
+- **Every WBC result above ran with the 1200/10 joint PD on top of the QP
+  torque.** "The WBC needs kp = 0" was never in effect; the 6/6 result is
+  WBC torque plus a stiff joint servo to the policy, not a torque-only WBC.
+- The jitter section's "PD damping: no effect ... identical to three
+  significant figures across a 6x change" is what changing a dead parameter
+  looks like. Re-check whether that sweep edited `mpcJointKd` or the xacro.
+
+**Readiness is a timer, not a covariance test.** The hand-off to the estimate
+waits `readiness.minSeconds` (5 s, the validated warm-up) and then latches. A
+covariance gate cannot certify convergence for this filter: it is seeded from
+ground truth with a small initial covariance, so it starts confident, and the
+biases barely move while standing (gyro-bias std 0.0100 -> 0.0089 rad/s over 5 s,
+accelerometer bias flat). The std checks are kept only as divergence guards, on
+observable states only (roll/pitch, height, velocity). Yaw and x/y are gauge
+states; yaw std reached 0.53 rad late in a run, and gating on it blocked the
+hand-off entirely the first time this was tried.
+
+**Open: WBC plus estimator creeps at rest.** The WBC was only ever validated on
+ground truth. With the InEKF driving it, the robot survives the vx ladder but
+creeps at up to 0.16 m/s through commanded stops, while the estimate itself is
+accurate to 0.003 m/s per phase. The likely path is the estimate's transient
+velocity spikes (up to 0.16 m/s at contact switches) through `baseKd = 20`. The
+ID inner loop with the same estimator stops dead.
+
+**Traps found on the way.**
+- The diagnostic CSVs filled the VM disk to 100% again (3.4 GB in `/tmp`); the
+  harness now deletes each run's CSV after scoring it.
+- A *clean* build of this package can OOM at `NUM_JOBS=2` (two heavy CppAD core
+  sources at once on 7.5 GB). Incremental builds are fine; use `NUM_JOBS=1` for
+  a clean one.
+- `docker cp` drops the executable bit on the replaced file.
+- `pkill -f "<pattern>"` inside `bash -c` matches its own command string.
+- With `--symlink-install`, deleted source files leave dangling install links and
+  stale pluginlib index entries.
+
+## Bring-up without ground truth: crouch -> stand-up -> estimator -> MPC
+
+With `floatingBase.source: state_estimator` nothing in the control path reads
+ground truth any more, so the same controller runs on hardware. The previous
+arrangement (GT drives the observation until the estimator is ready, then a
+switch) was not deployable: a real robot has no GT to start from.
+
+**The sequence follows MIT Cheetah** (`FSM_State_Passive` -> `FSM_State_StandUp`
+-> `FSM_State_Locomotion`, where StandUp is a pure PD interpolation that does
+not use the state estimate) and legubiao's `StatePassive` -> `BaseFixedStand` ->
+`StateOCS2`. Adapted to a humanoid: it starts **crouched with the feet flat**,
+not lying flat. Cheetah "lying" is belly down with the legs folded under it and
+the feet already on the ground; a humanoid lying on its back needs a whole-body
+get-up (rolling, hands, knees), which joint interpolation cannot do. A squat
+with hip = ankle = -0.7, knee = 1.4 keeps the soles flat and puts the CoM at
+x = +0.061 m inside the sole span [-0.011, +0.129] (FK), so it is statically
+stable.
+
+| phase | command | estimator |
+|---|---|---|
+| Passive | damping (q_des = measured) | off |
+| StandUp | joint PD to `defaultJointState`, gravity comp. from the **IMU attitude** | off |
+| Settle | hold | off - waits for the trunk at rest **and** `~/start_locomotion` / autoStart |
+| Converge | hold | `initializeFromStance()`, then 5 s |
+| StartingMpc | hold | solver built off the RT thread, seeded from the estimate |
+| Blend / Locomotion | stand -> MPC over 0.5 s / MPC | running, contacts from the gait |
+| Fault | damping, latched | tilt > 0.8 rad |
+
+**Measured, standing spawn:** passive 0.0 -> settling 3.0 -> converging 3.8 ->
+MPC 8.8 -> blend 9.6 -> locomotion 10.1 s, then `combined` survived. The
+self-initialised filter matches the old GT seed: height std 0.014 vs 0.011 m,
+velocity std 0.132 vs 0.132 m/s at hand-off. Crouched spawn: same sequence from
+`Initial base height: 0.6440 m`.
+
+**Three bugs this flushed out:**
+
+1. **OCS2's default `ModeSchedule()` is the single mode 0, `FLY`.** Read before
+   the solver exists, it tells the filter both feet are in the air: every
+   contact correction is skipped and the filter integrates the IMU open-loop
+   (height std 1.3 -> 101 m in 23 s; the guards correctly refused the hand-off).
+   The GT path hid it because building the solver immediately overwrote the
+   schedule. Before the MPC runs the bring-up now asserts both feet in stance.
+2. **"At rest" must be tested on the trunk, not the joints.** Holding the stand,
+   the ankles chatter at ~80 Hz (0.14-0.17 rad/s RMS) while the base moves at
+   3-6 mm/s - a joint-velocity threshold never passes. The test is IMU
+   zero-velocity detection: low-passed gyro < 0.10 rad/s and |accel| within
+   0.5 m/s^2 of g.
+3. **Low-pass the vectors, then take the norm.** The norm of g plus a zero-mean
+   vibration is biased up (~sqrt(g^2 + sigma^2)); filtering |accel| read
+   11.6 m/s^2 at rest.
+
+**The ankle chatter itself is pre-existing and open.** The `effort_pd` servo
+runs kp 1200 / kd 10 explicitly at 2 kHz on joints with effective inertia down
+to ~0.0004 kg m^2, so kd*dt/I ~ 12 - well past where an explicit damping term
+is stable. It also makes a held stand creep (~2.7 mm/s). Worth a look before
+reading anything into high-frequency ankle data.
+
+**Sim spawn height.** `mujoco_ros2_control` gained an optional
+`initial_base_height` hardware parameter (set in `set_initial_pose()`, next to
+the joint values), fed by `g1_base.z` in the initial pose file through the
+xacro. `initial_pose_crouch.yaml` carries 0.644; the standing file carries none
+and spawns at the MJCF's 0.793 as before.
+
+**Validated in sim (InEKF, ID inner loop, flat scene, autoStart unless noted):**
+
+| case | result |
+|---|---|
+| crouched spawn, `combined` x2 + `robustness` x2 | 4/4 survived |
+| standing spawn, `combined` x2 + `robustness` x1 | 3/3 survived |
+| `ground_truth_state` regression after the bring-up changes | survived |
+| linear KF through the new bring-up, `combined` | survived (N = 1; it fell 8/8 under the old GT-seeded start) |
+| forced fault (`tiltLimit` 0.001) | tripped on entering StandUp, damping latched |
+| manual flow, deliberately out of order | early `start_locomotion` refused and not remembered; `stand_up` accepted; second `stand_up` refused; `start_locomotion` during stand-up refused; at rest accepted; then `combined` survived |
+| no GT claimed at all (`stateInterfaceName: ""`) | full bring-up with 0 GT interfaces claimed; 1 run, **fell** 75 s in, during `all_low` (lateral + yaw), scored by the simulator's own odom topic |
+
+The no-GT fall is not yet attributed. The control path reads no GT in either
+configuration, and the InEKF on `combined` had already fallen once in 10 runs
+with GT claimed (`strafe_turn`, also lateral + yaw - the documented weak
+spot), so the base rate explains it. Three repeats were started and stopped
+before finishing; rerun them before calling the no-GT case validated.
+
+**Two bugs the manual test found, both fixed:** `passive` was pure damping, so a
+crouched robot folded up in it (below 0.55 m within 0.3 s) - it now holds the
+activation pose on the joint servo with no feed-forward, safe on a hoist or on
+the floor; and the services latched calls made in the wrong phase, so an early
+`start_locomotion` would have initialised the estimator in the air - each call
+is now valid only in its own phase and refused otherwise.
+
+The sim spawns crouched by default (`initial_pose_crouch.yaml`).
+
+**Hardware procedure:** `bringUp.autoStart: false`,
+`floatingBase.stateInterfaceName: ""`; `~/stand_up`, lower onto the feet,
+`~/start_locomotion`. The estimator initialises only on the second call because
+its stance initialisation assumes the feet are on the ground.
+
 ## Angular momentum reference: now correct, and it costs something
 
 **The formulation was wrong.** The centroidal state carries `h_ang / m`, and

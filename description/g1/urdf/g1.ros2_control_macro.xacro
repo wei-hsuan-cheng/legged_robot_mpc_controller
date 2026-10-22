@@ -73,7 +73,8 @@
       mujoco_position_i_max:=10000
       mujoco_position_i_min:=-10000
       mujoco_effort_command_mode:=actuator
-      use_lidar:=false">
+      use_lidar:=false
+      base_height:=''">
     <ros2_control name="${system_name}" type="system">
       <hardware>
         <xacro:if value="${use_mujoco_sim}">
@@ -81,6 +82,12 @@
           <!-- 'actuator' drives the MuJoCo motors through ctrl (actuatorfrcrange limits apply); 
                'qfrc_applied' bypasses the actuators and injects the unclamped PD torque directly as a generalized force. -->
           <param name="mujoco_effort_command_mode">${mujoco_effort_command_mode}</param>
+          <!-- Spawn height of the floating base, from the initial pose file's g1_base.z.
+               Absent for a standing spawn, which uses the height the MJCF body was
+               authored at; needed for a crouched one, so the feet start on the floor. -->
+          <xacro:if value="${base_height != ''}">
+            <param name="initial_base_height">${base_height}</param>
+          </xacro:if>
         </xacro:if>
         <xacro:unless value="${use_mujoco_sim}">
           <xacro:if value="${use_fake_hardware}">

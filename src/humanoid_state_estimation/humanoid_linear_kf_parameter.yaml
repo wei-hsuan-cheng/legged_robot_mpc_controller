@@ -1,0 +1,159 @@
+humanoid_linear_kf:
+  # Declared under humanoid_linear_kf.* on the MPC controller\'s node by the estimator
+  # itself. The URDF and the joint list are handed over by the controller, so
+  # there is no second copy of the joint order to fall out of step.
+  # Parameters of the HumanoidLinearKf controller: a conventional two-stage linear
+  # Kalman filter, kept so it can be compared against the InEKF on the same logs.
+  # Stage 1 reads attitude straight from the IMU; stage 2 estimates base position
+  # and velocity with the feet as position measurements.
+  #
+  # Only this filter's own settings are declared here - see humanoid_inekf for the
+  # other one.
+  # Parameters shared by both estimator controllers, HumanoidInEkf and
+  # HumanoidLinearKf. Which filter runs is decided by WHICH CONTROLLER you load,
+  # not by a parameter - a misconfigured comparison run can no longer produce data
+  # from a different estimator than the one it claims to.
+  readiness:
+    minSeconds: {
+      type: double,
+      default_value: 5.0,
+      description: "How long the filter runs before its estimate may drive control [s]. This is the PRIMARY gate. It is a time, not a covariance test, because this filter starts from a ground-truth seed with a deliberately small initial covariance: it begins confident, and the IMU biases are nearly unobservable while standing (measured: gyro-bias std 0.0100 -> 0.0089 rad/s over 5 s, accelerometer-bias std essentially flat), so no covariance shows a convergence curve on a hand-off timescale. 5 s is the warm-up the shipped configuration was validated with.",
+      validation: { gt_eq: [0.0] }
+    }
+    rollPitchStdDevMax: {
+      type: double,
+      default_value: 0.10,
+      description: "Divergence guard: withhold the hand-off if the filter's roll/pitch std exceeds this [rad]. Yaw is deliberately excluded - it is an unobservable gauge state whose covariance grows without bound (measured 0.53 rad late in a run). Healthy at hand-off: ~0.05.",
+      validation: { gt: [0.0] }
+    }
+    heightStdDevMax: {
+      type: double,
+      default_value: 0.10,
+      description: "Divergence guard on the height std [m]. Absolute x/y position are gauge states and are not checked. Healthy at hand-off: ~0.015.",
+      validation: { gt: [0.0] }
+    }
+    velocityStdDevMax: {
+      type: double,
+      default_value: 0.50,
+      description: "Divergence guard on the linear-velocity std [m/s]. Healthy: ~0.13, flat from the first half second - so this can catch a broken filter but cannot measure convergence.",
+      validation: { gt: [0.0] }
+    }
+  imuInterfaceName: {
+    type: string,
+    default_value: "pelvis_imu",
+    description: "ros2_control sensor prefix exposing IMU orientation/angular_velocity/linear_acceleration"
+  }
+  imuFrame: {
+    type: string,
+    default_value: "imu_in_pelvis",
+    description: "URDF frame of the IMU used by the estimator"
+  }
+  contactFrames: {
+    type: string_array,
+    default_value: ["foot_l_heel_est", "foot_l_toe_est", "foot_r_heel_est", "foot_r_toe_est"],
+    description: "URDF contact frames fused by the InEKF. The library requires exactly 4 point contacts, so each flat foot contributes a heel + toe point. Distinct '_est' names avoid a Pinocchio frame collision with the MPC's foot_l/r_contact frames."
+  }
+  odomTopic: {
+    type: string,
+    default_value: "/humanoid/state_estimate/odom",
+    description: "nav_msgs/Odometry topic for the InEKF estimate (published for evaluation vs GT)"
+  }
+  odomFrame: {
+    type: string,
+    default_value: "world",
+    description: "Header frame of the published estimate odometry"
+  }
+  publishRate: {
+    type: double,
+    default_value: 100.0,
+    description: "Rate [Hz] at which the estimate odometry is published"
+  }
+  # ---------------------------------------------------------------------
+  # Parameters of the contact-aided invariant EKF (estimatorType: inEKF).
+  #
+  # Nested so a second estimator can declare its own block without either
+  # inheriting tuning that does not apply to it. `noise` in particular is
+  # InEKF-specific: gyroscope/accelerometer/*Bias/contact are the PROCESS
+  # noise of the SE_{N+2}(3) propagation, and contactPosition/contactRotation
+  # are the forward-kinematics MEASUREMENT noise. A linear KF parameterises
+  # its Q and R differently and would declare its own linearKF: block.
+  # ---------------------------------------------------------------------
+  # ---------------------------------------------------------------------
+  # Parameters of the two-stage linear Kalman filter (estimatorType: linearKF),
+  # after MIT Cheetah 3 (Bledt et al., IROS 2018, Sec. III-H).
+  #
+  # Stage 1 takes attitude from the IMU; stage 2 is a plain KF over base
+  # position, base velocity and the contact-point positions. Because attitude
+  # is treated as known the remaining process is linear, which is what allows a
+  # conventional KF where the InEKF needs a Lie-group formulation.
+  #
+  # Defaults are the values used in qiayuanl/legged_control.
+  # ---------------------------------------------------------------------
+
+  contact:
+    source: {
+      type: string,
+      default_value: "scheduled",
+      description: "Where foot contact comes from. 'scheduled' reads the MPC's gait schedule off the FloatingBaseEstimate component (one tick old, which is nothing against a ~0.7 s gait phase). 'torque' uses the built-in torque-based detector, which is structurally wrong for the G1 - it assumes contact i is served by joints 3i..3i+2, a 12-DoF quadruped layout - so it maps the heel and toe onto the wrong joints. Use 'scheduled'.",
+      validation: { one_of<>: [["scheduled", "torque"]] }
+    }
+    footIndices: {
+      type: int_array,
+      default_value: [0, 0, 1, 1],
+      description: "Physical foot index for each contact frame, so several contact points on one sole are recognised as the same foot."
+    }
+
+  numFeet: {
+    type: int,
+    default_value: 0,
+    description: "Number of physical FEET, which is not the number of contact frames. The G1 has 2 feet but 4 contact points (heel and toe per foot), so contactFrames has 4 entries while the gait schedule yields 2 contact flags; inEKF.contact.footIndices ([0,0,1,1]) maps between them. 0 means derive it as max(footIndices)+1, which is right whenever the mapping is dense; set it explicitly only to assert a value.",
+    validation: { gt_eq: [0] }
+  }
+  footRadius: {
+    type: double,
+    default_value: 0.0,
+    description: "Contact-point sphere radius added to the measured foot height [m]. legged_control uses 0.02 because its robots have spherical feet whose contact frame is at the sphere CENTRE; a frame already defined at the sole needs 0.0, otherwise the estimated base height is biased up by exactly this value.",
+    validation: { gt_eq: [0.0] }
+  }
+  imuProcessNoisePosition: {
+    type: double,
+    default_value: 0.02,
+    description: "Process noise on the IMU-integrated base position",
+    validation: { gt: [0.0] }
+  }
+  imuProcessNoiseVelocity: {
+    type: double,
+    default_value: 0.02,
+    description: "Process noise on the IMU-integrated base velocity",
+    validation: { gt: [0.0] }
+  }
+  footProcessNoisePosition: {
+    type: double,
+    default_value: 0.002,
+    description: "Process noise on a stance foot's world position, i.e. how much slip is tolerated",
+    validation: { gt: [0.0] }
+  }
+  footSensorNoisePosition: {
+    type: double,
+    default_value: 0.005,
+    description: "Measurement noise on the forward-kinematic foot position",
+    validation: { gt: [0.0] }
+  }
+  footSensorNoiseVelocity: {
+    type: double,
+    default_value: 0.1,
+    description: "Measurement noise on the forward-kinematic foot velocity",
+    validation: { gt: [0.0] }
+  }
+  footHeightSensorNoise: {
+    type: double,
+    default_value: 0.01,
+    description: "Measurement noise on the assumed contact height",
+    validation: { gt: [0.0] }
+  }
+  swingNoiseMultiplier: {
+    type: double,
+    default_value: 100.0,
+    description: "Multiplier on a SWING foot's process and measurement noise, which is how the filter ignores a foot that is off the ground while keeping the matrix dimensions fixed across contact transitions. Cheetah 3 raises the covariance 'to a high value'; 100 is the value used there.",
+    validation: { gt: [1.0] }
+  }
