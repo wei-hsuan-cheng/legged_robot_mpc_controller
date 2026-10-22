@@ -232,7 +232,8 @@ def generate_launch_description():
         return [SetLaunchConfiguration("controllersParamsFile", str(path))]
 
     mpc_params_file = {
-        (LaunchConfiguration("mpcControllerName"), ".params_file"): LaunchConfiguration("controllersParamsFile")
+        (LaunchConfiguration("mpcControllerName"), ".params_file"): LaunchConfiguration("controllersParamsFile"),
+        (LaunchConfiguration("floatingBaseEstimator"), ".params_file"): LaunchConfiguration("controllersParamsFile"),
     }
 
     ros2_control_node = Node(
@@ -304,6 +305,8 @@ def generate_launch_description():
             "/robot_description",
             "--controller-name",
             sequence_controller_name,
+            "--estimator-name",
+            LaunchConfiguration("floatingBaseEstimator"),
             "--timeout",
             "120",
         ],
@@ -320,6 +323,8 @@ def generate_launch_description():
             "/robot_description",
             "--controller-name",
             sequence_controller_name,
+            "--estimator-name",
+            LaunchConfiguration("floatingBaseEstimator"),
             "--timeout",
             "120",
             "--use-mujoco-sim",

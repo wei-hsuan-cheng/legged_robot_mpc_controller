@@ -17,10 +17,7 @@ HumanoidStateEstimator::HumanoidStateEstimator(std::string name) : name_(std::mo
 HumanoidStateEstimator::~HumanoidStateEstimator() = default;
 
 bool HumanoidStateEstimator::configure(
-  const std::shared_ptr<rclcpp_lifecycle::LifecycleNode> & node,
-  const std::string & urdf_path,
-  const std::vector<std::string> & joint_names,
-  double sampling_time)
+  const std::shared_ptr<rclcpp_lifecycle::LifecycleNode> & node, double sampling_time)
 {
   if (!declareParameters(node)) {
     return false;
@@ -29,8 +26,8 @@ bool HumanoidStateEstimator::configure(
   if (!readParameters(settings_, filter)) {
     return false;
   }
-  filter.urdf_path = urdf_path;
-  filter.controller_joint_names = joint_names;
+  filter.urdf_path = settings_.urdf_file;
+  filter.controller_joint_names = settings_.joint_names;
   filter.sampling_time = sampling_time;
   filter.imu_frame = settings_.imu_frame;
   filter.contact_frames = settings_.contact_frames;

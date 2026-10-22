@@ -327,7 +327,7 @@ humanoid_centroidal_mpc_controller:
     source: {
       type: string,
       default_value: "ground_truth_state",
-      description: "Where the floating-base state comes from. ground_truth_state = the simulator/hardware body state (ground truth in MuJoCo). state_estimator = the estimator named by floatingBase.estimator, which this controller runs as the first step of every control tick; it drives control once the filter reports itself converged (`ready`), and the ground-truth body is used until then.",
+      description: "Where the floating-base state comes from. ground_truth_state = the simulator/hardware body state (ground truth in MuJoCo). state_estimator = the estimator controller named by floatingBase.estimator, read through its exported state interfaces (the controller manager runs it before this controller, so it is this tick's estimate). It drives control from the end of the bring-up's Converge phase; nothing reads ground truth in this mode.",
       validation: {
         one_of<>: [["ground_truth_state", "state_estimator"]]
       }
@@ -336,7 +336,7 @@ humanoid_centroidal_mpc_controller:
     estimator: {
       type: string,
       default_value: "none",
-      description: "Floating-base estimator to run: humanoid_inekf (contact-aided invariant EKF), humanoid_linear_kf (two-stage linear KF), or none. Each declares its own parameters under its own name on this node, from its own block in config/g1/ros2_controllers.yaml. Required when source is state_estimator; with ground_truth_state it still runs, so its estimate is logged against ground truth.",
+      description: "Estimator controller whose exported state interfaces are read: humanoid_inekf (contact-aided invariant EKF), humanoid_linear_kf (two-stage linear KF), or none. It is a separate ros2_control controller with its own block in config/g1/ros2_controllers.yaml, and must be active before this one. Required when source is state_estimator; with ground_truth_state it is still read, so its estimate is logged against ground truth.",
       validation: {
         one_of<>: [["none", "humanoid_inekf", "humanoid_linear_kf"]]
       }
@@ -348,10 +348,10 @@ humanoid_centroidal_mpc_controller:
       description: "ros2_control state-interface prefix of the ground-truth floating-base body. Drives control with ground_truth_state. With state_estimator it is read for the diagnostics log only - never for control - and may be left empty on a robot that exports no body pose."
     }
 
-    baseFrame: {
+    imuInterfaceName: {
       type: string,
-      default_value: "pelvis",
-      description: "Floating-base body frame used as the MPC base (URDF root / MuJoCo free-joint body); the child frame of the estimate's odometry."
+      default_value: "pelvis_imu",
+      description: "ros2_control IMU sensor prefix read by the bring-up: the stand's gravity compensation uses its attitude, rest detection its gyro and accelerometer."
     }
 
 

@@ -359,6 +359,62 @@ Note the branch currently has `g1.launch.py` defaulting `controllersFile` to
 baseline needs `controllersFile:=ros2_controllers.yaml`. **Flip that back before
 this merges to main**, since walking under the WBC is unvalidated.
 
+## Jazzy: the estimators are ros2_control controllers (branch `jazzy`)
+
+The `jazzy` branches of all four repos build on ROS 2 Jazzy (ros2_control 4.48,
+Pinocchio 4.1, coal, GCC 13) in the `ros_jazzy` container. On this branch
+`HumanoidInEkfController` and `HumanoidLinearKfController` are separate chainable
+controllers, and the section below describes `main` (Humble), where the filter
+runs inside the MPC.
+
+**Data flow.** Estimator -> MPC is chained: the estimator exports its estimate,
+status and scalar diagnostics as state interfaces
+(`estimator_state_interfaces.hpp` - one visitor generates the names, `pack` and
+`unpack`, so the two sides cannot disagree on the layout). The MPC claims them,
+which makes the controller manager run the estimator first in every tick. MPC ->
+estimator is two latched topics: `~/mode_schedule` (time-indexed, so the contact
+flags are evaluated at the estimator's own update time) and
+`~/estimator_initialize` (a `UInt32` epoch; the MPC sends exported epoch + 1 and
+waits until the exported epoch matches before trusting `status.ready`).
+
+**Why not chain both ways.** Jazzy's `check_following_controllers_for_activate`
+recurses into every controller whose exported interfaces a controller claims,
+with no visited set. Two controllers claiming each other's interfaces (state or
+reference - both are edges) recurse without end at activation.
+
+**FLY again.** Before the MPC drives (Blend/Locomotion), the topic carries an
+explicit stance-only schedule, not the reference manager's, which can still be
+OCS2's default single-mode FLY schedule.
+
+**Not carried across:** the per-contact diagnostics columns (innovation,
+landmarks), whose names depend on the estimator's contact frames, which the MPC
+cannot know when it declares its claims. Everything else in the state CSV is
+unchanged.
+
+**Jazzy port traps.**
+- Controllers no longer inherit the controller manager's `--params-file`; each
+  reads only `<name>.params_file`. The launch evaluates the substituted yaml once
+  and passes it, keeping the `ParameterFile` alive (it deletes the temp file
+  when collected).
+- `hpp-fcl` is `coal`; Pinocchio 4's pre-4 header paths are only on the
+  `pinocchio::pinocchio` target (`include/pinocchio/deprecated`); `Frame::parent`
+  is `parentJoint`.
+- `mujoco_ros2_control` must mark its resource manager initialized, or the 4.x
+  controller manager loads the URDF a second time itself.
+
+**Measured** (flat scene, InEKF, crouched GT-free bring-up, ID inner loop):
+
+| | combined | robustness |
+|---|---|---|
+| Humble, embedded estimator | 8.07-8.21 m, pitch 0.040-0.049 | 12.74-12.96 m, pitch 0.079-0.081 |
+| Jazzy, embedded estimator | 2/2, 8.15-8.16 m, pitch 0.047-0.052 | 2/2, 12.72-12.94 m, pitch 0.088-0.096 |
+| Jazzy, estimator controller | 2/2, 8.07-8.11 m, pitch 0.046-0.050 | 2/2, 12.79-12.92 m, pitch 0.080-0.089 |
+
+While walking under the estimator controller: |e_z| 0.5 mm, pitch 0.004 rad,
+roll 0.007 rad, velocity ~0.016 m/s RMS against GT. `ground_truth_state` with the
+estimator logged alongside: survived. Linear KF controller: loads and completes the
+bring-up; fell at 97 s on `combined` (N=1, its documented weakness).
+
 ## State estimator: in the controller, two separate filters, InEKF by default
 
 **Structure.** `HumanoidInEkf` and `HumanoidLinearKf` are two separate classes

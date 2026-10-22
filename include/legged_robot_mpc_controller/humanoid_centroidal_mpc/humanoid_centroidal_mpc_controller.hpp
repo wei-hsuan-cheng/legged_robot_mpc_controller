@@ -15,8 +15,10 @@
 #include <controller_interface/chainable_controller_interface.hpp>
 #include <hardware_interface/loaned_command_interface.hpp>
 #include <hardware_interface/loaned_state_interface.hpp>
-#include <nav_msgs/msg/odometry.hpp>
+#include <ocs2_msgs/msg/mode_schedule.hpp>
 #include <realtime_tools/realtime_buffer.h>
+#include <realtime_tools/realtime_publisher.hpp>
+#include <std_msgs/msg/u_int32.hpp>
 #include <ocs2_core/Types.h>
 #include <ocs2_core/reference/TargetTrajectories.h>
 #include <ocs2_mpc/MPC_BASE.h>
@@ -35,8 +37,7 @@
 
 #include "legged_robot_mpc_controller/common/yaw_unwrapper.hpp"
 #include "legged_robot_mpc_controller/humanoid_centroidal_mpc/centroidal_mpc_diagnostics.hpp"
-#include "legged_robot_mpc_controller/humanoid_state_estimation/inekf_floating_base_estimator.hpp"
-#include "legged_robot_mpc_controller/humanoid_state_estimation/humanoid_state_estimator.hpp"
+#include "legged_robot_mpc_controller/humanoid_state_estimation/estimator_state_interfaces.hpp"
 #include "legged_robot_mpc_controller/common/ros2_procedural_mpc_motion_manager.hpp"
 #include "legged_robot_mpc_controller/humanoid_centroidal_mpc_controller_parameters.hpp"
 #include "legged_robot_mpc_controller/visualization/performance_visualization.hpp"
@@ -95,10 +96,15 @@ private:
   /// the supplied fallback if none has been read yet.
   ocs2::SystemObservation hold_last_hardware_observation(
     const ocs2::SystemObservation& fallback) const;
-  // Runs the floating-base estimator as the FIRST step of every control tick, so
-  // build_observation always sees this tick's estimate (bootstraps from the
-  // ground-truth body on its first tick, publishes its odometry).
-  void update_state_estimator(const rclcpp::Time& time);
+  // Reads the estimator controller's exported state interfaces. The controller
+  // manager runs that controller before this one, so this is this tick's estimate.
+  void read_state_estimator();
+  // Asks the estimator to initialize from stance, with an epoch one past the one
+  // it last acted on, so a ready flag from before the request cannot pass for one
+  // after it. Published from the control thread through a realtime publisher,
+  // retried every tick until it goes out.
+  void request_estimator_initialization();
+  bool estimator_initialized_for_request() const;
   // Samples one row of the Phase-0 state diagnostics log (no-op when disabled).
   void record_diagnostics_state(
     const rclcpp::Time& time,
@@ -219,15 +225,24 @@ private:
   vector_t filtered_generalized_velocity_;
   double last_visualization_time_{-1.0};
 
-  // Floating-base estimator named by floatingBase.estimator (HumanoidInEkf or
-  // HumanoidLinearKf), null for none. It always runs and publishes its odometry;
-  // when floatingBase.source == "state_estimator" its output drives the
-  // observation instead of the ground-truth body, once it reports itself ready.
-  std::unique_ptr<HumanoidStateEstimator> state_estimator_;
+  // The estimator controller named by floatingBase.estimator, through its
+  // exported state interfaces (estimator_state_interfaces.hpp); not claimed for none.
+  bool has_estimator() const { return parameters_.floatingBase.estimator != "none"; }
+  std::vector<std::size_t> estimator_interface_index_;  //!< into state_interfaces_, set on activate
+  std::vector<double> estimator_values_;
   state_estimation::FloatingBaseEstimate last_estimate_;
-  rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr state_estimate_odom_publisher_;
-  double last_estimate_publish_time_{-1.0};
+  state_estimation::EstimatorDiagnostics estimator_diagnostics_;
+  estimator_interfaces::EstimatorStatus estimator_status_;
   bool estimator_driving_control_{false};
+
+  // This controller -> the estimator: the gait, for its contact flags, and the
+  // initialization epoch. Topics, not chaining: ros2_control cannot chain both ways.
+  rclcpp::Publisher<ocs2_msgs::msg::ModeSchedule>::SharedPtr mode_schedule_publisher_;
+  rclcpp::Publisher<std_msgs::msg::UInt32>::SharedPtr estimator_initialize_publisher_;
+  std::unique_ptr<realtime_tools::RealtimePublisher<std_msgs::msg::UInt32>>
+    rt_estimator_initialize_publisher_;
+  std::uint32_t estimator_epoch_{0};
+  bool estimator_epoch_pending_{false};
 
   // Phase-0 instrumentation. Null unless diagnostics.log.enabled is set; the
   // control thread feeds its state log and the solver thread feeds its cost log.
@@ -266,9 +281,6 @@ private:
   bool rest_filter_initialized_{false};
   vector_t stand_up_start_joints_;  //!< measured on entering StandUp
   vector_t stand_nominal_joints_;   //!< reference.defaultJointState
-  //! The estimator runs only once the robot stands still on both feet - the
-  //! condition its stance initialisation needs. Always true with ground_truth_state.
-  bool estimator_enabled_{true};
   ocs2::SystemObservation start_observation_;     //!< written before locomotion_requested_ is set
   std::atomic_bool locomotion_requested_{false};  //!< control thread -> worker: build the solver
   std::atomic_bool mpc_ready_{false};             //!< worker -> control thread: mrt_interface_ is usable

@@ -225,6 +225,9 @@ def main():
     parser.add_argument('--controller-manager', default='/controller_manager')
     parser.add_argument('--robot-description-topic', default='/robot_description')
     parser.add_argument('--controller-name', default='humanoid_centroidal_mpc_controller')
+    parser.add_argument(
+        '--estimator-name', default='none',
+        help='Estimator controller the MPC reads; brought up first, since the MPC claims its exported state.')
     parser.add_argument('--timeout', type=float, default=120.0)
     parser.add_argument(
         '--configure-timeout', type=float, default=3600.0,
@@ -265,6 +268,8 @@ def main():
         return 1
     
     active_controller_list = []
+    if args.estimator_name and args.estimator_name.lower() != 'none':
+        active_controller_list.append(args.estimator_name)
     if args.controller_name and args.controller_name.lower() != 'none':
         active_controller_list.append(args.controller_name)
     else:

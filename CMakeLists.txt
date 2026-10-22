@@ -130,6 +130,7 @@ add_library(${PROJECT_NAME} SHARED
   src/humanoid_state_estimation/humanoid_state_estimator.cpp
   src/humanoid_state_estimation/humanoid_inekf.cpp
   src/humanoid_state_estimation/humanoid_linear_kf.cpp
+  src/humanoid_state_estimation/humanoid_state_estimator_controller.cpp
   src/humanoid_centroidal_mpc/centroidal_mpc_config_builder.cpp
   src/humanoid_centroidal_mpc/centroidal_mpc_diagnostics.cpp
   src/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller.cpp

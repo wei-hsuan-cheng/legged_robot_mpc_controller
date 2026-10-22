@@ -20,7 +20,7 @@ bool HumanoidInEkf::declareParameters(const std::shared_ptr<rclcpp_lifecycle::Li
 {
   try {
     params_ = std::make_unique<Params>();
-    params_->listener = std::make_shared<humanoid_inekf::ParamListener>(node, name());
+    params_->listener = std::make_shared<humanoid_inekf::ParamListener>(node);
   } catch (const std::exception & e) {
     RCLCPP_ERROR(
       node->get_logger(), "[%s] declaring parameters failed: %s", name().c_str(), e.what());
@@ -38,6 +38,11 @@ bool HumanoidInEkf::readParameters(
   params_->values = params_->listener->get_params();
   const auto & p = params_->values;
 
+  common.urdf_file = p.urdfFile;
+  common.joint_names = p.jointNames;
+  common.base_frame = p.baseFrame;
+  common.mode_schedule_topic = p.modeScheduleTopic;
+  common.initialize_topic = p.initializeTopic;
   common.imu_interface_name = p.imuInterfaceName;
   common.imu_frame = p.imuFrame;
   common.contact_frames = p.contactFrames;

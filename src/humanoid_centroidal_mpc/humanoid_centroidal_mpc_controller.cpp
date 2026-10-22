@@ -20,6 +20,7 @@
 #include <ocs2_centroidal_model/ModelHelperFunctions.h>
 #include <ocs2_robotic_tools/common/RotationDerivativesTransforms.h>
 #include <ocs2_robotic_tools/common/RotationTransforms.h>
+#include <ocs2_ros_interfaces/common/RosMsgConversions.h>
 #include <pluginlib/class_list_macros.hpp>
 
 #include <humanoid_common_mpc/gait/MotionPhaseDefinition.h>
@@ -67,6 +68,19 @@ std::optional<size_t> interface_offset(
 bool uses_state_estimator(const std::string& source)
 {
   return source == "state_estimator";
+}
+
+std::string estimator_report(
+  const legged_robot_mpc_controller::estimator_interfaces::EstimatorStatus& status,
+  const legged_robot_mpc_controller::state_estimation::EstimatorDiagnostics& d)
+{
+  char line[256];
+  std::snprintf(
+    line, sizeof(line),
+    "epoch %u, running %.1f s, %s | roll/pitch std %.4f | height std %.4f | velocity std %.4f",
+    status.epoch, status.running_time, status.ready ? "ready" : "not ready",
+    d.attitude_std.head<2>().maxCoeff(), d.position_std.z(), d.velocity_std.maxCoeff());
+  return line;
 }
 
 }  // namespace
@@ -277,39 +291,30 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_configu
       mpc_interface_->getMpcRobotModel(),
       visualization::makePerformanceVisualizationSettings(parameters_));
 
-    // Floating-base estimator. It runs whenever one is named, so its estimate can
-    // be logged against ground truth even when it does not drive control.
-    configure_stage = "building the floating-base state estimator";
-    const std::string& estimator_name = parameters_.floatingBase.estimator;
-    if (estimator_name != "none") {
-      // A zero rate is fatal, not defaulted: the filter integrates the IMU at
-      // 1 / update_rate, and max(1, rate) would make that a one-second timestep.
-      if (get_update_rate() == 0) {
-        throw std::runtime_error("update_rate is 0; the estimator integrates at 1 / update_rate");
-      }
-      state_estimator_ = makeHumanoidStateEstimator(estimator_name);
-      if (!state_estimator_->configure(
-          get_node(), parameters_.paths.urdfFile, parameters_.robot.jointNames,
-          1.0 / static_cast<double>(get_update_rate())))
-      {
-        throw std::runtime_error("configuring the '" + estimator_name + "' estimator failed");
-      }
-      const auto& se = state_estimator_->settings();
-      state_estimate_odom_publisher_ =
-        get_node()->create_publisher<nav_msgs::msg::Odometry>(se.odom_topic, rclcpp::SystemDefaultsQoS());
-      RCLCPP_INFO(
-        get_node()->get_logger(),
-        "[HumanoidCentroidalMpcController] state estimator %s (%s) | imu=%s contacts=%zu joints=%d | "
-        "%u Hz (dt=%.6f s) | contact_source=%s | drives_control=%s",
-        estimator_name.c_str(), state_estimation::toString(state_estimator_->type()),
-        se.imu_frame.c_str(), se.contact_frames.size(), state_estimator_->filter().numEstimatorJoints(),
-        get_update_rate(), 1.0 / static_cast<double>(get_update_rate()), se.contact_source.c_str(),
-        uses_state_estimator(parameters_.floatingBase.source) ? "yes, once ready" : "no (logged only)");
-    } else if (uses_state_estimator(parameters_.floatingBase.source)) {
+    // The estimator is its own controller; this one reads its exported state
+    // interfaces and sends it the gait and the initialization epoch.
+    configure_stage = "creating the estimator topics";
+    if (uses_state_estimator(parameters_.floatingBase.source) && !has_estimator()) {
       throw std::runtime_error(
         "floatingBase.source is state_estimator but floatingBase.estimator is none; launch with "
         "floatingBaseEstimator:=humanoid_inekf (or humanoid_linear_kf)");
     }
+    // Latched, so an estimator activated later still gets the latest of each.
+    const auto latched = rclcpp::QoS(1).reliable().transient_local();
+    mode_schedule_publisher_ =
+      get_node()->create_publisher<ocs2_msgs::msg::ModeSchedule>("~/mode_schedule", latched);
+    estimator_initialize_publisher_ =
+      get_node()->create_publisher<std_msgs::msg::UInt32>("~/estimator_initialize", latched);
+    rt_estimator_initialize_publisher_ =
+      std::make_unique<realtime_tools::RealtimePublisher<std_msgs::msg::UInt32>>(
+        estimator_initialize_publisher_);
+    estimator_values_.assign(estimator_interfaces::names().size(), 0.0);
+    RCLCPP_INFO(
+      get_node()->get_logger(),
+      "[HumanoidCentroidalMpcController] floating base: %s | estimator controller: %s (%s)",
+      parameters_.floatingBase.source.c_str(), parameters_.floatingBase.estimator.c_str(),
+      !has_estimator() ? "not read" :
+        uses_state_estimator(parameters_.floatingBase.source) ? "drives control" : "logged only");
     if (!uses_state_estimator(parameters_.floatingBase.source) &&
         parameters_.floatingBase.stateInterfaceName.empty()) {
       throw std::runtime_error(
@@ -370,7 +375,7 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_configu
       diagnostics_settings.bufferRows = static_cast<std::size_t>(std::max<int64_t>(log.bufferRows, 16));
       diagnostics_ = std::make_unique<CentroidalMpcDiagnostics>(
         diagnostics_settings, *mpc_interface_, *control_pinocchio_,
-        state_estimator_ ? state_estimator_->settings().contact_frames : std::vector<std::string>{},
+        std::vector<std::string>{},  // per-contact estimator internals are not exported
         parameters_.robot.jointNames);
       RCLCPP_INFO(
         get_node()->get_logger(),
@@ -420,12 +425,28 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_activat
   motion_manager_->requestVelocityTargetFilterReset();
   yaw_unwrapper_.reset();
   filtered_generalized_velocity_.resize(0);
-  if (state_estimator_) {
-    state_estimator_->reset();
-    last_estimate_ = state_estimation::FloatingBaseEstimate{};
-    last_estimate_publish_time_ = -1.0;
-    estimator_driving_control_ = false;
+  estimator_interface_index_.clear();
+  if (has_estimator()) {
+    const std::string& estimator = parameters_.floatingBase.estimator;
+    for (const auto& name : estimator_interfaces::names()) {
+      const auto it = std::find_if(
+        state_interfaces_.begin(), state_interfaces_.end(), [&](const auto& interface) {
+          return interface.get_prefix_name() == estimator && interface.get_interface_name() == name;
+        });
+      if (it == state_interfaces_.end()) {
+        RCLCPP_ERROR(
+          get_node()->get_logger(),
+          "[HumanoidCentroidalMpcController] estimator interface %s/%s is not claimed.",
+          estimator.c_str(), name.c_str());
+        return controller_interface::CallbackReturn::ERROR;
+      }
+      estimator_interface_index_.push_back(
+        static_cast<std::size_t>(std::distance(state_interfaces_.begin(), it)));
+    }
   }
+  last_estimate_ = state_estimation::FloatingBaseEstimate{};
+  estimator_driving_control_ = false;
+  estimator_epoch_pending_ = false;
   if (diagnostics_) {
     try {
       diagnostics_->start();
@@ -443,11 +464,6 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_activat
     }
   }
 
-  // Seed the mode-schedule snapshot before the solver thread exists, so the
-  // first build_observation() has a schedule to read rather than defaulting to
-  // STANCE.
-  publish_mode_schedule();
-
   bring_up_phase_.store(BringUpPhase::Passive);
   at_rest_.store(false);
   phase_start_time_ = -1.0;
@@ -456,9 +472,17 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_activat
   start_requested_.store(false);
   locomotion_requested_.store(false);
   mpc_ready_.store(false);
+
+  // Seed the mode-schedule snapshot before the solver thread exists, so the
+  // first build_observation() has a schedule to read rather than defaulting to
+  // STANCE. After the phase reset: what the estimator is sent depends on it.
+  publish_mode_schedule();
   // The estimator alongside ground truth runs from the start; driving control it
   // waits for the bring-up's Converge phase, when the robot is at rest on its feet.
-  estimator_enabled_ = !uses_state_estimator(parameters_.floatingBase.source);
+  if (has_estimator() && !uses_state_estimator(parameters_.floatingBase.source)) {
+    read_state_estimator();
+    request_estimator_initialization();
+  }
 
   if (uses_state_estimator(parameters_.floatingBase.source)) {
     // No ground truth on a real robot, so nothing here reads a base pose. Read the
@@ -508,7 +532,7 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_activat
       get_node()->get_logger(),
       "[HumanoidCentroidalMpcController] activated in bring-up (passive); the MPC starts from the %s "
       "estimate once the robot has stood up and the estimator is ready | joints=%zu",
-      state_estimator_ ? state_estimator_->name().c_str() : "(none)", parameters_.robot.jointNames.size());
+      parameters_.floatingBase.estimator.c_str(), parameters_.robot.jointNames.size());
     return controller_interface::CallbackReturn::SUCCESS;
   }
 
@@ -651,7 +675,6 @@ HumanoidCentroidalMpcController::state_interface_configuration() const
     }
   }
 
-  const bool estimator_active = static_cast<bool>(state_estimator_);
   // The ground-truth body drives control only with ground_truth_state. With the
   // estimator it is claimed purely so the diagnostics log can compare against
   // it - nothing in the control path reads it - and only if it exists: leave
@@ -659,8 +682,9 @@ HumanoidCentroidalMpcController::state_interface_configuration() const
   const bool need_gt_interfaces =
     parameters_.floatingBase.source == "ground_truth_state" ||
     !parameters_.floatingBase.stateInterfaceName.empty();
+  const bool bring_up = uses_state_estimator(parameters_.floatingBase.source);
 
-  if (need_gt_interfaces || estimator_active) {
+  if (need_gt_interfaces || has_estimator() || bring_up) {
     if (config.type == controller_interface::interface_configuration_type::NONE) {
       config.type = controller_interface::interface_configuration_type::INDIVIDUAL;
     }
@@ -674,29 +698,22 @@ HumanoidCentroidalMpcController::state_interface_configuration() const
       floating_base_interfaces.end());
   }
 
-  if (estimator_active) {
-    // Joint torques for the torque-based contact estimator (unless already claimed
-    // through robot.stateInterfaces).
-    const bool effort_already_claimed = std::find(
-      parameters_.robot.stateInterfaces.begin(),
-      parameters_.robot.stateInterfaces.end(),
-      hardware_interface::HW_IF_EFFORT) != parameters_.robot.stateInterfaces.end();
-    if (!effort_already_claimed) {
-      for (const auto& joint_name : parameters_.robot.jointNames) {
-        config.names.emplace_back(joint_name + "/" + hardware_interface::HW_IF_EFFORT);
-      }
+  // The estimator controller's exported state. Claiming it is what makes the
+  // controller manager run that controller first in every tick.
+  if (has_estimator()) {
+    for (const auto& name : estimator_interfaces::names()) {
+      config.names.emplace_back(parameters_.floatingBase.estimator + "/" + name);
     }
-    // Pelvis IMU raw gyro + accelerometer.
-    const std::string& imu = state_estimator_->settings().imu_interface_name;
+  }
+
+  // The bring-up's own IMU use: attitude for the stand's gravity compensation,
+  // gyro and accelerometer for rest detection.
+  if (bring_up) {
+    const std::string& imu = parameters_.floatingBase.imuInterfaceName;
     for (const char* axis : {"x", "y", "z"}) {
       config.names.emplace_back(imu + "/angular_velocity." + axis);
       config.names.emplace_back(imu + "/linear_acceleration." + axis);
     }
-    // Stage 1 of the two-stage linear KF reads attitude straight from the IMU
-    // (mujoco_ros2_control exports it from the framequat sensor named by
-    // mujoco_quat_sensor_name). The InEKF does not need it - attitude is part of
-    // its state - but claiming it unconditionally keeps the claimed interface set
-    // identical between estimators, so a comparison run differs only in the filter.
     for (const char* component : {"w", "x", "y", "z"}) {
       config.names.emplace_back(imu + "/orientation." + component);
     }
@@ -720,7 +737,12 @@ controller_interface::return_type HumanoidCentroidalMpcController::update_and_wr
     return controller_interface::return_type::ERROR;
   }
 
-  update_state_estimator(time);
+  read_state_estimator();
+  if (estimator_epoch_pending_) {
+    std_msgs::msg::UInt32 msg;
+    msg.data = estimator_epoch_;
+    estimator_epoch_pending_ = !rt_estimator_initialize_publisher_->try_publish(msg);
+  }
 
   const auto observation = build_observation(time);
   JointActionCommand command;
@@ -777,10 +799,7 @@ const char* HumanoidCentroidalMpcController::to_string(BringUpPhase phase)
 
 std::optional<Eigen::Quaterniond> HumanoidCentroidalMpcController::read_imu_orientation()
 {
-  if (!state_estimator_) {
-    return std::nullopt;
-  }
-  const std::string& imu = state_estimator_->settings().imu_interface_name;
+  const std::string& imu = parameters_.floatingBase.imuInterfaceName;
   const auto qw = get_state_interface_value(imu, "orientation.w");
   const auto qx = get_state_interface_value(imu, "orientation.x");
   const auto qy = get_state_interface_value(imu, "orientation.y");
@@ -797,10 +816,7 @@ std::optional<Eigen::Quaterniond> HumanoidCentroidalMpcController::read_imu_orie
 
 bool HumanoidCentroidalMpcController::read_imu_rates(Eigen::Vector3d& gyro, Eigen::Vector3d& accel)
 {
-  if (!state_estimator_) {
-    return false;
-  }
-  const std::string& imu = state_estimator_->settings().imu_interface_name;
+  const std::string& imu = parameters_.floatingBase.imuInterfaceName;
   const char* axes[3] = {"x", "y", "z"};
   for (int i = 0; i < 3; ++i) {
     const auto g = get_state_interface_value(imu, std::string("angular_velocity.") + axes[i]);
@@ -949,11 +965,9 @@ HumanoidCentroidalMpcController::run_bring_up(
       const bool settled = settled_since_ >= 0.0 && t - settled_since_ >= bu.settleSeconds;
       at_rest_.store(settled);
       if (settled && (bu.autoStart || start_requested_.load())) {
-        // Initialise the estimator now, on the ground and at rest: the next
-        // update_state_estimator() call seeds it from stance.
-        state_estimator_->reset();
-        last_estimate_ = state_estimation::FloatingBaseEstimate{};
-        estimator_enabled_ = true;
+        // Initialise the estimator now, on the ground and at rest: it seeds
+        // itself from stance on its next update.
+        request_estimator_initialization();
         enter_bring_up_phase(BringUpPhase::Converge, t);
       } else {
         RCLCPP_INFO_THROTTLE(
@@ -967,7 +981,7 @@ HumanoidCentroidalMpcController::run_bring_up(
     }
 
     case BringUpPhase::Converge:
-      if (state_estimator_->ready() && observation_from_hardware_) {
+      if (estimator_initialized_for_request() && estimator_status_.ready && observation_from_hardware_) {
         // Hand the ESTIMATED observation to the worker, which builds the solver
         // off this thread. Written before the release-store, read after the
         // worker's acquire-load.
@@ -977,13 +991,16 @@ HumanoidCentroidalMpcController::run_bring_up(
           get_node()->get_logger(),
           "[HumanoidCentroidalMpcController] bring-up: estimator %s ready (%s); starting the MPC from "
           "its estimate.",
-          state_estimator_->name().c_str(), state_estimator_->readinessReport(t).c_str());
+          parameters_.floatingBase.estimator.c_str(),
+          estimator_report(estimator_status_, estimator_diagnostics_).c_str());
         enter_bring_up_phase(BringUpPhase::StartingMpc, t);
       } else {
         RCLCPP_INFO_THROTTLE(
           get_node()->get_logger(), *get_node()->get_clock(), 2000,
           "[HumanoidCentroidalMpcController] bring-up: estimator converging | %s",
-          state_estimator_->readinessReport(t).c_str());
+          estimator_initialized_for_request() ?
+            estimator_report(estimator_status_, estimator_diagnostics_).c_str() :
+            "waiting for the estimator to act on the initialization request");
       }
       return hold_command(stand_nominal_joints_, q, imu);
 
@@ -1140,7 +1157,19 @@ void HumanoidCentroidalMpcController::publish_mode_schedule()
   // its buffered schedule in during preSolverRun(), so this is the point at
   // which reading it is not concurrent with that swap.
   if (const auto reference_manager = mpc_interface_->getSwitchedModelReferenceManagerPtr()) {
-    mode_schedule_buffer_.writeFromNonRT(reference_manager->getModeSchedule());
+    const auto& schedule = reference_manager->getModeSchedule();
+    mode_schedule_buffer_.writeFromNonRT(schedule);
+    // The estimator takes its contact flags from this. Until the MPC drives, the
+    // bring-up has the robot standing on both feet, and the reference manager may
+    // still hold OCS2's default schedule - the single mode 0, FLY - which would
+    // tell the filter both feet are in the air. So it is sent stance instead.
+    const auto phase = bring_up_phase_.load();
+    const bool mpc_driving = !uses_state_estimator(parameters_.floatingBase.source) ||
+      phase == BringUpPhase::Blend || phase == BringUpPhase::Locomotion;
+    if (mode_schedule_publisher_) {
+      mode_schedule_publisher_->publish(ocs2::ros_msg_conversions::createModeScheduleMsg(
+        mpc_driving ? schedule : ocs2::ModeSchedule({}, {ocs2::humanoid::STANCE})));
+    }
   }
 }
 
@@ -1158,135 +1187,38 @@ size_t HumanoidCentroidalMpcController::mode_at(double time)
   return schedule->modeAtTime(time);
 }
 
-void HumanoidCentroidalMpcController::update_state_estimator(const rclcpp::Time& time)
+void HumanoidCentroidalMpcController::read_state_estimator()
 {
-  if (!state_estimator_ || !estimator_enabled_) {
+  if (estimator_interface_index_.empty()) {
     return;
   }
-
-  // Joint states in the controller's jointNames order (torque optional -> 0).
-  const auto& joint_names = parameters_.robot.jointNames;
-  std::vector<double> joint_pos(joint_names.size());
-  std::vector<double> joint_vel(joint_names.size());
-  std::vector<double> joint_eff(joint_names.size(), 0.0);
-  for (size_t i = 0; i < joint_names.size(); ++i) {
-    const auto p = get_state_interface_value(joint_names[i], hardware_interface::HW_IF_POSITION);
-    const auto v = get_state_interface_value(joint_names[i], hardware_interface::HW_IF_VELOCITY);
-    if (!p || !v) {
-      return;  // joints not ready yet
+  for (std::size_t i = 0; i < estimator_interface_index_.size(); ++i) {
+    const auto value = state_interfaces_[estimator_interface_index_[i]].get_optional();
+    if (!value) {
+      return;  // keep last tick's estimate rather than mixing two ticks
     }
-    joint_pos[i] = *p;
-    joint_vel[i] = *v;
-    if (const auto e = get_state_interface_value(joint_names[i], hardware_interface::HW_IF_EFFORT)) {
-      joint_eff[i] = *e;
-    }
+    estimator_values_[i] = *value;
   }
-
-  // Raw pelvis IMU (body-local gyro + accelerometer).
-  auto& filter = state_estimator_->filter();
-  const auto& se = state_estimator_->settings();
-  const std::string& imu = se.imu_interface_name;
-  const auto gx = get_state_interface_value(imu, "angular_velocity.x");
-  const auto gy = get_state_interface_value(imu, "angular_velocity.y");
-  const auto gz = get_state_interface_value(imu, "angular_velocity.z");
-  const auto ax = get_state_interface_value(imu, "linear_acceleration.x");
-  const auto ay = get_state_interface_value(imu, "linear_acceleration.y");
-  const auto az = get_state_interface_value(imu, "linear_acceleration.z");
-  if (!gx || !gy || !gz || !ax || !ay || !az) {
-    return;  // IMU not ready yet
-  }
-  const Eigen::Vector3d gyro(*gx, *gy, *gz);
-  const Eigen::Vector3d accel(*ax, *ay, *az);
-
-  // The IMU's own attitude. Seeds the filter on its first tick, and is the
-  // stage-1 attitude for filters that do not estimate it themselves (the InEKF
-  // inherits a no-op override).
-  std::optional<Eigen::Quaterniond> imu_orientation;
-  {
-    const auto qw = get_state_interface_value(imu, "orientation.w");
-    const auto qx = get_state_interface_value(imu, "orientation.x");
-    const auto qy = get_state_interface_value(imu, "orientation.y");
-    const auto qz = get_state_interface_value(imu, "orientation.z");
-    if (qw && qx && qy && qz) {
-      const Eigen::Quaterniond q(*qw, *qx, *qy, *qz);
-      // A zero quaternion means the sensor has not produced a sample yet;
-      // normalising it would yield NaN and poison the whole filter.
-      if (q.norm() > 1e-6) {
-        imu_orientation = q.normalized();
-      }
-    }
-  }
-
-  // First tick: initialise from the robot's own sensors - IMU attitude, joint
-  // encoders, and the assumption that it is standing on both feet, which the
-  // bring-up stand guarantees. No ground-truth pose, on purpose: a real robot
-  // has none to give it.
-  if (!filter.initialized()) {
-    if (!imu_orientation) {
-      return;  // IMU not ready yet
-    }
-    filter.initializeFromStance(*imu_orientation, joint_pos);
-  }
-  if (imu_orientation) {
-    filter.setBaseOrientation(*imu_orientation);
-  }
-
-  if (se.contact_source == "scheduled") {
-    // From the control-thread snapshot, not the reference manager directly: see
-    // mode_schedule_buffer_. A torn read here would hand the filter a wrong
-    // contact flag and add or drop a landmark at the wrong instant.
-    // Until the MPC runs there is no gait, and the bring-up guarantees the robot
-    // is standing on both feet - so say so, rather than reading a schedule that
-    // does not exist yet. OCS2's default ModeSchedule is the single mode 0, FLY:
-    // read before the solver is built, it tells the filter both feet are in the
-    // air, every contact correction is skipped, and the filter integrates the IMU
-    // open-loop and diverges.
-    const bool mpc_running = !uses_state_estimator(parameters_.floatingBase.source) ||
-      bring_up_phase_ == BringUpPhase::Blend || bring_up_phase_ == BringUpPhase::Locomotion;
-    const auto contact_flags = mpc_running ? contact_flags_at(time.seconds())
-                                           : ocs2::contact_flag_t{true, true};
-    last_estimate_ = filter.update(
-      gyro, accel, joint_pos, joint_vel, joint_eff,
-      std::vector<bool>{contact_flags[0], contact_flags[1]});
-  } else {
-    last_estimate_ = filter.update(gyro, accel, joint_pos, joint_vel, joint_eff);
-  }
-  // The filter's own covariance, not a timer, decides when it may drive control.
-  state_estimator_->evaluateReadiness(time.seconds());
-
-
-  // Publish the estimate as odometry for evaluation against the GT body frame.
-  if (state_estimate_odom_publisher_ && last_estimate_.valid) {
-    const double t = time.seconds();
-    const double period = 1.0 / std::max(1.0, se.publish_rate);
-    if (last_estimate_publish_time_ < 0.0 || t - last_estimate_publish_time_ >= period) {
-      last_estimate_publish_time_ = t;
-      nav_msgs::msg::Odometry odom;
-      odom.header.stamp = time;
-      odom.header.frame_id = se.odom_frame;
-      odom.child_frame_id = parameters_.floatingBase.baseFrame;
-      odom.pose.pose.position.x = last_estimate_.position.x();
-      odom.pose.pose.position.y = last_estimate_.position.y();
-      odom.pose.pose.position.z = last_estimate_.position.z();
-      odom.pose.pose.orientation.w = last_estimate_.orientation.w();
-      odom.pose.pose.orientation.x = last_estimate_.orientation.x();
-      odom.pose.pose.orientation.y = last_estimate_.orientation.y();
-      odom.pose.pose.orientation.z = last_estimate_.orientation.z();
-      // Twist in the body frame (odometry child-frame convention).
-      const Eigen::Vector3d v_body =
-        last_estimate_.orientation.conjugate() * last_estimate_.linear_velocity_world;
-      odom.twist.twist.linear.x = v_body.x();
-      odom.twist.twist.linear.y = v_body.y();
-      odom.twist.twist.linear.z = v_body.z();
-      odom.twist.twist.angular.x = last_estimate_.angular_velocity_local.x();
-      odom.twist.twist.angular.y = last_estimate_.angular_velocity_local.y();
-      odom.twist.twist.angular.z = last_estimate_.angular_velocity_local.z();
-      state_estimate_odom_publisher_->publish(odom);
-    }
-  }
-
+  estimator_interfaces::unpack(estimator_values_, last_estimate_, estimator_diagnostics_, estimator_status_);
+  // Valid only once it has acted on this controller's latest request: an estimate
+  // from before the request describes a robot that has since been stood up.
+  last_estimate_.valid = last_estimate_.valid && estimator_initialized_for_request();
 }
 
+void HumanoidCentroidalMpcController::request_estimator_initialization()
+{
+  estimator_epoch_ = estimator_status_.epoch + 1;
+  estimator_epoch_pending_ = true;
+  last_estimate_.valid = false;
+  std_msgs::msg::UInt32 msg;
+  msg.data = estimator_epoch_;
+  estimator_epoch_pending_ = !rt_estimator_initialize_publisher_->try_publish(msg);
+}
+
+bool HumanoidCentroidalMpcController::estimator_initialized_for_request() const
+{
+  return estimator_epoch_ != 0 && estimator_status_.epoch == estimator_epoch_;
+}
 
 void HumanoidCentroidalMpcController::record_diagnostics_state(
   const rclcpp::Time& time,
@@ -1308,7 +1240,7 @@ void HumanoidCentroidalMpcController::record_diagnostics_state(
     }
   }
 
-  if (!state_estimator_) {
+  if (!has_estimator()) {
     return;  // the estimator log has nothing to say without an estimator
   }
 
@@ -1316,7 +1248,7 @@ void HumanoidCentroidalMpcController::record_diagnostics_state(
   sample.time = time.seconds();
   // Phase segments the run so warm-up, hand-off and steady state can be analysed
   // separately without having to guess where the transitions happened.
-  sample.phase = !state_estimator_->filter().initialized() ? 0 : (estimator_driving_control_ ? 2 : 1);
+  sample.phase = !last_estimate_.valid ? 0 : (estimator_driving_control_ ? 2 : 1);
   sample.mode = static_cast<int>(observation.mode);
 
   const auto contact_flags = contact_flags_at(sample.time);
@@ -1362,7 +1294,7 @@ void HumanoidCentroidalMpcController::record_diagnostics_state(
   sample.commanded_torques = command.feedforward;
   sample.command_valid = command.policy_position.size() > 0;
 
-  diagnostics_->recordState(sample, last_estimate_, state_estimator_->filter().diagnostics());
+  diagnostics_->recordState(sample, last_estimate_, estimator_diagnostics_);
 }
 
 ocs2::SystemObservation HumanoidCentroidalMpcController::build_observation(const rclcpp::Time& time)
@@ -1409,7 +1341,7 @@ ocs2::SystemObservation HumanoidCentroidalMpcController::build_observation(const
     // ground truth, because a real robot has none: until the estimator has a
     // valid estimate the observation is not refreshed, and the bring-up keeps the
     // robot in its joint-space stand, which does not need one.
-    if (!state_estimator_ || !last_estimate_.valid) {
+    if (!last_estimate_.valid) {
       RCLCPP_WARN_THROTTLE(
         get_node()->get_logger(), *get_node()->get_clock(), 2000,
         "[HumanoidCentroidalMpcController] no valid floating-base estimate yet; holding last observation.");

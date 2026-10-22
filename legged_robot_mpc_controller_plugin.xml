@@ -7,4 +7,20 @@
       OCS2 floating-base humanoid centroidal MPC controller.
     </description>
   </class>
+  <class
+    name="legged_robot_mpc_controller/HumanoidInEkfController"
+    type="legged_robot_mpc_controller::HumanoidInEkfController"
+    base_class_type="controller_interface::ChainableControllerInterface">
+    <description>
+      Contact-aided right-invariant EKF floating-base estimator; exports the estimate as state interfaces.
+    </description>
+  </class>
+  <class
+    name="legged_robot_mpc_controller/HumanoidLinearKfController"
+    type="legged_robot_mpc_controller::HumanoidLinearKfController"
+    base_class_type="controller_interface::ChainableControllerInterface">
+    <description>
+      Two-stage linear KF floating-base estimator; exports the estimate as state interfaces.
+    </description>
+  </class>
 </library>

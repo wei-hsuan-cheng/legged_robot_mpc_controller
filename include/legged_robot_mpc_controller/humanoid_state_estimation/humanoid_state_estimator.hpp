@@ -18,6 +18,11 @@ namespace legged_robot_mpc_controller
 /// runs. Each concrete estimator fills it from its OWN parameters.
 struct EstimatorCommonSettings
 {
+  std::string urdf_file;
+  std::vector<std::string> joint_names;
+  std::string base_frame;
+  std::string mode_schedule_topic;
+  std::string initialize_topic;
   std::string imu_interface_name;
   std::string imu_frame;
   std::vector<std::string> contact_frames;
@@ -35,41 +40,21 @@ struct EstimatorCommonSettings
 };
 
 /**
- * A floating-base state estimator, run by the MPC controller as the FIRST step
- * of every control tick - the arrangement legged_control and
- * quadruped_ros2_control use. Running it in the controller rather than as a
- * separate ros2_control controller gives three things for free:
- *
- *  - the observation is always built from THIS tick's estimate, by construction;
- *  - the estimator/gait cycle (the filter needs the gait's contact flags, the
- *    MPC needs the filter's base pose) is just two calls in one function, rather
- *    than a dependency ros2_control chaining cannot express on Humble;
- *  - the diagnostics log keeps the filter's internals (covariance, NIS,
- *    innovations) on the same timebase as the MPC state.
+ * A floating-base state estimator: the filter plus its parameters and readiness
+ * test. HumanoidStateEstimatorController runs one as a ros2_control controller.
  *
  * Abstract: the concrete class decides WHICH filter runs, and declares only that
- * filter's parameters, under its own prefix on the controller's node
- * (humanoid_inekf.* / humanoid_linear_kf.*), from its own block of config/g1/ros2_controllers.yaml.
+ * filter's parameters, at the root of its controller's node, from that
+ * controller's block of config/g1/ros2_controllers.yaml.
  */
 class HumanoidStateEstimator
 {
 public:
   virtual ~HumanoidStateEstimator();
 
-  /**
-   * Declare and read this estimator's parameters, then build the filter.
-   *
-   * The URDF and the joint list come from the controller rather than from the
-   * estimator's own parameters: a second copy of the joint order is a mismatch
-   * waiting to happen, and would corrupt the filter's kinematics silently.
-   */
+  /// Declare and read this estimator's parameters, then build the filter.
   bool configure(
-    const std::shared_ptr<rclcpp_lifecycle::LifecycleNode> & node,
-    const std::string & urdf_path,
-    const std::vector<std::string> & joint_names,
-    double sampling_time);
-
-  /// The filter itself, for the controller's per-tick update.
+    const std::shared_ptr<rclcpp_lifecycle::LifecycleNode> & node, double sampling_time);
   state_estimation::FloatingBaseEstimatorInterface & filter() { return *filter_; }
   const state_estimation::FloatingBaseEstimatorInterface & filter() const { return *filter_; }
 

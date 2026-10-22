@@ -1,7 +1,4 @@
 humanoid_linear_kf:
-  # Declared under humanoid_linear_kf.* on the MPC controller\'s node by the estimator
-  # itself. The URDF and the joint list are handed over by the controller, so
-  # there is no second copy of the joint order to fall out of step.
   # Parameters of the HumanoidLinearKf controller: a conventional two-stage linear
   # Kalman filter, kept so it can be compared against the InEKF on the same logs.
   # Stage 1 reads attitude straight from the IMU; stage 2 estimates base position
@@ -156,4 +153,32 @@ humanoid_linear_kf:
     default_value: 100.0,
     description: "Multiplier on a SWING foot's process and measurement noise, which is how the filter ignores a foot that is off the ground while keeping the matrix dimensions fixed across contact transitions. Cheetah 3 raises the covariance 'to a high value'; 100 is the value used there.",
     validation: { gt: [1.0] }
+  }
+  # ---- this controller's own wiring --------------------------------------
+  urdfFile: {
+    type: string,
+    default_value: "",
+    description: "Pelvis-rooted robot URDF for the filter's forward kinematics; the same file the MPC is built from.",
+    validation: { not_empty<>: [] }
+  }
+  jointNames: {
+    type: string_array,
+    default_value: [],
+    description: "Joints whose position/velocity/effort the filter reads, by name. Matched to the URDF by name, so the order here is free.",
+    validation: { not_empty<>: [] }
+  }
+  baseFrame: {
+    type: string,
+    default_value: "pelvis",
+    description: "child_frame_id of the published odometry"
+  }
+  modeScheduleTopic: {
+    type: string,
+    default_value: "/humanoid_centroidal_mpc_controller/mode_schedule",
+    description: "ocs2_msgs/ModeSchedule from the MPC, used by contact.source scheduled. It is time-indexed, so the contact flags are evaluated at this controller's own update time; until one arrives both feet are taken to be in stance."
+  }
+  initializeTopic: {
+    type: string,
+    default_value: "/humanoid_centroidal_mpc_controller/estimator_initialize",
+    description: "std_msgs/UInt32 initialization epoch. The filter stays off until an epoch arrives, then initializes from stance and does so again whenever the epoch changes; the epoch it last acted on is exported, so a consumer can tell a fresh ready from a stale one."
   }

@@ -458,7 +458,7 @@ ros2 launch legged_robot_mpc_controller g1.launch.py \
 
 | `floatingBaseSource` | Feedback used by the MPC |
 |---|---|
-| `state_estimator` *(default)* | The estimate of the filter named by `floatingBaseEstimator`. Ground truth seeds the filter and is used until the filter reports itself converged (`ready`, from its own covariance), then the estimate drives control for the rest of the run. |
+| `state_estimator` *(default)* | The estimate of the estimator controller named by `floatingBaseEstimator`. Nothing reads ground truth: the filter initialises itself from stance during the bring-up below, and its estimate drives control from then on. |
 | `ground_truth_state` | Body pose/twist from `ros2_control` state interfaces (MuJoCo ground truth in simulation; the robot's own base state on hardware). |
 
 | `floatingBaseEstimator` | Filter | Tuning |
@@ -467,7 +467,32 @@ ros2 launch legged_robot_mpc_controller g1.launch.py \
 | `humanoid_linear_kf` | two-stage linear KF (Bledt et al. 2018); falls on varied commands, kept for comparison | `humanoid_linear_kf:` in [`ros2_controllers.yaml`](./config/g1/ros2_controllers.yaml) |
 | `none` | — (only valid with `ground_truth_state`) | |
 
-The estimator runs **inside** the MPC controller, as the first step of every control tick — the arrangement [`legged_control`](https://github.com/qiayuanl/legged_control) and [`quadruped_ros2_control`](https://github.com/legubiao/quadruped_ros2_control) use. That guarantees the observation is built from that tick's estimate, and keeps the filter's internals (covariance, NIS, innovations) in the same diagnostics log as the MPC state. With `ground_truth_state` the estimator still runs, which is the way to compare it against ground truth without risking the robot. Either way it publishes its estimate for evaluation:
+Each estimator is its **own ros2_control controller** (`HumanoidInEkfController` / `HumanoidLinearKfController`), loaded and activated before the MPC:
+
+```
+                    exported state interfaces (chained, same tick)
+  humanoid_inekf  ---------------------------------------------------->  humanoid_centroidal_mpc_controller
+  joints + IMU in   <estimator>/position.*, orientation.*,                  claims them, so the controller
+                    linear_velocity_world.*, angular_velocity.*, valid,     manager runs the estimator first
+                    status.{ready,epoch,running_time}, diagnostics.*        in every tick
+
+                  <----------------------------------------------------
+                    topics (latched)
+                    ~/mode_schedule        ocs2_msgs/ModeSchedule: contact flags, evaluated at the
+                                           estimator's own update time, so no lag in effect
+                    ~/estimator_initialize std_msgs/UInt32 epoch: "initialise from stance now"
+```
+
+The return leg is topics because ros2_control cannot chain both ways: two controllers that each claim the other's exported interfaces make the controller manager's activation check recurse without end. Neither message needs the same tick. The schedule is indexed by time, and the MPC waits until the exported `status.epoch` equals the epoch it sent before it trusts `status.ready`.
+
+```bash
+ros2 control list_controllers
+# joint_state_broadcaster            active
+# humanoid_inekf                     active
+# humanoid_centroidal_mpc_controller active
+```
+
+With `ground_truth_state` the estimator still runs (the MPC sends it an epoch at activation), which is the way to compare it against ground truth without risking the robot. The diagnostics log carries the estimate and the filter's scalar internals (covariance std-devs, NIS, bias, height). The per-contact innovation columns are not exported, because their names depend on the estimator's contact frames. Either way it publishes its estimate for evaluation:
 
 ```bash
 ros2 topic echo /mujoco/ground_truth/odom        # ground truth (also used for RViz/TF)
@@ -548,7 +573,7 @@ The estimator initialises from the IMU and the joint encoders, converges for `re
 
 ```
 bring-up: settling -> estimator converging
-bring-up: estimator converging | running 2.0/5.0 s | roll/pitch std 0.0255/0.10 | height std 0.0123/0.10 | velocity std 0.1322/0.50
+bring-up: estimator converging | epoch 1, running 2.0 s, not ready | roll/pitch std 0.0255 | height std 0.0123 | velocity std 0.1322
 bring-up: estimator converging -> starting MPC
 bring-up: starting MPC -> blending into MPC
 bring-up: blending into MPC -> locomotion

@@ -1,7 +1,4 @@
 humanoid_inekf:
-  # Declared under humanoid_inekf.* on the MPC controller\'s node by the estimator
-  # itself. The URDF and the joint list are handed over by the controller, so
-  # there is no second copy of the joint order to fall out of step.
   # Parameters of the HumanoidInEkf controller: the contact-aided right-invariant
   # EKF of Hartley et al. 2018 - an IMU + contact process model on SE_{N+2}(3),
   # corrected by forward-kinematics position measurements, whose error dynamics
@@ -195,3 +192,31 @@ humanoid_inekf:
     dqJCutoff: { type: double, default_value: 10.0, description: "LPF cutoff [Hz] for joint velocities" }
     ddqJCutoff: { type: double, default_value: 5.0, description: "LPF cutoff [Hz] for joint accelerations" }
     tauJCutoff: { type: double, default_value: 10.0, description: "LPF cutoff [Hz] for joint torques" }
+  # ---- this controller's own wiring --------------------------------------
+  urdfFile: {
+    type: string,
+    default_value: "",
+    description: "Pelvis-rooted robot URDF for the filter's forward kinematics; the same file the MPC is built from.",
+    validation: { not_empty<>: [] }
+  }
+  jointNames: {
+    type: string_array,
+    default_value: [],
+    description: "Joints whose position/velocity/effort the filter reads, by name. Matched to the URDF by name, so the order here is free.",
+    validation: { not_empty<>: [] }
+  }
+  baseFrame: {
+    type: string,
+    default_value: "pelvis",
+    description: "child_frame_id of the published odometry"
+  }
+  modeScheduleTopic: {
+    type: string,
+    default_value: "/humanoid_centroidal_mpc_controller/mode_schedule",
+    description: "ocs2_msgs/ModeSchedule from the MPC, used by contact.source scheduled. It is time-indexed, so the contact flags are evaluated at this controller's own update time; until one arrives both feet are taken to be in stance."
+  }
+  initializeTopic: {
+    type: string,
+    default_value: "/humanoid_centroidal_mpc_controller/estimator_initialize",
+    description: "std_msgs/UInt32 initialization epoch. The filter stays off until an epoch arrives, then initializes from stance and does so again whenever the epoch changes; the epoch it last acted on is exported, so a consumer can tell a fresh ready from a stale one."
+  }
