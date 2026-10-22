@@ -484,7 +484,8 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
       defaultMode: base_twist
       globalFrame: world
       # [ax, ay (m/s^2), height rate (m/s), yaw acceleration (rad/s^2)]
-      velocityCommandRateLimits: [0.1, 0.08, 0.05, 0.1]
+      velocityCommandRateLimits: 
+        [0.5, 0.25, 0.1, 0.2]
 
     robot:
       commandInterface: effort_pd
@@ -755,10 +756,10 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
       reference:
         targetDisplacementVelocity: 0.5
         targetRotationVelocity: 0.5
-        maxDisplacementVelocityX: 0.25
-        maxDisplacementVelocityY: 0.15
+        maxDisplacementVelocityX: 1.0
+        maxDisplacementVelocityY: 0.5
         maxDeltaPelvisHeight: 0.4
-        maxRotationVelocity: 0.15
+        maxRotationVelocity: 0.25
         defaultBaseHeight: $(var refBaseHeight)
         basePosePositionTolerance: 0.02
         basePoseOrientationTolerance: 0.03
