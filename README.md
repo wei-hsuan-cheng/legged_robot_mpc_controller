@@ -46,8 +46,16 @@ This is the **ROS 2 Jazzy** branch (Ubuntu 24.04, ros2_control 4.x, Pinocchio 4)
 
 ## Run MuJoCo Example
 
-**Launch the humanoid robot**:
+Two MPC controllers are available, selected with `mpcControllerName`. Both walk with the same gait, references, estimator and bring-up; they differ in the model the MPC plans with.
+
+| `mpcControllerName` | MPC | state / input |
+|---|---|---|
+| `humanoid_centroidal_mpc_controller` (default) | centroidal dynamics + full kinematics | `[h/m, q]` / `[W, qd_j]` |
+| `humanoid_whole_body_inverse_dynamics_mpc_controller` | whole-body inverse dynamics (see [below](#whole-body-inverse-dynamics-mpc)) | `[q, v]` / `[W, a, tau_j]` |
+
+**Launch the humanoid robot (centroidal MPC)**:
 ```bash
+cd <workspace_dir>
 ros2 launch legged_robot_mpc_controller g1.launch.py \
   mpcControllerName:=humanoid_centroidal_mpc_controller \
   mpcFreq:=100 \
@@ -56,6 +64,20 @@ ros2 launch legged_robot_mpc_controller g1.launch.py \
   mujoco_headless:=false \
   baseCommandGui:=true
 ```
+
+**Launch the humanoid robot (whole-body inverse-dynamics MPC)**:
+```bash
+cd <workspace_dir>
+ros2 launch legged_robot_mpc_controller g1.launch.py \
+  mpcControllerName:=humanoid_whole_body_inverse_dynamics_mpc_controller \
+  mpcFreq:=100 \
+  mrtFreq:=1000 \
+  rviz:=true \
+  mujoco_headless:=false \
+  baseCommandGui:=true
+```
+
+The first launch of each controller generates and compiles its CppAD libraries (several minutes); later launches load them from the cache. Everything else in this README (GUI, scripted sequences, base targets, estimator, bring-up services) works the same with either controller; services and parameters live under the controller's own node name, e.g. `/humanoid_whole_body_inverse_dynamics_mpc_controller/stand_up`.
 
 
 ### Scripted trajectory tests (figure-eight, flat ground and ramp)
@@ -74,8 +96,9 @@ Three things will bite you if you skip them:
 - **Turn the command GUI off.** It publishes its slider values to the *same
   topic* at 50 Hz, so leaving it up means its zeros fight the script.
 - **Launch from the workspace root.** `libFolder` is a relative path
-  (`auto_generated/g1`); from anywhere else the cached CppAD libraries are not
-  found and the model is regenerated.
+  (`auto_generated/g1`, with `centroidal_mpc_g1/` and `wb_id_mpc_g1/` inside);
+  from anywhere else the cached CppAD libraries are not found and the model is
+  regenerated.
 
 **Flat ground:**
 ```bash
@@ -295,7 +318,7 @@ Useful launch args:
 ```bash
 baseCommandGui:=true | false
 spawnMpcController:=true | false         # false is only for environment smoke tests; the robot will not balance
-mpcControllerName:=humanoid_centroidal_mpc_controller
+mpcControllerName:=humanoid_centroidal_mpc_controller | humanoid_whole_body_inverse_dynamics_mpc_controller
 use_mujoco_sim:=true | false             # false: plain ros2_control_node (fake hardware)
 use_fake_hardware:=false | true          # mock_components/GenericSystem when not using MuJoCo
 ros2ControlCommandInterface:=effort | effort_pd | position
@@ -310,7 +333,7 @@ gt_enabled:=true | false                 # floating-base ground-truth odometry f
 gt_body_frame:=pelvis                    # MuJoCo body published as ground truth
 mpcFreq:=100                             # integer
 mrtFreq:=1000                            # integer
-libFolder:=auto_generated/g1             # CppAD codegen output
+libFolder:=auto_generated/g1             # CppAD codegen output (centroidal_mpc_g1/, wb_id_mpc_g1/ inside)
 mujocoModelFile:=scene.xml               # swap scene: boxes / stairs / slope in description/g1/mujoco
 stairClimbingFile:=stair_climbing.yaml
 terrainWalkingFile:terrain_walking.yaml
@@ -334,6 +357,7 @@ All MPC settings live in ROS 2 parameters:
 | Controller | Parameter declaration | Config adapter | Interface |
 |---|---|---|---|
 | `humanoid_centroidal_mpc_controller` | [`src/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller_parameter.yaml`](./src/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller_parameter.yaml) | [`src/humanoid_centroidal_mpc/centroidal_mpc_config_builder.cpp`](./src/humanoid_centroidal_mpc/centroidal_mpc_config_builder.cpp) | `CentroidalMpcInterface::Config` |
+| `humanoid_whole_body_inverse_dynamics_mpc_controller` | the centroidal declaration above **plus** [`src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller_parameter.yaml`](./src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller_parameter.yaml) (`wholeBody.*`) | [`src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp`](./src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp) | `WbIdMpcInterface::Config` |
 
 It declares model settings, foot-constraint gains, swing trajectory, SQP/rollout/MPC solver settings, `Q`/`R`/`Q_final` cost diagonals, task-space foot cost weights, and the friction-cone / contact-moment / joint-limit / foot-collision constraint parameters. 
 
@@ -398,6 +422,74 @@ maps G1's heel/toe onto the wrong joints entirely. This is structural, not a
 controller assumes while `useTerrainHeightEstimate` is off — that is consistency,
 not terrain generality, which is exactly why terrain support needs both changes
 together.
+
+## Whole-Body Inverse-Dynamics MPC
+
+`humanoid_whole_body_inverse_dynamics_mpc_controller` plans with the full rigid-body dynamics instead of the centroidal model, following
+
+- C. Molnar et al., *Whole-Body Inverse Dynamics MPC for Legged Loco-Manipulation*, RA-L 2025 (code: `wb-mpc-locoman`)
+- C. Khazoom et al., *Tailoring Solution Accuracy for Fast Whole-Body Model Predictive Control of Legged Robots*, RA-L 2024 (MIT Humanoid)
+
+in OCS2 (SQP, multiple shooting, HPIPM). On the G1 (23 MPC joints, `nv = 29`):
+
+```
+x = [q, v]                     58   q: base position + ZYX Euler, joints;  v = dq/dt
+u = [W_l, W_r, a, tau_j]       64   contact wrenches, generalized acceleration, joint torques
+xdot = [v; a]                       (a double integrator: the dynamics are a constraint)
+```
+
+| constraint | rows | where | |
+|---|---|---|---|
+| RNEA base rows `[RNEA(q,v,a) - J^T W]_base = 0` | 6 | every node | Newton-Euler (centroidal) dynamics |
+| RNEA joint rows `[RNEA(q,v,a) - J^T W]_joints = tau` | 23 | first `wholeBody.torqueConstraintNodes` nodes | defines the torque that is sent |
+| `-tau_max <= tau <= tau_max` from `control.torqueLimit` (soft) | 46 | same nodes | |
+| stance: `a_c + Kd v_c + Kp [z - z_ref; tilt] = 0` | 6 per foot | in contact | `Kd = 1/dt`: `v_c = 0` at the next node |
+| swing: vertical spline tracking at acceleration level, `W = 0` | 1 + 6 per foot | in swing | |
+| joint velocity limits `\|qd_j\| <= scale * URDF limit` (soft) | 46 | every node | ETH; the joint velocities are states here |
+| friction cone, CoP (soft), joint limits, foot collision (soft) | | | as in the centroidal MPC |
+
+Two adaptations of the papers to OCS2:
+
+- **Torque rows only on the first nodes** (ETH `tau_nodes = 3`, MIT 2 steps). Only the first torques reach the robot; the base rows shape the motion over the rest of the horizon. The window must also cover the MPC latency: the controller sends the policy's `tau` while it is inside the window and falls back to the plan's inverse dynamics if a slow solve leaves it outside (logged as a torque-window warning).
+- **Contact at acceleration level.** ETH imposes `v_c = 0` on the state directly, but OCS2's SQP hands only state-input equalities to the QP (a pure state equality is transcribed but never enforced). With the exact double-integrator discretization, `a_c + v_c/dt = 0` at node `k` is `v_c = 0` at node `k+1`, so `ocs2.model.footConstraint` holds acceleration-level gains in this controller's block (velocity gains `1/dt`, non-zero acceleration gains).
+
+Everything else is shared with the centroidal MPC: gait library and gait FSM, swing planner, capture-point foot placement, base twist/pose targets, arm posture tracking, the foot and torso task-space costs, the leg external-torque cost, the estimator controllers and the GT-free bring-up. The inner loop is the policy itself: `q_des`, `qd_des` from the planned state and `tau_ff = tau` from the planned input, around the `effort_pd` joint servo (`wholeBody.control.feedforward: inverse_dynamics` instead evaluates RNEA at the measured state with the plan's accelerations and wrenches).
+
+**Run it:**
+
+```bash
+cd <workspace_dir>
+# estimator-driven (default floatingBaseSource), flat scene, GUI
+ros2 launch legged_robot_mpc_controller g1.launch.py \
+  mpcControllerName:=humanoid_whole_body_inverse_dynamics_mpc_controller \
+  floatingBaseEstimator:=humanoid_inekf \
+  mujocoModelFile:=scene_flat.xml
+
+# ground-truth base, scripted
+ros2 launch legged_robot_mpc_controller g1.launch.py \
+  mpcControllerName:=humanoid_whole_body_inverse_dynamics_mpc_controller \
+  floatingBaseSource:=ground_truth_state floatingBaseEstimator:=none \
+  mujocoModelFile:=scene_flat.xml baseCommandGui:=false
+ros2 run legged_robot_mpc_controller command_sequence.py --sequence robustness --settle-before 0
+```
+
+**CppAD cache:** `auto_generated/g1/wb_id_mpc_g1/` (21 libraries, generated on the first launch). The `wb_id_mpc_` prefix keeps them apart from the centroidal libraries, several of which have the same model names but other dimensions.
+
+**Configuration:** the `humanoid_whole_body_inverse_dynamics_mpc_controller` block of [`config/g1/ros2_controllers.yaml`](./config/g1/ros2_controllers.yaml). It repeats the centroidal block's keys (the ROS 2 YAML loader has no anchors) with whole-body weights and gains, and adds `wholeBody.*`:
+
+| key | meaning |
+|---|---|
+| `wholeBody.torqueConstraintNodes` | nodes carrying the joint-torque rows and torque limits (default 3; `<= 0`: all) |
+| `wholeBody.torqueLimitBarrier.{mu,delta}` | relaxed barrier of the torque limits |
+| `wholeBody.jointVelocityLimit.{scale,mu,delta}` | joint velocity limits as a fraction of the URDF ones (`scale <= 0`: off) |
+| `wholeBody.costs.q/qFinal.baseVelocity` | base twist tracking `[vx, vy, vz, yaw, pitch, roll rates]` |
+| `wholeBody.costs.q/qFinal.jointVelocities` | joint velocity regularization |
+| `wholeBody.costs.r.{baseAccelerations, jointAccelerations, jointTorques}` | input weights (times `ocs2.costs.rScaling`) |
+| `wholeBody.control.feedforward` | `policy_torque` (default) or `inverse_dynamics` |
+
+`ocs2.costs.q/qFinal.{basePose, jointPositions}`, `ocs2.costs.r.contactWrenches`, the task-space and leg-torque costs and all constraints keep their centroidal meaning; `centroidalMomentum` and `r.jointVelocities` are unused. Not available in this controller (yet): the ICP cost, frame-relation tracking commands, the WBC inner loop and the diagnostics CSV. Stair climbing and terrain walking load, but are untested with it.
+
+**Code:** core in [`include/humanoid_wb_id_mpc`](./include/humanoid_wb_id_mpc) / [`src/core/humanoid_wb_id_mpc`](./src/core/humanoid_wb_id_mpc) (`WbIdMpcInterface`, `WbIdMpcRobotModel`, `WbIdDynamics`, `WbIdRneaConstraintCppAd`, `WbIdFootAccelerationConstraintCppAd`, `WbIdJointTorqueLimitConstraint`, `WbIdTorqueWindow`, `WbIdInitializer`, `WbIdMpcTargetTrajectoriesCalculator`); controller in [`src/humanoid_whole_body_inverse_dynamics_mpc`](./src/humanoid_whole_body_inverse_dynamics_mpc).
 
 ## Robot Description and Frames
 
