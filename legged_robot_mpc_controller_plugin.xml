@@ -9,6 +9,15 @@
   </class>
 
   <class
+    name="legged_robot_mpc_controller/HumanoidWholeBodyInverseDynamicsMpcController"
+    type="legged_robot_mpc_controller::HumanoidWholeBodyInverseDynamicsMpcController"
+    base_class_type="controller_interface::ChainableControllerInterface">
+    <description>
+      OCS2 floating-base humanoid whole-body inverse-dynamics MPC controller (x = [q, v], u = [W, a, tau]).
+    </description>
+  </class>
+
+  <class
     name="legged_robot_mpc_controller/HumanoidInEkfController"
     type="legged_robot_mpc_controller::HumanoidInEkfController"
     base_class_type="controller_interface::ChainableControllerInterface">

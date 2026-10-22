@@ -1,3 +1,19 @@
+"""G1 humanoid in MuJoCo with an OCS2 MPC ros2 controller and a floating-base estimator.
+
+Run from the workspace root (the CppAD cache folder is relative to it):
+
+    # centroidal MPC (default)
+    ros2 launch legged_robot_mpc_controller g1.launch.py
+
+    # whole-body inverse-dynamics MPC
+    ros2 launch legged_robot_mpc_controller g1.launch.py \
+        mpcControllerName:=humanoid_whole_body_inverse_dynamics_mpc_controller
+
+Both controllers are configured in config/g1/ros2_controllers.yaml under their own
+names, and share the gait, estimator and bring-up. Their CppAD libraries are cached in
+auto_generated/g1 (libFolder), in centroidal_mpc_g1/ and wb_id_mpc_g1/ respectively.
+"""
+
 import os
 from typing import List
 
@@ -22,14 +38,15 @@ def generate_launch_description():
 
     rviz_default = os.path.join(mpc_share_dir, "config", "rviz", "humanoid.rviz")
     initial_pose_default = os.path.join(mpc_share_dir, "config", "g1", "initial_pose.yaml")
-    # Per-branch CppAD cache. The generated libraries are keyed by model NAME
-    # only, with nothing recording the dimensions they were built for, so two
-    # branches whose costs differ in parameter count will silently load each
-    # other's libraries and segfault inside functor_generic_model.hpp with
-    # "Invalid independent array size". This branch changes ICPCost::getParameters
-    # from 2 to 5 parameters, so it must not share a cache with main.
-    lib_folder_default = os.path.join("auto_generated", "g1_test")
+    # CppAD cache, shared by both MPCs: each writes its own subfolder
+    # (centroidal_mpc_g1, wb_id_mpc_g1). The generated libraries are keyed by model
+    # NAME only, with nothing recording the dimensions they were built for, so a
+    # cost whose parameter count changes (as ICPCost's did, 2 -> 5) loads a stale
+    # library and segfaults inside functor_generic_model.hpp with "Invalid
+    # independent array size". Delete that model's folder when that happens.
+    lib_folder_default = os.path.join("auto_generated", "g1")
     mpc_controller_default = "humanoid_centroidal_mpc_controller"
+    whole_body_controller = "humanoid_whole_body_inverse_dynamics_mpc_controller"
 
     # The one robot URDF, pelvis-rooted with no world link or floating joint: the MPC
     # and the estimators add the floating base themselves, and robot_state_publisher
@@ -82,9 +99,16 @@ def generate_launch_description():
         DeclareLaunchArgument("urdfFile", default_value=urdf_default),
         DeclareLaunchArgument("environmentDescription", default_value=environment_default),
         DeclareLaunchArgument(
+            "mpcControllerName",
+            default_value=mpc_controller_default,
+            choices=[mpc_controller_default, whole_body_controller],
+            description="MPC ros2 controller to load and activate: the centroidal MPC, or the whole-body "
+                        "inverse-dynamics MPC (x = [q, v], u = [W, a, tau]).",),
+        DeclareLaunchArgument(
             "libFolder",
             default_value=lib_folder_default,
-            description="Writable folder for generated or cached CppAD libraries",
+            description="Writable folder for generated or cached CppAD libraries, relative to the "
+                        "launch directory; each MPC uses its own subfolder.",
         ),
         DeclareLaunchArgument(
             "floatingBaseSource", default_value="state_estimator",
@@ -123,10 +147,6 @@ def generate_launch_description():
         DeclareLaunchArgument("gaitLibraryFile", default_value=gait_library_file_default),
         DeclareLaunchArgument("stairClimbingFile", default_value=stair_climbing_file_default),
         DeclareLaunchArgument("terrainWalkingFile", default_value=terrain_walking_file_default),
-        DeclareLaunchArgument(
-            "mpcControllerName",
-            default_value=mpc_controller_default,
-            description="Name of the supported MPC ros2 controllers to load and activate.",),
         DeclareLaunchArgument("ros2ControlCommandInterface", default_value="effort_pd"),
         DeclareLaunchArgument(
             "mujocoEffortCommandMode",

@@ -1,0 +1,104 @@
+# Parameters the whole-body inverse-dynamics MPC adds to the centroidal controller's
+# (humanoid_centroidal_mpc_controller_parameter.yaml), which it reads as well: paths,
+# robot, control, floatingBase, bringUp, ocs2.* and visualization keep their meaning.
+# Only what has no counterpart in the centroidal state x = [h, q] / input u = [W, qd_j]
+# lives here, all under wholeBody.*. The whole-body MPC has
+#   x = [q (6 + nj), v (6 + nj)]            u = [W_l, W_r (6 each), a (6 + nj), tau_j (nj)]
+# and reuses ocs2.costs.q/qFinal.basePose and .jointPositions and
+# ocs2.costs.r.contactWrenches for the blocks the two models share. Its stance and swing
+# foot constraints are at acceleration level and take their gains from
+# ocs2.model.footConstraint, whose acceleration gains must be non-zero for it.
+humanoid_whole_body_inverse_dynamics_mpc_controller:
+  wholeBody:
+    costs:
+      q:
+        baseVelocity: {
+          type: double_array,
+          default_value: [3.0, 3.0, 3.0, 3.0, 3.0, 3.0],
+          description: "Base twist tracking weights [vx, vy, vz world, yaw, pitch, roll Euler rates], compared in the pelvis frame like the base pose (BaseMotionTrackingCost)",
+          validation: { fixed_size<>: [6] }
+        }
+        jointVelocities: {
+          type: double_array,
+          default_value: [],
+          description: "State cost diagonal on the joint velocities, index-aligned with robot.jointNames"
+        }
+      qFinal:
+        baseVelocity: {
+          type: double_array,
+          default_value: [3.0, 3.0, 3.0, 3.0, 3.0, 3.0],
+          description: "Terminal base twist tracking weights",
+          validation: { fixed_size<>: [6] }
+        }
+        jointVelocities: {
+          type: double_array,
+          default_value: [],
+          description: "Terminal state cost diagonal on the joint velocities"
+        }
+      r:
+        baseAccelerations: {
+          type: double_array,
+          default_value: [0.001, 0.001, 0.001, 0.001, 0.001, 0.001],
+          description: "Input cost diagonal on the base acceleration [linear xyz, Euler ZYX]; times ocs2.costs.rScaling",
+          validation: { fixed_size<>: [6] }
+        }
+        jointAccelerations: {
+          type: double_array,
+          default_value: [],
+          description: "Input cost diagonal on the joint accelerations, index-aligned with robot.jointNames; times ocs2.costs.rScaling"
+        }
+        jointTorques: {
+          type: double_array,
+          default_value: [],
+          description: "Input cost diagonal on the joint torques, index-aligned with robot.jointNames; times ocs2.costs.rScaling"
+        }
+
+    # Joint-torque rows of the inverse dynamics and the torque limits apply on the first
+    # torqueConstraintNodes nodes only (Molnar et al.: tau_nodes = 3; Khazoom et al.: 2);
+    # the base rows apply everywhere. The window must also cover the MPC's latency, since
+    # the controller sends the torque of the node it is currently between. <= 0: all nodes.
+    torqueConstraintNodes: {
+      type: int,
+      default_value: 3,
+      description: "Nodes from the start of the horizon carrying the joint-torque rows and torque limits; <= 0 for all"
+    }
+    torqueLimitBarrier:
+      mu: {
+        type: double,
+        default_value: 0.1,
+        description: "Relaxed log barrier mu of the torque limits (control.torqueLimit; empty = no limits)"
+      }
+      delta: {
+        type: double,
+        default_value: 5.0,
+        description: "Relaxed log barrier delta of the torque limits [Nm]"
+      }
+
+    # |qd_j| <= scale * URDF velocity limit on every node (Molnar et al. bound the joint
+    # velocities; here they are states, so they can be). <= 0 disables.
+    jointVelocityLimit:
+      scale: {
+        type: double,
+        default_value: 1.0,
+        description: "Fraction of the URDF joint velocity limits enforced (soft); <= 0 disables"
+      }
+      mu: {
+        type: double,
+        default_value: 0.1,
+        description: "Relaxed log barrier mu of the joint velocity limits"
+      }
+      delta: {
+        type: double,
+        default_value: 1.0,
+        description: "Relaxed log barrier delta of the joint velocity limits [rad/s]"
+      }
+
+    control:
+      feedforward: {
+        type: string,
+        default_value: "policy_torque",
+        description: "Joint torque feedforward. policy_torque: the MPC's own tau, interpolated at the current time (Molnar et al.). inverse_dynamics: RNEA at the MEASURED (q, v) with the policy's acceleration and wrenches, like the centroidal controller's inner loop.",
+        validation: {
+          one_of<>: [["policy_torque", "inverse_dynamics"]]
+        }
+      }
