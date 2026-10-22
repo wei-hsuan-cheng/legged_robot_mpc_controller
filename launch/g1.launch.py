@@ -141,7 +141,7 @@ def generate_launch_description():
         DeclareLaunchArgument("controllersFile", default_value=controllers_file_default),
         DeclareLaunchArgument(
             "refBaseHeight",
-            default_value="0.75",
+            default_value="0.795",
             description=(
                 "Nominal pelvis height [m]. Substituted into ocs2.reference.defaultBaseHeight "
                 "in the controllers yaml AND handed to the base-command GUI, so the slider's "

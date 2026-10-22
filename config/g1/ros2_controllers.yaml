@@ -606,7 +606,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         printSolverStatistics: true
         printSolverStatus: false
         printLinesearch: false
-        useFeedbackPolicy: false
+        useFeedbackPolicy: true
         integratorType: RK4
         threadPriority: 50
 
@@ -630,13 +630,15 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
       costs:
         qScaling: 1.0
         rScaling: 0.001
-        terminalCostScaling: 4.0
+        terminalCostScaling: 1.0
         # Q/Qf on x = [base pose, joint positions, base velocity, joint velocities].
         # Base pose: [x, y, z, yaw, pitch, roll].
         # Base velocity: [vx, vy, vz, yaw rate, pitch rate, roll rate] (Euler rates).
         q:
-          basePose: [0.0, 0.0, 1000.0, 0.0, 1000.0, 1000.0]
-          baseVelocity: [300.0, 150.0, 30.0, 300.0, 30.0, 30.0]
+          # basePose: [0.0, 0.0, 1000.0, 0.0, 1000.0, 1000.0]
+          # baseVelocity: [300.0, 150.0, 30.0, 300.0, 30.0, 30.0]
+          basePose: [0.0, 0.0, 100.0, 0.0, 100.0, 100.0]
+          baseVelocity: [30.0, 15.0, 3.0, 30.0, 3.0, 3.0]
           jointPositions:
             [0.05, 0.2, 0.2, 0.1, 0.1, 0.1,
              0.05, 0.2, 0.2, 0.1, 0.1, 0.1,
@@ -651,8 +653,10 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
              0.02, 0.02, 0.02, 0.02]
 
         qFinal:
-          basePose: [0.0, 0.0, 1000.0, 0.0, 1000.0, 1000.0]
-          baseVelocity: [300.0, 150.0, 30.0, 300.0, 30.0, 30.0]
+          # basePose: [0.0, 0.0, 1000.0, 0.0, 1000.0, 1000.0]
+          # baseVelocity: [300.0, 150.0, 30.0, 300.0, 30.0, 30.0]
+          basePose: [0.0, 0.0, 100.0, 0.0, 100.0, 100.0]
+          baseVelocity: [30.0, 15.0, 3.0, 30.0, 3.0, 3.0]
           jointPositions:
             [0.05, 0.1, 0.1, 0.1, 0.1, 0.1,
              0.05, 0.1, 0.1, 0.1, 0.1, 0.1,
@@ -756,10 +760,10 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
       reference:
         targetDisplacementVelocity: 0.5
         targetRotationVelocity: 0.5
-        maxDisplacementVelocityX: 1.0
+        maxDisplacementVelocityX: 0.5
         maxDisplacementVelocityY: 0.5
         maxDeltaPelvisHeight: 0.4
-        maxRotationVelocity: 0.25
+        maxRotationVelocity: 0.7854
         defaultBaseHeight: $(var refBaseHeight)
         basePosePositionTolerance: 0.02
         basePoseOrientationTolerance: 0.03
