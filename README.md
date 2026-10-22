@@ -21,25 +21,13 @@ The humanoid centroidal MPC is migrated from the original implementaion of [`wb_
   vcs import < legged_robot_mpc_controller/legged_robot_mpc_controller.repos
   ```
 
-- `pinocchio` comes from `rosdep` below: this branch builds against the stock
-  `ros-jazzy-pinocchio` (**4.x**, tested with 4.1.0) and `ros-jazzy-coal`. No snapshot
-  archive or pinning is needed (that is the Humble branch, which requires 3.9.x).
-  Optionally hold the tested versions, since the code still uses Pinocchio 4's
-  deprecated pre-4 header paths, which a later major release may remove:
-    ```bash
-    sudo apt-mark hold ros-jazzy-pinocchio ros-jazzy-coal
-    # check: expect "Version: 4.1.0-..." and flag "hi" (h = held, i = installed)
-    dpkg -s ros-jazzy-pinocchio | grep Version
-    dpkg -l ros-jazzy-pinocchio | tail -1
-    ```
-
 - First install by `rosdep`
   ```bash
   # rosdep install
   cd <workspace_dir>
   sudo rosdep init # if you never did this
   rosdep update
-  rosdep install --ignore-src --from-paths src -y -r
+  rosdep install --ignore-src --from-paths src -y -r  # includes pinocchio 4.x and coal
   ```
 
 - Build `mujoco`-related pkg. (See **troubleshooting section** [here](https://github.com/wei-hsuan-cheng/mujoco_ros2_control) if needed)
