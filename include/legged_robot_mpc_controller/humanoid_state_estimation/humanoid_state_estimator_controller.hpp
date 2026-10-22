@@ -82,7 +82,6 @@ private:
   std::vector<double> exported_values_;
   std::vector<hardware_interface::StateInterface::SharedPtr> exported_interfaces_;
 
-  rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odometry_publisher_;
   std::unique_ptr<realtime_tools::RealtimePublisher<nav_msgs::msg::Odometry>> rt_odometry_publisher_;
   nav_msgs::msg::Odometry odometry_;
   double last_odometry_time_{-1.0};
