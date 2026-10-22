@@ -27,7 +27,7 @@ The humanoid centroidal MPC is migrated from the original implementaion of [`wb_
   cd <workspace_dir>
   sudo rosdep init # if you never did this
   rosdep update
-  rosdep install --ignore-src --from-paths src -y -r  # includes pinocchio 4.x and coal
+  rosdep install --ignore-src --from-paths src -y -r
   ```
 
 - Build `mujoco`-related pkg. (See **troubleshooting section** [here](https://github.com/wei-hsuan-cheng/mujoco_ros2_control) if needed)
