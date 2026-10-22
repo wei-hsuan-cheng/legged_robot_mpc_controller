@@ -2,6 +2,8 @@
 
 ROS 2 controller integration for legged robot MPC using [OCS2](https://github.com/wei-hsuan-cheng/ocs2_ros2.git) and [Pinocchio](https://github.com/stack-of-tasks/pinocchio.git). Tested in [MuJoCo](https://mujoco.readthedocs.io/en/stable/overview.html) simulation environment.
 
+This is the **ROS 2 Jazzy** branch (Ubuntu 24.04, ros2_control 4.x, Pinocchio 4). The Humble version is on `main`.
+
 The humanoid centroidal MPC is migrated from the original implementaion of [`wb_humanoid_mpc`](https://github.com/manumerous/wb_humanoid_mpc.git).
 
 
@@ -19,31 +21,16 @@ The humanoid centroidal MPC is migrated from the original implementaion of [`wb_
   vcs import < legged_robot_mpc_controller/legged_robot_mpc_controller.repos
   ```
 
-- Install `pinocchio` library (**3.9.x required**; `packages.ros.org` only serves the newest
-  build, which is `4.0.0` now, so install `3.9.0` from the ROS snapshot archive and hold it)
+- `pinocchio` comes from `rosdep` below: this branch builds against the stock
+  `ros-jazzy-pinocchio` (**4.x**, tested with 4.1.0) and `ros-jazzy-coal`. No snapshot
+  archive or pinning is needed (that is the Humble branch, which requires 3.9.x).
+  Optionally hold the tested versions, since the code still uses Pinocchio 4's
+  deprecated pre-4 header paths, which a later major release may remove:
     ```bash
-    # Import the ROS snapshot archive key and add the 2026-03-29 humble snapshot
-    # (works on x86_64 and arm64; the arch is taken from dpkg)
-    curl -s "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xAD19BAB3CBF125EA" | \
-      sudo gpg --batch --yes --dearmor -o /usr/share/keyrings/ros-snapshots-archive-keyring.gpg
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-snapshots-archive-keyring.gpg] http://snapshots.ros.org/humble/2026-03-29/ubuntu jammy main" | \
-      sudo tee /etc/apt/sources.list.d/ros2-snapshots.list
-    sudo apt update
-
-    # Install pinocchio 3.9.0 from the snapshot and pin it so a later apt upgrade
-    # does not pull 4.x. The exact build id differs per architecture
-    # (amd64: ...20260304.203533, arm64: ...20260307.163259), so resolve it from apt:
-    PINOCCHIO_VERSION=$(apt-cache madison ros-humble-pinocchio | awk '/snapshots.ros.org/ {print $3; exit}')
-    sudo apt install ros-humble-pinocchio=${PINOCCHIO_VERSION}
-    sudo apt-mark hold ros-humble-pinocchio
-
-    # Drop the snapshot source again afterwards
-    sudo rm /etc/apt/sources.list.d/ros2-snapshots.list && sudo apt update
-
-    # Check the installed version and the hold:
-    # expect "Version: 3.9.0-..." and flag "hi" (h = held, i = installed)
-    dpkg -s ros-humble-pinocchio | grep Version
-    dpkg -l ros-humble-pinocchio | tail -1
+    sudo apt-mark hold ros-jazzy-pinocchio ros-jazzy-coal
+    # check: expect "Version: 4.1.0-..." and flag "hi" (h = held, i = installed)
+    dpkg -s ros-jazzy-pinocchio | grep Version
+    dpkg -l ros-jazzy-pinocchio | tail -1
     ```
 
 - First install by `rosdep`

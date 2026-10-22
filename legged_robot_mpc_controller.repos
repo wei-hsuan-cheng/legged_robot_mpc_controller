@@ -3,19 +3,15 @@ repositories:
     legged_robot_mpc_controller_dependencies/mujoco_ros2_control:
       type: git
       url: https://github.com/wei-hsuan-cheng/mujoco_ros2_control.git
-      version: main
+      version: jazzy
     
-    # ros2_controller parameter auto generator
-    legged_robot_mpc_controller_dependencies/generate_parameter_library:
-      type: git
-      url: https://github.com/wei-hsuan-cheng/generate_parameter_library.git
-      version: humble
+    # generate_parameter_library: ros-jazzy-generate-parameter-library, from rosdep
 
     # ocs2 stack
     legged_robot_mpc_controller_dependencies/ocs2_ros2:
       type: git
       url: https://github.com/wei-hsuan-cheng/ocs2_ros2.git
-      version: humble
+      version: jazzy
     legged_robot_mpc_controller_dependencies/ocs2_ros2/submodules/ocs2_robotic_assets:
       type: git
       url: https://github.com/wei-hsuan-cheng/ocs2_robotic_assets.git
@@ -29,4 +25,4 @@ repositories:
     legged_robot_mpc_controller_dependencies/legged_state_estimator:
       type: git
       url: https://github.com/wei-hsuan-cheng/legged_state_estimator.git
-      version: main
+      version: jazzy
