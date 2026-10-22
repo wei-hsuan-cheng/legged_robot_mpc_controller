@@ -172,13 +172,3 @@ humanoid_linear_kf:
     default_value: "pelvis",
     description: "child_frame_id of the published odometry"
   }
-  modeScheduleTopic: {
-    type: string,
-    default_value: "/humanoid_centroidal_mpc_controller/mode_schedule",
-    description: "ocs2_msgs/ModeSchedule from the MPC, used by contact.source scheduled. It is time-indexed, so the contact flags are evaluated at this controller's own update time; until one arrives both feet are taken to be in stance."
-  }
-  initializeTopic: {
-    type: string,
-    default_value: "/humanoid_centroidal_mpc_controller/estimator_initialize",
-    description: "std_msgs/UInt32 initialization epoch. The filter stays off until an epoch arrives, then initializes from stance and does so again whenever the epoch changes; the epoch it last acted on is exported, so a consumer can tell a fresh ready from a stale one."
-  }

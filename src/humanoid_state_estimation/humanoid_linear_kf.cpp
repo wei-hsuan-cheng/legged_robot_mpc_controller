@@ -41,8 +41,6 @@ bool HumanoidLinearKf::readParameters(
   common.urdf_file = p.urdfFile;
   common.joint_names = p.jointNames;
   common.base_frame = p.baseFrame;
-  common.mode_schedule_topic = p.modeScheduleTopic;
-  common.initialize_topic = p.initializeTopic;
   common.imu_interface_name = p.imuInterfaceName;
   common.imu_frame = p.imuFrame;
   common.contact_frames = p.contactFrames;

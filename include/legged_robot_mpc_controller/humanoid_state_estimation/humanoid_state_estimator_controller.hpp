@@ -3,7 +3,6 @@
 #ifndef LEGGED_ROBOT_MPC_CONTROLLER__HUMANOID_STATE_ESTIMATION__HUMANOID_STATE_ESTIMATOR_CONTROLLER_HPP_
 #define LEGGED_ROBOT_MPC_CONTROLLER__HUMANOID_STATE_ESTIMATION__HUMANOID_STATE_ESTIMATOR_CONTROLLER_HPP_
 
-#include <atomic>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -11,11 +10,7 @@
 
 #include <controller_interface/chainable_controller_interface.hpp>
 #include <nav_msgs/msg/odometry.hpp>
-#include <ocs2_core/reference/ModeSchedule.h>
-#include <ocs2_msgs/msg/mode_schedule.hpp>
-#include <realtime_tools/realtime_buffer.hpp>
 #include <realtime_tools/realtime_publisher.hpp>
-#include <std_msgs/msg/u_int32.hpp>
 
 #include "legged_robot_mpc_controller/humanoid_state_estimation/floating_base_estimate.hpp"
 #include "legged_robot_mpc_controller/humanoid_state_estimation/humanoid_state_estimator.hpp"
@@ -26,19 +21,17 @@ namespace legged_robot_mpc_controller
 /**
  * A floating-base estimator as a ros2_control controller.
  *
- * Estimate -> consumer is CHAINED: the estimate, its status and its scalar
- * diagnostics are exported as state interfaces (estimator_state_interfaces.hpp).
- * A controller that claims them is ordered after this one by the controller
- * manager, so it reads this tick's estimate.
+ * Both directions are chained interfaces this controller exports, and only the
+ * consumer claims them (estimator_state_interfaces.hpp), so there is no cycle:
+ *  - estimate -> consumer: the estimate, its status and its scalar diagnostics, as
+ *    state interfaces;
+ *  - consumer -> estimator: the contact flags and the initialization epoch, as
+ *    reference interfaces the consumer writes. The filter stays off until an epoch is
+ *    written, then initializes from stance, and again whenever it changes. The epoch
+ *    acted on is exported, so the consumer can tell a fresh `ready` from a stale one.
  *
- * Consumer -> estimate is a TOPIC. ros2_control cannot chain both ways: two
- * controllers each claiming the other's exported interfaces make the controller
- * manager's activation check recurse without end. It is also not needed:
- *  - the mode schedule is time-indexed, so the contact flags are evaluated at this
- *    controller's own update time whatever the message latency;
- *  - initialization is an epoch. The filter stays off until one arrives, then
- *    initializes from stance, and again whenever it changes. The epoch acted on is
- *    exported, so the consumer can tell a fresh `ready` from a stale one.
+ * The controller manager runs the two in one order per tick, so one direction is a
+ * tick late.
  *
  * Which filter runs is decided by which controller is loaded.
  */
@@ -81,13 +74,9 @@ private:
   bool imu_orientation_valid_{false};
   std::vector<bool> foot_contacts_;
 
-  realtime_tools::RealtimeBuffer<ocs2::ModeSchedule> mode_schedule_;
-  std::atomic<bool> mode_schedule_received_{false};
-  std::atomic<std::uint32_t> requested_epoch_{0};
+  std::vector<hardware_interface::CommandInterface::SharedPtr> reference_handles_;
   std::uint32_t epoch_{0};
   double epoch_time_{0.0};
-  rclcpp::Subscription<ocs2_msgs::msg::ModeSchedule>::SharedPtr mode_schedule_subscription_;
-  rclcpp::Subscription<std_msgs::msg::UInt32>::SharedPtr initialize_subscription_;
 
   state_estimation::FloatingBaseEstimate estimate_;
   std::vector<double> exported_values_;

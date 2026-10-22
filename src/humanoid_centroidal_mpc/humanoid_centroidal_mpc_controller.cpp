@@ -20,7 +20,6 @@
 #include <ocs2_centroidal_model/ModelHelperFunctions.h>
 #include <ocs2_robotic_tools/common/RotationDerivativesTransforms.h>
 #include <ocs2_robotic_tools/common/RotationTransforms.h>
-#include <ocs2_ros_interfaces/common/RosMsgConversions.h>
 #include <pluginlib/class_list_macros.hpp>
 
 #include <humanoid_common_mpc/gait/MotionPhaseDefinition.h>
@@ -293,21 +292,12 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_configu
 
     // The estimator is its own controller; this one reads its exported state
     // interfaces and sends it the gait and the initialization epoch.
-    configure_stage = "creating the estimator topics";
+    configure_stage = "connecting to the estimator controller";
     if (uses_state_estimator(parameters_.floatingBase.source) && !has_estimator()) {
       throw std::runtime_error(
         "floatingBase.source is state_estimator but floatingBase.estimator is none; launch with "
         "floatingBaseEstimator:=humanoid_inekf (or humanoid_linear_kf)");
     }
-    // Latched, so an estimator activated later still gets the latest of each.
-    const auto latched = rclcpp::QoS(1).reliable().transient_local();
-    mode_schedule_publisher_ =
-      get_node()->create_publisher<ocs2_msgs::msg::ModeSchedule>("~/mode_schedule", latched);
-    estimator_initialize_publisher_ =
-      get_node()->create_publisher<std_msgs::msg::UInt32>("~/estimator_initialize", latched);
-    rt_estimator_initialize_publisher_ =
-      std::make_unique<realtime_tools::RealtimePublisher<std_msgs::msg::UInt32>>(
-        estimator_initialize_publisher_);
     estimator_values_.assign(estimator_interfaces::names().size(), 0.0);
     RCLCPP_INFO(
       get_node()->get_logger(),
@@ -444,9 +434,27 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_activat
         static_cast<std::size_t>(std::distance(state_interfaces_.begin(), it)));
     }
   }
+  estimator_command_index_.clear();
+  if (has_estimator()) {
+    const std::string& estimator = parameters_.floatingBase.estimator;
+    for (const auto& name : estimator_interfaces::reference_names()) {
+      const auto it = std::find_if(
+        command_interfaces_.begin(), command_interfaces_.end(), [&](const auto& interface) {
+          return interface.get_prefix_name() == estimator && interface.get_interface_name() == name;
+        });
+      if (it == command_interfaces_.end()) {
+        RCLCPP_ERROR(
+          get_node()->get_logger(),
+          "[HumanoidCentroidalMpcController] estimator reference interface %s/%s is not claimed.",
+          estimator.c_str(), name.c_str());
+        return controller_interface::CallbackReturn::ERROR;
+      }
+      estimator_command_index_.push_back(
+        static_cast<std::size_t>(std::distance(command_interfaces_.begin(), it)));
+    }
+  }
   last_estimate_ = state_estimation::FloatingBaseEstimate{};
   estimator_driving_control_ = false;
-  estimator_epoch_pending_ = false;
   if (diagnostics_) {
     try {
       diagnostics_->start();
@@ -614,8 +622,12 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_deactiv
   const rclcpp_lifecycle::State&)
 {
   stop_solver_thread();
-  for (auto& command_interface : command_interfaces_) {
-    (void)command_interface.set_value(0.0);
+  // Zero the joints only: a 0 contact flag would tell the estimator a foot is in the air.
+  for (std::size_t i = 0; i < command_interfaces_.size(); ++i) {
+    if (std::find(estimator_command_index_.begin(), estimator_command_index_.end(), i) ==
+        estimator_command_index_.end()) {
+      (void)command_interfaces_[i].set_value(0.0);
+    }
   }
   if (diagnostics_) {
     // The solver thread is already joined, so no more cost rows can arrive.
@@ -658,6 +670,14 @@ HumanoidCentroidalMpcController::command_interface_configuration() const
   }
   if (!config.names.empty()) {
     config.type = controller_interface::interface_configuration_type::INDIVIDUAL;
+  }
+  // The estimator's inputs (contact flags, initialization epoch). Claiming them
+  // makes the controller manager put the estimator in chained mode.
+  if (has_estimator()) {
+    config.type = controller_interface::interface_configuration_type::INDIVIDUAL;
+    for (const auto& name : estimator_interfaces::reference_names()) {
+      config.names.emplace_back(parameters_.floatingBase.estimator + "/" + name);
+    }
   }
   return config;
 }
@@ -738,11 +758,6 @@ controller_interface::return_type HumanoidCentroidalMpcController::update_and_wr
   }
 
   read_state_estimator();
-  if (estimator_epoch_pending_) {
-    std_msgs::msg::UInt32 msg;
-    msg.data = estimator_epoch_;
-    estimator_epoch_pending_ = !rt_estimator_initialize_publisher_->try_publish(msg);
-  }
 
   const auto observation = build_observation(time);
   JointActionCommand command;
@@ -758,6 +773,7 @@ controller_interface::return_type HumanoidCentroidalMpcController::update_and_wr
   }
 
   write_joint_action_command(command.policy_position, command.policy_velocity, command.feedforward);
+  write_estimator_references(time.seconds());
 
   // After the command exists, so the log carries the measured and the commanded
   // joint state from the same tick.
@@ -1157,19 +1173,7 @@ void HumanoidCentroidalMpcController::publish_mode_schedule()
   // its buffered schedule in during preSolverRun(), so this is the point at
   // which reading it is not concurrent with that swap.
   if (const auto reference_manager = mpc_interface_->getSwitchedModelReferenceManagerPtr()) {
-    const auto& schedule = reference_manager->getModeSchedule();
-    mode_schedule_buffer_.writeFromNonRT(schedule);
-    // The estimator takes its contact flags from this. Until the MPC drives, the
-    // bring-up has the robot standing on both feet, and the reference manager may
-    // still hold OCS2's default schedule - the single mode 0, FLY - which would
-    // tell the filter both feet are in the air. So it is sent stance instead.
-    const auto phase = bring_up_phase_.load();
-    const bool mpc_driving = !uses_state_estimator(parameters_.floatingBase.source) ||
-      phase == BringUpPhase::Blend || phase == BringUpPhase::Locomotion;
-    if (mode_schedule_publisher_) {
-      mode_schedule_publisher_->publish(ocs2::ros_msg_conversions::createModeScheduleMsg(
-        mpc_driving ? schedule : ocs2::ModeSchedule({}, {ocs2::humanoid::STANCE})));
-    }
+    mode_schedule_buffer_.writeFromNonRT(reference_manager->getModeSchedule());
   }
 }
 
@@ -1208,11 +1212,27 @@ void HumanoidCentroidalMpcController::read_state_estimator()
 void HumanoidCentroidalMpcController::request_estimator_initialization()
 {
   estimator_epoch_ = estimator_status_.epoch + 1;
-  estimator_epoch_pending_ = true;
   last_estimate_.valid = false;
-  std_msgs::msg::UInt32 msg;
-  msg.data = estimator_epoch_;
-  estimator_epoch_pending_ = !rt_estimator_initialize_publisher_->try_publish(msg);
+}
+
+void HumanoidCentroidalMpcController::write_estimator_references(double time)
+{
+  if (estimator_command_index_.size() != estimator_interfaces::reference_names().size()) {
+    return;
+  }
+  // Until the MPC drives, the bring-up has the robot standing on both feet, and the
+  // reference manager may still hold OCS2's default schedule - the single mode 0,
+  // FLY - which would tell the filter both feet are in the air. So it gets stance.
+  const auto phase = bring_up_phase_.load();
+  const bool mpc_driving = !uses_state_estimator(parameters_.floatingBase.source) ||
+    phase == BringUpPhase::Blend || phase == BringUpPhase::Locomotion;
+  const auto contact = mpc_driving ? contact_flags_at(time) : ocs2::contact_flag_t{true, true};
+  auto& left = command_interfaces_[estimator_command_index_[estimator_interfaces::kContactLeft]];
+  auto& right = command_interfaces_[estimator_command_index_[estimator_interfaces::kContactRight]];
+  auto& epoch = command_interfaces_[estimator_command_index_[estimator_interfaces::kInitializeEpoch]];
+  (void)left.set_value(contact[0] ? 1.0 : 0.0);
+  (void)right.set_value(contact[1] ? 1.0 : 0.0);
+  (void)epoch.set_value(static_cast<double>(estimator_epoch_));
 }
 
 bool HumanoidCentroidalMpcController::estimator_initialized_for_request() const

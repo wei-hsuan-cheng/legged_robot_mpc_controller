@@ -2,11 +2,11 @@
 
 #include "legged_robot_mpc_controller/humanoid_state_estimation/humanoid_state_estimator_controller.hpp"
 
+#include <cmath>
+
 #include <hardware_interface/types/hardware_interface_type_values.hpp>
-#include <ocs2_ros_interfaces/common/RosMsgConversions.h>
 #include <pluginlib/class_list_macros.hpp>
 
-#include "humanoid_common_mpc/gait/MotionPhaseDefinition.h"
 #include "legged_robot_mpc_controller/humanoid_state_estimation/estimator_state_interfaces.hpp"
 
 namespace legged_robot_mpc_controller
@@ -83,16 +83,6 @@ controller_interface::CallbackReturn HumanoidStateEstimatorController::on_config
   foot_contacts_.assign(2, true);
   exported_values_.assign(estimator_interfaces::names().size(), 0.0);
 
-  // Latched, so a late subscriber still gets the latest schedule and epoch.
-  const auto latched = rclcpp::QoS(1).reliable().transient_local();
-  mode_schedule_subscription_ = get_node()->create_subscription<ocs2_msgs::msg::ModeSchedule>(
-    se.mode_schedule_topic, latched, [this](const ocs2_msgs::msg::ModeSchedule::SharedPtr msg) {
-      mode_schedule_.writeFromNonRT(ocs2::ros_msg_conversions::readModeScheduleMsg(*msg));
-      mode_schedule_received_.store(true);
-    });
-  initialize_subscription_ = get_node()->create_subscription<std_msgs::msg::UInt32>(
-    se.initialize_topic, latched,
-    [this](const std_msgs::msg::UInt32::SharedPtr msg) { requested_epoch_.store(msg->data); });
 
   odometry_publisher_ =
     get_node()->create_publisher<nav_msgs::msg::Odometry>(se.odom_topic, rclcpp::SystemDefaultsQoS());
@@ -103,12 +93,11 @@ controller_interface::CallbackReturn HumanoidStateEstimatorController::on_config
 
   RCLCPP_INFO(
     get_node()->get_logger(),
-    "[%s] %s filter | imu=%s contacts=%zu joints=%d | %u Hz | contact_source=%s | schedule <- %s | "
-    "epoch <- %s | %zu exported state interfaces",
+    "[%s] %s filter | imu=%s contacts=%zu joints=%d | %u Hz | contact_source=%s | %zu exported state "
+    "interfaces",
     estimator_name_.c_str(), state_estimation::toString(estimator_->type()), se.imu_frame.c_str(),
     se.contact_frames.size(), estimator_->filter().numEstimatorJoints(), get_update_rate(),
-    se.contact_source.c_str(), se.mode_schedule_topic.c_str(), se.initialize_topic.c_str(),
-    exported_values_.size());
+    se.contact_source.c_str(), exported_values_.size());
   return controller_interface::CallbackReturn::SUCCESS;
 }
 
@@ -131,14 +120,24 @@ HumanoidStateEstimatorController::on_export_state_interfaces_list()
 std::vector<hardware_interface::CommandInterface::SharedPtr>
 HumanoidStateEstimatorController::on_export_reference_interfaces_list()
 {
-  return {};
+  reference_handles_.clear();
+  for (const auto & name : estimator_interfaces::reference_names()) {
+    hardware_interface::InterfaceInfo info;
+    info.name = name;
+    info.data_type = "double";
+    // Both feet in stance, epoch 0 (off), until the consumer writes them.
+    info.initial_value = name == "initialize_epoch" ? "0.0" : "1.0";
+    reference_handles_.push_back(std::make_shared<hardware_interface::CommandInterface>(
+      hardware_interface::InterfaceDescription(get_node()->get_name(), info)));
+  }
+  return reference_handles_;
 }
 
 controller_interface::CallbackReturn HumanoidStateEstimatorController::on_activate(
   const rclcpp_lifecycle::State &)
 {
-  // Off until an epoch arrives. A latched epoch from before this activation is
-  // still in requested_epoch_, so it is acted on at the first update.
+  // Off until an epoch is written. One written before this activation is still in
+  // the reference interface, so it is acted on at the first update.
   estimator_->reset();
   epoch_ = 0;
   estimate_ = state_estimation::FloatingBaseEstimate{};
@@ -208,7 +207,11 @@ controller_interface::return_type HumanoidStateEstimatorController::update_and_w
   const rclcpp::Time & time, const rclcpp::Duration &)
 {
   const double t = time.seconds();
-  const std::uint32_t requested = requested_epoch_.load();
+  const auto epoch_reference =
+    reference_handles_[estimator_interfaces::kInitializeEpoch]->get_optional();
+  const std::uint32_t requested =
+    epoch_reference && std::isfinite(*epoch_reference) && *epoch_reference > 0.0 ?
+    static_cast<std::uint32_t>(*epoch_reference) : epoch_;
   if (requested != epoch_) {
     estimator_->reset();
     estimate_ = state_estimation::FloatingBaseEstimate{};
@@ -236,15 +239,12 @@ controller_interface::return_type HumanoidStateEstimatorController::update_and_w
   }
 
   if (estimator_->settings().contact_source == "scheduled") {
-    // OCS2's default ModeSchedule is the single mode 0, FLY: read before one has
-    // arrived it would tell the filter both feet are in the air, skip every
-    // contact correction and let the IMU integrate open-loop. Until the MPC runs
-    // the robot is standing, so say so.
-    const std::size_t mode = mode_schedule_received_.load() ?
-      mode_schedule_.readFromRT()->modeAtTime(t) : static_cast<std::size_t>(ocs2::humanoid::STANCE);
-    const auto flags = ocs2::humanoid::modeNumber2StanceLeg(mode);
-    foot_contacts_[0] = flags[0];
-    foot_contacts_[1] = flags[1];
+    // From the consumer's reference interfaces; a missing or NaN value counts as
+    // stance, the state the robot is in until the MPC drives.
+    for (std::size_t foot = 0; foot < 2; ++foot) {
+      const auto flag = reference_handles_[estimator_interfaces::kContactLeft + foot]->get_optional();
+      foot_contacts_[foot] = !flag || !std::isfinite(*flag) || *flag > 0.5;
+    }
     estimate_ = filter.update(gyro_, accel_, joint_pos_, joint_vel_, joint_eff_, foot_contacts_);
   } else {
     estimate_ = filter.update(gyro_, accel_, joint_pos_, joint_vel_, joint_eff_);

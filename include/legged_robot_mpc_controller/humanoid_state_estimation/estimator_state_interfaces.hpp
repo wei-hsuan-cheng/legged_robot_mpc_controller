@@ -87,6 +87,23 @@ void visit(Estimate & e, Diagnostics & d, Status & s, F && f)
   f("diagnostics.reported_height", d.reported_height);
 }
 
+/**
+ * The reference interfaces an estimator controller exports, as <controller>/<name>: the
+ * consumer's inputs to the filter, written by it as command interfaces. Only the
+ * consumer claims anything, so the data flows both ways without a cycle in the
+ * controller manager's chaining.
+ *  - contact.left / contact.right: 1 = in stance, 0 = in swing.
+ *  - initialize_epoch: the filter initializes from stance whenever it changes, and
+ *    exports the epoch it acted on as status.epoch. 0 keeps it off.
+ */
+enum ReferenceIndex : std::size_t { kContactLeft = 0, kContactRight = 1, kInitializeEpoch = 2 };
+
+inline const std::vector<std::string> & reference_names()
+{
+  static const std::vector<std::string> list = {"contact.left", "contact.right", "initialize_epoch"};
+  return list;
+}
+
 inline const std::vector<std::string> & names()
 {
   static const std::vector<std::string> list = [] {

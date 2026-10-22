@@ -15,10 +15,7 @@
 #include <controller_interface/chainable_controller_interface.hpp>
 #include <hardware_interface/loaned_command_interface.hpp>
 #include <hardware_interface/loaned_state_interface.hpp>
-#include <ocs2_msgs/msg/mode_schedule.hpp>
 #include <realtime_tools/realtime_buffer.h>
-#include <realtime_tools/realtime_publisher.hpp>
-#include <std_msgs/msg/u_int32.hpp>
 #include <ocs2_core/Types.h>
 #include <ocs2_core/reference/TargetTrajectories.h>
 #include <ocs2_mpc/MPC_BASE.h>
@@ -101,9 +98,10 @@ private:
   void read_state_estimator();
   // Asks the estimator to initialize from stance, with an epoch one past the one
   // it last acted on, so a ready flag from before the request cannot pass for one
-  // after it. Published from the control thread through a realtime publisher,
-  // retried every tick until it goes out.
+  // after it. Written to the estimator by write_estimator_references().
   void request_estimator_initialization();
+  // Writes the estimator's reference interfaces: the contact flags and the epoch.
+  void write_estimator_references(double time);
   bool estimator_initialized_for_request() const;
   // Samples one row of the Phase-0 state diagnostics log (no-op when disabled).
   void record_diagnostics_state(
@@ -235,14 +233,11 @@ private:
   estimator_interfaces::EstimatorStatus estimator_status_;
   bool estimator_driving_control_{false};
 
-  // This controller -> the estimator: the gait, for its contact flags, and the
-  // initialization epoch. Topics, not chaining: ros2_control cannot chain both ways.
-  rclcpp::Publisher<ocs2_msgs::msg::ModeSchedule>::SharedPtr mode_schedule_publisher_;
-  rclcpp::Publisher<std_msgs::msg::UInt32>::SharedPtr estimator_initialize_publisher_;
-  std::unique_ptr<realtime_tools::RealtimePublisher<std_msgs::msg::UInt32>>
-    rt_estimator_initialize_publisher_;
+  // This controller -> the estimator: the contact flags and the initialization
+  // epoch, through the estimator's reference interfaces (claimed as command
+  // interfaces, after the joint ones; set on activate).
+  std::vector<std::size_t> estimator_command_index_;
   std::uint32_t estimator_epoch_{0};
-  bool estimator_epoch_pending_{false};
 
   // Phase-0 instrumentation. Null unless diagnostics.log.enabled is set; the
   // control thread feeds its state log and the solver thread feeds its cost log.

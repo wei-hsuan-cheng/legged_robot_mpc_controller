@@ -367,24 +367,28 @@ Pinocchio 4.1, coal, GCC 13) in the `ros_jazzy` container. On this branch
 controllers, and the section below describes `main` (Humble), where the filter
 runs inside the MPC.
 
-**Data flow.** Estimator -> MPC is chained: the estimator exports its estimate,
-status and scalar diagnostics as state interfaces
-(`estimator_state_interfaces.hpp` - one visitor generates the names, `pack` and
-`unpack`, so the two sides cannot disagree on the layout). The MPC claims them,
-which makes the controller manager run the estimator first in every tick. MPC ->
-estimator is two latched topics: `~/mode_schedule` (time-indexed, so the contact
-flags are evaluated at the estimator's own update time) and
-`~/estimator_initialize` (a `UInt32` epoch; the MPC sends exported epoch + 1 and
-waits until the exported epoch matches before trusting `status.ready`).
+**Data flow.** Both directions are chained interfaces the estimator exports, and
+only the MPC claims them (layout in `estimator_state_interfaces.hpp` - one visitor
+generates the state names, `pack` and `unpack`; `reference_names()` lists the
+inputs). Estimator -> MPC: the estimate, status and scalar diagnostics as state
+interfaces. MPC -> estimator: `contact.left`, `contact.right` and
+`initialize_epoch` as reference interfaces the MPC writes as command interfaces
+(the MPC writes exported epoch + 1 and waits until the exported epoch matches
+before trusting `status.ready`). The controller manager runs the two one after the
+other per tick, so one direction is a tick late. Earlier versions carried the
+return leg over two latched topics, then over an in-process shared buffer.
 
-**Why not chain both ways.** Jazzy's `check_following_controllers_for_activate`
-recurses into every controller whose exported interfaces a controller claims,
-with no visited set. Two controllers claiming each other's interfaces (state or
-reference - both are edges) recurse without end at activation.
+**What cannot be chained is a cycle, not two-way data.** Jazzy's
+`check_following_controllers_for_activate` recurses into every controller whose
+exported interfaces a controller claims, with no visited set, so two controllers
+claiming each other's interfaces (state or reference - both are edges) recurse
+without end at activation. One controller exporting both kinds and the other
+claiming both is fine. Claiming an active controller's reference interfaces makes
+the controller manager restart it to switch it into chained mode.
 
-**FLY again.** Before the MPC drives (Blend/Locomotion), the topic carries an
-explicit stance-only schedule, not the reference manager's, which can still be
-OCS2's default single-mode FLY schedule.
+**FLY again.** Before the MPC drives (Blend/Locomotion), the MPC writes both
+contact flags as stance rather than reading the reference manager's schedule,
+which can still be OCS2's default single-mode FLY schedule.
 
 **Not carried across:** the per-contact diagnostics columns (innovation,
 landmarks), whose names depend on the estimator's contact frames, which the MPC

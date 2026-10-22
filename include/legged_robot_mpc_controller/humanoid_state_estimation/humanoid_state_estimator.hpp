@@ -21,8 +21,6 @@ struct EstimatorCommonSettings
   std::string urdf_file;
   std::vector<std::string> joint_names;
   std::string base_frame;
-  std::string mode_schedule_topic;
-  std::string initialize_topic;
   std::string imu_interface_name;
   std::string imu_frame;
   std::vector<std::string> contact_frames;

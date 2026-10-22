@@ -428,20 +428,21 @@ ros2 launch legged_robot_mpc_controller g1.launch.py \
 Each estimator is its **own ros2_control controller** (`HumanoidInEkfController` / `HumanoidLinearKfController`), loaded and activated before the MPC:
 
 ```
-                    exported state interfaces (chained, same tick)
+                    exported state interfaces (MPC reads)
   humanoid_inekf  ---------------------------------------------------->  humanoid_centroidal_mpc_controller
-  joints + IMU in   <estimator>/position.*, orientation.*,                  claims them, so the controller
-                    linear_velocity_world.*, angular_velocity.*, valid,     manager runs the estimator first
-                    status.{ready,epoch,running_time}, diagnostics.*        in every tick
+  joints + IMU in   <estimator>/position.*, orientation.*,                  claims both sets; the estimator
+                    linear_velocity_world.*, angular_velocity.*, valid,     claims nothing of the MPC's
+                    status.{ready,epoch,running_time}, diagnostics.*
 
                   <----------------------------------------------------
-                    topics (latched)
-                    ~/mode_schedule        ocs2_msgs/ModeSchedule: contact flags, evaluated at the
-                                           estimator's own update time, so no lag in effect
-                    ~/estimator_initialize std_msgs/UInt32 epoch: "initialise from stance now"
+                    exported reference interfaces (MPC writes, as command interfaces)
+                    <estimator>/contact.left, contact.right   1 = stance, 0 = swing
+                    <estimator>/initialize_epoch              "initialise from stance now"
 ```
 
-The return leg is topics because ros2_control cannot chain both ways: two controllers that each claim the other's exported interfaces make the controller manager's activation check recurse without end. Neither message needs the same tick. The schedule is indexed by time, and the MPC waits until the exported `status.epoch` equals the epoch it sent before it trusts `status.ready`.
+Both directions are ros2_control interfaces exported by the estimator, and only the MPC claims them, so the chain has no cycle. (A cycle - each controller claiming the other's interfaces - is what the controller manager cannot activate: its activation check recurses without end.) Claiming the reference interfaces puts the estimator in chained mode; the controller manager restarts it once to do that when the MPC activates.
+
+The controller manager runs the two one after the other in each tick, so one direction is a tick (1 ms at 1 kHz) late. The MPC waits until the exported `status.epoch` equals the epoch it wrote before it trusts `status.ready`.
 
 ```bash
 ros2 control list_controllers
@@ -450,7 +451,7 @@ ros2 control list_controllers
 # humanoid_centroidal_mpc_controller active
 ```
 
-With `ground_truth_state` the estimator still runs (the MPC sends it an epoch at activation), which is the way to compare it against ground truth without risking the robot. The diagnostics log carries the estimate and the filter's scalar internals (covariance std-devs, NIS, bias, height). The per-contact innovation columns are not exported, because their names depend on the estimator's contact frames. Either way it publishes its estimate for evaluation:
+With `ground_truth_state` the estimator still runs (the MPC writes an epoch at activation), which is the way to compare it against ground truth without risking the robot. The diagnostics log carries the estimate and the filter's scalar internals (covariance std-devs, NIS, bias, height). The per-contact innovation columns are not exported, because their names depend on the estimator's contact frames. Either way it publishes its estimate for evaluation:
 
 ```bash
 ros2 topic echo /mujoco/ground_truth/odom        # ground truth (also used for RViz/TF)
