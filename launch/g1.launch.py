@@ -21,7 +21,7 @@ def generate_launch_description():
     mpc_share_dir = get_package_share_directory("legged_robot_mpc_controller")
 
     rviz_default = os.path.join(mpc_share_dir, "config", "rviz", "humanoid.rviz")
-    initial_pose_default = os.path.join(mpc_share_dir, "config", "g1", "initial_pose_crouch.yaml")
+    initial_pose_default = os.path.join(mpc_share_dir, "config", "g1", "initial_pose.yaml")
     # Per-branch CppAD cache. The generated libraries are keyed by model NAME
     # only, with nothing recording the dimensions they were built for, so two
     # branches whose costs differ in parameter count will silently load each
