@@ -77,6 +77,20 @@ class Phase:
         return tuple(s + (e - s) * alpha for s, e in zip(start, target))  # type: ignore[return-value]
 
 
+def motion_block(name: str, vx: float = 0.0, vy: float = 0.0, yaw_rate: float = 0.0,
+                 ramp: float = 2.0, hold: float = 10.0, rest: float = 4.0) -> list[Phase]:
+    """Ramp into one command, hold it, ramp back out and rest.
+
+    Each motion starts and ends at rest, so a fall is attributable to the motion it
+    happened in rather than to whatever preceded it."""
+    return [
+        Phase(f"{name}_in", ramp, vx=vx, vy=vy, yaw_rate=yaw_rate, ramp=True),
+        Phase(name, hold, vx=vx, vy=vy, yaw_rate=yaw_rate),
+        Phase(f"{name}_out", ramp, ramp=True),
+        Phase(f"{name}_rest", rest),
+    ]
+
+
 SEQUENCES: dict[str, list[Phase]] = {
     # Full sweep: height first (no gait in the way), then gait.
     "diagnosis": [
@@ -256,6 +270,27 @@ SEQUENCES: dict[str, list[Phase]] = {
         Phase("w_075", 12.0, vx=0.10, height=0.75), Phase("rest3", 5.0),
         Phase("w_072", 12.0, vx=0.10, height=0.72), Phase("stop", 8.0),
     ],
+
+    # Natural walking speeds, one axis at a time and then coupled (flat scene only:
+    # the vx sequence covers several metres). Built from motion_block(), so every
+    # motion is ramped in and out and starts from rest.
+    "natural_vx": [Phase("settle", 8.0)]
+        + motion_block("vx_030", vx=0.30) + motion_block("vx_050", vx=0.50)
+        + motion_block("vx_080", vx=0.80) + motion_block("vx_neg030", vx=-0.30)
+        + motion_block("vx_neg050", vx=-0.50),
+    "natural_vy": [Phase("settle", 8.0)]
+        + motion_block("vy_020", vy=0.20) + motion_block("vy_neg020", vy=-0.20)
+        + motion_block("vy_030", vy=0.30) + motion_block("vy_neg030", vy=-0.30),
+    "natural_yaw": [Phase("settle", 8.0)]
+        + motion_block("yaw_050", yaw_rate=0.50) + motion_block("yaw_neg050", yaw_rate=-0.50)
+        + motion_block("yaw_080", yaw_rate=0.80) + motion_block("yaw_neg080", yaw_rate=-0.80),
+    "natural_coupled": [Phase("settle", 8.0)]
+        + motion_block("fwd_turn", vx=0.40, yaw_rate=0.40)
+        + motion_block("fwd_strafe", vx=0.40, vy=0.20)
+        + motion_block("strafe_turn", vy=0.20, yaw_rate=0.40)
+        + motion_block("all_axes", vx=0.40, vy=0.15, yaw_rate=-0.30)
+        + motion_block("back_turn", vx=-0.30, yaw_rate=0.40)
+        + motion_block("fast_turn", vx=0.60, yaw_rate=0.60),
 
     # Long forward walk, only safe on a scene without obstacles.
     "walk_far": [
