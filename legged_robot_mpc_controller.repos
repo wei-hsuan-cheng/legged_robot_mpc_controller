@@ -5,8 +5,6 @@ repositories:
       url: https://github.com/wei-hsuan-cheng/mujoco_ros2_control.git
       version: jazzy
     
-    # generate_parameter_library: ros-jazzy-generate-parameter-library, from rosdep
-
     # ocs2 stack
     legged_robot_mpc_controller_dependencies/ocs2_ros2:
       type: git
