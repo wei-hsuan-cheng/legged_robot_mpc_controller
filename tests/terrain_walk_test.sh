@@ -87,6 +87,7 @@ import rclpy
 from nav_msgs.msg import Odometry
 from ocs2_msgs.msg import WalkingVelocityCommand
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy
 from tf2_ros import Buffer, TransformListener
 
 max_walk_s, vx, pelvis_height, stop_x, expect_min_x, expect_min_z, max_x = map(float, sys.argv[1:8])
@@ -122,8 +123,9 @@ def cb(m):
               f" x={p.x:.3f} y={p.y:.3f} z={p.z:.3f} climbed~{treads:+.1f}steps"
               f" roll={roll:.3f} pitch={pitch:.3f} yaw={yaw:.3f}", flush=True)
 
-node.create_subscription(Odometry, "/mujoco/ground_truth/odom", cb, 10)
-cmd_pub = node.create_publisher(WalkingVelocityCommand, "/humanoid/walking_velocity_command", 10)
+qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT)
+node.create_subscription(Odometry, "/mujoco/ground_truth/odom", cb, qos)
+cmd_pub = node.create_publisher(WalkingVelocityCommand, "/humanoid/walking_velocity_command", qos)
 
 tf_buffer = Buffer()
 tf_listener = TransformListener(tf_buffer, node, spin_thread=False)

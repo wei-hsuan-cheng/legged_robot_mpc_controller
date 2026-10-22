@@ -17,6 +17,7 @@ from typing import List
 
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy
 
 from ocs2_msgs.msg import MpcInput, MpcState, MpcTargets, MpcTargetTrajectories
 
@@ -63,7 +64,8 @@ class JointTrackingTargetPublisher(Node):
         self.phase = _as_list(self.get_parameter("phase").value, DEFAULT_PHASE)
 
         self.start_time = self.get_clock().now()
-        self.publisher = self.create_publisher(MpcTargets, self.topic, 1)
+        qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT)
+        self.publisher = self.create_publisher(MpcTargets, self.topic, qos)
         self.timer = self.create_timer(1.0 / self.publish_rate, self.publish)
 
         self.get_logger().info(

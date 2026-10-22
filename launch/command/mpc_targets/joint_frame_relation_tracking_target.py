@@ -11,6 +11,7 @@ Send {command_type: "default"} to revert.
 
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy
 
 from ocs2_msgs.msg import MpcInput, MpcState, MpcTargets, MpcTargetTrajectories
 from std_msgs.msg import Float64MultiArray
@@ -57,7 +58,8 @@ class JointFrameRelationTargetPublisher(Node):
         self.topic = self.get_parameter("topic").value
         rate = max(1e-6, float(self.get_parameter("publish_rate").value))
 
-        self.publisher = self.create_publisher(MpcTargets, self.topic, 1)
+        qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT)
+        self.publisher = self.create_publisher(MpcTargets, self.topic, qos)
         self.timer = self.create_timer(1.0 / rate, self.publish)
         self.get_logger().info(f"Publishing joint_frame_relation MpcTargets to {self.topic}")
 

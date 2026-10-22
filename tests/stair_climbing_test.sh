@@ -98,6 +98,7 @@ import time
 import rclpy
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy
 from tf2_ros import Buffer, TransformListener
 
 monitor_s = float(sys.argv[1])
@@ -129,7 +130,8 @@ def cb(m):
               f" x={p.x:.3f} y={p.y:.3f} z={p.z:.3f}"
               f" roll={roll:.3f} pitch={pitch:.3f} yaw={yaw:.3f}", flush=True)
 
-node.create_subscription(Odometry, "/mujoco/ground_truth/odom", cb, 10)
+qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT)
+node.create_subscription(Odometry, "/mujoco/ground_truth/odom", cb, qos)
 
 # Foot world positions via TF (world -> ankle_roll_link), printed with the odom line.
 tf_buffer = Buffer()

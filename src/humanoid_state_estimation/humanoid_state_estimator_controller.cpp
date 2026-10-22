@@ -85,7 +85,7 @@ controller_interface::CallbackReturn HumanoidStateEstimatorController::on_config
 
 
   rt_odometry_publisher_ = std::make_unique<realtime_tools::RealtimePublisher<nav_msgs::msg::Odometry>>(
-    get_node(), se.odom_topic, rclcpp::SystemDefaultsQoS());
+    get_node(), se.odom_topic, rclcpp::QoS(10).best_effort());
   odometry_.header.frame_id = se.odom_frame;
   odometry_.child_frame_id = se.base_frame;
   rt_tf_publisher_ = std::make_unique<realtime_tools::RealtimePublisher<tf2_msgs::msg::TFMessage>>(

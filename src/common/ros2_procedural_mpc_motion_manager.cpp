@@ -134,7 +134,7 @@ void Ros2ProceduralMpcMotionManager::subscribe(
 
   target_mode_subscription_ = node->create_subscription<std_msgs::msg::String>(
     target_mode_topic,
-    rclcpp::QoS(1).reliable(),
+    rclcpp::QoS(1).best_effort(),
     [this, node](const std_msgs::msg::String::SharedPtr message) {
       try {
         setTargetMode(targetModeFromString(message->data));
@@ -158,7 +158,7 @@ void Ros2ProceduralMpcMotionManager::subscribeMpcTargets(
 
   mpc_targets_subscription_ = node->create_subscription<ocs2_msgs::msg::MpcTargets>(
     mpc_targets_topic,
-    rclcpp::QoS(1).reliable(),
+    rclcpp::QoS(1).best_effort(),
     [this, node](const ocs2_msgs::msg::MpcTargets::SharedPtr message) {
       try {
         target::applyMpcTargets(

@@ -21,6 +21,7 @@ from typing import List
 
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy
 
 from ocs2_msgs.msg import MpcInput, MpcState, MpcTargets, MpcTargetTrajectories
 from std_msgs.msg import Float64MultiArray
@@ -64,7 +65,8 @@ class FrameRelationTrackingTargetPublisher(Node):
         self.frame_pairs = DEFAULT_FRAME_PAIRS
 
         self.start_time = self.get_clock().now()
-        self.publisher = self.create_publisher(MpcTargets, self.topic, 1)
+        qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT)
+        self.publisher = self.create_publisher(MpcTargets, self.topic, qos)
         self.timer = self.create_timer(1.0 / self.publish_rate, self.publish)
 
         pairs = ", ".join(f"{p['source_frame']}->{p['target_frame']}" for p in self.frame_pairs)

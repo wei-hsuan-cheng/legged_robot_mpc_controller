@@ -187,7 +187,7 @@ OptimizedStateTrajectoryVisualization::OptimizedStateTrajectoryVisualization(
 
   marker_publisher_ = node_.create_publisher<Message>(
     settings_.marker_topic,
-    rclcpp::QoS(1).reliable().transient_local());
+    rclcpp::QoS(1).best_effort().transient_local());
 }
 
 void OptimizedStateTrajectoryVisualization::publish(
