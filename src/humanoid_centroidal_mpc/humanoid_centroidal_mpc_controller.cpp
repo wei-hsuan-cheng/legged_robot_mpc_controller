@@ -583,37 +583,46 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_activat
       base_pose(0), base_pose(1), base_pose(2), base_pose(3), base_pose(4), base_pose(5));
   }
   const vector_t q_hold = control_model_->getJointAngles(initial_observation.state);
+  passive_hold_joints_ = q_hold;  // held by update_and_write_commands() until the first policy
   write_joint_action_command(
     q_hold,
     vector_t::Zero(q_hold.size()),
     compute_weight_compensating_torque(initial_observation));
 
-  try {
-    start_solver_thread(initial_observation);
-    mpc_ready_.store(true, std::memory_order_release);
-  } catch (const std::exception& e) {
-    RCLCPP_ERROR(
-      get_node()->get_logger(),
-      "[HumanoidCentroidalMpcController] failed to start MPC solver: %s",
-      e.what());
-    return controller_interface::CallbackReturn::ERROR;
-  }
-
-  const auto wait_start = std::chrono::steady_clock::now();
-  while (rclcpp::ok() && !mrt_interface_->initialPolicyReceived()) {
-    if ((std::chrono::steady_clock::now() - wait_start) > std::chrono::seconds(20)) {
+  // The solver is NOT seeded from initial_observation. That observation is stamped
+  // with this node's clock, while every later one carries the controller manager's
+  // update time, and the two can differ by more than the horizon at startup (the sim
+  // runs while the controller activates). OCS2's MPC_BASE::run then finds the current
+  // time past the end of the first horizon and refuses to solve, permanently ("The MPC
+  // time-horizon is smaller than the MPC starting time"), and the robot stands holding
+  // its last command. The first control tick hands over its own observation instead,
+  // as the bring-up path does; until the first policy arrives update_and_write_commands()
+  // holds the measured posture.
+  terminate_solver_thread_.store(false);
+  solver_thread_ = std::jthread([this] {
+    while (!terminate_solver_thread_.load() && rclcpp::ok() &&
+           !locomotion_requested_.load(std::memory_order_acquire)) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+    if (terminate_solver_thread_.load() || !rclcpp::ok()) {
+      return;
+    }
+    try {
+      construct_solver(start_observation_);
+    } catch (const std::exception& e) {
       RCLCPP_ERROR(
         get_node()->get_logger(),
-        "[HumanoidCentroidalMpcController] timed out waiting for the initial MPC policy.");
-      stop_solver_thread();
-      return controller_interface::CallbackReturn::ERROR;
+        "[HumanoidCentroidalMpcController] failed to start the MPC solver: %s", e.what());
+      return;
     }
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
-  }
+    mpc_ready_.store(true, std::memory_order_release);
+    solver_worker();
+  });
 
   RCLCPP_INFO(
     get_node()->get_logger(),
-    "[HumanoidCentroidalMpcController] activated with initial MPC policy | joints=%zu",
+    "[HumanoidCentroidalMpcController] activated (ground-truth base); the MPC starts from the first "
+    "control tick's observation | joints=%zu",
     parameters_.robot.jointNames.size());
   return controller_interface::CallbackReturn::SUCCESS;
 }
@@ -766,8 +775,17 @@ controller_interface::return_type HumanoidCentroidalMpcController::update_and_wr
   } else if (mpc_ready_.load(std::memory_order_acquire) && mrt_interface_->initialPolicyReceived()) {
     command = compute_mpc_joint_action(observation);
   } else {
-    // Hold the measured posture while waiting for the first policy.
-    command.policy_position = control_model_->getJointAngles(observation.state);
+    // Ground-truth base, first ticks: seed the solver from this tick's observation
+    // (see on_activate) and hold the measured posture until the first policy.
+    if (!locomotion_requested_.load(std::memory_order_acquire) && observation_from_hardware_) {
+      start_observation_ = observation;
+      locomotion_requested_.store(true, std::memory_order_release);
+    }
+    // Hold the pose measured at activation, not this tick's: with q_des = q the joint
+    // servo has nothing to correct and the robot sags under gravity while the solver
+    // is built.
+    command.policy_position = passive_hold_joints_.size() > 0 ? passive_hold_joints_
+                                                              : control_model_->getJointAngles(observation.state);
     command.policy_velocity = vector_t::Zero(command.policy_position.size());
     command.feedforward = compute_weight_compensating_torque(observation);
   }
@@ -1492,15 +1510,6 @@ ocs2::TargetTrajectories HumanoidCentroidalMpcController::current_observation_to
     {observation.time},
     {target_state},
     {vector_t::Zero(observation.input.size())});
-}
-
-void HumanoidCentroidalMpcController::start_solver_thread(
-  const ocs2::SystemObservation& initial_observation)
-{
-  stop_solver_thread();
-  construct_solver(initial_observation);
-  terminate_solver_thread_.store(false);
-  solver_thread_ = std::jthread([this] { solver_worker(); });
 }
 
 void HumanoidCentroidalMpcController::construct_solver(

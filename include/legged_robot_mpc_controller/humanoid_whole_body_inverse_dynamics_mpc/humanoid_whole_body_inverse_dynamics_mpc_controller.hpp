@@ -110,7 +110,9 @@ private:
   bool estimator_initialized_for_request() const;
   ocs2::TargetTrajectories current_observation_to_reset_trajectory(
     const ocs2::SystemObservation& observation);
-  void start_solver_thread(const ocs2::SystemObservation& initial_observation);
+  //! Start the worker that builds the solver from start_observation_ once the
+  //! control loop sets locomotion_requested_, then runs it.
+  void start_deferred_solver_thread();
   void construct_solver(const ocs2::SystemObservation& initial_observation);
   void stop_solver_thread();
   void solver_worker();

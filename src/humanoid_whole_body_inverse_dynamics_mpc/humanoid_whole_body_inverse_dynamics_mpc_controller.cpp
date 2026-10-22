@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstdio>
 #include <limits>
+#include <numeric>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -316,24 +317,7 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
     const auto passive = damping_command(q_joint);
     write_joint_action_command(passive.policy_position, passive.policy_velocity, passive.feedforward);
 
-    terminate_solver_thread_.store(false);
-    solver_thread_ = std::jthread([this] {
-      while (!terminate_solver_thread_.load() && rclcpp::ok() &&
-             !locomotion_requested_.load(std::memory_order_acquire)) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(2));
-      }
-      if (terminate_solver_thread_.load() || !rclcpp::ok()) {
-        return;
-      }
-      try {
-        construct_solver(start_observation_);
-      } catch (const std::exception& e) {
-        RCLCPP_ERROR(get_node()->get_logger(), "%s failed to start the MPC solver: %s", kTag, e.what());
-        return;
-      }
-      mpc_ready_.store(true, std::memory_order_release);
-      solver_worker();
-    });
+    start_deferred_solver_thread();
 
     RCLCPP_INFO(
       get_node()->get_logger(),
@@ -369,28 +353,23 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
       base_pose(0), base_pose(1), base_pose(2), base_pose(3), base_pose(4), base_pose(5));
   }
   const vector_t q_hold = control_model_->getJointAngles(initial_observation.state);
+  passive_hold_joints_ = q_hold;  // held by update_and_write_commands() until the first policy
   write_joint_action_command(q_hold, vector_t::Zero(q_hold.size()), compute_weight_compensating_torque(initial_observation));
 
-  try {
-    start_solver_thread(initial_observation);
-    mpc_ready_.store(true, std::memory_order_release);
-  } catch (const std::exception& e) {
-    RCLCPP_ERROR(get_node()->get_logger(), "%s failed to start MPC solver: %s", kTag, e.what());
-    return controller_interface::CallbackReturn::ERROR;
-  }
+  // The solver is NOT seeded from initial_observation. That observation is stamped
+  // with this node's clock, while every later one carries the controller manager's
+  // update time, and the two can differ by more than the horizon at startup (the sim
+  // runs while the controller activates). OCS2's MPC_BASE::run then finds the current
+  // time past the end of the first horizon and refuses to solve, permanently ("The MPC
+  // time-horizon is smaller than the MPC starting time"). The first control tick hands
+  // over its own observation instead, as the bring-up path does; until the first
+  // policy arrives update_and_write_commands() holds the measured posture.
+  start_deferred_solver_thread();
 
-  const auto wait_start = std::chrono::steady_clock::now();
-  while (rclcpp::ok() && !mrt_interface_->initialPolicyReceived()) {
-    if ((std::chrono::steady_clock::now() - wait_start) > std::chrono::seconds(20)) {
-      RCLCPP_ERROR(get_node()->get_logger(), "%s timed out waiting for the initial MPC policy.", kTag);
-      stop_solver_thread();
-      return controller_interface::CallbackReturn::ERROR;
-    }
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
-  }
-
-  RCLCPP_INFO(get_node()->get_logger(), "%s activated with initial MPC policy | joints=%zu", kTag,
-              parameters_.robot.jointNames.size());
+  RCLCPP_INFO(get_node()->get_logger(),
+              "%s activated (ground-truth base); the MPC starts from the first control tick's observation | "
+              "joints=%zu",
+              kTag, parameters_.robot.jointNames.size());
   return controller_interface::CallbackReturn::SUCCESS;
 }
 
@@ -497,7 +476,17 @@ controller_interface::return_type HumanoidWholeBodyInverseDynamicsMpcController:
   } else if (mpc_ready_.load(std::memory_order_acquire) && mrt_interface_->initialPolicyReceived()) {
     command = compute_mpc_joint_action(observation);
   } else {
-    command.policy_position = control_model_->getJointAngles(observation.state);
+    // Ground-truth base, first ticks: seed the solver from this tick's observation
+    // (see on_activate) and hold the activation pose until the first policy.
+    if (!locomotion_requested_.load(std::memory_order_acquire) && observation_from_hardware_) {
+      start_observation_ = observation;
+      locomotion_requested_.store(true, std::memory_order_release);
+    }
+    // Hold the pose measured at activation, not this tick's: with q_des = q the joint
+    // servo has nothing to correct and the robot sags under gravity while the solver
+    // is built.
+    command.policy_position = passive_hold_joints_.size() > 0 ? passive_hold_joints_
+                                                              : control_model_->getJointAngles(observation.state);
     command.policy_velocity = vector_t::Zero(command.policy_position.size());
     command.feedforward = compute_weight_compensating_torque(observation);
   }
@@ -1037,12 +1026,30 @@ ocs2::TargetTrajectories HumanoidWholeBodyInverseDynamicsMpcController::current_
   return ocs2::TargetTrajectories({observation.time}, {target_state}, {vector_t::Zero(observation.input.size())});
 }
 
-void HumanoidWholeBodyInverseDynamicsMpcController::start_solver_thread(const ocs2::SystemObservation& initial_observation)
+void HumanoidWholeBodyInverseDynamicsMpcController::start_deferred_solver_thread()
 {
+  // The worker waits for the control loop's go (locomotion_requested_, with
+  // start_observation_ written before it), builds the solver from that observation
+  // off the control thread, and runs it.
   stop_solver_thread();
-  construct_solver(initial_observation);
   terminate_solver_thread_.store(false);
-  solver_thread_ = std::jthread([this] { solver_worker(); });
+  solver_thread_ = std::jthread([this] {
+    while (!terminate_solver_thread_.load() && rclcpp::ok() &&
+           !locomotion_requested_.load(std::memory_order_acquire)) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+    if (terminate_solver_thread_.load() || !rclcpp::ok()) {
+      return;
+    }
+    try {
+      construct_solver(start_observation_);
+    } catch (const std::exception& e) {
+      RCLCPP_ERROR(get_node()->get_logger(), "%s failed to start the MPC solver: %s", kTag, e.what());
+      return;
+    }
+    mpc_ready_.store(true, std::memory_order_release);
+    solver_worker();
+  });
 }
 
 void HumanoidWholeBodyInverseDynamicsMpcController::construct_solver(const ocs2::SystemObservation& initial_observation)
@@ -1098,6 +1105,13 @@ void HumanoidWholeBodyInverseDynamicsMpcController::solver_worker()
   double max_dynamics_sse = 0.0;
   double accumulated_equality_sse = 0.0;
   std::size_t policy_failures = 0;
+  // The same violation, per equality term (RNEA rows, stance/swing feet, zero wrench),
+  // worst solve over the log period: which constraint the plan fails to satisfy.
+  std::vector<std::pair<std::string, std::size_t>> equality_terms;
+  for (const auto& [name, index] : mpc_interface_->getOptimalControlProblem().equalityConstraintPtr->getTermNameMap()) {
+    equality_terms.emplace_back(name, index);
+  }
+  std::vector<double> max_term_sse(equality_terms.size(), 0.0);
 
   while (!terminate_solver_thread_.load() && rclcpp::ok()) {
     const auto iteration_start = Clock::now();
@@ -1121,6 +1135,16 @@ void HumanoidWholeBodyInverseDynamicsMpcController::solver_worker()
       max_equality_sse = std::max(max_equality_sse, performance.equalityConstraintsSSE);
       max_dynamics_sse = std::max(max_dynamics_sse, performance.dynamicsViolationSSE);
       accumulated_equality_sse += performance.equalityConstraintsSSE;
+      const auto& metrics = mpc_solver_->getSolverPtr()->getSolutionMetrics();
+      for (std::size_t t = 0; t < equality_terms.size(); ++t) {
+        double sse = 0.0;
+        for (const auto& node : metrics.intermediates) {
+          if (equality_terms[t].second < node.stateInputEqConstraint.size()) {
+            sse += node.stateInputEqConstraint[equality_terms[t].second].squaredNorm();
+          }
+        }
+        max_term_sse[t] = std::max(max_term_sse[t], sse);
+      }
       if (!mrt_interface_->updatePolicy()) {
         ++policy_failures;
         RCLCPP_WARN_THROTTLE(get_node()->get_logger(), *get_node()->get_clock(), 2000,
@@ -1147,6 +1171,20 @@ void HumanoidWholeBodyInverseDynamicsMpcController::solver_worker()
         "torque-window overruns=%lu",
         kTag, accumulated_equality_sse / static_cast<double>(advance_samples), max_equality_sse, max_dynamics_sse,
         policy_failures, static_cast<unsigned long>(torque_window_overruns_.load()));
+      {
+        std::vector<std::size_t> order(equality_terms.size());
+        std::iota(order.begin(), order.end(), 0);
+        std::sort(order.begin(), order.end(), [&](std::size_t a, std::size_t b) { return max_term_sse[a] > max_term_sse[b]; });
+        std::string worst;
+        for (std::size_t k = 0; k < std::min<std::size_t>(3, order.size()); ++k) {
+          char entry[160];
+          std::snprintf(entry, sizeof(entry), "%s%s=%.2e", k > 0 ? ", " : "", equality_terms[order[k]].first.c_str(),
+                        max_term_sse[order[k]]);
+          worst += entry;
+        }
+        RCLCPP_INFO(get_node()->get_logger(), "%s[MPC_HEALTH] worst equality terms (max SSE): %s", kTag, worst.c_str());
+        std::fill(max_term_sse.begin(), max_term_sse.end(), 0.0);
+      }
       accumulated_period_ms = 0.0;
       accumulated_advance_ms = 0.0;
       period_samples = 0;

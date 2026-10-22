@@ -46,6 +46,16 @@ except ImportError as exc:  # pragma: no cover
 NOMINAL_HEIGHT = 0.6
 PUBLISH_HZ = 50.0
 
+# The walking-velocity command is NORMALIZED, like the GUI's sliders: the MPC
+# multiplies vx / vy / yaw_rate by ocs2.reference.maxDisplacementVelocityX /
+# maxDisplacementVelocityY / maxRotationVelocity (WalkingVelocityTarget::scaleCommand).
+# Phase values are therefore fractions of those limits, not m/s - vx 0.30 commands
+# 0.72 m/s with the shipped 2.4. The limits below must match the yaml; the motion_mps()
+# sequences use them to command physical speeds.
+MAX_VX = 2.4    # ocs2.reference.maxDisplacementVelocityX [m/s]
+MAX_VY = 1.2    # ocs2.reference.maxDisplacementVelocityY [m/s]
+MAX_YAW = 1.0   # ocs2.reference.maxRotationVelocity [rad/s]
+
 
 class Phase:
     """One commanded segment.
@@ -89,6 +99,11 @@ def motion_block(name: str, vx: float = 0.0, vy: float = 0.0, yaw_rate: float = 
         Phase(f"{name}_out", ramp, ramp=True),
         Phase(f"{name}_rest", rest),
     ]
+
+
+def motion_mps(name: str, vx: float = 0.0, vy: float = 0.0, yaw_rate: float = 0.0, **kwargs) -> list[Phase]:
+    """motion_block() with the command in physical units: vx, vy in m/s, yaw_rate in rad/s."""
+    return motion_block(name, vx=vx / MAX_VX, vy=vy / MAX_VY, yaw_rate=yaw_rate / MAX_YAW, **kwargs)
 
 
 SEQUENCES: dict[str, list[Phase]] = {
@@ -272,25 +287,31 @@ SEQUENCES: dict[str, list[Phase]] = {
     ],
 
     # Natural walking speeds, one axis at a time and then coupled (flat scene only:
-    # the vx sequence covers several metres). Built from motion_block(), so every
-    # motion is ramped in and out and starts from rest.
+    # the vx sequence covers several metres). In PHYSICAL units (motion_mps), every
+    # motion ramped in and out and starting from rest.
     "natural_vx": [Phase("settle", 8.0)]
-        + motion_block("vx_030", vx=0.30) + motion_block("vx_050", vx=0.50)
-        + motion_block("vx_080", vx=0.80) + motion_block("vx_neg030", vx=-0.30)
-        + motion_block("vx_neg050", vx=-0.50),
+        + motion_mps("vx_030", vx=0.30) + motion_mps("vx_050", vx=0.50)
+        + motion_mps("vx_080", vx=0.80) + motion_mps("vx_neg030", vx=-0.30)
+        + motion_mps("vx_neg050", vx=-0.50),
     "natural_vy": [Phase("settle", 8.0)]
-        + motion_block("vy_020", vy=0.20) + motion_block("vy_neg020", vy=-0.20)
-        + motion_block("vy_030", vy=0.30) + motion_block("vy_neg030", vy=-0.30),
+        + motion_mps("vy_020", vy=0.20) + motion_mps("vy_neg020", vy=-0.20)
+        + motion_mps("vy_030", vy=0.30) + motion_mps("vy_neg030", vy=-0.30),
     "natural_yaw": [Phase("settle", 8.0)]
-        + motion_block("yaw_050", yaw_rate=0.50) + motion_block("yaw_neg050", yaw_rate=-0.50)
-        + motion_block("yaw_080", yaw_rate=0.80) + motion_block("yaw_neg080", yaw_rate=-0.80),
+        + motion_mps("yaw_050", yaw_rate=0.50) + motion_mps("yaw_neg050", yaw_rate=-0.50)
+        + motion_mps("yaw_080", yaw_rate=0.80) + motion_mps("yaw_neg080", yaw_rate=-0.80),
     "natural_coupled": [Phase("settle", 8.0)]
-        + motion_block("fwd_turn", vx=0.40, yaw_rate=0.40)
-        + motion_block("fwd_strafe", vx=0.40, vy=0.20)
-        + motion_block("strafe_turn", vy=0.20, yaw_rate=0.40)
-        + motion_block("all_axes", vx=0.40, vy=0.15, yaw_rate=-0.30)
-        + motion_block("back_turn", vx=-0.30, yaw_rate=0.40)
-        + motion_block("fast_turn", vx=0.60, yaw_rate=0.60),
+        + motion_mps("fwd_turn", vx=0.40, yaw_rate=0.40)
+        + motion_mps("fwd_strafe", vx=0.40, vy=0.20)
+        + motion_mps("strafe_turn", vy=0.20, yaw_rate=0.40)
+        + motion_mps("all_axes", vx=0.40, vy=0.15, yaw_rate=-0.30)
+        + motion_mps("back_turn", vx=-0.30, yaw_rate=0.40)
+        + motion_mps("fast_turn", vx=0.60, yaw_rate=0.60),
+
+    # Short single-axis checks at a natural 0.35 m/s, both directions, for tuning.
+    "tune_vx": [Phase("settle", 6.0)]
+        + motion_mps("vx_035", vx=0.35, hold=15.0) + motion_mps("vx_neg035", vx=-0.35, hold=15.0),
+    "tune_vy": [Phase("settle", 6.0)]
+        + motion_mps("vy_035", vy=0.35, hold=15.0) + motion_mps("vy_neg035", vy=-0.35, hold=15.0),
 
     # Long forward walk, only safe on a scene without obstacles.
     "walk_far": [

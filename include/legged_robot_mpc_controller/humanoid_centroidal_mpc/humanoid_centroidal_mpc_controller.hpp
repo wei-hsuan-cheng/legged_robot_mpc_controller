@@ -110,7 +110,6 @@ private:
     const JointActionCommand& command);
   ocs2::TargetTrajectories current_observation_to_reset_trajectory(
     const ocs2::SystemObservation& observation);
-  void start_solver_thread(const ocs2::SystemObservation& initial_observation);
   /// Build the SQP solver and the MRT, seeded from `initial_observation`. Heavy
   /// (allocations, problem setup), so it never runs on the control thread.
   void construct_solver(const ocs2::SystemObservation& initial_observation);
