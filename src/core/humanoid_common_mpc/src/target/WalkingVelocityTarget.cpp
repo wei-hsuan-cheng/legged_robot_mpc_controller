@@ -31,6 +31,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "humanoid_common_mpc/target/WalkingVelocityTarget.h"
 
 #include <utility>
+#include <algorithm>
+#include <cmath>
 
 namespace ocs2::humanoid {
 
@@ -42,6 +44,8 @@ WalkingVelocityTarget::WalkingVelocityTarget(const ReferenceConfig& referenceCon
       maxDisplacementVelocityX_(referenceConfig.maxDisplacementVelocityX),
       maxDisplacementVelocityY_(referenceConfig.maxDisplacementVelocityY),
       maxRotationVelocity_(referenceConfig.maxRotationVelocity),
+      commandRateLimits_(referenceConfig.commandRateLimits),
+      previousCommand_(0.0, 0.0, referenceConfig.defaultBaseHeight, 0.0),
       velocityCommandFilter_(5, vector4_t(0.0, 0.0, referenceConfig.defaultBaseHeight, 0.0)) {}
 
 /******************************************************************************************************/
@@ -73,10 +77,28 @@ WalkingVelocityTarget::Output WalkingVelocityTarget::evaluate(scalar_t initTime,
   }
 
   WalkingVelocityCommand scaledCommand = scaleCommand(latestCommand);
-  if (filterResetRequested_.exchange(false, std::memory_order_acq_rel)) {
-    velocityCommandFilter_.reset(scaledCommand.toVector());
+  if (filterResetRequested_.exchange(false, std::memory_order_acq_rel) ||
+      !std::isfinite(previousTime_) || initTime < previousTime_) {
+    previousCommand_ = scaledCommand.toVector();
+    // Re-enter velocity mode from rest, without a step to a buffered nonzero command.
+    for (const int i : {0, 1, 3}) {
+      if (commandRateLimits_(i) > 0.0) previousCommand_(i) = 0.0;
+    }
+    previousTime_ = initTime;
+    velocityCommandFilter_.reset(previousCommand_);
   }
   vector4_t conditionedCommand = velocityCommandFilter_.getFilteredVector(scaledCommand.toVector(), initTime);
+  // Do not turn a solver stall into an arbitrarily large reference step.
+  const scalar_t dt = std::clamp(initTime - previousTime_, 0.0, 0.05);
+  for (int i = 0; i < 4; ++i) {
+    if (commandRateLimits_(i) > 0.0) {
+      const scalar_t increment = commandRateLimits_(i) * dt;
+      conditionedCommand(i) = std::clamp(conditionedCommand(i), previousCommand_(i) - increment,
+                                         previousCommand_(i) + increment);
+    }
+  }
+  previousCommand_ = conditionedCommand;
+  previousTime_ = initTime;
 
   Output output;
   output.conditionedCommand = conditionedCommand;

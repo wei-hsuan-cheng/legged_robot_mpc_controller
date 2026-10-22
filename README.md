@@ -357,7 +357,7 @@ All MPC settings live in ROS 2 parameters:
 | Controller | Parameter declaration | Config adapter | Interface |
 |---|---|---|---|
 | `humanoid_centroidal_mpc_controller` | [`src/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller_parameter.yaml`](./src/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller_parameter.yaml) | [`src/humanoid_centroidal_mpc/centroidal_mpc_config_builder.cpp`](./src/humanoid_centroidal_mpc/centroidal_mpc_config_builder.cpp) | `CentroidalMpcInterface::Config` |
-| `humanoid_whole_body_inverse_dynamics_mpc_controller` | the centroidal declaration above **plus** [`src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller_parameter.yaml`](./src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller_parameter.yaml) (`wholeBody.*`) | [`src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp`](./src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp) | `WbIdMpcInterface::Config` |
+| `humanoid_whole_body_inverse_dynamics_mpc_controller` | standalone [`src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller_parameter.yaml`](./src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller_parameter.yaml) | [`src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp`](./src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp) | `WbIdMpcInterface::Config` |
 
 It declares model settings, foot-constraint gains, swing trajectory, SQP/rollout/MPC solver settings, `Q`/`R`/`Q_final` cost diagonals, task-space foot cost weights, and the friction-cone / contact-moment / joint-limit / foot-collision constraint parameters. 
 
@@ -441,7 +441,7 @@ xdot = [v; a]                       (a double integrator: the dynamics are a con
 | constraint | rows | where | |
 |---|---|---|---|
 | RNEA base rows `[RNEA(q,v,a) - J^T W]_base = 0` | 6 | every node | Newton-Euler (centroidal) dynamics |
-| RNEA joint rows `[RNEA(q,v,a) - J^T W]_joints = tau` | 23 | first `wholeBody.torqueConstraintNodes` nodes | defines the torque that is sent |
+| RNEA joint rows `[RNEA(q,v,a) - J^T W]_joints = tau` | 23 | first `ocs2.model.torqueConstraintNodes` nodes | defines the torque that is sent |
 | `-tau_max <= tau <= tau_max` from `control.torqueLimit` (soft) | 46 | same nodes | |
 | stance: `a_c + Kd v_c + Kp [z - z_ref; tilt] = 0` | 6 per foot | in contact | `Kd = 1/dt`: `v_c = 0` at the next node |
 | swing: vertical spline tracking at acceleration level, `W = 0` | 1 + 6 per foot | in swing | |
@@ -453,7 +453,7 @@ Two adaptations of the papers to OCS2:
 - **Torque rows only on the first nodes** (ETH `tau_nodes = 3`, MIT 2 steps). Only the first torques reach the robot; the base rows shape the motion over the rest of the horizon. The window must also cover the MPC latency: the controller sends the policy's `tau` while it is inside the window and falls back to the plan's inverse dynamics if a slow solve leaves it outside (logged as a torque-window warning).
 - **Contact at acceleration level.** ETH imposes `v_c = 0` on the state directly, but OCS2's SQP hands only state-input equalities to the QP (a pure state equality is transcribed but never enforced). With the exact double-integrator discretization, `a_c + v_c/dt = 0` at node `k` is `v_c = 0` at node `k+1`, so `ocs2.model.footConstraint` holds acceleration-level gains in this controller's block (velocity gains `1/dt`, non-zero acceleration gains).
 
-Everything else is shared with the centroidal MPC: gait library and gait FSM, swing planner, capture-point foot placement, base twist/pose targets, arm posture tracking, the foot and torso task-space costs, the leg external-torque cost, the estimator controllers and the GT-free bring-up. The inner loop is the policy itself: `q_des`, `qd_des` from the planned state and `tau_ff = tau` from the planned input, around the `effort_pd` joint servo (`wholeBody.control.feedforward: inverse_dynamics` instead evaluates RNEA at the measured state with the plan's accelerations and wrenches).
+Model-independent components remain shared: gait FSM, swing planner, base twist/pose commands, arm posture tracking, foot/torso task-space costs, leg external-load cost, estimator interfaces and bring-up. Capture-point foot placement is disabled for WB-ID; flat-ground horizontal footholds are chosen by the optimizer. The inner loop uses `q_des`, `qd_des` from the planned state and `tau_ff = tau` from the planned input with the `effort_pd` joint servo. `control.feedforward: inverse_dynamics` instead evaluates RNEA at the measured state with the plan's accelerations and wrenches.
 
 **Run it:**
 
@@ -475,19 +475,26 @@ ros2 run legged_robot_mpc_controller command_sequence.py --sequence robustness -
 
 **CppAD cache:** `auto_generated/g1/wb_id_mpc_g1/` (21 libraries, generated on the first launch). The `wb_id_mpc_` prefix keeps them apart from the centroidal libraries, several of which have the same model names but other dimensions.
 
-**Configuration:** the `humanoid_whole_body_inverse_dynamics_mpc_controller` block of [`config/g1/ros2_controllers.yaml`](./config/g1/ros2_controllers.yaml). It repeats the centroidal block's keys (the ROS 2 YAML loader has no anchors) with whole-body weights and gains, and adds `wholeBody.*`:
+**Configuration:** the `humanoid_whole_body_inverse_dynamics_mpc_controller` block of [`config/g1/ros2_controllers.yaml`](./config/g1/ros2_controllers.yaml) has its own generated schema and builder. It does not load the centroidal schema. All state/input weights live in a single `ocs2.costs` section; the former `wholeBody.*` parameter names are removed, not aliases.
+
+WB-ID defaults to [`gait_wb_id.yaml`](./config/g1/gait_wb_id.yaml), with 0.40 s single support and 0.15 s double support in `slow_walk`; centroidal MPC still uses `gait.yaml`.
+An explicit `gaitLibraryFile` launch argument overrides either default.
+The WB-ID nominal joint posture matches the default 0.60 m crouch so estimator bring-up does not hand MPC a near-straight stance with a sudden height change.
+See [`Codex.md`](./Codex.md) for the flat-ground tuning results and remaining yaw/speed errors; other heights and terrain are not validated by these tests.
+The latest standalone-parameter/capture-disabled checkpoint is **not built or walking-tested**; earlier results used the capture heuristic and must not be attributed to this checkpoint.
+GUI full-scale commands now match the selected YAML limits: WB-ID vx 0.25 m/s, vy 0.15 m/s, yaw 0.15 rad/s, with controller-side slew limits.
 
 | key | meaning |
 |---|---|
-| `wholeBody.torqueConstraintNodes` | nodes carrying the joint-torque rows and torque limits (default 3; `<= 0`: all) |
-| `wholeBody.torqueLimitBarrier.{mu,delta}` | relaxed barrier of the torque limits |
-| `wholeBody.jointVelocityLimit.{scale,mu,delta}` | joint velocity limits as a fraction of the URDF ones (`scale <= 0`: off) |
-| `wholeBody.costs.q/qFinal.baseVelocity` | base twist tracking `[vx, vy, vz, yaw, pitch, roll rates]` |
-| `wholeBody.costs.q/qFinal.jointVelocities` | joint velocity regularization |
-| `wholeBody.costs.r.{baseAccelerations, jointAccelerations, jointTorques}` | input weights (times `ocs2.costs.rScaling`) |
-| `wholeBody.control.feedforward` | `policy_torque` (default) or `inverse_dynamics` |
+| `ocs2.model.torqueConstraintNodes` | nodes carrying the joint-torque rows and torque limits (default 3; `<= 0`: all) |
+| `ocs2.constraints.jointTorqueLimits.{mu,delta}` | relaxed barrier of the torque limits |
+| `ocs2.constraints.jointVelocityLimits.{scale,mu,delta}` | joint velocity limits as a fraction of the URDF ones (`scale <= 0`: off) |
+| `ocs2.costs.q/qFinal.{basePose,baseVelocity,jointPositions,jointVelocities}` | complete state cost; pose `[x,y,z,yaw,pitch,roll]`, velocity `[vx,vy,vz,yaw_rate,pitch_rate,roll_rate]` |
+| `ocs2.costs.r.{contactWrenches,baseAccelerations,jointAccelerations,jointTorques}` | complete input weights (times `ocs2.costs.rScaling`) |
+| `target.velocityCommandRateLimits` | physical command slew limits `[ax,ay,height_rate,yaw_acceleration]`; zero disables an axis |
+| `control.feedforward` | `policy_torque` (default) or `inverse_dynamics` |
 
-`ocs2.costs.q/qFinal.{basePose, jointPositions}`, `ocs2.costs.r.contactWrenches`, the task-space and leg-torque costs and all constraints keep their centroidal meaning; `centroidalMomentum` and `r.jointVelocities` are unused. Not available in this controller (yet): the ICP cost, frame-relation tracking commands, the WBC inner loop and the diagnostics CSV. Stair climbing and terrain walking load, but are untested with it.
+The base uses Translation + SphericalZYX coordinates: its angular velocity state entries are Euler rates, not a spatial angular-velocity vector. This cleanup does not change that representation to a quaternion/Lie-group model. Task-space and leg-load costs are active G1 adaptations beyond the papers' state/input objective. Contact inequalities remain soft barriers, unlike the papers' explicit inequalities; this is not an exact reproduction. The ICP cost, frame-relation tracking, WBC inner loop, and diagnostics CSV are not exposed by the WB-ID schema. Stair climbing and terrain walking are untested with it.
 
 **Code:** core in [`include/humanoid_wb_id_mpc`](./include/humanoid_wb_id_mpc) / [`src/core/humanoid_wb_id_mpc`](./src/core/humanoid_wb_id_mpc) (`WbIdMpcInterface`, `WbIdMpcRobotModel`, `WbIdDynamics`, `WbIdRneaConstraintCppAd`, `WbIdFootAccelerationConstraintCppAd`, `WbIdJointTorqueLimitConstraint`, `WbIdTorqueWindow`, `WbIdInitializer`, `WbIdMpcTargetTrajectoriesCalculator`); controller in [`src/humanoid_whole_body_inverse_dynamics_mpc`](./src/humanoid_whole_body_inverse_dynamics_mpc).
 

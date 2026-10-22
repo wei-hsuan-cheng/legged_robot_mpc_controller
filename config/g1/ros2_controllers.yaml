@@ -483,11 +483,12 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
       modeTopic: /humanoid/target_mode
       defaultMode: base_twist
       globalFrame: world
+      # [ax, ay (m/s^2), height rate (m/s), yaw acceleration (rad/s^2)]
+      velocityCommandRateLimits: [0.1, 0.08, 0.05, 0.1]
 
     robot:
       commandInterface: effort_pd
-      stateInterfaces:
-        [position, velocity, effort]
+      stateInterfaces: [position, velocity, effort]
       jointNames:
         - left_hip_pitch_joint
         - left_hip_roll_joint
@@ -516,75 +517,29 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
     control:
       observationVelocityFilterCutoffHz: 30.0
       policyTimeOffset: 0.000
-      mpcJointKp:
-        [0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-         0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-         0.0, 0.0, 0.0,
-         0.0, 0.0, 0.0, 0.0,
-         0.0, 0.0, 0.0, 0.0]
-      mpcJointKd:
-        [2.0, 2.0, 2.0, 2.0, 2.0, 2.0,
-         2.0, 2.0, 2.0, 2.0, 2.0, 2.0,
-         2.0, 2.0, 2.0,
-         2.0, 2.0, 2.0, 2.0,
-         2.0, 2.0, 2.0, 2.0]
-      fixedJointKp:
-        [100.0, 100.0, 100.0, 100.0, 100.0, 100.0]
-      fixedJointKd:
-        [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
-      # Symmetric torque limits, index-aligned with robot.jointNames, from the effort
-      # limits in g1_29dof.urdf. The MPC bounds tau with them inside its torque window
-      # (wholeBody.torqueConstraintNodes), and the controller clamps the feedforward.
       torqueLimit:
         [88.0, 88.0, 88.0, 139.0, 50.0, 50.0,
          88.0, 88.0, 88.0, 139.0, 50.0, 50.0,
          88.0, 50.0, 50.0,
          25.0, 25.0, 25.0, 25.0,
          25.0, 25.0, 25.0, 25.0]
+      # Joint servo PD gains live in the ros2_control hardware xacro.
+      feedforward: policy_torque
 
     diagnostics:
       statusLogPeriod: 2.0
-      log:
-        # (off unless you pass diagnosticsLog:=true). Produces two CSVs:
-        #   <prefix>_state.csv  control thread: InEKF covariance, NIS, per-contact
-        #                       innovations, contact transitions, estimate-vs-GT error,
-        #                       and the centroidal momentum recomputed from BOTH
-        #                       feedback sources through the same A_G(q).
-        #   <prefix>_cost.csv   solver thread: per-cost-term values at the current
-        #                       observation, plus the reference those terms track.
-        enabled: $(var diagnosticsLog)
-        pathPrefix: $(var diagnosticsLogPrefix)
-        stateRate: 200.0
-        logCost: true
-        costRate: 50.0
-        bufferRows: 8192
 
     floatingBase:
-      # ground_truth_state = the simulator/hardware body state
-      # state_estimator    = the estimator controller named below, through its
-      #                      exported state interfaces. It drives control from
-      #                      the end of the bring-up; nothing reads ground truth.
       source: $(var floatingBaseSource)
-      # humanoid_inekf | humanoid_linear_kf | none, from the floatingBaseEstimator
-      # launch argument: the estimator CONTROLLER to read, configured in its own
-      # block at the end of this file. With ground_truth_state it is still read,
-      # so its estimate is logged against ground truth.
       estimator: $(var floatingBaseEstimator)
-      # The ground-truth body. With state_estimator it is only logged, never used
-      # for control; set it to "" on a robot that exports no body pose.
       stateInterfaceName: pelvis
-      # The bring-up's IMU: stand gravity compensation and rest detection.
       imuInterfaceName: pelvis_imu
 
-    # With state_estimator: Passive (damping) -> StandUp (joint PD to the nominal
-    # pose, IMU-attitude gravity compensation) -> Settle -> Converge (estimator
-    # initialised at rest, on its feet) -> MPC from the estimate -> Blend. No
-    # ground truth anywhere. MIT Cheetah's Passive -> StandUp -> Locomotion.
     bringUp:
-      autoStart: true        # false on hardware: ~/stand_up, then ~/start_locomotion
+      autoStart: true
       standUpSeconds: 3.0
       settleSeconds: 0.5
-      settleGyroMax: 0.10            # trunk at rest, from the IMU (not the joints)
+      settleGyroMax: 0.10
       settleAccelTolerance: 0.5
       settleFilterHz: 2.0
       blendSeconds: 0.5
@@ -593,15 +548,10 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
     ocs2:
       interface:
         verbose: false
-        useAnalyticalGradientsDynamics: false
-        useAnalyticalGradientsConstraints: false
 
       model:
         robotName: g1
-        centroidalModelType: 0  # FullCentroidalDynamics
         phaseTransitionStanceTime: 0.0
-        # Use the measured stance-foot height as the swing planner ground reference
-        # instead of a flat floor at z=0. Pair with height.source inekf/anchored.
         useTerrainHeightEstimate: false
         maxTerrainHeightStep: 0.002
         verboseCppAd: true
@@ -613,21 +563,14 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           - right_wrist_roll_joint
           - right_wrist_pitch_joint
           - right_wrist_yaw_joint
-        contactNames6DoF:
-          [foot_l_contact, foot_r_contact]
-        contactParentJointNames:
-          [left_ankle_roll_joint, right_ankle_roll_joint]
+        contactNames6DoF: [foot_l_contact, foot_r_contact]
+        contactParentJointNames: [left_ankle_roll_joint, right_ankle_roll_joint]
         armJointNames:
           - left_shoulder_pitch_joint
           - right_shoulder_pitch_joint
           - left_elbow_joint
           - right_elbow_joint
-        # Acceleration level here (the centroidal MPC's are velocity level):
-        #   stance  Ka a_c + Kd v_c + Kp [z - z_ref; tilt] = 0
-        #   swing   ka (a_z - a_ref) + kd (v_z - v_ref) + kp (z - z_ref) = 0
-        # Kd = 1/sqp.dt makes the stance rows "v_c = 0 at the next node" (the ETH
-        # formulation), Kp = Kd * the centroidal velocity-level gains (5 on z, 20 on
-        # tilt). The acceleration gains must be non-zero.
+
         footConstraint:
           positionErrorGain_z: 250.0
           orientationErrorGain: 1000.0
@@ -637,6 +580,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           linearAccelerationErrorGain_z: 1.0
           linearAccelerationErrorGain_xy: 1.0
           angularAccelerationErrorGain: 1.0
+        torqueConstraintNodes: 3
 
       swingTrajectory:
         liftOffVelocity: 0.05
@@ -682,87 +626,76 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         coldStart: false
         debugPrint: false
 
-      # Arrays below are index-aligned with robot.jointNames:
-      # 12 leg joints, 3 waist joints, 8 arm joints.
-
-      # Whole-body weights: Q on x = [q, v], R on u = [W, a, tau]. Magnitudes from
-      # wb_humanoid_mpc's G1 whole-body task.info; torque weights in the ETH ratio
-      # (legs 0.1x, arms 10x the acceleration weight). The base pose and twist are
-      # tracked in the pelvis frame by BaseMotionTrackingCost (basePose here and
-      # wholeBody.costs.q.baseVelocity), the arms by the joint-tracking cost.
-      # centroidalMomentum and r.jointVelocities are centroidal-only and unused.
       costs:
         qScaling: 1.0
         rScaling: 0.001
         terminalCostScaling: 4.0
-
+        # Q/Qf on x = [base pose, joint positions, base velocity, joint velocities].
+        # Base pose: [x, y, z, yaw, pitch, roll].
+        # Base velocity: [vx, vy, vz, yaw rate, pitch rate, roll rate] (Euler rates).
         q:
-          centroidalMomentum:
-            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-          basePose:
-            [0.0, 0.0, 10.0, 0.0, 20.0, 20.0]
+          basePose: [0.0, 0.0, 1000.0, 0.0, 1000.0, 1000.0]
+          baseVelocity: [300.0, 150.0, 30.0, 300.0, 30.0, 30.0]
           jointPositions:
             [0.05, 0.2, 0.2, 0.1, 0.1, 0.1,
              0.05, 0.2, 0.2, 0.1, 0.1, 0.1,
              2.0, 2.0, 2.0,
              5.0, 5.0, 2.0, 4.0,
              5.0, 5.0, 2.0, 4.0]
+          jointVelocities:
+            [0.001, 0.001, 0.001, 0.001, 0.001, 0.001,
+             0.001, 0.001, 0.001, 0.001, 0.001, 0.001,
+             0.2, 0.2, 0.2,
+             0.02, 0.02, 0.02, 0.02,
+             0.02, 0.02, 0.02, 0.02]
 
         qFinal:
-          centroidalMomentum:
-            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-          basePose:
-            [0.0, 0.0, 10.0, 0.0, 20.0, 20.0]
+          basePose: [0.0, 0.0, 1000.0, 0.0, 1000.0, 1000.0]
+          baseVelocity: [300.0, 150.0, 30.0, 300.0, 30.0, 30.0]
           jointPositions:
             [0.05, 0.1, 0.1, 0.1, 0.1, 0.1,
              0.05, 0.1, 0.1, 0.1, 0.1, 0.1,
              2.0, 2.0, 2.0,
              5.0, 5.0, 2.0, 4.0,
              5.0, 5.0, 2.0, 4.0]
-
-        r:
-          # [left fx, fy, fz, mx, my, mz, right fx, fy, fz, mx, my, mz]
-          contactWrenches:
-            [0.003, 0.003, 0.001, 0.01, 0.01, 0.1,
-             0.003, 0.003, 0.001, 0.01, 0.01, 0.1]
           jointVelocities:
-            [1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
-             1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
-             1.0, 1.0, 1.0,
-             1.0, 1.0, 1.0, 1.0,
-             1.0, 1.0, 1.0, 1.0]
+            [0.001, 0.001, 0.001, 0.001, 0.001, 0.001,
+             0.001, 0.001, 0.001, 0.001, 0.001, 0.001,
+             0.2, 0.2, 0.2,
+             0.02, 0.02, 0.02, 0.02,
+             0.02, 0.02, 0.02, 0.02]
 
-        # [pos xyz, orientation xyz, lin vel xyz, ang vel xyz]
+        # R on u = [W_left, W_right, base acceleration, joint acceleration, joint torque].
+        # Contact wrench order per foot: [fx, fy, fz, mx, my, mz].
+        r:
+          contactWrenches:
+            [0.003, 0.003, 0.001, 0.01, 0.01, 100.0,
+             0.003, 0.003, 0.001, 0.01, 0.01, 100.0]
+          baseAccelerations: [0.005, 0.005, 0.005, 0.005, 0.005, 0.005]
+          jointAccelerations:
+            [0.005, 0.005, 0.005, 0.005, 0.005, 0.005,
+             0.005, 0.005, 0.005, 0.005, 0.005, 0.005,
+             0.005, 0.005, 0.005,
+             0.005, 0.005, 0.005, 0.005,
+             0.005, 0.005, 0.005, 0.005]
+          jointTorques:
+            [0.0005, 0.0005, 0.0005, 0.0005, 0.0005, 0.0005,
+             0.0005, 0.0005, 0.0005, 0.0005, 0.0005, 0.0005,
+             0.005, 0.005, 0.005,
+             0.05, 0.05, 0.05, 0.05,
+             0.05, 0.05, 0.05, 0.05]
+
+        # Optional G1 flat-foot/task-space adaptations beyond the papers' state/input objective.
         taskSpaceFootCostWeights:
-          [0.0, 0.0, 0.0,
-           1000.0, 1000.0, 0.0,
-           10.0, 10.0, 0.0,
-           1.0, 1.0, 0.005]
-        
-        icpErrorWeight: 0.0
-        
-        # Flat-ground capture-point foot placement. Without this there is no
-        # foothold xy reference at all, so nothing arrests a lateral fall.
-        captureFootPlacement:
-          enabled: true
-          gain: 0.1
-          stepWidth: 0.25
-          maxAdjustment: 0.20
-          trackingWeight: 100.0
-          footCenterOffset: 0.075
-          stepLengthGain: 0.0
-
+          [0.0, 0.0, 0.0, 1000.0, 1000.0, 0.0, 10.0, 10.0, 0.0, 1.0, 1.0, 0.005]
         taskSpaceCosts:
-          names:
-            [torso]
+          names: [torso]
           torso:
             linkName: mid360_link
             weights:
-              [0.0, 0.0, 0.0,
-               100.0, 100.0, 0.0,
-               0.1, 0.1, 0.005,
-               5.0, 5.0, 2.0]
+              [0.0, 0.0, 0.0, 100.0, 100.0, 0.0, 0.1, 0.1, 0.005, 5.0, 5.0, 2.0]
 
+        # Additional active J_leg^T W load cost; separate from r.jointTorques.
         legTorqueCost:
           scaling: 0.001
           leftActiveJointNames:
@@ -786,16 +719,20 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         contact:
           frameTranslation: [0.035, 0.0, -0.035]
           rectangle: [0.09, -0.09, 0.03, -0.03]
+
         frictionCone:
           frictionCoefficient: 0.4
           mu: 0.2
           delta: 5.0
+
         contactMomentXY:
           mu: 0.6
           delta: 0.03
+
         jointLimits:
           mu: 1200.0
           delta: 0.1
+
         footCollision:
           leftAnkleFrame: left_ankle_roll_joint
           rightAnkleFrame: right_ankle_roll_joint
@@ -806,44 +743,40 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           mu: 30000.0
           delta: 0.05
 
+        jointTorqueLimits:
+          mu: 0.1
+          delta: 5.0
+
+        jointVelocityLimits:
+          scale: 1.0
+          mu: 0.1
+          delta: 1.0
+
       reference:
         targetDisplacementVelocity: 0.5
         targetRotationVelocity: 0.5
-        maxDisplacementVelocityX: 2.4
-        maxDisplacementVelocityY: 1.2
+        maxDisplacementVelocityX: 0.25
+        maxDisplacementVelocityY: 0.15
         maxDeltaPelvisHeight: 0.4
-        maxRotationVelocity: 1.0
+        maxRotationVelocity: 0.15
         defaultBaseHeight: $(var refBaseHeight)
         basePosePositionTolerance: 0.02
         basePoseOrientationTolerance: 0.03
-        # Arms hang at the sides. The all-zero arm posture this replaced put the
-        # hands 0.20 m IN FRONT of the pelvis and 0.10 m above it, holding 7.04 kg
-        # of arm mass at +0.063 m forward of the pelvis. Shoulder roll +-0.20 and
-        # elbow 1.20 bring that to +0.025 m (-61%) with the forearms hanging beside
-        # the hips; at zero roll the hands interpenetrate the hip links by 12.6 mm,
-        # which is why the roll term is not optional.
-        #
-        # This is a POSTURE change, not a stability fix: standing pitch is
-        # unchanged (both under 0.6 deg) and forward pitch RMS is 10-20% WORSE,
-        # because the gains were tuned with the arms held forward. See Claude.md.
-        useInertiaWeightedAngularMomentum: true
+        # Nominal crouch shared by bring-up and reference generation; default height 0.6 m.
         defaultJointState:
-          [-0.05,   0.0, 0.0,  0.1, -0.05, 0.0,
-           -0.05,   0.0, 0.0,  0.1, -0.05, 0.0,
-             0.0,   0.0, 0.0,
-            0.20,  0.20, 0.0, 1.20,
-            0.20, -0.20, 0.0, 1.20]
+          [-0.8, 0.0, 0.0, 1.6, -0.8, 0.0,
+           -0.8, 0.0, 0.0, 1.6, -0.8, 0.0,
+            0.0, 0.0, 0.0,
+           0.20, 0.20, 0.0, 1.20,
+           0.20, -0.20, 0.0, 1.20]
 
       gait:
         gaitLibraryFile: $(var gaitLibraryFile)
         stairClimbingFile: $(var stairClimbingFile)
         terrainWalkingFile: $(var terrainWalkingFile)
-        initialModeSequence:
-          [STANCE, STANCE]
-        initialEventTimes:
-          [0.5]
-        defaultModeSequence:
-          [STANCE]
+        initialModeSequence: [STANCE, STANCE]
+        initialEventTimes: [0.5]
+        defaultModeSequence: [STANCE]
         defaultSwitchingTimes: [0.0, 0.5]
 
     visualization:
@@ -861,53 +794,6 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           - foot_r_contact
         lineWidth: 0.005
         pointScale: 0.01
-
-    # Whole-body inverse-dynamics MPC additions (see its parameter yaml).
-    wholeBody:
-      torqueConstraintNodes: 3
-      torqueLimitBarrier:
-        mu: 0.1
-        delta: 5.0
-      jointVelocityLimit:
-        scale: 1.0
-        mu: 0.1
-        delta: 1.0
-      costs:
-        q:
-          # [vx, vy, vz world, yaw, pitch, roll Euler rates]
-          baseVelocity: [3.0, 3.0, 3.0, 3.0, 3.0, 3.0]
-          jointVelocities:
-            [0.001, 0.001, 0.001, 0.001, 0.001, 0.001,
-             0.001, 0.001, 0.001, 0.001, 0.001, 0.001,
-             0.2, 0.2, 0.2,
-             0.02, 0.02, 0.02, 0.02,
-             0.02, 0.02, 0.02, 0.02]
-        qFinal:
-          baseVelocity: [3.0, 3.0, 3.0, 3.0, 3.0, 3.0]
-          jointVelocities:
-            [0.001, 0.001, 0.001, 0.001, 0.001, 0.001,
-             0.001, 0.001, 0.001, 0.001, 0.001, 0.001,
-             0.2, 0.2, 0.2,
-             0.02, 0.02, 0.02, 0.02,
-             0.02, 0.02, 0.02, 0.02]
-        r:
-          baseAccelerations: [0.005, 0.005, 0.005, 0.005, 0.005, 0.005]
-          jointAccelerations:
-            [0.005, 0.005, 0.005, 0.005, 0.005, 0.005,
-             0.005, 0.005, 0.005, 0.005, 0.005, 0.005,
-             0.005, 0.005, 0.005,
-             0.005, 0.005, 0.005, 0.005,
-             0.005, 0.005, 0.005, 0.005]
-          jointTorques:
-            [0.0005, 0.0005, 0.0005, 0.0005, 0.0005, 0.0005,
-             0.0005, 0.0005, 0.0005, 0.0005, 0.0005, 0.0005,
-             0.005, 0.005, 0.005,
-             0.05, 0.05, 0.05, 0.05,
-             0.05, 0.05, 0.05, 0.05]
-      control:
-        # policy_torque: the MPC's tau (Molnar et al.); inverse_dynamics: RNEA at the
-        # measured state with the plan's accelerations and wrenches.
-        feedforward: policy_torque
 
 
 # ---- floating-base estimators ---------------------------------------------

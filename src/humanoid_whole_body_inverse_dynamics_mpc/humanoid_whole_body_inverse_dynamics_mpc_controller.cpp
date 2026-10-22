@@ -72,13 +72,8 @@ HumanoidWholeBodyInverseDynamicsMpcController::~HumanoidWholeBodyInverseDynamics
 controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcController::on_init()
 {
   try {
-    // Two parameter sets on one node: the centroidal controller's, whose keys this
-    // controller shares, and the whole-body additions under wholeBody.*. Their names
-    // are disjoint, so neither listener ever sees the other's parameters.
     param_listener_ = std::make_shared<ParamListener>(get_node());
     parameters_ = param_listener_->get_params();
-    whole_body_param_listener_ = std::make_shared<WholeBodyParamListener>(get_node());
-    whole_body_parameters_ = whole_body_param_listener_->get_params();
   } catch (const std::exception& e) {
     RCLCPP_ERROR(get_node()->get_logger(), "%s init failed: %s", kTag, e.what());
     return controller_interface::CallbackReturn::ERROR;
@@ -92,10 +87,7 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
   if (param_listener_->is_old(parameters_)) {
     parameters_ = param_listener_->get_params();
   }
-  if (whole_body_param_listener_->is_old(whole_body_parameters_)) {
-    whole_body_parameters_ = whole_body_param_listener_->get_params();
-  }
-  feedforward_ = whole_body_parameters_.wholeBody.control.feedforward == "inverse_dynamics" ?
+  feedforward_ = parameters_.control.feedforward == "inverse_dynamics" ?
     Feedforward::InverseDynamics : Feedforward::PolicyTorque;
 
   if (parameters_.paths.urdfFile.empty() || parameters_.paths.libFolder.empty()) {
@@ -108,7 +100,7 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
   const char* configure_stage = "building the whole-body inverse-dynamics MPC interface";
   try {
     mpc_interface_ = std::make_unique<ocs2::humanoid::WbIdMpcInterface>(
-      buildWholeBodyInverseDynamicsMpcConfig(parameters_, whole_body_parameters_));
+      buildWholeBodyInverseDynamicsMpcConfig(parameters_));
     control_model_.reset(mpc_interface_->getMpcRobotModel().clone());
     control_pinocchio_ = std::make_unique<ocs2::PinocchioInterface>(mpc_interface_->getPinocchioInterface());
 
@@ -123,7 +115,8 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
       torque_limit_.size() > 0 ? "control.torqueLimit" : "none");
 
     configure_stage = "building the target-trajectories calculator / reference manager";
-    const auto reference_config = common::buildReferenceConfig(parameters_);
+    auto reference_config = common::buildReferenceConfig(parameters_);
+    reference_config.commandRateLimits = Eigen::Map<const ocs2::vector4_t>(parameters_.target.velocityCommandRateLimits.data());
     if (parameters_.ocs2.gait.gaitLibraryFile.empty()) {
       throw std::invalid_argument("ocs2.gait.gaitLibraryFile is empty.");
     }
@@ -167,8 +160,7 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
     motion_manager_->subscribeMpcTargets(
       get_node(), parameters_.target.mpcTargetsTopic,
       common::selectAtIndices(parameters_.robot.jointNames, common::findArmJointIndices(parameters_.robot.jointNames)),
-      parameters_.ocs2.costs.frameRelationTracking.sourceFrames,
-      parameters_.ocs2.costs.frameRelationTracking.targetFrames);
+      {}, {});
 
     performance_visualization_ = std::make_unique<visualization::PerformanceVisualization>(
       get_node(),
@@ -294,6 +286,7 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
   start_requested_.store(false);
   locomotion_requested_.store(false);
   mpc_ready_.store(false);
+  active_policy_ready_ = false;
 
   publish_mode_schedule();
   if (has_estimator() && !uses_state_estimator(parameters_.floatingBase.source)) {
@@ -470,10 +463,15 @@ controller_interface::return_type HumanoidWholeBodyInverseDynamicsMpcController:
   read_state_estimator();
 
   const auto observation = build_observation(time);
+  // The worker only fills the MRT buffer. Swap the active policy here so evaluation
+  // and visualization cannot read a policy being replaced by the solver thread.
+  if (mpc_ready_.load(std::memory_order_acquire) && mrt_interface_->updatePolicy()) {
+    active_policy_ready_ = true;
+  }
   JointActionCommand command;
   if (uses_state_estimator(parameters_.floatingBase.source)) {
     command = run_bring_up(time, observation);
-  } else if (mpc_ready_.load(std::memory_order_acquire) && mrt_interface_->initialPolicyReceived()) {
+  } else if (active_policy_ready_) {
     command = compute_mpc_joint_action(observation);
   } else {
     // Ground-truth base, first ticks: seed the solver from this tick's observation
@@ -494,8 +492,7 @@ controller_interface::return_type HumanoidWholeBodyInverseDynamicsMpcController:
   write_joint_action_command(command.policy_position, command.policy_velocity, command.feedforward);
   write_estimator_references(time.seconds());
 
-  if (performance_visualization_ && mpc_ready_.load(std::memory_order_acquire) &&
-      mrt_interface_->initialPolicyReceived() &&
+  if (performance_visualization_ && active_policy_ready_ &&
       (last_visualization_time_ < 0.0 || observation.time - last_visualization_time_ >= 0.1)) {
     last_visualization_time_ = observation.time;
     performance_visualization_->update_visualization(mrt_interface_->getPolicy().stateTrajectory_);
@@ -708,7 +705,7 @@ HumanoidWholeBodyInverseDynamicsMpcController::run_bring_up(
       return hold_command(stand_nominal_joints_, q, imu);
 
     case BringUpPhase::StartingMpc:
-      if (mpc_ready_.load(std::memory_order_acquire) && mrt_interface_->initialPolicyReceived()) {
+      if (active_policy_ready_) {
         estimator_driving_control_ = true;
         enter_bring_up_phase(BringUpPhase::Blend, t);
       }
@@ -1104,7 +1101,7 @@ void HumanoidWholeBodyInverseDynamicsMpcController::solver_worker()
   double max_equality_sse = 0.0;
   double max_dynamics_sse = 0.0;
   double accumulated_equality_sse = 0.0;
-  std::size_t policy_failures = 0;
+  std::size_t solver_exceptions = 0;
   // The same violation, per equality term (RNEA rows, stance/swing feet, zero wrench),
   // worst solve over the log period: which constraint the plan fails to satisfy.
   std::vector<std::pair<std::string, std::size_t>> equality_terms;
@@ -1145,12 +1142,8 @@ void HumanoidWholeBodyInverseDynamicsMpcController::solver_worker()
         }
         max_term_sse[t] = std::max(max_term_sse[t], sse);
       }
-      if (!mrt_interface_->updatePolicy()) {
-        ++policy_failures;
-        RCLCPP_WARN_THROTTLE(get_node()->get_logger(), *get_node()->get_clock(), 2000,
-                             "%s MPC solver failed to update policy.", kTag);
-      }
     } catch (const std::exception& e) {
+      ++solver_exceptions;
       RCLCPP_ERROR_THROTTLE(get_node()->get_logger(), *get_node()->get_clock(), 2000, "%s MPC solver exception: %s",
                             kTag, e.what());
     }
@@ -1167,10 +1160,10 @@ void HumanoidWholeBodyInverseDynamicsMpcController::solver_worker()
         target_period_ms, 100.0 * average_advance_ms / target_period_ms);
       RCLCPP_INFO(
         get_node()->get_logger(),
-        "%s[MPC_HEALTH] equality SSE mean=%.3e max=%.3e | dynamics SSE max=%.3e | policy update failures=%zu | "
+        "%s[MPC_HEALTH] equality SSE mean=%.3e max=%.3e | dynamics SSE max=%.3e | solver exceptions=%zu | "
         "torque-window overruns=%lu",
         kTag, accumulated_equality_sse / static_cast<double>(advance_samples), max_equality_sse, max_dynamics_sse,
-        policy_failures, static_cast<unsigned long>(torque_window_overruns_.load()));
+        solver_exceptions, static_cast<unsigned long>(torque_window_overruns_.load()));
       {
         std::vector<std::size_t> order(equality_terms.size());
         std::iota(order.begin(), order.end(), 0);
@@ -1193,7 +1186,7 @@ void HumanoidWholeBodyInverseDynamicsMpcController::solver_worker()
       max_equality_sse = 0.0;
       max_dynamics_sse = 0.0;
       accumulated_equality_sse = 0.0;
-      policy_failures = 0;
+      solver_exceptions = 0;
       next_log = Clock::now() + log_period;
     }
 
@@ -1253,15 +1246,16 @@ HumanoidWholeBodyInverseDynamicsMpcController::compute_mpc_joint_action(const oc
     // the window) tau is an unconstrained input, so take the plan's inverse dynamics
     // instead, which is what those rows would have made it.
     const auto& window = mpc_interface_->getTorqueWindow();
-    const double policy_start = mrt_interface_->getPolicy().timeTrajectory_.front();
-    if (window.duration() < 0.0 || policy_time < policy_start + window.duration()) {
+    const auto& policy_times = mrt_interface_->getPolicy().timeTrajectory_;
+    const double policy_start = policy_times.front();
+    if (window.containsInterpolatedInput(policy_time, policy_times)) {
       command.feedforward = control_model_->getJointTorques(policy_input);
     } else {
       ++torque_window_overruns_;
       RCLCPP_WARN_THROTTLE(
         get_node()->get_logger(), *get_node()->get_clock(), 2000,
-        "%s policy evaluated %.3f s into its horizon, past the %.3f s torque window (%lu ticks so far); using the "
-        "plan's inverse dynamics. Raise wholeBody.torqueConstraintNodes or speed up the MPC.",
+        "%s policy evaluated %.3f s into its horizon; its interpolation exceeds the %.3f s torque window (%lu ticks so far); using the "
+        "plan's inverse dynamics. Raise ocs2.model.torqueConstraintNodes or speed up the MPC.",
         kTag, policy_time - policy_start, window.duration(), static_cast<unsigned long>(torque_window_overruns_.load()));
       command.feedforward = plan_inverse_dynamics(
         control_model_->getGeneralizedCoordinates(policy_state), control_model_->getGeneralizedVelocities(policy_state));

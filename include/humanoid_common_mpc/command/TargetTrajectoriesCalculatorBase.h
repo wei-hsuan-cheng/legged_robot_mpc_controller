@@ -50,6 +50,8 @@ struct ReferenceConfig {
   scalar_t maxDeltaPelvisHeight{0.4};
   scalar_t maxRotationVelocity{1.0};
   scalar_t defaultBaseHeight{0.79};
+  // Physical command slew limits [ax, ay, height rate, yaw acceleration]; zero disables an axis.
+  vector4_t commandRateLimits{vector4_t::Zero()};
   scalar_t basePosePositionTolerance{0.02};
   scalar_t basePoseOrientationTolerance{0.03};
   vector_t defaultJointState;

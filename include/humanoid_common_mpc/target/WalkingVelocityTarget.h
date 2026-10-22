@@ -31,6 +31,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #pragma once
 
 #include <functional>
+#include <limits>
 #include <mutex>
 
 #include <ocs2_core/reference/TargetTrajectories.h>
@@ -62,7 +63,7 @@ class WalkingVelocityTarget {
 
   struct Output {
     TargetTrajectories targetTrajectories;
-    vector4_t conditionedCommand;  //!< scaled + filtered [v_x, v_y, pelvis_height, yaw_rate]
+    vector4_t conditionedCommand;  //!< scaled, filtered, optionally slew-limited [v_x, v_y, pelvis_height, yaw_rate]
   };
 
   WalkingVelocityTarget(const ReferenceConfig& referenceConfig, Generator generator);
@@ -74,7 +75,7 @@ class WalkingVelocityTarget {
   /// Must only be called from the solver thread (owns the filter state).
   Output evaluate(scalar_t initTime, scalar_t finalTime, const vector_t& initState);
 
-  /// Request a filter reset. The solver thread applies it using the latest command.
+  /// Request a solver-thread reset; slew-limited twist axes restart from zero.
   void requestFilterReset();
 
  private:
@@ -84,6 +85,9 @@ class WalkingVelocityTarget {
   scalar_t maxDisplacementVelocityX_;
   scalar_t maxDisplacementVelocityY_;
   scalar_t maxRotationVelocity_;
+  vector4_t commandRateLimits_;
+  vector4_t previousCommand_;
+  scalar_t previousTime_{std::numeric_limits<scalar_t>::quiet_NaN()};
 
   BreakFrequencyAlphaFilter velocityCommandFilter_;
 

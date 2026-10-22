@@ -33,7 +33,6 @@
 
 #include "legged_robot_mpc_controller/common/ros2_procedural_mpc_motion_manager.hpp"
 #include "legged_robot_mpc_controller/common/yaw_unwrapper.hpp"
-#include "legged_robot_mpc_controller/humanoid_centroidal_mpc_controller_parameters.hpp"
 #include "legged_robot_mpc_controller/humanoid_state_estimation/estimator_state_interfaces.hpp"
 #include "legged_robot_mpc_controller/humanoid_whole_body_inverse_dynamics_mpc_controller_parameters.hpp"
 #include "legged_robot_mpc_controller/visualization/performance_visualization.hpp"
@@ -44,11 +43,8 @@ namespace legged_robot_mpc_controller
 /**
  * Whole-body inverse-dynamics MPC as a ros2_control controller.
  *
- * The sibling of HumanoidCentroidalMpcController with the same interfaces, bring-up,
- * estimator hand-shake, gait/command handling and parameters (it reads the centroidal
- * controller's parameter set plus wholeBody.*), so the two are drop-in alternatives
- * selected by g1.launch.py's mpcControllerName. What differs is the model the MPC plans
- * with (see ocs2::humanoid::WbIdMpcInterface) and therefore the inner loop: the MPC's
+ * Uses its own generated parameter schema, with shared estimator/command interfaces.
+ * The model is ocs2::humanoid::WbIdMpcInterface. The MPC's
  * input already contains the joint torques, so there is no separate inverse dynamics or
  * whole-body QP - the policy's tau is the feedforward, with the joint servo's PD around
  * the policy's (q, qd) (Molnar et al., RA-L 2025).
@@ -56,10 +52,8 @@ namespace legged_robot_mpc_controller
 class HumanoidWholeBodyInverseDynamicsMpcController : public controller_interface::ChainableControllerInterface
 {
 public:
-  using Params = humanoid_centroidal_mpc_controller::Params;
-  using ParamListener = humanoid_centroidal_mpc_controller::ParamListener;
-  using WholeBodyParams = humanoid_whole_body_inverse_dynamics_mpc_controller::Params;
-  using WholeBodyParamListener = humanoid_whole_body_inverse_dynamics_mpc_controller::ParamListener;
+  using Params = humanoid_whole_body_inverse_dynamics_mpc_controller::Params;
+  using ParamListener = humanoid_whole_body_inverse_dynamics_mpc_controller::ParamListener;
 
   ~HumanoidWholeBodyInverseDynamicsMpcController() override;
 
@@ -133,7 +127,7 @@ private:
   void enter_bring_up_phase(BringUpPhase phase, double time);
   static const char* to_string(BringUpPhase phase);
 
-  //! Where the joint torque feedforward comes from (wholeBody.control.feedforward).
+  //! Where the joint torque feedforward comes from (control.feedforward).
   enum class Feedforward { PolicyTorque, InverseDynamics };
   Feedforward feedforward_{Feedforward::PolicyTorque};
 
@@ -142,8 +136,6 @@ private:
 
   std::shared_ptr<ParamListener> param_listener_;
   Params parameters_;
-  std::shared_ptr<WholeBodyParamListener> whole_body_param_listener_;
-  WholeBodyParams whole_body_parameters_;
 
   std::unique_ptr<ocs2::humanoid::WbIdMpcInterface> mpc_interface_;
   std::unique_ptr<ocs2::humanoid::WbIdMpcRobotModel<ocs2::scalar_t>> control_model_;
@@ -198,6 +190,7 @@ private:
   ocs2::SystemObservation start_observation_;
   std::atomic_bool locomotion_requested_{false};
   std::atomic_bool mpc_ready_{false};
+  bool active_policy_ready_{false};  // Owned by the control thread, like the active MRT policy.
   std::atomic_bool stand_up_requested_{false};
   std::atomic_bool start_requested_{false};
   rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr stand_up_service_;

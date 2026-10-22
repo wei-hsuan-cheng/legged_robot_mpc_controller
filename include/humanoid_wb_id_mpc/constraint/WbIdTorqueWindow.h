@@ -5,6 +5,7 @@
 #include <memory>
 
 #include <ocs2_core/Types.h>
+#include <ocs2_core/misc/LinearInterpolation.h>
 #include <ocs2_oc/synchronized_module/SolverSynchronizedModule.h>
 
 namespace ocs2::humanoid {
@@ -36,6 +37,23 @@ class WbIdTorqueWindow {
   }
 
   scalar_t duration() const { return duration_; }
+
+  // A policy may be older than the solver's current horizon. Check its own
+  // timestamps, and every knot contributing to the interpolated input.
+  bool containsInterpolatedInput(scalar_t time, const scalar_array_t& policyTimes) const {
+    if (policyTimes.empty() || time > policyTimes.back()) {
+      return false;
+    }
+    if (duration_ < 0.0) {
+      return true;
+    }
+    const auto [index, alpha] = LinearInterpolation::timeSegment(time, policyTimes);
+    const scalar_t end = policyTimes.front() + duration_;
+    if (alpha > 0.0 && policyTimes[index] >= end) {
+      return false;
+    }
+    return alpha >= 1.0 || policyTimes[index + 1] < end;
+  }
 
  private:
   std::atomic<scalar_t> horizonStart_{-std::numeric_limits<scalar_t>::infinity()};
