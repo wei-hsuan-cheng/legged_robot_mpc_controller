@@ -1,23 +1,15 @@
 <?xml version="1.0"?>
 <robot name="stairs" xmlns:xacro="http://www.ros.org/wiki/xacro">
   <!--
-    Parametric staircase for URDF (same geometry convention as
-    ../mujoco/stairs.xml.xacro, driven by the SAME params file).
+    Environment description: a parametric staircase (same geometry convention
+    as ../mujoco/stairs.xml.xacro, driven by the SAME params file). It is not
+    part of the robot. g1.launch.py runs it through xacro and publishes it with
+    its own robot_state_publisher in the "environment" namespace, so rviz shows
+    it next to the robot.
 
-    Generate a standalone urdf:
-      sudo xacro \
-        ./stairs.urdf.xacro \
-        stairs_params_file:=../mujoco/stairs_params.yaml \
-        parent:=world \
-        -o ./stairs.urdf
-
-    The result is a chain of fixed joints:
+    The result is a chain of fixed joints, rooted at <parent> (default "world"):
       <parent> -[fixed]-> stairs_base -[fixed]-> stairs_step_1 ... stairs_step_N
     The "stairs_base" link is the 0th step reference frame (world pos + yaw).
-
-    To fold it into g1_29dof.urdf: copy the generated <link>/<joint> blocks in,
-    and make sure the chosen <parent> link (default "world") exists in that file
-    (g1_29dof.urdf already has a commented-out "world" link you can enable).
 
     Each step is a SOLID box from the ground up to its tread height; the box
     origin sits at half that height.
@@ -39,6 +31,8 @@
   <xacro:property name="base_gray" value="${stairs['color_base_gray']}"/>
   <xacro:property name="gray_step" value="${stairs['color_gray_step']}"/>
   <xacro:property name="gray_max"  value="${stairs['color_gray_max']}"/>
+
+  <link name="${parent_link}"/>
 
   <!-- 0th step reference frame: world center position + yaw. -->
   <link name="stairs_base"/>

@@ -12,7 +12,7 @@
 #
 # This single file feeds BOTH:
 #   - mujoco/stairs.xml.xacro   -> stairs.xml
-#   - urdf/stairs.urdf.xacro    -> stairs.urdf
+#   - urdf/stairs.urdf.xacro    -> the environment description rviz shows (at launch)
 # Keep it as the single source of truth.
 # -----------------------------------------------------------------------------
 stairs:

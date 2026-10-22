@@ -58,8 +58,8 @@ humanoid_inekf:
   }
   odomFrame: {
     type: string,
-    default_value: "world",
-    description: "Header frame of the published estimate odometry"
+    default_value: "odom",
+    description: "Header frame of the published estimate odometry, and the parent frame of the odom -> baseFrame TF this controller publishes"
   }
   publishRate: {
     type: double,

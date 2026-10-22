@@ -31,22 +31,15 @@ def generate_launch_description():
     lib_folder_default = os.path.join("auto_generated", "g1_test")
     mpc_controller_default = "humanoid_centroidal_mpc_controller"
 
-    # URDF for the MPC's Pinocchio model: MUST be pelvis-rooted (the MPC adds its
-    # own floating base). Do NOT point this at a URDF that contains a world link /
-    # floating_base_joint or static environment (e.g. stairs) — the extra floating
-    # joint adds 6 DOF and trips "referenceJointState size does not match nq - 6".
-    urdf_default = PathJoinSubstitution([mpc_share_dir,
-                                         "description", "g1", "urdf",
-                                         "g1_29dof.urdf", # robot-only, pelvis-rooted (MPC/Pinocchio)
-                                         ])
+    # The one robot URDF, pelvis-rooted with no world link or floating joint: the MPC
+    # and the estimators add the floating base themselves, and robot_state_publisher
+    # gets it from g1.ros2_control.xacro, which includes this file.
+    urdf_default = PathJoinSubstitution([mpc_share_dir, "description", "g1", "urdf", "g1_29dof.urdf"])
 
-    # URDF for robot_state_publisher / RViz only: may include the world link and
-    # static environment (stairs). RSP skips the floating joint and gets
-    # world->pelvis from the sim's ground-truth TF instead.
-    display_urdf_default = PathJoinSubstitution([mpc_share_dir,
-                                                 "description", "g1", "urdf",
-                                                 "g1_29dof_stairs.urdf", # g1_29dof.urdf | g1_29dof_stairs.urdf
-                                                 ])
+    # The environment, rooted at world - not part of the robot. "" for none (e.g. with
+    # scene_flat.xml). Driven by the same params file as the MuJoCo stairs.
+    environment_default = PathJoinSubstitution([mpc_share_dir, "description", "g1", "urdf", "stairs.urdf.xacro"])
+    stairs_params_file = PathJoinSubstitution([mpc_share_dir, "description", "g1", "mujoco", "stairs_params.yaml"])
 
     controllers_file_default = PathJoinSubstitution([
         mpc_share_dir, "config", "g1",
@@ -82,12 +75,12 @@ def generate_launch_description():
         DeclareLaunchArgument("mujoco_real_time_factor", default_value="1.0"),
         DeclareLaunchArgument("mujoco_publish_rate", default_value="100.0"),
         DeclareLaunchArgument("gt_enabled", default_value="true"),
-        # pelvis is the URDF root and the MuJoCo free-joint body: world->pelvis from ground
-        # truth composes with robot_state_publisher's pelvis-rooted tree without TF conflicts
-        # (any other body would get two TF parents).
+        # The MuJoCo free-joint body. Its ground-truth TF is world -> gt/pelvis while an
+        # estimator owns odom -> pelvis, and world -> pelvis only with floatingBaseEstimator:=none
+        # (pelvis can have one TF parent).
         DeclareLaunchArgument("gt_body_frame", default_value="pelvis"),
         DeclareLaunchArgument("urdfFile", default_value=urdf_default),
-        DeclareLaunchArgument("displayUrdfFile", default_value=display_urdf_default),
+        DeclareLaunchArgument("environmentDescription", default_value=environment_default),
         DeclareLaunchArgument(
             "libFolder",
             default_value=lib_folder_default,
@@ -168,7 +161,8 @@ def generate_launch_description():
         [mpc_share_dir, "description", "g1", "mujoco", LaunchConfiguration("mujocoModelFile")]
     )
 
-    # ros2_control hardware description (minimal kinematic chain + G1System block).
+    # The robot description: g1_29dof.urdf plus its <ros2_control> block. One description
+    # for the controller manager and robot_state_publisher.
     robot_description_content = Command(
         [
             PathJoinSubstitution([FindExecutable(name="xacro")]),
@@ -196,17 +190,19 @@ def generate_launch_description():
     )
     robot_description = {"robot_description": ParameterValue(robot_description_content, value_type=str)}
 
-    # Full URDF (visuals + collisions + static environment) for robot_state_publisher / RViz.
-    display_description_content = Command(
-        [
-            PathJoinSubstitution([FindExecutable(name="xacro")]),
-            " ",
-            LaunchConfiguration("displayUrdfFile"),
-        ]
-    )
-    display_description = {
-        "robot_description": ParameterValue(display_description_content, value_type=str)
+    environment_description = {
+        "robot_description": ParameterValue(
+            Command([
+                PathJoinSubstitution([FindExecutable(name="xacro")]), " ",
+                LaunchConfiguration("environmentDescription"), " ",
+                "stairs_params_file:=", stairs_params_file,
+            ]),
+            value_type=str,
+        )
     }
+    has_environment = IfCondition(
+        PythonExpression(['"', LaunchConfiguration("environmentDescription"), '" != ""'])
+    )
 
     # Controller sequenced by controller_sequence.py: "none" starts MuJoCo with
     # joint_state_broadcaster only, which is only useful for environment smoke tests.
@@ -279,6 +275,9 @@ def generate_launch_description():
             {"gt_pub_hz": 100.0},
             {"gt_odom_topic": "/mujoco/ground_truth/odom"},
             {"gt_root_frame": "world"},
+            {"gt_frame_prefix": PythonExpression(
+                ['"" if "', LaunchConfiguration("floatingBaseEstimator"), '" == "none" else "gt/"']
+            )},
             {
                 # Build a YAML list string and parse it as string_array; a bare
                 # [LaunchConfiguration] would collapse to a single string.
@@ -338,7 +337,28 @@ def generate_launch_description():
         package="robot_state_publisher",
         executable="robot_state_publisher",
         output="screen",
-        parameters=[display_description, {"use_sim_time": use_sim_time}],
+        parameters=[robot_description, {"use_sim_time": use_sim_time}],
+    )
+
+    # TF tree: world -> odom (static, identity until something localizes the robot)
+    # -> pelvis (the estimator) -> links (robot_state_publisher); world -> stairs (the
+    # environment); world -> gt/pelvis (simulator ground truth, for comparison).
+    world_to_odom_node = Node(
+        package="tf2_ros",
+        executable="static_transform_publisher",
+        name="world_to_odom",
+        output="screen",
+        arguments=["--frame-id", "world", "--child-frame-id", "odom"],
+        parameters=[{"use_sim_time": use_sim_time}],
+    )
+
+    environment_state_publisher_node = Node(
+        package="robot_state_publisher",
+        executable="robot_state_publisher",
+        namespace="environment",
+        output="screen",
+        parameters=[environment_description, {"use_sim_time": use_sim_time}],
+        condition=has_environment,
     )
 
     base_command_gui_node = Node(
@@ -377,6 +397,8 @@ def generate_launch_description():
             controller_sequence,
             controller_sequence_mujoco,
             robot_state_publisher_node,
+            world_to_odom_node,
+            environment_state_publisher_node,
             base_command_gui_node,
             rviz_node,
         ]

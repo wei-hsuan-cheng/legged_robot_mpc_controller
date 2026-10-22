@@ -3,13 +3,6 @@
     <compiler meshdir="package://legged_robot_mpc_controller/description/g1/meshes" discardvisual="false"/>
   </mujoco>
 
-  <!-- [CAUTION] uncomment when convert to mujoco -->
-  <!-- <link name="world"></link>
-  <joint name="floating_base_joint" type="floating">
-    <parent link="world"/>
-    <child link="pelvis"/>
-  </joint> -->
-
   <link name="pelvis">
     <inertial>
       <origin xyz="0 0 -0.07605" rpy="0 0 0"/>

@@ -504,7 +504,7 @@ humanoid_inekf:
     contactFrames:
       [foot_l_heel_est, foot_l_toe_est, foot_r_heel_est, foot_r_toe_est]
     odomTopic: /humanoid/state_estimate/odom
-    odomFrame: world
+    odomFrame: odom
     publishRate: 100.0
 
     # When the estimate may take over from ground truth. The timer is the real
@@ -589,7 +589,7 @@ humanoid_linear_kf:
     contactFrames:
       [foot_l_heel_est, foot_l_toe_est, foot_r_heel_est, foot_r_toe_est]
     odomTopic: /humanoid/state_estimate/odom
-    odomFrame: world
+    odomFrame: odom
     publishRate: 100.0
 
     # When the estimate may take over from ground truth. The timer is the real

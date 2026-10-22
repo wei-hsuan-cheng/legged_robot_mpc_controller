@@ -11,6 +11,7 @@
 #include <controller_interface/chainable_controller_interface.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 #include <realtime_tools/realtime_publisher.hpp>
+#include <tf2_msgs/msg/tf_message.hpp>
 
 #include "legged_robot_mpc_controller/humanoid_state_estimation/floating_base_estimate.hpp"
 #include "legged_robot_mpc_controller/humanoid_state_estimation/humanoid_state_estimator.hpp"
@@ -84,6 +85,9 @@ private:
 
   std::unique_ptr<realtime_tools::RealtimePublisher<nav_msgs::msg::Odometry>> rt_odometry_publisher_;
   nav_msgs::msg::Odometry odometry_;
+  // odom -> baseFrame: this controller owns the robot's place in the TF tree.
+  std::unique_ptr<realtime_tools::RealtimePublisher<tf2_msgs::msg::TFMessage>> rt_tf_publisher_;
+  tf2_msgs::msg::TFMessage tf_message_;
   double last_odometry_time_{-1.0};
 };
 

@@ -33,6 +33,7 @@ set(THIS_PACKAGE_INCLUDE_DEPENDS
   realtime_tools
   std_msgs
   std_srvs
+  tf2_msgs
   tf2_ros
   tf2_geometry_msgs
   urdf

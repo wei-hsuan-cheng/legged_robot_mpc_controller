@@ -419,6 +419,28 @@ roll 0.007 rad, velocity ~0.016 m/s RMS against GT. `ground_truth_state` with th
 estimator logged alongside: survived. Linear KF controller: loads and completes the
 bring-up; fell at 97 s on `combined` (N=1, its documented weakness).
 
+## One robot URDF, and the TF tree (branch `jazzy`)
+
+Matches every reference looked at (OCS2 legged_robot and perceptive ANYmal,
+legged_control, wb_humanoid_mpc, wb-mpc-locoman): one base-rooted robot URDF with no
+world link or floating joint, the floating base added in code, world -> base from TF,
+and the environment kept out of the robot description (simulator world file; a map or
+markers for planning and rviz).
+
+- `g1_29dof.urdf` is the only robot URDF. `g1.ros2_control.xacro` includes it instead
+  of its old placeholder chain (same 29 revolute joints), so `/robot_description` is the
+  real model, for the controller manager and robot_state_publisher. The MPC and the
+  estimators still read the same file through `urdfFile`.
+- Removed: `g1_29dof_stairs.urdf`, the generated `stairs.urdf`, `displayUrdfFile`.
+- TF: `world -> odom` static identity; `odom -> pelvis` from the estimator controller
+  (real-time `/tf` publisher, with its odometry, once the estimate is valid);
+  `world -> stairs_base` from a second robot_state_publisher on
+  `/environment/robot_description` (`stairs.urdf.xacro` now declares its own `world`
+  root); ground truth as `world -> gt/pelvis` (`gt_frame_prefix`), or `world -> pelvis`
+  when no estimator runs.
+- Not changed yet: the MPC's markers and targets still use `globalFrame: world` while the
+  MPC state is the estimate, i.e. `odom`. Identical while `world -> odom` is identity.
+
 ## State estimator: in the controller, two separate filters, InEKF by default
 
 **Structure.** `HumanoidInEkf` and `HumanoidLinearKf` are two separate classes

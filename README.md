@@ -399,6 +399,22 @@ controller assumes while `useTerrainHeightEstimate` is off — that is consisten
 not terrain generality, which is exactly why terrain support needs both changes
 together.
 
+## Robot Description and Frames
+
+There is one robot URDF, [`description/g1/urdf/g1_29dof.urdf`](./description/g1/urdf/g1_29dof.urdf), rooted at the pelvis with **no `world` link and no floating joint**. The MPC and the estimators add the floating base themselves (Pinocchio), MuJoCo owns its free joint in the MJCF, and the base pose reaches the TF tree from the estimator. [`g1.ros2_control.xacro`](./description/g1/urdf/g1.ros2_control.xacro) includes that URDF and adds the `<ros2_control>` block; the result is the single `/robot_description`, used by the controller manager and robot_state_publisher.
+
+The environment is not part of the robot: [`stairs.urdf.xacro`](./description/g1/urdf/stairs.urdf.xacro), rooted at `world` and driven by the same `stairs_params.yaml` as the MuJoCo stairs, is published by a second robot_state_publisher as `/environment/robot_description` (the "Environment" display in rviz). Pass `environmentDescription:=""` with a scene that has no stairs, e.g. `scene_flat.xml`.
+
+```
+world ──(static, identity)──▶ odom ──(estimator, odom → pelvis)──▶ pelvis ──(robot_state_publisher)──▶ links
+  ├──(environment robot_state_publisher)──▶ stairs_base ──▶ stairs_step_1 … N
+  └──(simulator ground truth)──▶ gt/pelvis
+```
+
+- `odom → pelvis` is the estimate, published as TF by the estimator controller next to `/humanoid/state_estimate/odom`. It appears once the bring-up initialises the estimator.
+- `world → odom` is identity until something localises the robot, so estimator drift (x, y, yaw) shows as the robot moving relative to the stairs. A localisation source - ground truth in sim, lidar or markers on hardware - would replace the static transform.
+- Ground truth is `world → gt/pelvis`, for comparison. With `floatingBaseEstimator:=none` nothing estimates, and ground truth publishes `world → pelvis` instead.
+
 ## Floating-Base State (ground truth vs. state estimator)
 
 The floating-base feedback is chosen with two launch arguments: **`floatingBaseSource`** (what drives the MPC) and **`floatingBaseEstimator`** (which filter runs).

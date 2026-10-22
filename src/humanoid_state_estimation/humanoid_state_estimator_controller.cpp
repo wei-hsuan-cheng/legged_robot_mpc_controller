@@ -88,6 +88,11 @@ controller_interface::CallbackReturn HumanoidStateEstimatorController::on_config
     get_node(), se.odom_topic, rclcpp::SystemDefaultsQoS());
   odometry_.header.frame_id = se.odom_frame;
   odometry_.child_frame_id = se.base_frame;
+  rt_tf_publisher_ = std::make_unique<realtime_tools::RealtimePublisher<tf2_msgs::msg::TFMessage>>(
+    get_node(), "/tf", rclcpp::QoS(100));
+  tf_message_.transforms.resize(1);
+  tf_message_.transforms[0].header.frame_id = se.odom_frame;
+  tf_message_.transforms[0].child_frame_id = se.base_frame;
 
   RCLCPP_INFO(
     get_node()->get_logger(),
@@ -294,6 +299,14 @@ void HumanoidStateEstimatorController::publish_odometry(const rclcpp::Time & tim
   odometry_.twist.twist.angular.y = estimate_.angular_velocity_local.y();
   odometry_.twist.twist.angular.z = estimate_.angular_velocity_local.z();
   rt_odometry_publisher_->try_publish(odometry_);
+
+  auto & transform = tf_message_.transforms[0];
+  transform.header.stamp = time;
+  transform.transform.translation.x = estimate_.position.x();
+  transform.transform.translation.y = estimate_.position.y();
+  transform.transform.translation.z = estimate_.position.z();
+  transform.transform.rotation = odometry_.pose.pose.orientation;
+  rt_tf_publisher_->try_publish(tf_message_);
 }
 
 }  // namespace legged_robot_mpc_controller
