@@ -65,6 +65,10 @@ def main():
     assert "captureFootPlacement" not in costs and "icpErrorWeight" not in costs
     assert "centroidalModelType" not in params["ocs2"]["model"]
     assert "useInertiaWeightedAngularMomentum" not in params["ocs2"]["reference"]
+    for gain in ("kp", "kd"):
+        values = params["control"]["jointEffortPd"][gain]
+        assert len(values) in (0, count), f"control.jointEffortPd.{gain} needs one entry per joint (or none)"
+        assert all(v >= 0 for v in values)
     gait = params["ocs2"]["gait"]
     names = gait["templates"]["names"]
     for name in names:

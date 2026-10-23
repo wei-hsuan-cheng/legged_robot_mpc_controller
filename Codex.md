@@ -1,6 +1,125 @@
 # WB-ID MPC Walking Robustness Handoff
 
-## Latest Checkpoint: User Will Build and Test
+## Servo Gains: Controller-Written Per Joint for WB-ID (2026-10-23, implemented, needs build)
+
+This supersedes the launch-argument proposal that was here. Launch has no gain arguments any more; gains are set in YAML or Xacro only.
+
+- **Hardware (`mujoco_ros2_control`, jazzy branch).** Each effort_pd joint that declares `<command_interface name="kp"/>` / `"kd"` exports its `pd_kp` / `pd_kd` as command interfaces. They start at the joint's `effort_pd_kp` / `effort_pd_kd` parameters. A non-finite or negative written gain counts as 0. This mirrors Unitree `LowCmd`, which carries kp/kd with every motor command.
+- **Xacro.** `g1.ros2_control_macro.xacro` declares kp/kd on every effort_pd joint. The hardware defaults stay `effort_pd_kp/kd` args of `g1.ros2_control.xacro` (1200/10; wrists 100/1). They apply to centroidal, to the wrists, and to WB-ID before activation.
+- **WB-ID.**
+  - `control.jointEffortPd.kp/kd` are arrays index-aligned with `robot.jointNames`, currently 1200 / 20 uniform.
+  - The controller claims `<joint>/kp`, `<joint>/kd` after the joint and wrist commands, so the `[3 * i + k]` layout is unchanged. It finds their indices by name at activation and writes them every tick in every bring-up phase.
+  - On deactivation it leaves them in the hardware rather than zeroing them, which would leave the joints limp.
+  - Empty arrays mean the controller doesn't claim them and the hardware gains stay in effect.
+  - The contract test checks the lengths.
+- **Centroidal** is unchanged: it doesn't claim kp/kd.
+- **Not done yet:** per-phase gains (e.g. bring-up vs walking) and a real G1 hardware interface. That interface should map the same kp/kd command interfaces onto `LowCmd`.
+
+## Tested Servo Gain Applied (2026-10-23)
+
+WB-ID runs Kp 1200 / Kd 20 on the 23 MPC joints. This was first set through launch arguments and is now `control.jointEffortPd`, written by the controller (see above). Centroidal stays 1200/10 from the Xacro; all six fixed wrists remain 100/1. The new MJCF retains damping 0.05, its armature and friction; no Q/R or estimator settings were changed. This promotes the temporary Kd-20 test below, not the artificial passive-damping-10 ablation. Forward stability improved in the short test; lateral speed tracking remains unresolved. Restart the launch to apply hardware gains.
+
+## New-Model Fall Investigation (2026-10-23)
+
+Analysis-only session against HEAD `5fe1d79` plus the user's uncommitted rev_1_0 model/launch changes. No production code, model, or parameter settings were changed by this investigation; only this handoff was updated. No build was run.
+Since then the rev_1_0 model has replaced `g1_29dof.xml` / `g1_29dof.urdf` in place, so every scene and the launch default use it (see "G1 model" below).
+
+### Controlled Experiments
+
+Ran sequentially in Parallels `ros_jazzy`, flat scene, MPC 100 Hz / MRT 1000 Hz, MuJoCo headless, RViz and base-command GUI off. All cases use the new URDF/MJCF and the new CppAD cache; numerical controller settings are the current checkout's settings. Estimator cases use the default `humanoid_linear_kf`, not InEKF.
+The standard sequence settles for 10 s after the harness detects locomotion, ramps for 3 s, holds for 5 s, ramps out for 3 s and rests for 5 s. The lateral test holds for 15 s instead. Fall times are relative to harness start, not process launch; GT cases start at the first observed odometry, estimator cases after the locomotion log.
+
+| Container artifact prefix under `/tmp/` | Change | Result |
+| --- | --- | --- |
+| `g1_audit_new_kf0795` | Stock new model, height 0.795, KF | Fell at 8.88 s, before walking command. |
+| `g1_audit_repeat_kf0795` | Same, repeat with joint logging | Fell at 6.58 s, before walking command. |
+| `g1_audit_new_gt0795` | GT feedback, height 0.795 | Fell at 13.95 s, during walking. |
+| `g1_audit_new_gt` | GT feedback, height 0.6 | Fell at 16.54 s, during walking. |
+| `g1_audit_d10_kf0795` | Only passive damping restored to 10; retain new mass, armature, friction and integrator | Passed 26 s forward sequence; 1.310 m / 2.0 m expected, mean walking vx 0.179 m/s for 0.25 commanded, peak roll/pitch 0.030/0.026 rad. |
+| `g1_audit_kd20_kf0795` | Passive damping stays 0.05; only hardware servo Kd 10 -> 20 on the 23 MPC joints | Passed 26 s forward sequence; 1.636 m / 2.0 m expected, mean walking vx 0.218 m/s, peak roll/pitch 0.014/0.032 rad. |
+| `g1_audit_kd20_vy_kf0795` | Same Kd 20, lateral 0.15 m/s | Upright for 36 s, peak roll/pitch 0.011/0.017 rad; mean vy 0.050 m/s, 0.909 m / 2.7 m expected. Verdict NO_TRACKING, not success. |
+
+These are short diagnostic trials, not a robustness certification or hardware validation. No fresh old-model control run was performed; the clean ablation retained the entire new model and changed damping alone.
+Actuator limits remained enabled. Kp stayed 1200; fixed wrist gains stayed 100/1. Runtime `/robot_state_publisher` robot_description confirmed Kd values 20 and 1 in the active-gain test.
+
+Joint-state evidence, same KF setup, the 3-to-5-second window after locomotion starts, before any velocity command (RMS joint speed, rad/s):
+
+| Joint | Stock new model / Kd 10 | New model / Kd 20 | New model / passive damping 10 |
+| --- | ---: | ---: | ---: |
+| Left shoulder yaw | 0.6047 | 0.0009 | 0.0002 |
+| Waist pitch | 2.7612 | 0.0188 | 0.0010 |
+| Left hip pitch | 2.6129 | 0.0442 | 0.0022 |
+| Left knee | 1.4226 | 0.0350 | 0.0047 |
+
+Stock waist-pitch and left-hip-pitch efforts were at >=99% of their actuator limits for 2.63% and 1.62% of samples in that window; both were zero with Kd 20. Large joint oscillations exist before gait switching. GT feedback also fails, so an estimator error alone does not explain the regression.
+
+### Interpretation and Next Fix
+
+The dominant demonstrated change is the loss of passive damping: old MJCF damping 10 -> new per-joint damping 0.05, while the hardware servo stayed Kp 1200 / Kd 10. Servo torque is `Kp*(q_des-q) + Kd*(dq_des-dq) + tau_ff`, evaluated against live MuJoCo state every physics step; the passive term additionally contributes `-b*dq`. In a local scalar approximation, velocity dissipation changes from Kd+b=20 to 10.05. This is not a full closed-loop stability analysis: targets move, actuator saturation and contact coupling matter, and armature also changed.
+Increasing active Kd to 20 while retaining the low physical damping is the first tested controller-side candidate. Do not silently restore damping 10 and call the new model hardware-accurate. Expose per-joint servo gains in a model-specific hardware configuration, start from the tested gain, then check longer forward/lateral/yaw/reversal tests, saturation and transient tracking. Kd is not currently a WB-ID YAML cost/control gain; it lives in the ros2_control xacro defaults.
+Only after the inner-loop oscillation is removed should Q/R and gait tuning address the poor lateral speed. Both successful-upright variants settle near GT height 0.764 for target 0.795, leaving about 31 mm height error. Kd 20 also still produces saturation during some early transition samples; do not claim saturation has disappeared globally.
+
+Other model-consistency findings:
+
+- Pinocchio URDF mass = 33.34114202 kg; MJCF declared mass sum = 33.341142 kg. Old equivalents were 35.11514202 and 35.112142 kg. At identical crouched q, ankle frame positions and rotations in old/new URDFs are identical. New mass/leg kinematics do not show an obvious mismatch in these checks; a full inertial-tensor comparison was not performed.
+- MuJoCo has reflected rotor inertias, damping and friction; loaded Pinocchio armature is zero and the WB-ID RNEA constraint adds no explicit actuator-dynamics correction. Model rotor inertia and losses consistently in MPC, fallback inverse dynamics and torque feasibility after validating their physical values. Do not treat the handoff's earlier "small torque mismatch" as measured evidence.
+- Hip-roll torque limits were raised to 139 in URDF/MJCF/controller YAML, but the ros2_control macro still declares 88 on both hips. Align them when implementing the fix. This inconsistency was not isolated as a cause of the fall.
+- Mid360's new upside-down mounting is real in the URDF, but the torso cost builds its orientation reference with FK of the same named frame at x_ref; it does not directly request identity orientation for the lidar. Therefore a simple "MPC tries to flip the lidar upright" explanation is unsupported. Preserve the real transform; optionally choose torso_link as the torso task frame in a separately validated change.
+- Keep URDF, MJCF, estimator model and CppAD cache paired. `scene_ramp.xml` still references the old MJCF. Changing URDF alone while reusing an old generated cache remains unsafe.
+
+Artifacts remain in the container: each prefix has `.json`, `.csv`, `.log`, `.yaml`; wrapper runs also have `_joints.csv`, `_model.xml`, `_scene.xml`. `/tmp/g1_model_audit.py` wraps the repository harness to use temporary model files; `/tmp/g1_audit_bin/xacro` applies gain overrides only when prepended to that test's PATH. `/tmp/g1_static_audit.py` and `/tmp/g1_joint_audit.py` provide model and joint statistics. Nothing in the normal launch uses these wrappers. All launched test processes were stopped.
+
+## Latest Checkpoint (2026-10-23, uncommitted): gait parameters + closest-to-hardware G1 model
+
+**User builds and tests; no agent build/sim was run after the model files were added.**
+
+### Gait settings are ROS parameters (built and smoke-tested)
+
+- `config/g1/gait.yaml` and `gait_wb_id.yaml` are removed, along with the `gaitLibraryFile` parameter and launch arg. Each controller block of `ros2_controllers.yaml` now holds everything under `ocs2.gait`:
+  - `templates.names` plus one `{modeSequence, switchingTimes}` per name;
+  - `transitions` (`minDwellTime`, `switchDelayHorizonFraction`, `ladder`, plus one `{linearVelocity, yawRate, measuredMargin}` per rung);
+  - `swingTrajectory` (moved from `ocs2.swingTrajectory`).
+- Values are identical to the old files, checked by script. Builders: `buildGaitMap` / `buildGaitTransitionConfig` in `config_builder_utils.hpp`.
+- Smoke runs, flat, the same before and after: WB at 0.5 m/s survived, peak tilt 0.037, 87 Hz; centroidal at 0.25 m/s survived. The WB contract test checks templates and ladder.
+- The ladder overlaps are deliberate hysteresis; keep `next.min < prev.max`. Up needs command > max AND measured > max - margin. Down needs command < min AND measured < min + margin, on all axes.
+- Known quirks, unchanged:
+  - measured speed is world-axis and unfiltered;
+  - the centroidal "measured yaw" reads `h_ang,x/m`;
+  - the centroidal `skip` template has an out-of-order 0.08.
+
+### G1 model: `g1_29dof.xml` / `g1_29dof.urdf` are now rev_1_0 (replaced in place)
+
+- **Single model for everything:** `description/g1/mujoco/g1_29dof.xml` (all scenes include it) and `description/g1/urdf/g1_29dof.urdf` (the launch default `urdfFile`, read by the MPC, both estimators and robot_state_publisher). The temporary `*_correct` files are gone. `g1_29dof_real.xml` is the superseded old-mass variant and nothing includes it.
+- **Previously Unitree's deprecated `g1_29dof`** (`mode_machine` 2, 35.11 kg, hip roll 88 Nm). Now `g1_29dof_rev_1_0` (`mode_machine` 5, the current standard 29-DoF). Changes:
+  - torso 6.78 vs 8.56 kg, 33.34 kg total, no waist_support_link;
+  - waist joint offsets and shoulder/sensor offsets changed;
+  - hip roll 139 Nm / 20 rad/s;
+  - Mid-360 mounted upside down (`rpy pi 0.0511 0`).
+  - Check the robot's `mode_machine` in the Unitree app (Device -> Data -> Robot -> Machine Type). Newer units are `g1_29dof_mode_11..18`.
+- **MJCF joint dynamics:**
+  - per-motor armature from unitree_rl_lab (hip pitch/yaw + waist yaw 0.010178, hip roll + knee 0.025102, ankles + waist roll/pitch 0.00722, shoulders/elbow/wrist roll 0.00361, wrist pitch/yaw 0.00425);
+  - damping 0.05 and frictionloss 0.2 (0.1 on wrist pitch/yaw) from unitree_mujoco, replacing the old damping 10;
+  - `implicitfast`.
+  - Kept local: contact solref/solimp, free-joint damping 0, `imu-pelvis-quat` sensor, `mid360` site at the rev_1_0 pose.
+- **URDF:** rev_1_0 plus local package:// meshes, ankle/waist roll+pitch limits 50 Nm / 37 rad/s (rev_1_0 MJCF and unitree_rl_lab; Unitree's URDF says 35/30), and the four `*_est` foot points. Pinocchio loads it: 33.341 kg, frames present.
+- **Launch:** `g1.ros2_control.xacro` takes `robot_urdf_file`, and `g1.launch.py` passes `urdfFile` to it, so robot_state_publisher matches the MPC.
+- **CppAD cache:** the default `libFolder` is again `auto_generated/g1`.
+  - The libraries generated from the old 35.1 kg URDF were renamed `wb_id_mpc_g1_old_35kg` / `centroidal_mpc_g1_old_35kg`, not deleted. The rev_1_0 WB libraries moved in as `wb_id_mpc_g1`.
+  - With `recompileLibrariesCppAd: false` OCS2 never checks that cached libraries match the URDF, so any future model change needs the same swap or a fresh folder.
+  - The centroidal rev_1_0 libraries don't exist yet; the first centroidal launch regenerates them, which takes long.
+- `control.torqueLimit` hip roll is 139 in both controller blocks; the ros2_control command limit in the xacro is 139 too.
+- **Expected risks:**
+  - Losing damping 10 removes a lot of free passive stability, so the controller may need retuning.
+  - Armature should fix the ankle-chatter instability (kd*dt/I about 12 -> about 0.7), though that's unmeasured.
+  - The MPC model has no armature, so expect a small torque mismatch.
+- **References (raw GitHub):**
+  - unitree_ros `robots/g1_description/{g1_29dof_rev_1_0.xml, g1_29dof_rev_1_0.urdf, g1_29dof.urdf, README.md}`;
+  - unitree_mujoco `unitree_robots/g1/g1_29dof.xml`;
+  - unitree_rl_lab `source/unitree_rl_lab/unitree_rl_lab/assets/robots/unitree.py`;
+  - unitree_rl_gym `resources/robots/g1_description/g1_29dof.xml`;
+  - mujoco_menagerie `unitree_g1/g1.xml`.
+
+## Earlier Checkpoint: User Will Build and Test
 
 **2026-10-22: stop automated builds/simulations here. The standalone parameter cleanup below has NOT been compiled or walking-tested.**
 The earlier rate-limiter build completed, but subsequent schema/controller/builder changes require a fresh build.

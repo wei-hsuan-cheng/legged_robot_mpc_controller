@@ -27,6 +27,10 @@
           <param name="min">${-effort_limit}</param>
           <param name="max">${effort_limit}</param>
         </command_interface>
+        <!-- Servo gains: start at effort_pd_kp / effort_pd_kd; a controller that claims these
+             sets them per joint (WB-ID: control.jointEffortPd). -->
+        <command_interface name="kp"/>
+        <command_interface name="kd"/>
       </xacro:if>
       <xacro:if value="${command_interface == 'effort'}">
         <command_interface name="effort">
@@ -172,7 +176,7 @@
         command_interface="${command_interface}"
         effort_pd_kp="${effort_pd_kp}"
         effort_pd_kd="${effort_pd_kd}"
-        effort_limit="88"
+        effort_limit="139"
         mujoco_position_kp="${mujoco_position_kp}"
         mujoco_position_ki="${mujoco_position_ki}"
         mujoco_position_kd="${mujoco_position_kd}"
@@ -250,7 +254,7 @@
         command_interface="${command_interface}"
         effort_pd_kp="${effort_pd_kp}"
         effort_pd_kd="${effort_pd_kd}"
-        effort_limit="88"
+        effort_limit="139"
         mujoco_position_kp="${mujoco_position_kp}"
         mujoco_position_ki="${mujoco_position_ki}"
         mujoco_position_kd="${mujoco_position_kd}"

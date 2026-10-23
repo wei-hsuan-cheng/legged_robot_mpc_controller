@@ -5,6 +5,8 @@
   <xacro:arg name="use_mujoco_sim" default="true"/>
   <xacro:arg name="initial_pose_file" default=""/>
   <xacro:arg name="ros2_control_command_interface" default="effort_pd"/>
+  <xacro:arg name="effort_pd_kp" default="1200.0"/>
+  <xacro:arg name="effort_pd_kd" default="10.0"/>
   <xacro:arg name="mujoco_position_kp" default="10000"/>
   <xacro:arg name="mujoco_position_ki" default="50"/>
   <xacro:arg name="mujoco_position_kd" default="500"/>
@@ -33,6 +35,8 @@
     use_mujoco_sim="${use_mujoco_sim}"
     joint_init="${joint_init}"
     command_interface="${ros2_control_command_interface}"
+    effort_pd_kp="$(arg effort_pd_kp)"
+    effort_pd_kd="$(arg effort_pd_kd)"
     mujoco_position_kp="$(arg mujoco_position_kp)"
     mujoco_position_ki="$(arg mujoco_position_ki)"
     mujoco_position_kd="$(arg mujoco_position_kd)"

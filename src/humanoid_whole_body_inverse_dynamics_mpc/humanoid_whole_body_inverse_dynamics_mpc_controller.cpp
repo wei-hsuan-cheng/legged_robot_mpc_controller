@@ -114,6 +114,23 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
       feedforward_ == Feedforward::PolicyTorque ? "MPC policy torque" : "inverse dynamics at the measured state",
       torque_limit_.size() > 0 ? "control.torqueLimit" : "none");
 
+    // effort_pd servo gains: written to the hardware every tick, or left to the hardware if empty.
+    const auto& pd = parameters_.control.jointEffortPd;
+    joint_kp_.resize(0);
+    joint_kd_.resize(0);
+    if (!pd.kp.empty() || !pd.kd.empty()) {
+      if (static_cast<Eigen::Index>(pd.kp.size()) != joint_dim || static_cast<Eigen::Index>(pd.kd.size()) != joint_dim) {
+        throw std::invalid_argument("control.jointEffortPd.kp and .kd need one entry per robot.jointNames (or both empty)");
+      }
+      if (parameters_.robot.commandInterface != "effort_pd") {
+        throw std::invalid_argument("control.jointEffortPd needs robot.commandInterface effort_pd");
+      }
+      joint_kp_ = Eigen::Map<const vector_t>(pd.kp.data(), joint_dim);
+      joint_kd_ = Eigen::Map<const vector_t>(pd.kd.data(), joint_dim);
+    }
+    RCLCPP_INFO(get_node()->get_logger(), "%s joint servo gains: %s", kTag,
+                joint_kp_.size() > 0 ? "control.jointEffortPd, written every tick" : "the hardware's (not claimed)");
+
     configure_stage = "building the target-trajectories calculator / reference manager";
     auto reference_config = common::buildReferenceConfig(parameters_);
     reference_config.commandRateLimits =
@@ -250,6 +267,22 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
   filtered_generalized_velocity_.resize(0);
   estimator_interface_index_.clear();
   estimator_command_index_.clear();
+  gain_command_index_.clear();
+  if (joint_kp_.size() > 0) {
+    for (const auto& joint_name : parameters_.robot.jointNames) {
+      for (const char* gain : {"kp", "kd"}) {
+        const auto it = std::find_if(command_interfaces_.begin(), command_interfaces_.end(), [&](const auto& interface) {
+          return interface.get_prefix_name() == joint_name && interface.get_interface_name() == gain;
+        });
+        if (it == command_interfaces_.end()) {
+          RCLCPP_ERROR(get_node()->get_logger(), "%s servo gain interface %s/%s is not claimed.", kTag,
+                       joint_name.c_str(), gain);
+          return controller_interface::CallbackReturn::ERROR;
+        }
+        gain_command_index_.push_back(static_cast<std::size_t>(std::distance(command_interfaces_.begin(), it)));
+      }
+    }
+  }
   if (has_estimator()) {
     const std::string& estimator = parameters_.floatingBase.estimator;
     for (const auto& name : estimator_interfaces::names()) {
@@ -372,10 +405,12 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
   const rclcpp_lifecycle::State&)
 {
   stop_solver_thread();
-  // Zero the joints only: a 0 contact flag would tell the estimator a foot is in the air.
+  // Zero the joint commands only: a 0 contact flag would tell the estimator a foot is in the
+  // air, and zero servo gains would leave the joints limp, so the last gains stay in the hardware.
   for (std::size_t i = 0; i < command_interfaces_.size(); ++i) {
     if (std::find(estimator_command_index_.begin(), estimator_command_index_.end(), i) ==
-        estimator_command_index_.end()) {
+          estimator_command_index_.end() &&
+        std::find(gain_command_index_.begin(), gain_command_index_.end(), i) == gain_command_index_.end()) {
       (void)command_interfaces_[i].set_value(0.0);
     }
   }
@@ -393,6 +428,13 @@ HumanoidWholeBodyInverseDynamicsMpcController::command_interface_configuration()
   for (const auto& joint_name : parameters_.ocs2.model.fixedJointNames) {
     for (const auto& iface : command_ifaces) {
       config.names.emplace_back(joint_name + "/" + iface);
+    }
+  }
+  // Per-joint servo gains after the joint commands, so their [3 * i + k] layout is unchanged.
+  if (effort_pd && !parameters_.control.jointEffortPd.kp.empty()) {
+    for (const auto& joint_name : parameters_.robot.jointNames) {
+      config.names.emplace_back(joint_name + "/kp");
+      config.names.emplace_back(joint_name + "/kd");
     }
   }
   if (!config.names.empty()) {
@@ -1287,6 +1329,12 @@ void HumanoidWholeBodyInverseDynamicsMpcController::write_joint_action_command(
     (void)command_interfaces_[3 * i + 0].set_value(safe(i < static_cast<size_t>(q_des.size()) ? q_des[idx] : 0.0));
     (void)command_interfaces_[3 * i + 1].set_value(safe(i < static_cast<size_t>(qd_des.size()) ? qd_des[idx] : 0.0));
     (void)command_interfaces_[3 * i + 2].set_value(safe(i < static_cast<size_t>(tau_ff.size()) ? tau_ff[idx] : 0.0));
+  }
+  // Servo gains, every tick: the hardware runs the PD with whatever was written last.
+  for (size_t i = 0; 2 * i + 1 < gain_command_index_.size(); ++i) {
+    const auto idx = static_cast<Eigen::Index>(i);
+    (void)command_interfaces_[gain_command_index_[2 * i]].set_value(joint_kp_[idx]);
+    (void)command_interfaces_[gain_command_index_[2 * i + 1]].set_value(joint_kd_[idx]);
   }
   // Joints excluded from the MPC model (wrists): hold zero, soft hardware gains.
   for (size_t i = 0; i < fixed_joint_count; ++i) {

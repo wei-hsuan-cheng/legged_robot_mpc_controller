@@ -89,12 +89,12 @@ humanoid_centroidal_mpc_controller:
       fixedJointKd:
         [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
       # Symmetric torque clamp, index-aligned with robot.jointNames. Taken from the
-      # effort limits in g1_29dof.urdf. The WBC bounds its own torques, so these
+      # effort limits in g1_29dof.urdf (rev_1_0: hip roll 139). The WBC bounds its own torques, so these
       # become the box constraints on the tau block of the QP - leave them empty
       # and the QP is free to ask for a torque the actuator cannot deliver.
       torqueLimit:
-        [88.0, 88.0, 88.0, 139.0, 50.0, 50.0,
-         88.0, 88.0, 88.0, 139.0, 50.0, 50.0,
+        [88.0, 139.0, 88.0, 139.0, 50.0, 50.0,
+         88.0, 139.0, 88.0, 139.0, 50.0, 50.0,
          88.0, 50.0, 50.0,
          25.0, 25.0, 25.0, 25.0,
          25.0, 25.0, 25.0, 25.0]
@@ -590,13 +590,32 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
       observationVelocityFilterCutoffHz: 30.0
       policyTimeOffset: 0.000
       torqueLimit:
-        [88.0, 88.0, 88.0, 139.0, 50.0, 50.0,
-         88.0, 88.0, 88.0, 139.0, 50.0, 50.0,
+        [88.0, 139.0, 88.0, 139.0, 50.0, 50.0,
+         88.0, 139.0, 88.0, 139.0, 50.0, 50.0,
          88.0, 50.0, 50.0,
          25.0, 25.0, 25.0, 25.0,
          25.0, 25.0, 25.0, 25.0]
-      # Joint servo PD gains live in the ros2_control hardware xacro.
       feedforward: policy_torque
+      # Joint servo of the effort_pd hardware: tau = tau_ff + kp (q_des - q) + kd (qd_des - qd),
+      # run inside the hardware at the physics rate (the motor driver on the robot). The
+      # controller writes these per joint every tick through the <joint>/kp, <joint>/kd command
+      # interfaces (like Unitree's LowCmd kp/kd), index-aligned with robot.jointNames. Before
+      # activation, and for the fixed wrists, the hardware uses the xacro's effort_pd_kp/kd.
+      # kd 20: the G1 model's joint damping is 0.05 (unitree_mujoco), so the servo supplies the
+      # damping.
+      jointEffortPd:
+        kp:
+          [1200.0, 1200.0, 1200.0, 1200.0, 1200.0, 1200.0,
+           1200.0, 1200.0, 1200.0, 1200.0, 1200.0, 1200.0,
+           1200.0, 1200.0, 1200.0,
+           1200.0, 1200.0, 1200.0, 1200.0,
+           1200.0, 1200.0, 1200.0, 1200.0]
+        kd:
+          [20.0, 20.0, 20.0, 20.0, 20.0, 20.0,
+           20.0, 20.0, 20.0, 20.0, 20.0, 20.0,
+           20.0, 20.0, 20.0,
+           20.0, 20.0, 20.0, 20.0,
+           20.0, 20.0, 20.0, 20.0]
 
     diagnostics:
       statusLogPeriod: 2.0

@@ -28,7 +28,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         state interfaces required from ros2_control"}
   control:
     observationVelocityFilterCutoffHz: {type: double, default_value: 0.0, description: "Low-pass cutoff for observed
-        generalized velocities [Hz]; 0 disables (legacy feeds raw velocities)", validation: {gt_eq: [0.0]}}
+        generalized velocities [Hz]; 0 disables the filter (raw velocities)", validation: {gt_eq: [0.0]}}
     policyTimeOffset: {type: double, default_value: 0.005, description: "Time offset used when evaluating the MPC
         policy from the current observation [s]", validation: {gt_eq: [0.0]}}
     torqueLimit: {type: double_array, default_value: [], description: "Symmetric command torque limits for robot.jointNames.
@@ -36,6 +36,13 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
     feedforward: {type: string, default_value: "policy_torque", description: "policy_torque: interpolated MPC joint
         torque inside the constrained window, planned-state RNEA outside it; inverse_dynamics: RNEA at the measured
         state", validation: {one_of<>: [["policy_torque", "inverse_dynamics"]]}}
+    jointEffortPd:
+      kp: {type: double_array, default_value: [], description: "Position gains of the effort_pd joint servo,
+          index-aligned with robot.jointNames. Written to the <joint>/kp command interfaces every tick, in every
+          bring-up phase; the hardware runs the PD at its own rate. Empty (with kd): do not claim them and keep
+          the hardware's gains (effort_pd_kp in the xacro).", validation: {lower_element_bounds<>: [0.0]}}
+      kd: {type: double_array, default_value: [], description: "Velocity gains of the effort_pd joint servo,
+          index-aligned with robot.jointNames; see kp.", validation: {lower_element_bounds<>: [0.0]}}
   diagnostics:
     statusLogPeriod: {type: double, default_value: 5.0, description: "Period of the MPC timing/utilization status
         log [s]", validation: {gt: [0.0]}}

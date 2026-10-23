@@ -148,6 +148,11 @@ private:
   std::unique_ptr<ocs2::MPC_MRT_Interface> mrt_interface_;
   std::unique_ptr<visualization::PerformanceVisualization> performance_visualization_;
   vector_t torque_limit_;  //!< empty = no software clamp
+  //! effort_pd servo gains per MPC joint (control.jointEffortPd); empty = keep the hardware's.
+  vector_t joint_kp_;
+  vector_t joint_kd_;
+  //! Command-interface indices of <joint>/kp, <joint>/kd, interleaved per MPC joint.
+  std::vector<std::size_t> gain_command_index_;
   //! Ticks whose policy time fell past the torque window (see compute_mpc_joint_action).
   //! Atomic: counted on the control thread, reported by the solver thread.
   std::atomic<uint64_t> torque_window_overruns_{0};

@@ -1,7 +1,27 @@
 <robot name="g1_29dof">
+  <!--
+    Unitree G1 29-DoF, rev_1_0 (mode_machine 5): unitree_ros robots/g1_description/
+    g1_29dof_rev_1_0.urdf, for the MPC, the estimators and robot_state_publisher.
+    Local changes: package:// mesh paths, ankle and waist roll/pitch limits 50 N m / 37 rad/s
+    (rev_1_0 MJCF and unitree_rl_lab; the URDF says 35 / 30), and the four *_est foot points.
+  -->
+  <material name="dark">
+    <color rgba="0.2 0.2 0.2 1"/>
+  </material>
+  <material name="white">
+    <color rgba="0.7 0.7 0.7 1"/>
+  </material>
+
   <mujoco>
     <compiler meshdir="package://legged_robot_mpc_controller/description/g1/meshes" discardvisual="false"/>
   </mujoco>
+
+  <!-- [CAUTION] uncomment when convert to mujoco -->
+  <!-- <link name="world"></link>
+  <joint name="floating_base_joint" type="floating">
+    <parent link="world"/>
+    <child link="pelvis"/>
+  </joint> -->
 
   <link name="pelvis">
     <inertial>
@@ -14,9 +34,7 @@
       <geometry>
         <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/pelvis.STL"/>
       </geometry>
-      <material name="dark">
-        <color rgba="0.2 0.2 0.2 1"/>
-      </material>
+      <material name="dark"/>
     </visual>
   </link>
   <link name="pelvis_contour_link">
@@ -30,9 +48,7 @@
       <geometry>
         <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/pelvis_contour_link.STL"/>
       </geometry>
-      <material name="white">
-        <color rgba="0.7 0.7 0.7 1"/>
-      </material>
+      <material name="white"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
@@ -58,9 +74,7 @@
       <geometry>
         <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/left_hip_pitch_link.STL"/>
       </geometry>
-      <material name="dark">
-        <color rgba="0.2 0.2 0.2 1"/>
-      </material>
+      <material name="dark"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
@@ -87,9 +101,7 @@
       <geometry>
         <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/left_hip_roll_link.STL"/>
       </geometry>
-      <material name="white">
-        <color rgba="0.7 0.7 0.7 1"/>
-      </material>
+      <material name="white"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
@@ -103,7 +115,7 @@
     <parent link="left_hip_pitch_link"/>
     <child link="left_hip_roll_link"/>
     <axis xyz="1 0 0"/>
-    <limit lower="-0.5236" upper="2.9671" effort="88" velocity="32"/>
+    <limit lower="-0.5236" upper="2.9671" effort="139" velocity="20"/>
   </joint>
   <link name="left_hip_yaw_link">
     <inertial>
@@ -116,9 +128,7 @@
       <geometry>
         <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/left_hip_yaw_link.STL"/>
       </geometry>
-      <material name="white">
-        <color rgba="0.7 0.7 0.7 1"/>
-      </material>
+      <material name="white"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
@@ -145,9 +155,7 @@
       <geometry>
         <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/left_knee_link.STL"/>
       </geometry>
-      <material name="white">
-        <color rgba="0.7 0.7 0.7 1"/>
-      </material>
+      <material name="white"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
@@ -174,9 +182,7 @@
       <geometry>
         <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/left_ankle_pitch_link.STL"/>
       </geometry>
-      <material name="white">
-        <color rgba="0.7 0.7 0.7 1"/>
-      </material>
+      <material name="white"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
@@ -203,9 +209,7 @@
       <geometry>
         <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/left_ankle_roll_link.STL"/>
       </geometry>
-      <material name="dark">
-        <color rgba="0.2 0.2 0.2 1"/>
-      </material>
+      <material name="dark"/>
     </visual>
     <collision>
       <origin xyz="-0.05 0.025 -0.03" rpy="0 0 0"/>
@@ -250,9 +254,7 @@
       <geometry>
         <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/right_hip_pitch_link.STL"/>
       </geometry>
-      <material name="dark">
-        <color rgba="0.2 0.2 0.2 1"/>
-      </material>
+      <material name="dark"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
@@ -279,9 +281,7 @@
       <geometry>
         <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/right_hip_roll_link.STL"/>
       </geometry>
-      <material name="white">
-        <color rgba="0.7 0.7 0.7 1"/>
-      </material>
+      <material name="white"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
@@ -295,7 +295,7 @@
     <parent link="right_hip_pitch_link"/>
     <child link="right_hip_roll_link"/>
     <axis xyz="1 0 0"/>
-    <limit lower="-2.9671" upper="0.5236" effort="88" velocity="32"/>
+    <limit lower="-2.9671" upper="0.5236" effort="139" velocity="20"/>
   </joint>
   <link name="right_hip_yaw_link">
     <inertial>
@@ -308,9 +308,7 @@
       <geometry>
         <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/right_hip_yaw_link.STL"/>
       </geometry>
-      <material name="white">
-        <color rgba="0.7 0.7 0.7 1"/>
-      </material>
+      <material name="white"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
@@ -337,9 +335,7 @@
       <geometry>
         <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/right_knee_link.STL"/>
       </geometry>
-      <material name="white">
-        <color rgba="0.7 0.7 0.7 1"/>
-      </material>
+      <material name="white"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
@@ -366,9 +362,7 @@
       <geometry>
         <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/right_ankle_pitch_link.STL"/>
       </geometry>
-      <material name="white">
-        <color rgba="0.7 0.7 0.7 1"/>
-      </material>
+      <material name="white"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
@@ -395,9 +389,7 @@
       <geometry>
         <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/right_ankle_roll_link.STL"/>
       </geometry>
-      <material name="dark">
-        <color rgba="0.2 0.2 0.2 1"/>
-      </material>
+      <material name="dark"/>
     </visual>
     <collision>
       <origin xyz="-0.05 0.025 -0.03" rpy="0 0 0"/>
@@ -435,18 +427,16 @@
   <!-- Torso -->
   <link name="waist_yaw_link">
     <inertial>
-      <origin xyz="0.003964 0 0.018769" rpy="0 0 0"/>
-      <mass value="0.244"/>
-      <inertia ixx="9.9587E-05" ixy="-1.833E-06" ixz="-1.2617E-05" iyy="0.00012411" iyz="-1.18E-07" izz="0.00015586"/>
+      <origin xyz="0.003494 0.000233 0.018034" rpy="0 0 0"/>
+      <mass value="0.214"/>
+      <inertia ixx="0.00010673" ixy="2.703E-06" ixz="-7.631E-06" iyy="0.00010422" iyz="-2.01E-07" izz="0.0001625"/>
     </inertial>
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/waist_yaw_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/waist_yaw_link_rev_1_0.STL"/>
       </geometry>
-      <material name="white">
-        <color rgba="0.7 0.7 0.7 1"/>
-      </material>
+      <material name="white"/>
     </visual>
   </link>
   <joint name="waist_yaw_joint" type="revolute">
@@ -458,22 +448,20 @@
   </joint>
   <link name="waist_roll_link">
     <inertial>
-      <origin xyz="0 -0.000236 0.010111" rpy="0 0 0"/>
-      <mass value="0.047"/>
-      <inertia ixx="7.515E-06" ixy="0" ixz="0" iyy="6.398E-06" iyz="9.9E-08" izz="3.988E-06"/>
+      <origin xyz="0 2.3E-05 0" rpy="0 0 0"/>
+      <mass value="0.086"/>
+      <inertia ixx="7.079E-06" ixy="0" ixz="0" iyy="6.339E-06" iyz="0" izz="8.245E-06"/>
     </inertial>
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/waist_roll_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/waist_roll_link_rev_1_0.STL"/>
       </geometry>
-      <material name="white">
-        <color rgba="0.7 0.7 0.7 1"/>
-      </material>
+      <material name="white"/>
     </visual>
   </link>
   <joint name="waist_roll_joint" type="revolute">
-    <origin xyz="-0.0039635 0 0.035" rpy="0 0 0"/>
+    <origin xyz="-0.0039635 0 0.044" rpy="0 0 0"/>
     <parent link="waist_yaw_link"/>
     <child link="waist_roll_link"/>
     <axis xyz="1 0 0"/>
@@ -481,28 +469,26 @@
   </joint>
   <link name="torso_link">
     <inertial>
-      <origin xyz="0.002601 0.000257 0.153719" rpy="0 0 0"/>
-      <mass value="8.562"/>
-      <inertia ixx="0.065674966" ixy="-8.597E-05" ixz="-0.001737252" iyy="0.053535188" iyz="8.6899E-05" izz="0.030808125"/>
+      <origin xyz="0.000931 0.000346 0.15082" rpy="0 0 0"/>
+      <mass value="6.78"/>
+      <inertia ixx="0.05905" ixy="3.3302E-05" ixz="-0.0017715" iyy="0.047014" iyz="-2.2399E-05" izz="0.025652"/>
     </inertial>
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/torso_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/torso_link_rev_1_0.STL"/>
       </geometry>
-      <material name="white">
-        <color rgba="0.7 0.7 0.7 1"/>
-      </material>
+      <material name="white"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/torso_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/torso_link_rev_1_0.STL"/>
       </geometry>
     </collision>
   </link>
   <joint name="waist_pitch_joint" type="revolute">
-    <origin xyz="0 0 0.019" rpy="0 0 0"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
     <parent link="waist_roll_link"/>
     <child link="torso_link"/>
     <axis xyz="0 1 0"/>
@@ -511,7 +497,7 @@
 
   <!-- LOGO -->
   <joint name="logo_joint" type="fixed">
-    <origin xyz="0.0039635 0 -0.054" rpy="0 0 0"/>
+    <origin xyz="0.0039635 0 -0.044" rpy="0 0 0"/>
     <parent link="torso_link"/>
     <child link="logo_link"/>
   </joint>
@@ -526,9 +512,7 @@
       <geometry>
         <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/logo_link.STL"/>
       </geometry>
-      <material name="dark">
-        <color rgba="0.2 0.2 0.2 1"/>
-      </material>
+      <material name="dark"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
@@ -550,9 +534,7 @@
       <geometry>
         <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/head_link.STL"/>
       </geometry>
-      <material name="dark">
-        <color rgba="0.2 0.2 0.2 1"/>
-      </material>
+      <material name="dark"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
@@ -562,44 +544,16 @@
     </collision>
   </link>
   <joint name="head_joint" type="fixed">
-    <origin xyz="0.0039635 0 -0.054" rpy="0 0 0"/>
+    <origin xyz="0.0039635 0 -0.044" rpy="0 0 0"/>
     <parent link="torso_link"/>
     <child link="head_link"/>
   </joint>
 
-  <!-- Waist Support -->
-  <link name="waist_support_link">
-    <inertial>
-      <origin xyz="0 0 0" rpy="0 0 0"/>
-      <mass value="0.001"/>
-      <inertia ixx="1e-7" ixy="0" ixz="0" iyy="1e-7" iyz="0" izz="1e-7"/>
-    </inertial>
-    <visual>
-      <origin xyz="0 0 0" rpy="0 0 0"/>
-      <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/waist_support_link.STL"/>
-      </geometry>
-      <material name="white">
-        <color rgba="0.7 0.7 0.7 1"/>
-      </material>
-    </visual>
-    <collision>
-      <origin xyz="0 0 0" rpy="0 0 0"/>
-      <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/waist_support_link.STL"/>
-      </geometry>
-    </collision>
-  </link>
-  <joint name="waist_support_joint" type="fixed">
-    <origin xyz="0.0039635 0 -0.054" rpy="0 0 0"/>
-    <parent link="torso_link"/>
-    <child link="waist_support_link"/>
-  </joint>
 
   <!-- IMU -->
   <link name="imu_in_torso"></link>
   <joint name="imu_in_torso_joint" type="fixed">
-    <origin xyz="-0.03959 -0.00224 0.13792" rpy="0 0 0"/>
+    <origin xyz="-0.03959 -0.00224 0.14792" rpy="0 0 0"/>
     <parent link="torso_link"/>
     <child link="imu_in_torso"/>
   </joint>
@@ -611,42 +565,10 @@
     <child link="imu_in_pelvis"/>
   </joint>
 
-  <!-- Foot contact frames for the InEKF state estimator. The InEKF library requires
-       exactly 4 point contacts, so each flat foot contributes a heel and a toe point
-       (as in the MIT Humanoid whole-body work). They sit on the sole (z = -0.035 from
-       the ankle-roll link, matching the MPC's contact height) at +-0.07 m fore/aft
-       inside the foot rectangle. Distinct "_est" names avoid colliding with the
-       frames the MPC adds programmatically (foot_l_contact / foot_r_contact). -->
-  <link name="foot_l_heel_est"></link>
-  <joint name="foot_l_heel_est_joint" type="fixed">
-    <origin xyz="-0.035 0 -0.035" rpy="0 0 0"/>
-    <parent link="left_ankle_roll_link"/>
-    <child link="foot_l_heel_est"/>
-  </joint>
-  <link name="foot_l_toe_est"></link>
-  <joint name="foot_l_toe_est_joint" type="fixed">
-    <origin xyz="0.105 0 -0.035" rpy="0 0 0"/>
-    <parent link="left_ankle_roll_link"/>
-    <child link="foot_l_toe_est"/>
-  </joint>
-
-  <link name="foot_r_heel_est"></link>
-  <joint name="foot_r_heel_est_joint" type="fixed">
-    <origin xyz="-0.035 0 -0.035" rpy="0 0 0"/>
-    <parent link="right_ankle_roll_link"/>
-    <child link="foot_r_heel_est"/>
-  </joint>
-  <link name="foot_r_toe_est"></link>
-  <joint name="foot_r_toe_est_joint" type="fixed">
-    <origin xyz="0.105 0 -0.035" rpy="0 0 0"/>
-    <parent link="right_ankle_roll_link"/>
-    <child link="foot_r_toe_est"/>
-  </joint>
-
   <!-- d435 -->
   <link name="d435_link"></link>
   <joint name="d435_joint" type="fixed">
-    <origin xyz="0.0576235 0.01753 0.41987" rpy="0 0.8307767239493009 0"/>
+    <origin xyz="0.0576235 0.01753 0.42987" rpy="0 0.8307767239493009 0"/>
     <parent link="torso_link"/>
     <child link="d435_link"/>
   </joint>
@@ -654,7 +576,7 @@
   <!-- mid360 -->
   <link name="mid360_link"></link>
   <joint name="mid360_joint" type="fixed">
-    <origin xyz="0.0002835 0.00003 0.40618" rpy="0 0.04014257279586953 0"/>
+    <origin xyz="0.0002835 0.00003 0.428434" rpy="3.141592653589793 0.05112069379091391 0"/>
     <parent link="torso_link"/>
     <child link="mid360_link"/>
   </joint>
@@ -671,9 +593,7 @@
       <geometry>
         <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/left_shoulder_pitch_link.STL"/>
       </geometry>
-      <material name="white">
-        <color rgba="0.7 0.7 0.7 1"/>
-      </material>
+      <material name="white"/>
     </visual>
     <collision>
       <origin xyz="0 0.04 -0.01" rpy="0 1.5707963267948966 0"/>
@@ -683,7 +603,7 @@
     </collision>
   </link>
   <joint name="left_shoulder_pitch_joint" type="revolute">
-    <origin xyz="0.0039563 0.10022 0.23778" rpy="0.27931 5.4949E-05 -0.00019159"/>
+    <origin xyz="0.0039563 0.10022 0.24778" rpy="0.27931 5.4949E-05 -0.00019159"/>
     <parent link="torso_link"/>
     <child link="left_shoulder_pitch_link"/>
     <axis xyz="0 1 0"/>
@@ -700,9 +620,7 @@
       <geometry>
         <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/left_shoulder_roll_link.STL"/>
       </geometry>
-      <material name="white">
-        <color rgba="0.7 0.7 0.7 1"/>
-      </material>
+      <material name="white"/>
     </visual>
     <collision>
       <origin xyz="-0.004 0.006 -0.053" rpy="0 0 0"/>
@@ -729,9 +647,7 @@
       <geometry>
         <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/left_shoulder_yaw_link.STL"/>
       </geometry>
-      <material name="white">
-        <color rgba="0.7 0.7 0.7 1"/>
-      </material>
+      <material name="white"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
@@ -758,9 +674,7 @@
       <geometry>
         <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/left_elbow_link.STL"/>
       </geometry>
-      <material name="white">
-        <color rgba="0.7 0.7 0.7 1"/>
-      </material>
+      <material name="white"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
@@ -794,9 +708,7 @@
       <geometry>
         <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/left_wrist_roll_link.STL"/>
       </geometry>
-      <material name="white">
-        <color rgba="0.7 0.7 0.7 1"/>
-      </material>
+      <material name="white"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
@@ -823,9 +735,7 @@
       <geometry>
         <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/left_wrist_pitch_link.STL"/>
       </geometry>
-      <material name="white">
-        <color rgba="0.7 0.7 0.7 1"/>
-      </material>
+      <material name="white"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
@@ -852,9 +762,7 @@
       <geometry>
         <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/left_wrist_yaw_link.STL"/>
       </geometry>
-      <material name="white">
-        <color rgba="0.7 0.7 0.7 1"/>
-      </material>
+      <material name="white"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
@@ -863,7 +771,7 @@
       </geometry>
     </collision>
   </link>
-  <joint name="left_hand_palm_joint" type="fixed">
+  <joint name="left_hand_palm_joint" type="fixed" dont_collapse="true">
     <origin xyz="0.0415 0.003 0" rpy="0 0 0"/>
     <parent link="left_wrist_yaw_link"/>
     <child link="left_rubber_hand"/>
@@ -879,9 +787,7 @@
       <geometry>
         <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/left_rubber_hand.STL"/>
       </geometry>
-      <material name="white">
-        <color rgba="0.7 0.7 0.7 1"/>
-      </material>
+      <material name="white"/>
     </visual>
   </link>
   <link name="right_shoulder_pitch_link">
@@ -895,9 +801,7 @@
       <geometry>
         <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/right_shoulder_pitch_link.STL"/>
       </geometry>
-      <material name="white">
-        <color rgba="0.7 0.7 0.7 1"/>
-      </material>
+      <material name="white"/>
     </visual>
     <collision>
       <origin xyz="0 -0.04 -0.01" rpy="0 1.5707963267948966 0"/>
@@ -907,7 +811,7 @@
     </collision>
   </link>
   <joint name="right_shoulder_pitch_joint" type="revolute">
-    <origin xyz="0.0039563 -0.10021 0.23778" rpy="-0.27931 5.4949E-05 0.00019159"/>
+    <origin xyz="0.0039563 -0.10021 0.24778" rpy="-0.27931 5.4949E-05 0.00019159"/>
     <parent link="torso_link"/>
     <child link="right_shoulder_pitch_link"/>
     <axis xyz="0 1 0"/>
@@ -924,9 +828,7 @@
       <geometry>
         <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/right_shoulder_roll_link.STL"/>
       </geometry>
-      <material name="white">
-        <color rgba="0.7 0.7 0.7 1"/>
-      </material>
+      <material name="white"/>
     </visual>
     <collision>
       <origin xyz="-0.004 -0.006 -0.053" rpy="0 0 0"/>
@@ -953,9 +855,7 @@
       <geometry>
         <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/right_shoulder_yaw_link.STL"/>
       </geometry>
-      <material name="white">
-        <color rgba="0.7 0.7 0.7 1"/>
-      </material>
+      <material name="white"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
@@ -982,9 +882,7 @@
       <geometry>
         <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/right_elbow_link.STL"/>
       </geometry>
-      <material name="white">
-        <color rgba="0.7 0.7 0.7 1"/>
-      </material>
+      <material name="white"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
@@ -1018,9 +916,7 @@
       <geometry>
         <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/right_wrist_roll_link.STL"/>
       </geometry>
-      <material name="white">
-        <color rgba="0.7 0.7 0.7 1"/>
-      </material>
+      <material name="white"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
@@ -1047,9 +943,7 @@
       <geometry>
         <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/right_wrist_pitch_link.STL"/>
       </geometry>
-      <material name="white">
-        <color rgba="0.7 0.7 0.7 1"/>
-      </material>
+      <material name="white"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
@@ -1076,9 +970,7 @@
       <geometry>
         <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/right_wrist_yaw_link.STL"/>
       </geometry>
-      <material name="white">
-        <color rgba="0.7 0.7 0.7 1"/>
-      </material>
+      <material name="white"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
@@ -1087,7 +979,7 @@
       </geometry>
     </collision>
   </link>
-  <joint name="right_hand_palm_joint" type="fixed">
+  <joint name="right_hand_palm_joint" type="fixed" dont_collapse="true">
     <origin xyz="0.0415 -0.003 0" rpy="0 0 0"/>
     <parent link="right_wrist_yaw_link"/>
     <child link="right_rubber_hand"/>
@@ -1103,9 +995,33 @@
       <geometry>
         <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/right_rubber_hand.STL"/>
       </geometry>
-      <material name="white">
-        <color rgba="0.7 0.7 0.7 1"/>
-      </material>
+      <material name="white"/>
     </visual>
   </link>
+
+  <!-- Estimator foot points (as in g1_29dof.urdf): heel / toe under each sole. -->
+  <link name="foot_l_heel_est"/>
+  <joint name="foot_l_heel_est_joint" type="fixed">
+    <origin xyz="-0.035 0 -0.035" rpy="0 0 0"/>
+    <parent link="left_ankle_roll_link"/>
+    <child link="foot_l_heel_est"/>
+  </joint>
+  <link name="foot_l_toe_est"/>
+  <joint name="foot_l_toe_est_joint" type="fixed">
+    <origin xyz="0.105 0 -0.035" rpy="0 0 0"/>
+    <parent link="left_ankle_roll_link"/>
+    <child link="foot_l_toe_est"/>
+  </joint>
+  <link name="foot_r_heel_est"/>
+  <joint name="foot_r_heel_est_joint" type="fixed">
+    <origin xyz="-0.035 0 -0.035" rpy="0 0 0"/>
+    <parent link="right_ankle_roll_link"/>
+    <child link="foot_r_heel_est"/>
+  </joint>
+  <link name="foot_r_toe_est"/>
+  <joint name="foot_r_toe_est_joint" type="fixed">
+    <origin xyz="0.105 0 -0.035" rpy="0 0 0"/>
+    <parent link="right_ankle_roll_link"/>
+    <child link="foot_r_toe_est"/>
+  </joint>
 </robot>
