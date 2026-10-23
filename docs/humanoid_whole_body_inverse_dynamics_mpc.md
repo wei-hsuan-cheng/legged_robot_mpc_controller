@@ -46,33 +46,33 @@ Requested rates are scheduling targets, so policy age matters when a solve runs 
 
 ### 2.1 Configuration and velocity
 
-Let $`n_j`$ be the number of MPC joints and $`n_v=6+n_j`$.
+Let $n_j$ be the number of MPC joints and $n_v=6+n_j$.
 The generalized configuration and velocity are:
 
 $$
-q=\begin{bmatrix}p_{WB}^{W}\cr \eta\cr q_j\end{bmatrix},
+q=\begin{bmatrix}p_{WB}^{W}\\\eta\\q_j\end{bmatrix},
 \qquad
-v=\dot q=\begin{bmatrix}v_{WB}^{W}\cr \dot\eta\cr \dot q_j\end{bmatrix},
+v=\dot q=\begin{bmatrix}v_{WB}^{W}\\\dot\eta\\\dot q_j\end{bmatrix},
 \qquad
 \eta=\begin{bmatrix}\psi&\theta&\phi\end{bmatrix}^{\mathsf T}.
 $$
 
-$`\psi,\theta,\phi`$ are yaw, pitch and roll in ZYX order, with $`R_{WB}=R_z(\psi)R_y(\theta)R_x(\phi)`$.
-Pinocchio uses a Translation + SphericalZYX composite base joint, so $`n_q=n_v`$ and $`v=\dot q`$ in these coordinates.
-The angular entries of $`v`$ are Euler rates, not the body angular velocity measured by the IMU.
-The implementation uses Euler coordinates rather than quaternion or SE(3) integration, and the Euler singularity near pitch $`\pm\pi/2`$ remains.
+$\psi,\theta,\phi$ are yaw, pitch and roll in ZYX order, with $R_{WB}=R_z(\psi)R_y(\theta)R_x(\phi)$.
+Pinocchio uses a Translation + SphericalZYX composite base joint, so $n_q=n_v$ and $v=\dot q$ in these coordinates.
+The angular entries of $v$ are Euler rates, not the body angular velocity measured by the IMU.
+The implementation uses Euler coordinates rather than quaternion or SE(3) integration, and the Euler singularity near pitch $\pm\pi/2$ remains.
 
 ### 2.2 Optimization variables
 
 $$
-x=\begin{bmatrix}q\cr v\end{bmatrix}\in\mathbb R^{2n_v},
+x=\begin{bmatrix}q\\v\end{bmatrix}\in\mathbb R^{2n_v},
 \qquad
-u=\begin{bmatrix}W_L\cr W_R\cr a\cr \tau_j\end{bmatrix},
+u=\begin{bmatrix}W_L\\W_R\\a\\\tau_j\end{bmatrix},
 \qquad a=\dot v.
 $$
 
-Each $`W_c=[f_c^{\mathsf T},m_c^{\mathsf T}]^{\mathsf T}\in\mathbb R^6`$ is a contact wrench expressed in world-aligned axes about the contact-frame origin.
-For the current 23-joint MPC model, $`n_v=29`$, $`\dim x=58`$ and $`\dim u=12+29+23=64`$.
+Each $W_c=[f_c^{\mathsf T},m_c^{\mathsf T}]^{\mathsf T}\in\mathbb R^6$ is a contact wrench expressed in world-aligned axes about the contact-frame origin.
+For the current 23-joint MPC model, $n_v=29$, $\dim x=58$ and $\dim u=12+29+23=64$.
 There is no centroidal-momentum state or momentum-to-velocity reconstruction in this controller.
 
 ### 2.3 Initial state from sensors
@@ -80,12 +80,12 @@ There is no centroidal-momentum state or momentum-to-velocity reconstruction in 
 The controller combines joint interfaces with either the estimator's exported body state or ground-truth body interfaces:
 
 $$
-q_0=\begin{bmatrix}\hat p_{WB}^{W}\cr \mathrm{EulerZYX}(\hat R_{WB})\cr q_{j,\mathrm{meas}}\end{bmatrix},
+q_0=\begin{bmatrix}\hat p_{WB}^{W}\\\operatorname{EulerZYX}(\hat R_{WB})\\q_{j,\mathrm{meas}}\end{bmatrix},
 \qquad
-v_{0,\mathrm{raw}}=\begin{bmatrix}\hat v_{WB}^{W}\cr E_{\mathrm{ZYX}}(\eta)\hat\omega_{WB}^{B}\cr \dot q_{j,\mathrm{meas}}\end{bmatrix}.
+v_{0,\mathrm{raw}}=\begin{bmatrix}\hat v_{WB}^{W}\\E_{\mathrm{ZYX}}(\eta)\hat\omega_{WB}^{B}\\\dot q_{j,\mathrm{meas}}\end{bmatrix}.
 $$
 
-$`E_{\mathrm{ZYX}}`$ converts body angular velocity into Euler rates, and yaw is unwrapped before constructing the state.
+$E_{\mathrm{ZYX}}$ converts body angular velocity into Euler rates, and yaw is unwrapped before constructing the state.
 When enabled, the observation filter applies to the entire generalized velocity vector:
 
 $$
@@ -94,7 +94,7 @@ $$
 \alpha_v=1-\exp(-2\pi f_v\Delta t_{\mathrm{control}}).
 $$
 
-The MPC initial condition is then $`x(t_0)=[q_0^{\mathsf T},\bar v_0^{\mathsf T}]^{\mathsf T}`$.
+The MPC initial condition is then $x(t_0)=[q_0^{\mathsf T},\bar v_0^{\mathsf T}]^{\mathsf T}$.
 The observation input is zero-initialized, rather than populated with measured wrenches, accelerations or torques.
 Joint velocities already belong to the WB-ID state and must not be inserted into its observation input.
 
@@ -106,10 +106,10 @@ Joint velocities already belong to the WB-ID state and must not be inserted into
 OCS2 receives a double-integrator flow map:
 
 $$
-\dot x=\begin{bmatrix}v\cr a\end{bmatrix}.
+\dot x=\begin{bmatrix}v\\a\end{bmatrix}.
 $$
 
-For constant input over $`\Delta t_k`$, the exact flow is:
+For constant input over $\Delta t_k$, the exact flow is:
 
 $$
 q_{k+1}=q_k+\Delta t_kv_k+\tfrac12\Delta t_k^2a_k,
@@ -124,25 +124,25 @@ Rigid-body physics enters through separate state-input equalities rather than th
 Define the generalized inverse-dynamics residual:
 
 $$
-r(q,v,a,W)=\mathrm{RNEA}(q,v,a)-\sum_cJ_c(q)^{\mathsf T}W_c
+r(q,v,a,W)=\operatorname{RNEA}(q,v,a)-\sum_cJ_c(q)^{\mathsf T}W_c
 =M(q)a+b(q,v)-\sum_cJ_c(q)^{\mathsf T}W_c.
 $$
 
-The base selector $`S_b`$ extracts the six unactuated rows, which are constrained throughout the horizon:
+The base selector $S_b$ extracts the six unactuated rows, which are constrained throughout the horizon:
 
 $$
 S_br=0.
 $$
 
-The joint selector $`S_j`$ extracts the actuated rows, constrained inside an initial torque window:
+The joint selector $S_j$ extracts the actuated rows, constrained inside an initial torque window:
 
 $$
 S_jr-\tau_j=0,\qquad t<t_0+T_\tau.
 $$
 
-For positive `torqueConstraintNodes` $`N_\tau`$, $`T_\tau=(N_\tau-\tfrac12)\Delta t_{\mathrm{SQP}}`$.
+For positive `torqueConstraintNodes` $N_\tau$, $T_\tau=(N_\tau-\tfrac12)\Delta t_{\mathrm{SQP}}$.
 A nonpositive setting enables the joint equations and torque-limit penalties over the entire horizon.
-With the current $`N_\tau=3`$ and $`\Delta t_{\mathrm{SQP}}=0.02`$ s, the window is 0.05 s.
+With the current $N_\tau=3$ and $\Delta t_{\mathrm{SQP}}=0.02$ s, the window is 0.05 s.
 Activation is time-based, so event-adjusted grid spacing can affect the number of knots inside the window.
 Outside it, the explicit torque input is not tied to inverse dynamics and cannot be treated as an executable physical torque.
 Base dynamics still constrain the planned motion there, but full-horizon actuator feasibility is not guaranteed.
@@ -168,8 +168,8 @@ One SQP iteration is an online computation choice, not a guarantee that every re
 The state and input weights have the structure:
 
 $$
-Q=\mathrm{diag}(Q_{\mathrm{pose}},Q_{q_j},Q_{v_B},Q_{\dot q_j}),
-\qquad R=\mathrm{diag}(R_W,R_{a_B},R_{a_j},R_{\tau_j}).
+Q=\operatorname{diag}(Q_{\mathrm{pose}},Q_{q_j},Q_{v_B},Q_{\dot q_j}),
+\qquad R=\operatorname{diag}(R_W,R_{a_B},R_{a_j},R_{\tau_j}).
 $$
 
 `qScaling`, `rScaling` and `terminalCostScaling` supply the configured global scaling.
@@ -181,26 +181,23 @@ $$
 +\tfrac12\|u-u_{\mathrm{nom}}\|_R^2.
 $$
 
-The input reference distributes weight equally among the $`N_s`$ scheduled stance contacts:
+The input reference distributes weight equally among the $N_s$ scheduled stance contacts:
 
 $$
-f_{c,\mathrm{nom}}=\left\{\begin{array}{ll}
-[0,0,mg/N_s]^{\mathsf T},&c\text{ in stance},\\
-0,&c\text{ in swing},
-\end{array}\right.
+f_{c,\mathrm{nom}}=\begin{cases}[0,0,mg/N_s]^{\mathsf T},&c\text{ in stance},\\0,&c\text{ in swing},\end{cases}
 \qquad m_{c,\mathrm{nom}}=0,\quad a_{\mathrm{nom}}=0,\quad\tau_{j,\mathrm{nom}}=0.
 $$
 
 This zero torque cost reference differs from the initializer, which seeds joint torques through inverse dynamics.
 The acceleration and torque regularizers penalize magnitudes rather than consecutive-input differences.
-No first-node cost on $`\tau_0-\tau_{\mathrm{previous}}`$ is registered in this OCP.
+No first-node cost on $\tau_0-\tau_{\mathrm{previous}}$ is registered in this OCP.
 
 ### 4.2 Relative base-motion tracking
 
 In `base_twist` mode, the dedicated base cost sets horizontal position and yaw errors to zero:
 
 $$
-e_{\mathrm{pose}}=\begin{bmatrix}0&0&z-z_d&0&\mathrm{wrap}(\theta-\theta_d)&\mathrm{wrap}(\phi-\phi_d)\end{bmatrix}^{\mathsf T}.
+e_{\mathrm{pose}}=\begin{bmatrix}0&0&z-z_d&0&\operatorname{wrap}(\theta-\theta_d)&\operatorname{wrap}(\phi-\phi_d)\end{bmatrix}^{\mathsf T}.
 $$
 
 Horizontal velocities are compared in their respective heading frames, while the remaining entries use direct differences:
@@ -208,14 +205,14 @@ Horizontal velocities are compared in their respective heading frames, while the
 $$
 e_{v,xy}=R_2(\psi)^{\mathsf T}v_{B,xy}^{W}-R_2(\psi_d)^{\mathsf T}v_{B,d,xy}^{W},
 \qquad
-e_{v,\mathrm{rest}}=\begin{bmatrix}v_z-v_{z,d}\cr \dot\eta-\dot\eta_d\end{bmatrix},
+e_{v,\mathrm{rest}}=\begin{bmatrix}v_z-v_{z,d}\\\dot\eta-\dot\eta_d\end{bmatrix},
 $$
 
 $$
-\ell_{\mathrm{base}}=\tfrac12\left\|\begin{bmatrix}e_{\mathrm{pose}}\cr e_{v,xy}\cr e_{v,\mathrm{rest}}\end{bmatrix}\right\|_{Q_B}^2.
+\ell_{\mathrm{base}}=\tfrac12\left\|\begin{bmatrix}e_{\mathrm{pose}}\\e_{v,xy}\\e_{v,\mathrm{rest}}\end{bmatrix}\right\|_{Q_B}^2.
 $$
 
-$`R_2`$ is the planar yaw rotation and $`\mathrm{wrap}`$ is the signed angle difference modulo $`2\pi`$.
+$R_2$ is the planar yaw rotation and $\operatorname{wrap}$ is the signed angle difference modulo $2\pi$.
 In explicit `base_pose` mode, planar position tracking in the desired heading frame and yaw tracking are restored.
 The relative-twist cost is invariant to a common planar-origin/heading change, but wrong velocities, attitude errors, slipping contacts and inconsistent terrain coordinates can still corrupt the policy.
 
@@ -237,22 +234,22 @@ It does not supply a separate commanded arm-velocity trajectory, and `default` c
 The foot residual has 12 components:
 
 $$
-e_c=\begin{bmatrix}p_c-p_{c,d}\cr d_{\mathrm{plane}}(R_c,n_d)\cr s_c(t)(v_c-v_{c,d})\cr \omega_c-\omega_{c,d}\end{bmatrix},
+e_c=\begin{bmatrix}p_c-p_{c,d}\\d_{\mathrm{plane}}(R_c,n_d)\\s_c(t)(v_c-v_{c,d})\\\omega_c-\omega_{c,d}\end{bmatrix},
 \qquad \ell_{\mathrm{feet}}=\tfrac12\sum_c\|e_c\|_{Q_c}^2.
 $$
 
-$`d_{\mathrm{plane}}`$ is the implemented orientation-to-plane residual and $`s_c`$ is the swing planner's impact-proximity factor.
+$d_{\mathrm{plane}}$ is the implemented orientation-to-plane residual and $s_c$ is the swing planner's impact-proximity factor.
 Default foot position/velocity references are zero, with zero position weights in the current YAML; a planned foothold can replace the position reference and horizontal weights.
 Current foot weights mainly penalize tilt and horizontal velocity, while vertical swing tracking is an equality.
 Optional named task-space costs use position, quaternion-distance orientation and velocity residuals for configured links, currently the torso's `mid360_link`.
 Their references are obtained by forward kinematics of the desired state, rather than being independent hand-pose commands:
 
 $$
-e_{\mathrm{task}}=\begin{bmatrix}p_{\mathrm{link}}-p_{\mathrm{link},d}\cr d_q(Q_{\mathrm{link}},Q_{\mathrm{link},d})\cr v_{\mathrm{link}}-v_{\mathrm{link},d}\cr \omega_{\mathrm{link}}-\omega_{\mathrm{link},d}\end{bmatrix},
+e_{\mathrm{task}}=\begin{bmatrix}p_{\mathrm{link}}-p_{\mathrm{link},d}\\d_q(Q_{\mathrm{link}},Q_{\mathrm{link},d})\\v_{\mathrm{link}}-v_{\mathrm{link},d}\\\omega_{\mathrm{link}}-\omega_{\mathrm{link},d}\end{bmatrix},
 \qquad \ell_{\mathrm{task}}=\tfrac12\|e_{\mathrm{task}}\|_{Q_{\mathrm{task}}}^2.
 $$
 
-Here $`Q_{\mathrm{link}}`$ denotes an orientation quaternion and $`d_q`$ is the implemented three-component quaternion-distance residual.
+Here $Q_{\mathrm{link}}$ denotes an orientation quaternion and $d_q$ is the implemented three-component quaternion-distance residual.
 Those costs are independent of the external frame-relation command API.
 
 ### 4.5 External-load regularization
@@ -263,16 +260,16 @@ $$
 \ell_{\mathrm{load},c}=\tfrac12(1-s_{\bar c}(t))^2\|\tau_{\mathrm{ext},c}\|_{Q_{\mathrm{load},c}}^2.
 $$
 
-$`S_{j,c}`$ selects configured leg joints and $`\bar c`$ denotes the opposite foot, whose impact-proximity factor gates the term.
-This shapes contact loads and differs from regularizing $`\tau_j`$, which also contains gravity and inertial effects.
+$S_{j,c}$ selects configured leg joints and $\bar c$ denotes the opposite foot, whose impact-proximity factor gates the term.
+This shapes contact loads and differs from regularizing $\tau_j$, which also contains gravity and inertial effects.
 
 
 ## 5. Constraints and Penalties
 
 ### 5.1 Scheduled contacts
 
-The gait supplies contact flags $`\gamma_c(t)\in\{0,1\}`$.
-During swing, all six wrench components satisfy $`W_c=0`$.
+The gait supplies contact flags $\gamma_c(t)\in\{0,1\}$.
+During swing, all six wrench components satisfy $W_c=0$.
 Contact timing is prescribed rather than optimized, with no force/height complementarity constraint and no explicit impulsive touchdown reset in the state flow.
 
 ### 5.2 Stance foot equalities
@@ -282,15 +279,15 @@ The stance equations are:
 
 $$
 \begin{aligned}
-k_{a,xy}a_{c,x}+k_{d,xy}v_{c,x}&=0,\cr 
-k_{a,xy}a_{c,y}+k_{d,xy}v_{c,y}&=0,\cr 
-k_{a,z}a_{c,z}+k_{d,z}v_{c,z}+k_{p,z}(z_c-z_{c,d})&=0,\cr 
+k_{a,xy}a_{c,x}+k_{d,xy}v_{c,x}&=0,\\
+k_{a,xy}a_{c,y}+k_{d,xy}v_{c,y}&=0,\\
+k_{a,z}a_{c,z}+k_{d,z}v_{c,z}+k_{p,z}(z_c-z_{c,d})&=0,\\
 k_{a,R}\dot\omega_c+k_{d,R}\omega_c+k_{p,R}d_{\mathrm{plane}}(R_c,e_z)&=0.
 \end{aligned}
 $$
 
 Current acceleration gains are 1, velocity gains are 50, vertical position gain is 250 and orientation gain is 1000.
-At nominal 0.02 s spacing, $`k_d=50=1/\Delta t`$; under a constant-acceleration approximation, $`a+v/\Delta t=0`$ damps velocity to zero at the next node.
+At nominal 0.02 s spacing, $k_d=50=1/\Delta t$; under a constant-acceleration approximation, $a+v/\Delta t=0$ damps velocity to zero at the next node.
 This is not an exact nonlinear discrete no-slip equation because the Jacobian and its derivatives change over the interval.
 There is no explicit stance horizontal-position anchor in these rows.
 
@@ -310,18 +307,18 @@ h_{\mathrm{fric}}=\mu_f(f_z+f_{\mathrm{grip}})-\sqrt{f_x^2+f_y^2+\epsilon}\ge0.
 $$
 
 The foot setup uses zero gripper-force offset and the world vertical cone normal.
-The factory retains the class's smoothing constant $`\epsilon=25\ \mathrm{N}^2`$, so the smoothed margin is more restrictive near zero force than an unsmoothed cone.
+The factory retains the class's smoothing constant $\epsilon=25\ \mathrm{N}^2$, so the smoothed margin is more restrictive near zero force than an unsmoothed cone.
 The surface-normal setter in this class is unimplemented, so an arbitrary terrain-normal cone is not supplied here.
-The current friction coefficient $`\mu_f=0.4`$ is distinct from the soft penalty strength also called `mu`.
+The current friction coefficient $\mu_f=0.4$ is distinct from the soft penalty strength also called `mu`.
 For CoP, forces and moments are rotated into the foot frame and the margins are:
 
 $$
-\begin{bmatrix}m_x-y_{\min}f_z\cr -m_x+y_{\max}f_z\cr -m_y-x_{\min}f_z\cr m_y+x_{\max}f_z\end{bmatrix}\ge0.
+\begin{bmatrix}m_x-y_{\min}f_z\\-m_x+y_{\max}f_z\\-m_y-x_{\min}f_z\\m_y+x_{\max}f_z\end{bmatrix}\ge0.
 $$
 
-For $`f_z>0`$, these bound $`x_{\mathrm{CoP}}=-m_y/f_z`$ and $`y_{\mathrm{CoP}}=m_x/f_z`$ within the rectangle.
-Current bounds are $`x\in[-0.09,0.09]`$ m and $`y\in[-0.03,0.03]`$ m.
-There is no torsional-friction inequality on $`m_z`$; its input cost supplies regularization.
+For $f_z>0$, these bound $x_{\mathrm{CoP}}=-m_y/f_z$ and $y_{\mathrm{CoP}}=m_x/f_z$ within the rectangle.
+Current bounds are $x\in[-0.09,0.09]$ m and $y\in[-0.03,0.03]$ m.
+There is no torsional-friction inequality on $m_z$; its input cost supplies regularization.
 
 ### 5.5 Joint and collision margins
 
@@ -333,7 +330,7 @@ $$
 
 Position limits come from the robot model, velocity bounds are scaled URDF limits, and torque bounds come from `control.torqueLimit`.
 Torque penalties only act within the torque window, and a nonpositive velocity-limit scale disables that term.
-The foot/knee collision term has 16 frame-point separation margins of the form $`\|p_i(q)-p_j(q)\|-(r_i+r_j)`$.
+The foot/knee collision term has 16 frame-point separation margins of the form $\|p_i(q)-p_j(q)\|-(r_i+r_j)$.
 It is disabled in double support to avoid fighting stance constraints and is not a general mesh-based whole-body collision checker.
 
 ### 5.6 Soft penalties
@@ -342,20 +339,20 @@ These inequalities are soft costs rather than hard QP box/cone constraints.
 Friction, CoP, joint velocity and joint torque use the relaxed logarithmic barrier:
 
 $$
-p_{\mu,\delta}(h)=\mu\left\{\begin{array}{ll}
+p_{\mu,\delta}(h)=\mu\begin{cases}
 -\ln h,&h>\delta,\\
 -\ln\delta+\tfrac12\left(\dfrac{h-2\delta}{\delta}\right)^2-\tfrac12,&h\le\delta.
-\end{array}\right.
+\end{cases}
 $$
 
 Joint positions and foot/knee collision margins use a piecewise polynomial penalty:
 
 $$
-p^{\mathrm{poly}}_{\mu,\delta}(h)=\mu\left\{\begin{array}{ll}
+p^{\mathrm{poly}}_{\mu,\delta}(h)=\mu\begin{cases}
 \tfrac12h^2-\tfrac12\delta h+\tfrac16\delta^2,&h\le0,\\
 -\dfrac{h^3}{6\delta}+\tfrac12h^2-\tfrac12\delta h+\tfrac16\delta^2,&0<h<\delta,\\
 0,&h\ge\delta.
-\end{array}\right.
+\end{cases}
 $$
 
 Both penalties remain finite when violated, so returned trajectories can violate the margins.
@@ -375,12 +372,12 @@ $$
 $$
 
 $$
-c_{k,i}^{\mathrm{out}}=\mathrm{clip}(\tilde c_{k,i},c_{k-1,i}^{\mathrm{out}}-r_i\Delta t_s,c_{k-1,i}^{\mathrm{out}}+r_i\Delta t_s),
-\qquad \Delta t_s=\mathrm{clip}(t_k-t_{k-1},0,0.05).
+c_{k,i}^{\mathrm{out}}=\operatorname{clip}(\tilde c_{k,i},c_{k-1,i}^{\mathrm{out}}-r_i\Delta t_s,c_{k-1,i}^{\mathrm{out}}+r_i\Delta t_s),
+\qquad \Delta t_s=\operatorname{clip}(t_k-t_{k-1},0,0.05).
 $$
 
-Nonpositive $`r_i`$ disables that axis's slew limit, and command filtering is reset on activation or a target-mode change.
-Current physical maxima are 0.75 m/s forward, 0.5 m/s lateral and 1.5708 rad/s yaw, with slew limits $`[0.5,0.5,0.5,2.0]`$ in the corresponding physical units.
+Nonpositive $r_i$ disables that axis's slew limit, and command filtering is reset on activation or a target-mode change.
+Current physical maxima are 0.75 m/s forward, 0.5 m/s lateral and 1.5708 rad/s yaw, with slew limits $[0.5,0.5,0.5,2.0]$ in the corresponding physical units.
 These configured maxima are not independently verified safe operating limits.
 
 ### 6.2 Relative base-twist target
@@ -394,7 +391,7 @@ $$
 p_{d,xy}(t_0+s)=\hat p_{xy}(t_0)+\int_0^sR_2(\psi_d(t_0+\xi))v_{\mathrm{cmd},xy}^{B}\,d\xi.
 $$
 
-The calculator evaluates this constant-body-twist integral analytically and creates knots at $`t_0`$, $`t_0+0.7T`$ and $`t_0+T`$.
+The calculator evaluates this constant-body-twist integral analytically and creates knots at $t_0$, $t_0+0.7T$ and $t_0+T$.
 World velocity at each knot comes from the body command rotated by desired yaw, while desired vertical velocity, pitch/roll rates and joint velocities are zero.
 Measured base velocity does not enter command integration, but it still enters the initial state and gait-transition guards.
 `base_pose` instead uses an explicit pose target with an estimated reaching time and latches the current pose on entry if no external pose command has been received.
@@ -412,10 +409,10 @@ The current `slow_walk` template is:
 
 | Interval within the 1.10 s cycle | Mode | Left contact | Right contact |
 | --- | --- | --- | --- |
-| $`[0,0.40)`$ s | `LF` | stance | swing |
-| $`[0.40,0.55)`$ s | `STANCE` | stance | stance |
-| $`[0.55,0.95)`$ s | `RF` | swing | stance |
-| $`[0.95,1.10)`$ s | `STANCE` | stance | stance |
+| $[0,0.40)$ s | `LF` | stance | swing |
+| $[0.40,0.55)$ s | `STANCE` | stance | stance |
+| $[0.55,0.95)$ s | `RF` | swing | stance |
+| $[0.95,1.10)$ s | `STANCE` | stance | stance |
 
 `LF` denotes left support, not left swing.
 
@@ -434,7 +431,7 @@ flowchart LR
 
 ### 6.4 Swing spline and terrain hooks
 
-For an isolated swing with endpoint times $`t_l,t_d`$, the planner constructs cubic splines from endpoint heights/velocities and a raised midpoint:
+For an isolated swing with endpoint times $t_l,t_d$, the planner constructs cubic splines from endpoint heights/velocities and a raised midpoint:
 
 $$
 \lambda=\min\left(1,\frac{t_d-t_l}{T_{\mathrm{swing,scale}}}\right),
@@ -442,30 +439,30 @@ $$
 $$
 
 Current configured swing height is 0.08 m.
-The spline supplies $`z_d`$, $`\dot z_d`$ and $`\ddot z_d`$ to the swing equality and impact-proximity factors to the costs.
+The spline supplies $z_d$, $\dot z_d$ and $\ddot z_d$ to the swing equality and impact-proximity factors to the costs.
 Shared stair-plan and terrain-foothold hooks are connected when config files are supplied, but that wiring does not establish validated WB-ID stair walking.
 The contact-plane and friction-normal assumptions still limit general terrain use.
 
 
 ## 7. Policy Execution and Inner Servo
 
-The controller evaluates the policy at $`t_e=t+\texttt{policyTimeOffset}`$ and takes desired joint position/velocity from its planned state:
+The controller evaluates the policy at $t_e=t+\texttt{policyTimeOffset}$ and takes desired joint position/velocity from its planned state:
 
 $$
-q_{j,\mathrm{des}}=q_j^{*}(t_e),\qquad\dot q_{j,\mathrm{des}}=\dot q_j^{*}(t_e).
+q_{j,\mathrm{des}}=q_j^*(t_e),\qquad\dot q_{j,\mathrm{des}}=\dot q_j^*(t_e).
 $$
 
 With `control.feedforward: policy_torque`, it selects:
 
 $$
-\tau_{\mathrm{ff}}=\left\{\begin{array}{ll}
-\tau_j^{*}(t_e),&\text{policy interpolation knots lie inside its torque window},\\
-\mathrm{ID}_j(q^{*},v^{*},a_j^{*},W^{*}),&\text{otherwise}.
-\end{array}\right.
+\tau_{\mathrm{ff}}=\begin{cases}
+\tau_j^*(t_e),&\text{policy interpolation knots lie inside its torque window},\\
+\operatorname{ID}_j(q^*,v^*,a_j^*,W^*),&\text{otherwise}.
+\end{cases}
 $$
 
 The fallback computes base acceleration from the unactuated equations before computing joint inverse dynamics.
-`control.feedforward: inverse_dynamics` instead uses measured $`q,v`$ with planned joint accelerations and wrenches.
+`control.feedforward: inverse_dynamics` instead uses measured $q,v$ with planned joint accelerations and wrenches.
 Feedforward is clamped to `control.torqueLimit` before sending joint position, velocity and effort commands to the hardware.
 The `effort_pd` servo evaluates:
 
