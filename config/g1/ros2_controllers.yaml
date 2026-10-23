@@ -639,9 +639,14 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           # baseVelocity: [300.0, 150.0, 30.0, 300.0, 30.0, 30.0]
           basePose: [0.0, 0.0, 100.0, 0.0, 100.0, 100.0]
           baseVelocity: [30.0, 15.0, 3.0, 30.0, 3.0, 3.0]
+          # Hip yaw (indices 2, 8) at 15, not 0.2: nothing else regulates foot yaw (the
+          # foot cost and stance constraint are yaw-free). At 0.2 the feet wobbled +-5-8 deg
+          # about the pelvis every step; 4 fixed that at 0.25 m/s but left a steady ~8 deg
+          # toe-in at 0.5 m/s; 15 halves that (+4.5 deg) with the same speed and survival
+          # and a slightly smaller arm swing (linear KF, flat scene, 2-3 runs per setting).
           jointPositions:
-            [0.05, 0.2, 0.2, 0.1, 0.1, 0.1,
-             0.05, 0.2, 0.2, 0.1, 0.1, 0.1,
+            [0.05, 0.2, 15.0, 0.1, 0.1, 0.1,
+             0.05, 0.2, 15.0, 0.1, 0.1, 0.1,
              2.0, 2.0, 2.0,
              5.0, 5.0, 2.0, 4.0,
              5.0, 5.0, 2.0, 4.0]
@@ -658,8 +663,8 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           basePose: [0.0, 0.0, 100.0, 0.0, 100.0, 100.0]
           baseVelocity: [30.0, 15.0, 3.0, 30.0, 3.0, 3.0]
           jointPositions:
-            [0.05, 0.1, 0.1, 0.1, 0.1, 0.1,
-             0.05, 0.1, 0.1, 0.1, 0.1, 0.1,
+            [0.05, 0.1, 30.0, 0.1, 0.1, 0.1,
+             0.05, 0.1, 30.0, 0.1, 0.1, 0.1,
              2.0, 2.0, 2.0,
              5.0, 5.0, 2.0, 4.0,
              5.0, 5.0, 2.0, 4.0]
@@ -673,9 +678,15 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         # R on u = [W_left, W_right, base acceleration, joint acceleration, joint torque].
         # Contact wrench order per foot: [fx, fy, fz, mx, my, mz].
         r:
+          # mz (foot yaw moment) at 5, not 100. At 100 the feet may barely resist yaw, so
+          # the arms cancel the legs' yaw momentum instead (a natural, contralateral arm
+          # swing) - enough at 0.5 m/s, not at 0.75-1.0, where the robot yawed away and
+          # fell. With hip yaw 15: mz 100 survived 6/8 runs over 0.5/0.75/1.0 m/s, mz 20
+          # 3/5 (fell stopping from 1.0), mz 5 6/6. The cost is a weaker arm swing at
+          # 0.5 m/s (12 deg p-p vs 19), ~9 deg toe-in and more heading drift at speed.
           contactWrenches:
-            [0.003, 0.003, 0.001, 0.01, 0.01, 100.0,
-             0.003, 0.003, 0.001, 0.01, 0.01, 100.0]
+            [0.003, 0.003, 0.001, 0.01, 0.01, 5.0,
+             0.003, 0.003, 0.001, 0.01, 0.01, 5.0]
           baseAccelerations: [0.005, 0.005, 0.005, 0.005, 0.005, 0.005]
           jointAccelerations:
             [0.005, 0.005, 0.005, 0.005, 0.005, 0.005,
