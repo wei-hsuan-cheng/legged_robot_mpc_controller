@@ -12,15 +12,17 @@
 
 ## MPC Formulations
 
-This repository contains examples for two MPC formulations: **centroidal dynamics (hierarchical) vs. whole-body inverse dynamics**.
+This repository contains examples for two MPC formulations: **whole-body inverse dynamics vs. centroidal dynamics (hierarchical)**.
 
-### Centroidal Dynamics MPC
-The centroidal MPC optimizes over the **whole-body kinematics** and the center of mass dynamics, with a choice to either use a single rigid body model or the full centroidal dynamics. This specific approach builds up on the centroidal model in ocs2 by generalizing costs and constraints to a 6-DoF contact among others. A conscise explanation of the ocs2 centroidal model can be found in [(RA-L2021) Sleiman et. al., A Unified MPC Framework for Whole-Body Dynamic Locomotion and Manipulation](https://arxiv.org/abs/2103.00946).
 
 ### Whole-Body Inverse Dynamics MPC
 The **whole-body inverse dynamics MPC** jointly optimizes floating-base and joint configurations and velocities, contact wrenches, generalized accelerations, and joint torques. Full rigid-body dynamics are imposed through the recursive Newton-Euler algorithm (RNEA): floating-base dynamics are enforced throughout the prediction horizon, while actuated-joint inverse dynamics and torque limits are enforced within a configurable initial torque window. The implementation adapts the formulations in [(RA-L2024) Khazoom et al., Tailoring Solution Accuracy for Fast Whole-body Model Predictive Control of Legged Robots](https://arxiv.org/abs/2407.10789) and [(RA-L2025) Molnar et al., Whole-Body Inverse Dynamics MPC for Legged Loco-Manipulation](https://arxiv.org/abs/2511.19709) to OCS2's SQP solver and the G1 humanoid.
 
 See [WB-ID MPC Formulation and Signal Flow](./docs/humanoid_whole_body_inverse_dynamics_mpc.md) for equations and control diagrams, and [WB-ID MPC Implementation Guide](./docs/humanoid_whole_body_inverse_dynamics_mpc_impl.md) for code-line references and parameter mappings.
+
+
+### Centroidal Dynamics MPC
+The centroidal MPC optimizes over the **whole-body kinematics** and the center of mass dynamics, with a choice to either use a single rigid body model or the full centroidal dynamics. This specific approach builds up on the centroidal model in ocs2 by generalizing costs and constraints to a 6-DoF contact among others. A conscise explanation of the ocs2 centroidal model can be found in [(RA-L2021) Sleiman et. al., A Unified MPC Framework for Whole-Body Dynamic Locomotion and Manipulation](https://arxiv.org/abs/2103.00946).
 
 
 ## Build and Install
@@ -68,22 +70,10 @@ Two MPC controllers are available, selected with `mpcControllerName`. Both walk 
 
 | `mpcControllerName` | MPC | state / input |
 |---|---|---|
-| `humanoid_centroidal_mpc_controller` (default) | centroidal dynamics + whole-body kinematics | `[h/m, q]` / `[W, qd_j]` |
 | `humanoid_whole_body_inverse_dynamics_mpc_controller` | whole-body inverse dynamics (see [below](#whole-body-inverse-dynamics-mpc)) | `[q, v]` / `[W, a, tau_j]` |
+| `humanoid_centroidal_mpc_controller` (default) | centroidal dynamics + whole-body kinematics | `[h/m, q]` / `[W, qd_j]` |
 
-**Launch the humanoid robot (centroidal MPC)**:
-```bash
-cd <workspace_dir>
-ros2 launch legged_robot_mpc_controller g1.launch.py \
-  mpcControllerName:=humanoid_centroidal_mpc_controller \
-  mpcFreq:=100 \
-  mrtFreq:=1000 \
-  rviz:=true \
-  mujoco_headless:=false \
-  baseCommandGui:=true
-```
-
-**Launch the humanoid robot (whole-body inverse-dynamics MPC)**:
+**Launch the humanoid robot MPC**:
 ```bash
 cd <workspace_dir>
 ros2 launch legged_robot_mpc_controller g1.launch.py \
@@ -93,16 +83,19 @@ ros2 launch legged_robot_mpc_controller g1.launch.py \
   rviz:=true \
   mujoco_headless:=false \
   baseCommandGui:=true
+
+# mpcControllerName:=humanoid_whole_body_inverse_dynamics_mpc_controller | humanoid_centroidal_mpc_controller
 ```
 
 The first launch of each controller generates and compiles its CppAD libraries (several minutes); later launches load them from the cache.
 
-Useful launch args:
+
+### Useful launch args
 
 ```bash
 baseCommandGui:=true | false
 spawnMpcController:=true | false         # false is only for environment smoke tests; the robot will not balance
-mpcControllerName:=humanoid_centroidal_mpc_controller | humanoid_whole_body_inverse_dynamics_mpc_controller
+mpcControllerName:=humanoid_whole_body_inverse_dynamics_mpc_controller | humanoid_centroidal_mpc_controller
 use_mujoco_sim:=true | false             # false: plain ros2_control_node (fake hardware)
 use_fake_hardware:=false | true          # mock_components/GenericSystem when not using MuJoCo
 ros2ControlCommandInterface:=effort | effort_pd | position
@@ -117,7 +110,7 @@ gt_enabled:=true | false                 # floating-base ground-truth odometry f
 gt_body_frame:=pelvis                    # MuJoCo body published as ground truth
 mpcFreq:=100                             # integer
 mrtFreq:=1000                            # integer
-libFolder:=auto_generated/g1             # CppAD codegen output (centroidal_mpc_g1/, wb_id_mpc_g1/ inside)
+libFolder:=auto_generated/g1             # CppAD codegen output (wb_id_mpc_g1/, centroidal_mpc_g1/ inside)
 mujocoModelFile:=scene.xml               # swap scene: boxes / stairs / slope in description/g1/mujoco
 stairClimbingFile:=stair_climbing.yaml
 terrainWalkingFile:terrain_walking.yaml
@@ -242,8 +235,9 @@ world ──(static, identity)──▶ odom ──(estimator, odom → pelvis)�
 
 ## Acknowledgements
 
-- The original code implementation of humanoid centroidal MPC: [`manumerous/wb_humanoid_mpc`](https://github.com/manumerous/wb_humanoid_mpc)
 - Reference implementation for the whole-body inverse dynamics MPC formulation: [`lukasmolnar/wb-mpc-locoman`](https://github.com/lukasmolnar/wb-mpc-locoman)
+- The original code implementation of humanoid centroidal MPC: [`manumerous/wb_humanoid_mpc`](https://github.com/manumerous/wb_humanoid_mpc)
+
 
 
 ## Contact
