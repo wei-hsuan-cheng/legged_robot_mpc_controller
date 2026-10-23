@@ -937,6 +937,8 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         taskSpaceCosts:
           names:
             [torso]
+
+          # Torso preference: suppress upper-body sway
           torso:
             activate: true
             linkName: mid360_link
