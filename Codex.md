@@ -1,5 +1,16 @@
 # WB-ID MPC Walking Robustness Handoff
 
+## Optional Cost Activation (2026-10-23, needs build and runtime test)
+
+WB-ID now follows `mpc_controllers`' configure-time cost-registration pattern with `ocs2.costs.taskSpaceFootCost.activate`, `ocs2.costs.taskSpaceCosts.<name>.activate` and `ocs2.costs.legTorqueCost.activate`.
+All defaults and shipped G1 flags are `true`, and all existing weights are unchanged.
+The WB-ID foot vector moved from `taskSpaceFootCostWeights` to `taskSpaceFootCost.weights`; update external WB-ID parameter files accordingly.
+Disabled costs are not constructed or registered, avoiding their CppAD model creation/loading; Q/R and all contact/dynamics constraints remain active.
+The centroidal schema and costs are unchanged.
+The task-space objectives are not algebraically identical to Q/R, and the load cost regularizes selected entries of `J^T W`, not the torque decision variable.
+Disabling a foot cost does not remove the hard stance orientation or vertical contact constraints, so this is an ablation switch, not a terrain-support fix.
+Static activation and parameter-contract tests cover schema defaults, all eight switch combinations, config wiring and constructor guards; no ROS build or simulator test was run.
+
 ## WB-ID Startup Horizon Recovery (2026-10-23, needs build and runtime test)
 
 The intermittent takeover failure showed control time around 15.7 s while the last plan ended at 9.5024 s.

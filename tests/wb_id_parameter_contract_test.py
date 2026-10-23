@@ -39,6 +39,8 @@ def check_keys(values, schema, prefix=""):
             check_keys(value, entry, prefix + key + ".")
         else:
             assert "type" in entry, f"Not a parameter leaf: {prefix}{key}"
+            if entry["type"] == "bool":
+                assert type(value) is bool, f"Expected a YAML boolean: {prefix}{key}"
             size = entry.get("validation", {}).get("fixed_size<>")
             if size:
                 assert len(value) == size[0], f"Wrong array length: {prefix}{key}"

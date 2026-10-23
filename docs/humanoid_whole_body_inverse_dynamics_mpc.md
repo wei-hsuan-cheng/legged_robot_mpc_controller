@@ -253,6 +253,8 @@ $$
 
 Here $Q_{\mathrm{link}}$ denotes an orientation quaternion and $d_q$ is the implemented three-component quaternion-distance residual.
 Those costs are independent of the external frame-relation command API.
+`ocs2.costs.taskSpaceFootCost.activate` controls both foot costs, and `ocs2.costs.taskSpaceCosts.<name>.activate` controls each named link cost, such as `torso`.
+The foot weights are configured under `ocs2.costs.taskSpaceFootCost.weights`, replacing the WB-ID-only `taskSpaceFootCostWeights` parameter.
 
 ### 4.5 External-load regularization
 
@@ -264,6 +266,11 @@ $$
 
 $S_{j,c}$ selects configured leg joints and $\bar c$ denotes the opposite foot, whose impact-proximity factor gates the term.
 This shapes contact loads and differs from regularizing $\tau_j$, which also contains gravity and inertial effects.
+`ocs2.costs.legTorqueCost.activate` controls both leg-load costs.
+All these activation flags default to `true` and are applied when the controller is configured, following the cost-registration pattern in `mpc_controllers`.
+Setting a flag to `false` skips constructing and registering that cost, including its generated cost models; reconfigure the controller or relaunch to apply the change.
+These extra costs are not algebraically identical to Q/R: task-space costs couple base and joint motion through kinematics, and the load cost acts on $`J_j^{\mathsf T}W`$ rather than the torque decision variable.
+Their switches do not change Q/R, inverse-dynamics equalities or stance/swing contact constraints, so disabling foot costs alone does not remove the hard flat-foot assumptions.
 
 
 ## 5. Constraints and Penalties

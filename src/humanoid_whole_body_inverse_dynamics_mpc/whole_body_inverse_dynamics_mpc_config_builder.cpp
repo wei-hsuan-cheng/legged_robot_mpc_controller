@@ -221,21 +221,27 @@ ocs2::humanoid::WbIdMpcInterface::Config buildWholeBodyInverseDynamicsMpcConfig(
   costs.frictionBarrierConfig.delta = p.constraints.frictionCone.delta;
 
   // --- optional per-leg external-load regularization (J_leg^T W) ---
-  costs.leftLegTorqueCostConfig.activeJointNames = p.costs.legTorqueCost.leftActiveJointNames;
-  costs.leftLegTorqueCostConfig.weights =
-    p.costs.legTorqueCost.scaling * toVector(p.costs.legTorqueCost.leftWeights);
-  costs.rightLegTorqueCostConfig.activeJointNames = p.costs.legTorqueCost.rightActiveJointNames;
-  costs.rightLegTorqueCostConfig.weights =
-    p.costs.legTorqueCost.scaling * toVector(p.costs.legTorqueCost.rightWeights);
+  config.activateLegTorqueCost = p.costs.legTorqueCost.activate;
+  if (config.activateLegTorqueCost) {
+    costs.leftLegTorqueCostConfig.activeJointNames = p.costs.legTorqueCost.leftActiveJointNames;
+    costs.leftLegTorqueCostConfig.weights =
+      p.costs.legTorqueCost.scaling * toVector(p.costs.legTorqueCost.leftWeights);
+    costs.rightLegTorqueCostConfig.activeJointNames = p.costs.legTorqueCost.rightActiveJointNames;
+    costs.rightLegTorqueCostConfig.weights =
+      p.costs.legTorqueCost.scaling * toVector(p.costs.legTorqueCost.rightWeights);
+  }
 
   // --- task-space kinematics costs ---
-  if (p.costs.taskSpaceFootCostWeights.size() != 12) {
-    throw std::invalid_argument(
-      "[whole_body_inverse_dynamics_mpc_config_builder] costs.taskSpaceFootCostWeights must have 12 entries");
+  config.activateTaskSpaceFootCost = p.costs.taskSpaceFootCost.activate;
+  if (config.activateTaskSpaceFootCost) {
+    if (p.costs.taskSpaceFootCost.weights.size() != 12) {
+      throw std::invalid_argument(
+        "[whole_body_inverse_dynamics_mpc_config_builder] costs.taskSpaceFootCost.weights must have 12 entries");
+    }
+    config.taskSpaceFootCostWeights = ocs2::humanoid::EndEffectorKinematicsWeights::fromVector(
+      Eigen::Map<const Eigen::Matrix<scalar_t, 12, 1>>(p.costs.taskSpaceFootCost.weights.data()),
+      config.verbose);
   }
-  config.taskSpaceFootCostWeights = ocs2::humanoid::EndEffectorKinematicsWeights::fromVector(
-    Eigen::Map<const Eigen::Matrix<scalar_t, 12, 1>>(p.costs.taskSpaceFootCostWeights.data()),
-    config.verbose);
 
   // Flat-ground footholds are optimized, not supplied by a capture-point heuristic.
   config.captureFootPlacement.enabled = false;
@@ -254,11 +260,15 @@ ocs2::humanoid::WbIdMpcInterface::Config buildWholeBodyInverseDynamicsMpcConfig(
       continue;
     }
     const auto& entry = p.costs.taskSpaceCosts.names_map.at(costName);
+    if (!entry.activate) {
+      continue;
+    }
     if (entry.weights.size() != 12) {
       throw std::invalid_argument(
         "[whole_body_inverse_dynamics_mpc_config_builder] taskSpaceCosts." + costName + ".weights must have 12 entries");
     }
     ocs2::humanoid::WbIdMpcInterface::TaskSpaceCostConfig taskSpaceCost;
+    taskSpaceCost.activate = entry.activate;
     taskSpaceCost.costName = costName;
     taskSpaceCost.linkName = entry.linkName;
     taskSpaceCost.weights = ocs2::humanoid::EndEffectorKinematicsWeights::fromVector(

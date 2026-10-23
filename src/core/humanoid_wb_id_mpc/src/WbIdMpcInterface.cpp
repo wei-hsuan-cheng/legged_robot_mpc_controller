@@ -101,6 +101,9 @@ void WbIdMpcInterface::setupOptimalControlProblem() {
 
   const WbIdPinocchioMappingCppAd pinocchioMappingCppAd(mpcRobotModelPtr_->getGenCoordinatesDim(), mpcRobotModelPtr_->getInputDim());
   for (const TaskSpaceCostConfig& taskSpaceCost : config_.taskSpaceCosts) {
+    if (!taskSpaceCost.activate) {
+      continue;
+    }
     PinocchioEndEffectorKinematicsCppAd eeKinematics(*pinocchioInterfacePtr_, pinocchioMappingCppAd, {taskSpaceCost.linkName},
                                                      mpcRobotModelPtr_->getStateDim(), mpcRobotModelPtr_->getInputDim(),
                                                      taskSpaceCost.linkName, modelSettings_.modelFolderCppAd,
@@ -160,13 +163,16 @@ void WbIdMpcInterface::setupOptimalControlProblem() {
                                                               *referenceManagerPtr_, *pinocchioInterfacePtr_, *mpcRobotModelADPtr_, i,
                                                               config_.footAccelerationGains, modelSettings_));
 
-    // Swing foot orientation/velocity tracking and the capture-point foothold: the
-    // centroidal MPC's foot cost, which is model agnostic (q, v through the robot model).
-    const std::string footTrackingCostName = footName + "_TaskSpaceKinematicsCost";
-    problemPtr_->costPtr->add(footTrackingCostName, std::make_unique<CentroidalMpcEndEffectorFootCost>(
-                                                        *referenceManagerPtr_, config_.taskSpaceFootCostWeights, *pinocchioInterfacePtr_,
-                                                        *mpcRobotModelADPtr_, i, footTrackingCostName, modelSettings_));
-    problemPtr_->costPtr->add(footName + "_ExternalTorqueQuadraticCost", factory.getExternalTorqueQuadraticCost(i));
+    // The shared foot cost is model agnostic (q, v through the robot model).
+    if (config_.activateTaskSpaceFootCost) {
+      const std::string footTrackingCostName = footName + "_TaskSpaceKinematicsCost";
+      problemPtr_->costPtr->add(footTrackingCostName, std::make_unique<CentroidalMpcEndEffectorFootCost>(
+                                                          *referenceManagerPtr_, config_.taskSpaceFootCostWeights, *pinocchioInterfacePtr_,
+                                                          *mpcRobotModelADPtr_, i, footTrackingCostName, modelSettings_));
+    }
+    if (config_.activateLegTorqueCost) {
+      problemPtr_->costPtr->add(footName + "_ExternalTorqueQuadraticCost", factory.getExternalTorqueQuadraticCost(i));
+    }
   }
 
   problemPtr_->preComputationPtr =

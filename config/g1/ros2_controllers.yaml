@@ -928,13 +928,17 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
              0.05, 0.05, 0.05, 0.05]
 
         # Flat-foot/task-space adaptations beyond the papers' state/input objective.
-        taskSpaceFootCostWeights:
-          [0.0, 0.0, 0.0, 1000.0, 1000.0, 0.0,
-           10.0, 10.0, 0.0, 1.0, 1.0, 0.005]
+        taskSpaceFootCost:
+          activate: true
+          weights:
+            [0.0, 0.0, 0.0, 1000.0, 1000.0, 0.0,
+             10.0, 10.0, 0.0, 1.0, 1.0, 0.005]
 
         taskSpaceCosts:
-          names: [torso]
+          names:
+            [torso]
           torso:
+            activate: true
             linkName: mid360_link
             weights:
               [0.0, 0.0, 0.0, 100.0, 100.0, 0.0,
@@ -942,6 +946,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
 
         # Active J_leg^T W load cost; separate from r.jointTorques.
         legTorqueCost:
+          activate: true
           scaling: 0.001
           leftActiveJointNames:
             - left_hip_pitch_joint
@@ -1002,19 +1007,18 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
       reference:
         targetDisplacementVelocity: 0.5
         targetRotationVelocity: 0.5
-        maxDisplacementVelocityX: 0.75
+        maxDisplacementVelocityX: 1.0
         maxDisplacementVelocityY: 0.5
         maxDeltaPelvisHeight: 0.4
         maxRotationVelocity: 1.5708
+        defaultBaseHeight: $(var refBaseHeight)
+        basePosePositionTolerance: 0.02
+        basePoseOrientationTolerance: 0.03
         
         # Slew limits on the scaled walking command, applied after the max* scaling
         # above: [ax, ay (m/s^2), height rate (m/s), yaw acceleration (rad/s^2)].
         velocityCommandRateLimits:
           [0.5, 0.5, 0.5, 2.0]
-        
-        defaultBaseHeight: $(var refBaseHeight)
-        basePosePositionTolerance: 0.02
-        basePoseOrientationTolerance: 0.03
         
         # Nominal crouch shared by bring-up and reference generation; default height 0.6 m.
         defaultJointState:

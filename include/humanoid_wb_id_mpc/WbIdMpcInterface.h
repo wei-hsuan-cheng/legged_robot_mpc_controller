@@ -54,6 +54,7 @@ namespace ocs2::humanoid {
 class WbIdMpcInterface final : public RobotInterface {
  public:
   struct TaskSpaceCostConfig {
+    bool activate = true;
     std::string costName;
     std::string linkName;
     EndEffectorKinematicsWeights weights;
@@ -78,7 +79,9 @@ class WbIdMpcInterface final : public RobotInterface {
 
     //! Q, R and QFinal in the whole-body dimensions; the rest as in the centroidal MPC.
     HumanoidCostConstraintFactory::Config costConstraintConfig;
+    bool activateTaskSpaceFootCost = true;
     EndEffectorKinematicsWeights taskSpaceFootCostWeights;
+    bool activateLegTorqueCost = true;
 
     //! Acceleration-level stance/swing foot constraint gains.
     WbIdFootAccelerationConstraintCppAd::Gains footAccelerationGains;

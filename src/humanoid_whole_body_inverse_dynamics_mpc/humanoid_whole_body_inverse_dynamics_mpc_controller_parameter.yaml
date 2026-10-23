@@ -223,13 +223,16 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
             accelerations, index-aligned with robot.jointNames; times ocs2.costs.rScaling"}
         jointTorques: {type: double_array, default_value: [], description: "Input cost diagonal on the joint torques,
             index-aligned with robot.jointNames; times ocs2.costs.rScaling"}
-      taskSpaceFootCostWeights: {type: double_array, default_value: [0.0, 0.0, 0.0, 1000.0, 1000.0, 0.0, 10.0,
-            10.0, 0.0, 1.0, 1.0, 0.005], description: "Foot task-space kinematics weights [pos xyz, orientation
-          xyz, lin vel xyz, ang vel xyz]", validation: {fixed_size<>: [12]}}
+      taskSpaceFootCost:
+        activate: {type: bool, default_value: true, description: "Register both foot task-space costs when configuring the controller"}
+        weights: {type: double_array, default_value: [0.0, 0.0, 0.0, 1000.0, 1000.0, 0.0, 10.0,
+              10.0, 0.0, 1.0, 1.0, 0.005], description: "Foot task-space kinematics weights [pos xyz, orientation
+            xyz, lin vel xyz, ang vel xyz]", validation: {fixed_size<>: [12]}}
       taskSpaceCosts:
         names: {type: string_array, default_value: [], description: "Named additional task-space kinematics tracking
             costs", validation: {unique<>: null}}
         __map_names:
+          activate: {type: bool, default_value: true, description: "Register this named task-space cost when configuring the controller"}
           linkName:
             type: string
             default_value: ""
@@ -241,6 +244,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
             validation:
               fixed_size<>: [12]
       legTorqueCost:
+        activate: {type: bool, default_value: true, description: "Register both leg external-load costs when configuring the controller"}
         scaling: {type: double, default_value: 0.0001, description: "Scaling applied to the leg external-torque
             cost weights"}
         leftActiveJointNames: {type: string_array, default_value: [], description: "Joints of the left-leg external

@@ -46,7 +46,7 @@ The optional generalized velocity low-pass is at [line 1075](../src/humanoid_who
 [WbIdDynamics.cpp:18](../src/core/humanoid_wb_id_mpc/src/dynamics/WbIdDynamics.cpp#L18) implements $`\dot x=[v,a]`$.
 Its analytical linearization is initialized at [line 9](../src/core/humanoid_wb_id_mpc/src/dynamics/WbIdDynamics.cpp#L9).
 [WbIdRneaConstraintCppAd.cpp:58](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdRneaConstraintCppAd.cpp#L58) evaluates RNEA and subtracts contact Jacobian transpose contributions.
-Base and joint equations are registered independently at [WbIdMpcInterface.cpp:127](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L127).
+Base and joint equations are registered independently at [WbIdMpcInterface.cpp:133](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L133).
 The base rows are always active, while joint rows check the torque window at [WbIdRneaConstraintCppAd.cpp:54](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdRneaConstraintCppAd.cpp#L54).
 
 ### 3.2 Torque window
@@ -64,7 +64,7 @@ Spline position, velocity and acceleration references are obtained at [line 66](
 The swing vertical equality is at [line 106](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdFootAccelerationConstraintCppAd.cpp#L106), and stance equalities are at [line 112](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdFootAccelerationConstraintCppAd.cpp#L112).
 The class uses frame classical acceleration in world-aligned coordinates.
 The config builder maps `ocs2.model.footConstraint` to these gains at [line 148](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L148).
-The shared [ZeroWrenchConstraint.cpp](../src/core/humanoid_common_mpc/src/constraint/ZeroWrenchConstraint.cpp) supplies swing zero-wrench rows, registered at [WbIdMpcInterface.cpp:151](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L151).
+The shared [ZeroWrenchConstraint.cpp](../src/core/humanoid_common_mpc/src/constraint/ZeroWrenchConstraint.cpp) supplies swing zero-wrench rows, registered at [WbIdMpcInterface.cpp:154](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L154).
 
 ### 3.4 Soft inequalities
 
@@ -73,8 +73,8 @@ The shared [ZeroWrenchConstraint.cpp](../src/core/humanoid_common_mpc/src/constr
 | Friction | [FrictionForceConeConstraint.cpp:172](../src/core/humanoid_common_mpc/src/constraint/FrictionForceConeConstraint.cpp#L172) | [HumanoidCostConstraintFactory.cpp:196](../src/core/humanoid_common_mpc/src/HumanoidCostConstraintFactory.cpp#L196) |
 | CoP rectangle | [ContactMomentXYConstraintCppAd.cpp:86](../src/core/humanoid_common_mpc/src/constraint/ContactMomentXYConstraintCppAd.cpp#L86) | [Factory:173](../src/core/humanoid_common_mpc/src/HumanoidCostConstraintFactory.cpp#L173) |
 | Joint positions | [JointLimitsSoftConstraint.cpp](../src/core/humanoid_common_mpc/src/constraint/JointLimitsSoftConstraint.cpp) | [Factory:158](../src/core/humanoid_common_mpc/src/HumanoidCostConstraintFactory.cpp#L158) |
-| Joint velocities | [WbIdJointVelocityLimitConstraint.cpp](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdJointVelocityLimitConstraint.cpp) | [WbIdMpcInterface.cpp:117](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L117) |
-| Joint torques | [WbIdJointTorqueLimitConstraint.cpp](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdJointTorqueLimitConstraint.cpp) | [Interface:136](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L136) |
+| Joint velocities | [WbIdJointVelocityLimitConstraint.cpp](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdJointVelocityLimitConstraint.cpp) | [WbIdMpcInterface.cpp:120](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L120) |
+| Joint torques | [WbIdJointTorqueLimitConstraint.cpp](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdJointTorqueLimitConstraint.cpp) | [Interface:139](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L139) |
 | Foot/knee distances | [FootCollisionConstraint.cpp:89](../src/core/humanoid_common_mpc/src/constraint/FootCollisionConstraint.cpp#L89) | [Factory:142](../src/core/humanoid_common_mpc/src/HumanoidCostConstraintFactory.cpp#L142) |
 
 The friction surface-normal setter is unimplemented at [FrictionForceConeConstraint.cpp:62](../src/core/humanoid_common_mpc/src/constraint/FrictionForceConeConstraint.cpp#L62).
@@ -111,10 +111,14 @@ The factory constructs both variants at [HumanoidCostConstraintFactory.cpp:118](
 
 [CentroidalMpcEndEffectorFootCost.cpp:92](../src/core/humanoid_centroidal_mpc/src/cost/CentroidalMpcEndEffectorFootCost.cpp#L92) supplies the model-independent foot residual despite its historical class name.
 Default references, impact factors and optional foothold overrides are prepared at [line 127](../src/core/humanoid_centroidal_mpc/src/cost/CentroidalMpcEndEffectorFootCost.cpp#L127).
-Named link costs are registered at [WbIdMpcInterface.cpp:102](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L102) using [EndEffectorKinematicsQuadraticCost.cpp](../src/core/humanoid_common_mpc/src/cost/EndEffectorKinematicsQuadraticCost.cpp).
+Named link costs are registered at [WbIdMpcInterface.cpp:103](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L103) using [EndEffectorKinematicsQuadraticCost.cpp](../src/core/humanoid_common_mpc/src/cost/EndEffectorKinematicsQuadraticCost.cpp).
 Their reference link kinematics are computed at [EndEffectorKinematicsQuadraticCost.cpp:96](../src/core/humanoid_common_mpc/src/cost/EndEffectorKinematicsQuadraticCost.cpp#L96), and their quaternion-distance residual is defined at [EndEffectorKinematicCostHelpers.cpp:81](../src/core/humanoid_common_mpc/src/cost/EndEffectorKinematicCostHelpers.cpp#L81).
 [ExternalTorqueQuadraticCostAD.cpp:110](../src/core/humanoid_common_mpc/src/cost/ExternalTorqueQuadraticCostAD.cpp#L110) maps $`J_c^{\mathsf T}W_c`$ to selected joints and gates the residual using the opposite foot's impact factor.
-It is registered independently of the input torque regularizer at [WbIdMpcInterface.cpp:169](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L169).
+It is registered independently of the input torque regularizer at [WbIdMpcInterface.cpp:173](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L173).
+The builder maps `taskSpaceFootCost.activate` and `legTorqueCost.activate` at [lines 224 onward](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L224), and filters disabled `taskSpaceCosts.<name>.activate` entries before converting their weights at [line 263](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L263).
+The interface checks the named-link flag before constructing its CppAD kinematics and guards both foot-cost and leg-load-cost construction at [line 167](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L167), following `mpc_controllers`' configure-time `activate` pattern.
+All switches default to `true`; `false` removes only the corresponding extra cost, not the main Q/R objective or any contact/dynamics constraint.
+Use `taskSpaceFootCost.weights` instead of the old WB-ID `taskSpaceFootCostWeights` key; the centroidal controller's schema is unchanged.
 
 
 ## 5. Commands, Gait and Swing
@@ -142,7 +146,7 @@ Per-solver target dispatch, measured-speed checks and template selection start a
 The current WB-ID `slow_walk` timing is [ros2_controllers.yaml:1048](../config/g1/ros2_controllers.yaml#L1048).
 [SwitchedModelReferenceManager.cpp:224](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L224) combines schedule, support heights and swing references.
 [SwingTrajectoryPlanner.cpp:126](../src/core/humanoid_common_mpc/src/swing_foot_planner/SwingTrajectoryPlanner.cpp#L126) constructs the isolated swing spline with an apex above the higher endpoint.
-The WB-ID builder explicitly disables capture placement at [line 240](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L240).
+The WB-ID builder explicitly disables capture placement at [line 247](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L247).
 Shared stair/terrain setup is connected at [controller line 164](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L164), which should not be interpreted as validated WB-ID terrain performance.
 
 
@@ -195,7 +199,9 @@ These are static regression checks, not a substitute for repeated startup tests 
 | `ocs2.model.torqueConstraintNodes` | Initial inverse-dynamics/torque-limit window |
 | `ocs2.costs.q`, `qFinal`, `r` | State/input weight blocks |
 | `ocs2.costs.qScaling`, `rScaling`, `terminalCostScaling` | Global weight scaling |
-| `ocs2.costs.taskSpaceFootCostWeights`, `taskSpaceCosts`, `legTorqueCost` | Foot, torso/link and load costs |
+| `ocs2.costs.taskSpaceFootCost.activate`, `.weights` | Enable both foot costs and set their weights |
+| `ocs2.costs.taskSpaceCosts.<name>.activate`, `.linkName`, `.weights` | Enable and configure each named link cost |
+| `ocs2.costs.legTorqueCost.activate`, `.scaling`, leg joint names and weights | Enable and configure both external-load costs |
 | `ocs2.model.footConstraint` | Acceleration-level stance/swing gains |
 | `ocs2.constraints` | Friction, CoP, joint and collision soft penalties |
 | `ocs2.gait.templates`, `transitions`, `swingTrajectory` | Contact timing, transition guards and swing profiles |
