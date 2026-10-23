@@ -2,8 +2,14 @@
 
 ROS 2 controller integration for legged robot MPC using [OCS2](https://github.com/wei-hsuan-cheng/ocs2_ros2.git) and [Pinocchio](https://github.com/stack-of-tasks/pinocchio.git). Tested in [MuJoCo](https://mujoco.readthedocs.io/en/stable/overview.html) simulation environment.
 
-This is the **ROS 2 Jazzy** branch (Ubuntu 24.04, ros2_control 4.x, Pinocchio 4). The Humble version is on `main`.
+This is the **ROS 2 Jazzy** branch (Ubuntu 24.04, ros2_control 4.x, Pinocchio 4).
 
+
+### Interactive Velocity and Base Height Control via GUI & Joystick
+
+<p align="center">
+  <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/g1.gif?raw=true" width="400" />
+</p>
 
 ## Build and Install
 
