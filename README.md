@@ -118,7 +118,7 @@ terrainWalkingFile:terrain_walking.yaml
 
 ### Scripted trajectory tests (figure-eight)
 
-`launch/figure_eight_command.py` walks a closed figure-eight (Gerono lemniscate) at **constant speed** with a **sinusoidal pelvis height**, publishing the same `WalkingVelocityCommand` topic the GUI uses.
+`launch/figure_eight_command.py` walks a closed figure-eight (Gerono lemniscate) at **constant speed** with a **sinusoidal pelvis height**, publishing the same `WalkingVelocityCommand` topic the GUI uses. Make sure first launch robot with `baseCommandGui:=false`.
 
 ```bash
 cd <workspace_dir>
