@@ -1,8 +1,6 @@
 # Legged Robot MPC Controller
 
-ROS 2 controller integration for legged robot MPC using [OCS2](https://github.com/wei-hsuan-cheng/ocs2_ros2.git) and [Pinocchio](https://github.com/stack-of-tasks/pinocchio.git). Tested in [MuJoCo](https://mujoco.readthedocs.io/en/stable/overview.html) simulation environment.
-
-This is the **ROS 2 Jazzy** branch (Ubuntu 24.04, ros2_control 4.x, Pinocchio 4).
+[ROS 2 controller](https://control.ros.org/rolling/index.html) integration for legged robot MPC using [OCS2](https://github.com/wei-hsuan-cheng/ocs2_ros2.git) and [Pinocchio](https://github.com/stack-of-tasks/pinocchio.git). Tested in [MuJoCo](https://mujoco.readthedocs.io/en/stable/overview.html) simulation environment. The codes are successfully tested in [`ros2 jazzy`](https://docs.ros.org/en/jazzy/index.html).
 
 
 ### Interactive Velocity and Base Height Control via GUI & Joystick
@@ -10,6 +8,18 @@ This is the **ROS 2 Jazzy** branch (Ubuntu 24.04, ros2_control 4.x, Pinocchio 4)
 <p align="center">
   <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/g1.gif?raw=true" width="400" />
 </p>
+
+
+## MPC Formulations
+
+This repository contains examples for two MPC formulations: **centroidal dynamics (hierarchical) vs. whole-body inverse dynamics**.
+
+### Centroidal Dynamics MPC
+The centroidal MPC optimizes over the **whole-body kinematics** and the center of mass dynamics, with a choice to either use a single rigid body model or the full centroidal dynamics. This specific approach builds up on the centroidal model in ocs2 by generalizing costs and constraints to a 6-DoF contact among others. A conscise explanation of the ocs2 centroidal model can be found in [Sleiman et. al., A Unified MPC Framework for Whole-Body Dynamic Locomotion and Manipulation](https://arxiv.org/abs/2103.00946).
+
+### Whole-Body Inverse Dynamics MPC
+The **whole-body inverse dynamics MPC** jointly optimizes floating-base and joint configurations and velocities, contact wrenches, generalized accelerations, and joint torques. Full rigid-body dynamics are imposed through the recursive Newton-Euler algorithm (RNEA): floating-base dynamics are enforced throughout the prediction horizon, while actuated-joint inverse dynamics and torque limits are enforced within a configurable initial torque window. The implementation adapts the formulations in [Khazoom et al., Tailoring Solution Accuracy for Fast Whole-body Model Predictive Control of Legged Robots](https://arxiv.org/abs/2407.10789) and [Molnar et al., Whole-Body Inverse Dynamics MPC for Legged Loco-Manipulation](https://arxiv.org/abs/2511.19709) to OCS2's SQP solver and the G1 humanoid.
+
 
 ## Build and Install
 
@@ -433,8 +443,8 @@ together.
 
 `humanoid_whole_body_inverse_dynamics_mpc_controller` plans with the full rigid-body dynamics instead of the centroidal model, following
 
-- C. Molnar et al., *Whole-Body Inverse Dynamics MPC for Legged Loco-Manipulation*, RA-L 2025 (code: `wb-mpc-locoman`)
-- C. Khazoom et al., *Tailoring Solution Accuracy for Fast Whole-Body Model Predictive Control of Legged Robots*, RA-L 2024 (MIT Humanoid)
+- L. Molnar et al., [*Whole-Body Inverse Dynamics MPC for Legged Loco-Manipulation*](https://arxiv.org/abs/2511.19709) (code: [`wb-mpc-locoman`](https://github.com/lukasmolnar/wb-mpc-locoman))
+- C. Khazoom et al., [*Tailoring Solution Accuracy for Fast Whole-body Model Predictive Control of Legged Robots*](https://arxiv.org/abs/2407.10789), RA-L 2024 (MIT Humanoid)
 
 in OCS2 (SQP, multiple shooting, HPIPM). On the G1 (23 MPC joints, `nv = 29`):
 
@@ -680,6 +690,7 @@ See [`docs/humanoid_state_estimation.md`](./docs/humanoid_state_estimation.md) f
 ## Acknowledgements
 
 - The original code implementation of humanoid centroidal MPC: [`manumerous/wb_humanoid_mpc`](https://github.com/manumerous/wb_humanoid_mpc)
+- Reference implementation for the whole-body inverse dynamics MPC formulation: [`lukasmolnar/wb-mpc-locoman`](https://github.com/lukasmolnar/wb-mpc-locoman)
 
 
 ## Contact
