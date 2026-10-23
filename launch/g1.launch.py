@@ -10,7 +10,7 @@ Run from the workspace root (the CppAD cache folder is relative to it):
         mpcControllerName:=humanoid_whole_body_inverse_dynamics_mpc_controller
 
 Both controllers are configured in config/g1/ros2_controllers.yaml under their own
-names, and share the estimator and bring-up. WB-ID selects its own gait library.
+names, and share the estimator and bring-up. Each block has its own gaits (ocs2.gait).
 Their CppAD libraries are cached in
 auto_generated/g1 (libFolder), in centroidal_mpc_g1/ and wb_id_mpc_g1/ respectively.
 """
@@ -65,14 +65,6 @@ def generate_launch_description():
         "ros2_controllers.yaml"
         ])
     
-    gait_library_file_default = PathJoinSubstitution([
-        mpc_share_dir, "config", "g1",
-        PythonExpression([
-            "'gait_wb_id.yaml' if '", LaunchConfiguration("mpcControllerName"),
-            "' == '", whole_body_controller, "' else 'gait.yaml'"
-        ])
-        ])
-
     stair_climbing_file_default = PathJoinSubstitution([
         mpc_share_dir, "config", "g1",
         "terrain", "stair_climbing",
@@ -149,7 +141,6 @@ def generate_launch_description():
                 "reference."
             ),
         ),
-        DeclareLaunchArgument("gaitLibraryFile", default_value=gait_library_file_default),
         DeclareLaunchArgument("stairClimbingFile", default_value=stair_climbing_file_default),
         DeclareLaunchArgument("terrainWalkingFile", default_value=terrain_walking_file_default),
         DeclareLaunchArgument("ros2ControlCommandInterface", default_value="effort_pd"),

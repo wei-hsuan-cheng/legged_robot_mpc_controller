@@ -126,6 +126,7 @@ The policy-ownership rebuild also passed (warnings only).
 Higher tilt weights stabilized this lateral case; yaw-rate and speed tracking still need improvement without restoring absolute xy/yaw pose penalties.
 Shortening single support improved lateral walking more than simply escalating the motion weights.
 The new `gait_wb_id.yaml` changes only `slow_walk`; the launch selects it for WB-ID, leaving centroidal on `gait.yaml` and respecting an explicit `gaitLibraryFile` override.
+(Since 2026-10-23 both libraries are the `ocs2.gait.templates` parameters of their controller blocks; the gait files and `gaitLibraryFile` are removed.)
 It also corrects the inherited `skip` template's non-monotonic 0.08 s entry to 0.8 s; that gait is not tested.
 Set 8 is now saved in `ros2_controllers.yaml`, only in the WB-ID block.
 Increasing contact yaw-moment regularization helped forward survival; this is still a soft cost and does not supply the missing torsional wrench-feasibility constraint.

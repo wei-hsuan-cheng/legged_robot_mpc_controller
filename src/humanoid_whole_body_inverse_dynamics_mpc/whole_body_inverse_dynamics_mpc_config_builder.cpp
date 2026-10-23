@@ -129,14 +129,14 @@ ocs2::humanoid::WbIdMpcInterface::Config buildWholeBodyInverseDynamicsMpcConfig(
 
   // --- swing trajectory ---
   auto& swing = config.swingTrajectoryConfig;
-  swing.liftOffVelocity = p.swingTrajectory.liftOffVelocity;
-  swing.touchDownVelocity = p.swingTrajectory.touchDownVelocity;
-  swing.swingHeight = p.swingTrajectory.swingHeight;
-  swing.touchDownHeightOffset = p.swingTrajectory.touchDownHeightOffset;
-  swing.swingTimeScale = p.swingTrajectory.swingTimeScale;
-  swing.impactProximityFactorLiftOffVelocity = p.swingTrajectory.impactProximityFactorLiftOffVelocity;
-  swing.impactProximityFactorTouchDownVelocity = p.swingTrajectory.impactProximityFactorTouchDownVelocity;
-  swing.impactProximityFactorMidPointValue = p.swingTrajectory.impactProximityFactorMidPointValue;
+  swing.liftOffVelocity = p.gait.swingTrajectory.liftOffVelocity;
+  swing.touchDownVelocity = p.gait.swingTrajectory.touchDownVelocity;
+  swing.swingHeight = p.gait.swingTrajectory.swingHeight;
+  swing.touchDownHeightOffset = p.gait.swingTrajectory.touchDownHeightOffset;
+  swing.swingTimeScale = p.gait.swingTrajectory.swingTimeScale;
+  swing.impactProximityFactorLiftOffVelocity = p.gait.swingTrajectory.impactProximityFactorLiftOffVelocity;
+  swing.impactProximityFactorTouchDownVelocity = p.gait.swingTrajectory.impactProximityFactorTouchDownVelocity;
+  swing.impactProximityFactorMidPointValue = p.gait.swingTrajectory.impactProximityFactorMidPointValue;
 
   // x = [q, v]. The controller replaces this construction-time state from sensors.
   checkJointArraySize(p.reference.defaultJointState, numJoints, "reference.defaultJointState");

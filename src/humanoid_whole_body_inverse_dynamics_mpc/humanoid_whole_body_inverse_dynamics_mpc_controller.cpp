@@ -118,9 +118,6 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
     auto reference_config = common::buildReferenceConfig(parameters_);
     reference_config.commandRateLimits =
       Eigen::Map<const ocs2::vector4_t>(parameters_.ocs2.reference.velocityCommandRateLimits.data());
-    if (parameters_.ocs2.gait.gaitLibraryFile.empty()) {
-      throw std::invalid_argument("ocs2.gait.gaitLibraryFile is empty.");
-    }
     target_trajectories_calculator_ = std::make_unique<ocs2::humanoid::WbIdMpcTargetTrajectoriesCalculator>(
       reference_config, mpc_interface_->getMpcRobotModel(), mpc_interface_->mpcSettings().timeHorizon_);
     auto velocity_target_to_target_trajectories =
@@ -133,9 +130,9 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
              const ocs2::vector_t& init_state) {
         return target_trajectories_calculator_->commandedBasePoseToTargetTrajectories(base_pose_target, init_time, init_state);
       };
-    // Gait templates and the velocity-based selection between them, from one file.
-    auto gait_map = common::loadGaitMap(parameters_.ocs2.gait.gaitLibraryFile);
-    auto gait_transitions = common::loadGaitTransitionConfig(parameters_.ocs2.gait.gaitLibraryFile, gait_map);
+    // Gait templates and the velocity-based selection between them (ocs2.gait).
+    auto gait_map = common::buildGaitMap(parameters_);
+    auto gait_transitions = common::buildGaitTransitionConfig(parameters_, gait_map);
     auto motion_manager = std::make_shared<Ros2ProceduralMpcMotionManager>(
       std::move(gait_map),
       std::move(gait_transitions),

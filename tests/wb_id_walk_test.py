@@ -80,7 +80,7 @@ def main():
     parser.add_argument("--height", type=float, default=0.6)
     parser.add_argument("--mpc-rate", type=int, default=100)
     parser.add_argument("--max-yaw-error", type=float, default=0.5, help="Maximum uncommanded heading change [rad]")
-    parser.add_argument("--swing-duration", type=float, help="Override slow_walk single support [s] in a temporary gait library")
+    parser.add_argument("--swing-duration", type=float, help="Override slow_walk single support [s] in the temporary YAML")
     parser.add_argument("--double-support", type=float, default=0.15)
     parser.add_argument("--source", choices=["ground_truth_state", "state_estimator"], default="ground_truth_state")
     parser.add_argument("--estimator", default="humanoid_inekf")
@@ -101,6 +101,12 @@ def main():
         if parts[-1] not in parent:
             parser.error(f"Unknown parameter: {key}")
         parent[parts[-1]] = json.loads(value)
+    if args.swing_duration is not None:
+        if args.swing_duration <= 0 or args.double_support <= 0:
+            parser.error("swing duration and double support must be positive")
+        swing, double_support = args.swing_duration, args.double_support
+        params["ocs2"]["gait"]["templates"]["slow_walk"]["switchingTimes"] = [
+            0.0, swing, swing + double_support, 2 * swing + double_support, 2 * (swing + double_support)]
     prefix = Path(args.prefix).resolve()
     prefix.parent.mkdir(parents=True, exist_ok=True)
     config_path = Path(str(prefix) + ".yaml")
@@ -119,17 +125,6 @@ def main():
         f"mpcFreq:={args.mpc_rate}", "mrtFreq:=1000", f"refBaseHeight:={args.height}",
         f"controllersFile:={config_path}",
     ]
-    if args.swing_duration is not None:
-        if args.swing_duration <= 0 or args.double_support <= 0:
-            parser.error("swing duration and double support must be positive")
-        gait_path = args.config.parent / "gait.yaml"
-        gait = yaml.safe_load(gait_path.read_text())
-        swing, double_support = args.swing_duration, args.double_support
-        gait["slow_walk"]["switchingTimes"] = [0.0, swing, swing + double_support,
-                                                2 * swing + double_support, 2 * (swing + double_support)]
-        gait_path = Path(str(prefix) + "_gait.yaml")
-        gait_path.write_text(yaml.safe_dump(gait, sort_keys=False))
-        launch_cmd.append(f"gaitLibraryFile:={gait_path}")
     verdict = "TIMEOUT"
     result = vars(args).copy()
     result["config"] = str(args.config)

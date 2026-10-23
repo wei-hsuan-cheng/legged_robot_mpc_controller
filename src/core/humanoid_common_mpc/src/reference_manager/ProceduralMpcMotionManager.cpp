@@ -229,7 +229,7 @@ void ProceduralMpcMotionManager::preSolverRun(scalar_t initTime,
 
   if (targetMode == TargetMode::TerrainWalk) {
     // Terrain-aware walking uses a fixed, deliberately slow gait with generous
-    // double support (the "terrain_walk" entry in gait.yaml, matching the
+    // double support (the "terrain_walk" template in ocs2.gait, matching the
     // stair-climb swing/stance timing) instead of the velocity-based gait FSM,
     // which would speed up and shorten the double support and fall on stairs.
     const std::string terrainGait = (gaitMap_.count("terrain_walk") > 0) ? "terrain_walk" : "slow_walk";

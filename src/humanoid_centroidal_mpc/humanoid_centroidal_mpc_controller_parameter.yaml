@@ -525,48 +525,6 @@ humanoid_centroidal_mpc_controller:
           description: "Stance foot angular acceleration error feedback gain"
         }
 
-    swingTrajectory:
-      liftOffVelocity: {
-        type: double,
-        default_value: 0.05,
-        description: "Swing foot lift-off vertical velocity [m/s]"
-      }
-      touchDownVelocity: {
-        type: double,
-        default_value: -0.0,
-        description: "Swing foot touch-down vertical velocity [m/s]"
-      }
-      swingHeight: {
-        type: double,
-        default_value: 0.08,
-        description: "Swing apex height [m]"
-      }
-      touchDownHeightOffset: {
-        type: double,
-        default_value: -0.001,
-        description: "Touch-down height offset [m]"
-      }
-      swingTimeScale: {
-        type: double,
-        default_value: 0.4,
-        description: "Swing durations shorter than this are scaled down [s]"
-      }
-      impactProximityFactorLiftOffVelocity: {
-        type: double,
-        default_value: -0.15,
-        description: "Impact proximity factor at lift-off velocity"
-      }
-      impactProximityFactorTouchDownVelocity: {
-        type: double,
-        default_value: 0.3,
-        description: "Impact proximity factor at touch-down velocity"
-      }
-      impactProximityFactorMidPointValue: {
-        type: double,
-        default_value: 0.0,
-        description: "Impact proximity factor mid-point value"
-      }
-
     sqp:
       nThreads: {
         type: int,
@@ -1131,11 +1089,6 @@ humanoid_centroidal_mpc_controller:
         }
 
     gait:
-      gaitLibraryFile: {
-        type: string,
-        default_value: "",
-        description: "YAML file with the named gait library (mode sequence templates), see config/g1/gait.yaml"
-      }
       stairClimbingFile: {
         type: string,
         default_value: "",
@@ -1166,6 +1119,104 @@ humanoid_centroidal_mpc_controller:
         default_value: [0.0, 0.5],
         description: "Switching times of the default mode sequence template [s]"
       }
+      swingTrajectory:
+        liftOffVelocity: {
+          type: double,
+          default_value: 0.05,
+          description: "Swing foot lift-off vertical velocity [m/s]"
+        }
+        touchDownVelocity: {
+          type: double,
+          default_value: -0.0,
+          description: "Swing foot touch-down vertical velocity [m/s]"
+        }
+        swingHeight: {
+          type: double,
+          default_value: 0.08,
+          description: "Swing apex height [m]"
+        }
+        touchDownHeightOffset: {
+          type: double,
+          default_value: -0.001,
+          description: "Touch-down height offset [m]"
+        }
+        swingTimeScale: {
+          type: double,
+          default_value: 0.4,
+          description: "Swing durations shorter than this are scaled down [s]"
+        }
+        impactProximityFactorLiftOffVelocity: {
+          type: double,
+          default_value: -0.15,
+          description: "Impact proximity factor at lift-off velocity"
+        }
+        impactProximityFactorTouchDownVelocity: {
+          type: double,
+          default_value: 0.3,
+          description: "Impact proximity factor at touch-down velocity"
+        }
+        impactProximityFactorMidPointValue: {
+          type: double,
+          default_value: 0.0,
+          description: "Impact proximity factor mid-point value"
+        }
+      templates:
+        names: {
+          type: string_array,
+          default_value: [],
+          description: "Names of the gait templates, each defined as ocs2.gait.templates.<name>. The gait ladder and the stair/terrain modes select templates by these names.",
+          validation: { unique<>: null }
+        }
+        __map_names:
+          modeSequence: {
+            type: string_array,
+            default_value: [],
+            description: "The template's N modes in order: STANCE (both feet in contact), LF (left foot in contact, right swings), RF (right foot in contact) or FLY (no contact)",
+            validation: { subset_of<>: [["STANCE", "LF", "RF", "FLY"]] }
+          }
+          switchingTimes: {
+            type: double_array,
+            default_value: [],
+            description: "N+1 increasing switching times of the template's N modes [s]; the template repeats with period last - first"
+          }
+      transitions:
+        minDwellTime: {
+          type: double,
+          default_value: 0.2,
+          description: "Minimum time between two gait changes [s]",
+          validation: { gt_eq: [0.0] }
+        }
+        switchDelayHorizonFraction: {
+          type: double,
+          default_value: 0.7,
+          description: "A new gait starts at the first contact event after initTime + this fraction of the MPC horizon",
+          validation: { gt_eq: [0.0], lt_eq: [1.0] }
+        }
+        ladder: {
+          type: string_array,
+          default_value: [],
+          description: "Gaits the velocity-based selection steps through, slowest to fastest and one rung per change. The first must be stance; each must be in ocs2.gait.templates.names and defined as ocs2.gait.transitions.<gait>.",
+          validation: { unique<>: null }
+        }
+        __map_ladder:
+          linearVelocity: {
+            type: double_array,
+            default_value: [],
+            description: "Command band [min, max] on |vx| and |vy| [m/s] this rung serves: go up when either exceeds max, down when both are below min",
+            validation: { fixed_size<>: [2] }
+          }
+          yawRate: {
+            type: double_array,
+            default_value: [],
+            description: "Command band [min, max] on |yaw rate| [rad/s] this rung serves",
+            validation: { fixed_size<>: [2] }
+          }
+          measuredMargin: {
+            type: double_array,
+            default_value: [],
+            description: "[linear m/s, yaw rad/s]: go up only once the measured speed exceeds max - margin, down only once it is below min + margin",
+            validation: { fixed_size<>: [2], lower_element_bounds<>: [0.0] }
+          }
 
   visualization:
     frameId: {

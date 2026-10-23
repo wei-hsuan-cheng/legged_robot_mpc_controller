@@ -65,6 +65,18 @@ def main():
     assert "captureFootPlacement" not in costs and "icpErrorWeight" not in costs
     assert "centroidalModelType" not in params["ocs2"]["model"]
     assert "useInertiaWeightedAngularMomentum" not in params["ocs2"]["reference"]
+    gait = params["ocs2"]["gait"]
+    names = gait["templates"]["names"]
+    for name in names:
+        assert name in gait["templates"], f"Template not defined: {name}"
+        times, modes = gait["templates"][name]["switchingTimes"], gait["templates"][name]["modeSequence"]
+        assert len(times) == len(modes) + 1, f"Template {name}: N modes need N+1 switching times"
+        assert times == sorted(times), f"Template {name}: switching times not increasing"
+    ladder = gait["transitions"]["ladder"]
+    assert ladder[0] == "stance" and set(ladder) <= set(names), "Ladder must start at stance and use defined templates"
+    for rung in ladder:
+        bands = gait["transitions"][rung]
+        assert bands["linearVelocity"][0] <= bands["linearVelocity"][1] and bands["yawRate"][0] <= bands["yawRate"][1]
 
     folder = ROOT / "src/humanoid_whole_body_inverse_dynamics_mpc"
     builder = (folder / "whole_body_inverse_dynamics_mpc_config_builder.cpp").read_text()
@@ -82,7 +94,7 @@ def main():
                 break
             assert part in node, f"Builder accesses undeclared field: p.{access}"
             node = node[part]
-    print("WB-ID parameter contract passed: standalone schema, unified Q/Qf/R, valid array sizes.")
+    print("WB-ID parameter contract passed: standalone schema, unified Q/Qf/R, valid array sizes, gait templates and ladder.")
 
 
 if __name__ == "__main__":

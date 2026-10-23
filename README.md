@@ -369,7 +369,7 @@ Shared loaders (gait map, reference config, cost-matrix assembly), kept generic 
 
 Robot-specific values:
 
-- [`config/g1/gait.yaml`](./config/g1/gait.yaml) is the named gait library (mode sequence templates), referenced by `ocs2.gait.gaitLibraryFile`.
+- `ocs2.gait` in each controller's block of [`config/g1/ros2_controllers.yaml`](./config/g1/ros2_controllers.yaml) holds the gait templates (`templates`), the velocity-based gait ladder (`transitions`) and the swing-foot trajectory (`swingTrajectory`), as ROS parameters.
 - [`config/g1/initial_pose.yaml`](./config/g1/initial_pose.yaml) sets the simulation start pose consumed by the `ros2_control` xacro.
 
 
@@ -477,8 +477,7 @@ ros2 run legged_robot_mpc_controller command_sequence.py --sequence robustness -
 
 **Configuration:** the `humanoid_whole_body_inverse_dynamics_mpc_controller` block of [`config/g1/ros2_controllers.yaml`](./config/g1/ros2_controllers.yaml) has its own generated schema and builder. It does not load the centroidal schema. All state/input weights live in a single `ocs2.costs` section; the former `wholeBody.*` parameter names are removed, not aliases.
 
-WB-ID defaults to [`gait_wb_id.yaml`](./config/g1/gait_wb_id.yaml), with 0.40 s single support and 0.15 s double support in `slow_walk`; centroidal MPC still uses `gait.yaml`.
-An explicit `gaitLibraryFile` launch argument overrides either default.
+The WB-ID block's `ocs2.gait.templates` uses 0.40 s single support and 0.15 s double support in `slow_walk`; the centroidal block keeps the original timing.
 The WB-ID nominal joint posture matches the default 0.60 m crouch so estimator bring-up does not hand MPC a near-straight stance with a sudden height change.
 See [`Codex.md`](./Codex.md) for the flat-ground tuning results and remaining yaw/speed errors; other heights and terrain are not validated by these tests.
 The latest standalone-parameter/capture-disabled checkpoint is **not built or walking-tested**; earlier results used the capture heuristic and must not be attributed to this checkpoint.

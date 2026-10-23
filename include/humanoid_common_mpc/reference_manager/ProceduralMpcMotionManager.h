@@ -75,8 +75,8 @@ class ProceduralMpcMotionManager : public SolverSynchronizedModule {
   };
 
   /**
-   * Velocity-based gait selection, loaded from the gait library file's
-   * `gaitTransitions:` block (see config/g1/gait.yaml for the semantics).
+   * Velocity-based gait selection, from the controller's `ocs2.gait.transitions`
+   * parameters (see config/g1/ros2_controllers.yaml for the semantics).
    */
   struct GaitTransitionConfig {
     //! Ordered from slowest to fastest; the first rung must be "stance". The FSM moves
@@ -92,8 +92,8 @@ class ProceduralMpcMotionManager : public SolverSynchronizedModule {
   /**
    * Constructor
    *
-   * @param [in] gaitMap: The named gait library loaded from the configured file.
-   * @param [in] gaitTransitionConfig: The gait ladder and switching timing from the same file.
+   * @param [in] gaitMap: The named gait templates (ocs2.gait.templates).
+   * @param [in] gaitTransitionConfig: The gait ladder and switching timing (ocs2.gait.transitions).
    * @param [in] referenceFile: The file path containing the default references and velocity limits.
    * @param [in] velocityTargetToTargetTrajectories: A function which transforms the commanded velocities to TargetTrajectories.
    * @param [in] switchedModelReferenceManagerPtr: A pointer to the switched model reference manager used to update gait and references
@@ -150,7 +150,7 @@ class ProceduralMpcMotionManager : public SolverSynchronizedModule {
   static bool transitionToSlowerGait(const vector4_t& velCommandVec, const vector6_t& baseVelocity, const GaitModeStateConfig& cfg);
 
  protected:
-  //! The gait ladder, from the gait library file (GaitTransitionConfig::ladder).
+  //! The gait ladder, from ocs2.gait.transitions (GaitTransitionConfig::ladder).
   const std::vector<GaitModeStateConfig> gaitModeStates_;
   const scalar_t minGaitDwellTime_;
   const scalar_t gaitSwitchDelayHorizonFraction_;

@@ -16,16 +16,6 @@
 namespace legged_robot_mpc_controller::common
 {
 
-/// Loads the named gait library (mode sequence templates) from a YAML file, see
-/// config/g1/gait.yaml. This replaces the legacy gait.info loading of wb_humanoid_mpc.
-ocs2::humanoid::GaitMap loadGaitMap(const std::string& gaitLibraryFile);
-
-/// Loads the velocity-based gait selection (the gait ladder and its switching timing)
-/// from the `gaitTransitions:` block of the same gait library file, validated against
-/// the templates in `gaitMap`.
-ocs2::humanoid::ProceduralMpcMotionManager::GaitTransitionConfig loadGaitTransitionConfig(
-  const std::string& gaitLibraryFile, const ocs2::humanoid::GaitMap& gaitMap);
-
 /// Loads the semantic stair climbing parameters (staircase ground truth, gait
 /// timing, foothold generation, base reference), see config/g1/stair_climbing.yaml.
 ocs2::humanoid::StairClimbingConfig loadStairClimbingConfig(const std::string& stairClimbingFile);
@@ -129,6 +119,63 @@ ocs2::humanoid::ReferenceConfig buildReferenceConfig(const Params& params)
   config.basePosePositionTolerance = r.basePosePositionTolerance;
   config.basePoseOrientationTolerance = r.basePoseOrientationTolerance;
   config.defaultJointState = toVector(r.defaultJointState);
+  return config;
+}
+
+/// Builds the named gait library from `ocs2.gait.templates` (one modeSequence /
+/// switchingTimes pair per entry of `names`). Templated like buildReferenceConfig.
+template <typename Params>
+ocs2::humanoid::GaitMap buildGaitMap(const Params& params)
+{
+  const auto& templates = params.ocs2.gait.templates;
+  if (templates.names.empty()) {
+    throw std::invalid_argument("[config_builder] ocs2.gait.templates.names is empty");
+  }
+  ocs2::humanoid::GaitMap gaitMap;
+  for (const auto& name : templates.names) {
+    const auto& entry = templates.names_map.at(name);
+    if (entry.switchingTimes.size() != entry.modeSequence.size() + 1) {
+      throw std::invalid_argument(
+        "[config_builder] ocs2.gait.templates." + name + ": N modes need N+1 switching times");
+    }
+    gaitMap.insert({name, ocs2::humanoid::modeSequenceTemplateFromStrings(entry.switchingTimes, entry.modeSequence)});
+  }
+  return gaitMap;
+}
+
+/// Builds the velocity-based gait selection from `ocs2.gait.transitions`: the ladder
+/// (slowest to fastest, starting at "stance") and its switching timing, validated
+/// against the templates in `gaitMap`.
+template <typename Params>
+ocs2::humanoid::ProceduralMpcMotionManager::GaitTransitionConfig buildGaitTransitionConfig(
+  const Params& params, const ocs2::humanoid::GaitMap& gaitMap)
+{
+  const auto& transitions = params.ocs2.gait.transitions;
+  ocs2::humanoid::ProceduralMpcMotionManager::GaitTransitionConfig config;
+  config.minDwellTime = transitions.minDwellTime;
+  config.switchDelayHorizonFraction = transitions.switchDelayHorizonFraction;
+  for (const auto& gait : transitions.ladder) {
+    const std::string where = "[config_builder] ocs2.gait.transitions." + gait;
+    if (gaitMap.count(gait) == 0) {
+      throw std::invalid_argument(where + ": not in ocs2.gait.templates.names");
+    }
+    const auto& rung = transitions.ladder_map.at(gait);
+    if (rung.linearVelocity[0] > rung.linearVelocity[1] || rung.yawRate[0] > rung.yawRate[1]) {
+      throw std::invalid_argument(where + ": bands need min <= max");
+    }
+    ocs2::humanoid::ProceduralMpcMotionManager::GaitModeStateConfig state;
+    state.gaitCommand = gait;
+    state.minLinVelCmd = rung.linearVelocity[0];
+    state.maxLinVelCmd = rung.linearVelocity[1];
+    state.minAngVelCmd = rung.yawRate[0];
+    state.maxAngVelCmd = rung.yawRate[1];
+    state.linVelErrorThresh = rung.measuredMargin[0];
+    state.angVelErrorThresh = rung.measuredMargin[1];
+    config.ladder.push_back(state);
+  }
+  if (config.ladder.empty() || config.ladder.front().gaitCommand != "stance") {
+    throw std::invalid_argument("[config_builder] ocs2.gait.transitions.ladder must start with stance");
+  }
   return config;
 }
 

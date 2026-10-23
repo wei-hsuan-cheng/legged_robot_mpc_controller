@@ -208,9 +208,6 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_configu
 
     configure_stage = "building the target-trajectories calculator / reference manager";
     const auto reference_config = common::buildReferenceConfig(parameters_);
-    if (parameters_.ocs2.gait.gaitLibraryFile.empty()) {
-      throw std::invalid_argument("[HumanoidCentroidalMpcController] ocs2.gait.gaitLibraryFile is empty.");
-    }
     target_trajectories_calculator_ =
       std::make_unique<ocs2::humanoid::CentroidalMpcTargetTrajectoriesCalculator>(
       reference_config,
@@ -239,9 +236,9 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_configu
         return target_trajectories_calculator_->commandedBasePoseToTargetTrajectories(
           base_pose_target, init_time, init_state);
       };
-    // Gait templates and the velocity-based selection between them, from one file.
-    auto gait_map = common::loadGaitMap(parameters_.ocs2.gait.gaitLibraryFile);
-    auto gait_transitions = common::loadGaitTransitionConfig(parameters_.ocs2.gait.gaitLibraryFile, gait_map);
+    // Gait templates and the velocity-based selection between them (ocs2.gait).
+    auto gait_map = common::buildGaitMap(parameters_);
+    auto gait_transitions = common::buildGaitTransitionConfig(parameters_, gait_map);
     auto motion_manager = std::make_shared<Ros2ProceduralMpcMotionManager>(
       std::move(gait_map),
       std::move(gait_transitions),

@@ -178,7 +178,7 @@ $$
 T_g = 1.4\ \mathrm{s}.
 $$
 
-The source is the `terrain_walk` entry in  [`gait.yaml`](../config/g1/gait.yaml#L66-L68). Mode names are converted to mode numbers when loading the template in [`modeScheduleFromStrings()`](../src/core/humanoid_common_mpc/src/gait/ModeSequenceTemplate.cpp#L86-L99).
+The source is the `terrain_walk` template in `ocs2.gait.templates` of [`ros2_controllers.yaml`](../config/g1/ros2_controllers.yaml#L470). Mode names are converted to mode numbers when loading the template in [`modeScheduleFromStrings()`](../src/core/humanoid_common_mpc/src/gait/ModeSequenceTemplate.cpp#L86-L99).
 
 ### Selecting and tiling the gait
 
@@ -630,7 +630,7 @@ subject to the centroidal dynamics and the mode-dependent contact constraints ab
 
 ## Configuration and Test
 
-The default launch file provides the gait library and terrain-walking files via [`g1.launch.py`](../launch/g1.launch.py#L51-L66) and its launch arguments [`g1.launch.py`](../launch/g1.launch.py#L91-L100). The current default controller file is `ros2_controllers_legacy.yaml`, where the centroidal controller receives these paths under `ocs2.gait`: [`ros2_controllers_legacy.yaml`](../config/g1/ros2_controllers_legacy.yaml#L564-L571).
+The default launch file provides the stair-climbing and terrain-walking files via [`g1.launch.py`](../launch/g1.launch.py#L51-L66) and its launch arguments [`g1.launch.py`](../launch/g1.launch.py#L91-L100). The current default controller file is `ros2_controllers_legacy.yaml`, where the centroidal controller receives these paths under `ocs2.gait`: [`ros2_controllers_legacy.yaml`](../config/g1/ros2_controllers_legacy.yaml#L564-L571).
 
 Start the centroidal controller, select terrain mode, and publish a forward walking command:
 
