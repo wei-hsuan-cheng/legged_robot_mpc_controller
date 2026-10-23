@@ -70,7 +70,7 @@ Two MPC controllers are available, selected with `mpcControllerName`. Both walk 
 
 | `mpcControllerName` | MPC | state / input |
 |---|---|---|
-| `humanoid_whole_body_inverse_dynamics_mpc_controller` | whole-body inverse dynamics | `[q, v]` / `[W, a, tau_j]` |
+| `humanoid_whole_body_inverse_dynamics_mpc_controller` | whole-body inverse dynamics + whole-body kinematics | `[q, v]` / `[W, a, tau_j]` |
 | `humanoid_centroidal_mpc_controller` (default) | centroidal dynamics + whole-body kinematics | `[h/m, q]` / `[W, qd_j]` |
 
 **Launch the humanoid robot MPC**:
