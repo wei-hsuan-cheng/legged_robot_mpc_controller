@@ -203,6 +203,9 @@ def generate_launch_description():
             " ",
             "use_lidar:=",
             LaunchConfiguration("enableLidar"),
+            " ",
+            "robot_urdf_file:=",
+            LaunchConfiguration("urdfFile"),
         ]
     )
     robot_description = {"robot_description": ParameterValue(robot_description_content, value_type=str)}
