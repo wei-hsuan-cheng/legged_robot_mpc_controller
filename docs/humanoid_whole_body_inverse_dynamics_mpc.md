@@ -80,7 +80,7 @@ There is no centroidal-momentum state or momentum-to-velocity reconstruction in 
 The controller combines joint interfaces with either the estimator's exported body state or ground-truth body interfaces:
 
 $$
-q_0=\begin{bmatrix}\hat p_{WB}^{W}\\\operatorname{EulerZYX}(\hat R_{WB})\\q_{j,\mathrm{meas}}\end{bmatrix},
+q_0=\begin{bmatrix}\hat p_{WB}^{W}\\\mathrm{EulerZYX}(\hat R_{WB})\\q_{j,\mathrm{meas}}\end{bmatrix},
 \qquad
 v_{0,\mathrm{raw}}=\begin{bmatrix}\hat v_{WB}^{W}\\E_{\mathrm{ZYX}}(\eta)\hat\omega_{WB}^{B}\\\dot q_{j,\mathrm{meas}}\end{bmatrix}.
 $$
@@ -124,7 +124,7 @@ Rigid-body physics enters through separate state-input equalities rather than th
 Define the generalized inverse-dynamics residual:
 
 $$
-r(q,v,a,W)=\operatorname{RNEA}(q,v,a)-\sum_cJ_c(q)^{\mathsf T}W_c
+r(q,v,a,W)=\mathrm{RNEA}(q,v,a)-\sum_cJ_c(q)^{\mathsf T}W_c
 =M(q)a+b(q,v)-\sum_cJ_c(q)^{\mathsf T}W_c.
 $$
 
@@ -168,8 +168,8 @@ One SQP iteration is an online computation choice, not a guarantee that every re
 The state and input weights have the structure:
 
 $$
-Q=\operatorname{diag}(Q_{\mathrm{pose}},Q_{q_j},Q_{v_B},Q_{\dot q_j}),
-\qquad R=\operatorname{diag}(R_W,R_{a_B},R_{a_j},R_{\tau_j}).
+Q=\mathrm{diag}(Q_{\mathrm{pose}},Q_{q_j},Q_{v_B},Q_{\dot q_j}),
+\qquad R=\mathrm{diag}(R_W,R_{a_B},R_{a_j},R_{\tau_j}).
 $$
 
 `qScaling`, `rScaling` and `terminalCostScaling` supply the configured global scaling.
@@ -197,7 +197,7 @@ No first-node cost on $`\tau_0-\tau_{\mathrm{previous}}`$ is registered in this 
 In `base_twist` mode, the dedicated base cost sets horizontal position and yaw errors to zero:
 
 $$
-e_{\mathrm{pose}}=\begin{bmatrix}0&0&z-z_d&0&\operatorname{wrap}(\theta-\theta_d)&\operatorname{wrap}(\phi-\phi_d)\end{bmatrix}^{\mathsf T}.
+e_{\mathrm{pose}}=\begin{bmatrix}0&0&z-z_d&0&\mathrm{wrap}(\theta-\theta_d)&\mathrm{wrap}(\phi-\phi_d)\end{bmatrix}^{\mathsf T}.
 $$
 
 Horizontal velocities are compared in their respective heading frames, while the remaining entries use direct differences:
@@ -212,7 +212,7 @@ $$
 \ell_{\mathrm{base}}=\tfrac12\left\|\begin{bmatrix}e_{\mathrm{pose}}\\e_{v,xy}\\e_{v,\mathrm{rest}}\end{bmatrix}\right\|_{Q_B}^2.
 $$
 
-$`R_2`$ is the planar yaw rotation and $`\operatorname{wrap}`$ is the signed angle difference modulo $`2\pi`$.
+$`R_2`$ is the planar yaw rotation and $`\mathrm{wrap}`$ is the signed angle difference modulo $`2\pi`$.
 In explicit `base_pose` mode, planar position tracking in the desired heading frame and yaw tracking are restored.
 The relative-twist cost is invariant to a common planar-origin/heading change, but wrong velocities, attitude errors, slipping contacts and inconsistent terrain coordinates can still corrupt the policy.
 
@@ -372,8 +372,8 @@ $$
 $$
 
 $$
-c_{k,i}^{\mathrm{out}}=\operatorname{clip}(\tilde c_{k,i},c_{k-1,i}^{\mathrm{out}}-r_i\Delta t_s,c_{k-1,i}^{\mathrm{out}}+r_i\Delta t_s),
-\qquad \Delta t_s=\operatorname{clip}(t_k-t_{k-1},0,0.05).
+c_{k,i}^{\mathrm{out}}=\mathrm{clip}(\tilde c_{k,i},c_{k-1,i}^{\mathrm{out}}-r_i\Delta t_s,c_{k-1,i}^{\mathrm{out}}+r_i\Delta t_s),
+\qquad \Delta t_s=\mathrm{clip}(t_k-t_{k-1},0,0.05).
 $$
 
 Nonpositive $`r_i`$ disables that axis's slew limit, and command filtering is reset on activation or a target-mode change.
@@ -457,7 +457,7 @@ With `control.feedforward: policy_torque`, it selects:
 $$
 \tau_{\mathrm{ff}}=\begin{cases}
 \tau_j^*(t_e),&\text{policy interpolation knots lie inside its torque window},\\
-\operatorname{ID}_j(q^*,v^*,a_j^*,W^*),&\text{otherwise}.
+\mathrm{ID}_j(q^*,v^*,a_j^*,W^*),&\text{otherwise}.
 \end{cases}
 $$
 
