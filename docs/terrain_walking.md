@@ -677,6 +677,7 @@ ros2 run legged_robot_mpc_controller terrain_walk_test.sh \
 ## Gap to Practical Deployment and Real-Hardware Testing
 
 The current implementation closes the terrain-walking control loop for a known, static staircase in MuJoCo, but it is not yet a complete perceptive-locomotion or real-hardware pipeline.
+For simulation debugging, `floatingBaseSource:=ground_truth_state` can replace estimator feedback with GT, but this bypass is not available for real-world deployment.
 
 
 ### Intended complete pipeline
@@ -698,16 +699,14 @@ flowchart TD
 
   subgraph CurrentTerrain["Current simulator terrain path"]
     T1["Known staircase YAML"]:::ready
-    T2["Horizontal rectangular<br/>ground-truth regions"]:::ready
+    T2["Horizontal rectangular<br/>support regions"]:::ready
     T1 --> T2
   end
 
   subgraph State["Robot state"]
-    S1["MuJoCo pelvis ground truth<br/>plus joint states"]:::ready
-    S2["IMU + encoders + contact sensing"]:::missing
-    S3["Floating-base and contact estimator"]:::missing
+    S2["IMU + encoders<br/>and contact flags"]:::partial
+    S3["Contact-aided InEKF<br/>terrain robustness pending"]:::partial
     S4["ros2_control state interfaces"]:::partial
-    S1 --> S4
     S2 --> S3 --> S4
   end
 

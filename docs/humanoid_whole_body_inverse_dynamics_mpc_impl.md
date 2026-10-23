@@ -27,8 +27,8 @@ The inherited `getBaseComVelocity` name returns pelvis world linear velocity and
 Joint velocities are read from the state at [line 105](../include/humanoid_wb_id_mpc/common/WbIdMpcRobotModel.h#L105), while generalized accelerations and joint torques are read from the input at [line 120](../include/humanoid_wb_id_mpc/common/WbIdMpcRobotModel.h#L120).
 
 [build_observation():947](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L947) combines joint interfaces and floating-base feedback.
-Estimator feedback is selected at [line 973](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L973), with the alternative body-state interfaces read below it.
-Ground-truth linear velocity is rotated from body to world at [line 1005](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1005).
+Estimator feedback is read at [line 973](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L973).
+For simulation debugging, `floatingBaseSource:=ground_truth_state` can replace estimator feedback with GT, but this bypass is not available for real-world deployment.
 Quaternion normalization, yaw unwrapping and angular velocity conversion are at [line 1012](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1012).
 The optional generalized velocity low-pass is at [line 1031](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1031).
 `observation.input` is zeroed at [line 957](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L957), not filled with measured torques or wrenches.

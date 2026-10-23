@@ -1,6 +1,8 @@
 # Humanoid Floating-Base State Estimation (InEKF)
 
-This document describes the proprioceptive floating-base state estimator used by the G1 centroidal MPC controller. It fuses the pelvis IMU with leg kinematics and contact information through a **contact-aided Invariant Extended Kalman Filter (InEKF)** to estimate the base pose and velocity, removing the controller's dependence on the MuJoCo ground-truth (GT) body frame.
+This document describes the proprioceptive floating-base state estimator used by the G1 centroidal MPC controller.
+It fuses the pelvis IMU with leg kinematics and contact information through a **contact-aided Invariant Extended Kalman Filter (InEKF)** to estimate the base pose and velocity.
+For simulation debugging, `floatingBaseSource:=ground_truth_state` can replace estimator feedback with ground truth (GT), but this bypass is not available for real-world deployment.
 
 The filter itself is the library [`legged_state_estimator`](https://github.com/mayataka/legged_state_estimator) (Hartley et al., *Contact-Aided Invariant EKF for Legged Robot State Estimation*, RSS 2018). The controller-side integration — sensor plumbing, joint remapping, IMU↔pelvis frame handling, bootstrapping and publishing — lives in [`humanoid_state_estimation/`](../src/humanoid_state_estimation/).
 
@@ -43,7 +45,7 @@ Each control tick, [`update_state_estimator()`](../src/humanoid_centroidal_mpc/h
 4. Corrects the filter with the "stance contact is world-fixed" measurement.
 5. Reads back the estimated **IMU-frame** pose and velocity.
 6. Converts the IMU-frame estimate to the **pelvis** (floating-base) frame.
-7. Writes the result into the MPC observation (when selected) and publishes it as odometry for evaluation against GT.
+7. Writes the result into the MPC observation and publishes it as odometry for evaluation.
 
 </td>
 </tr>
@@ -78,7 +80,9 @@ The InEKF requires exactly **four point contacts**, so each flat foot contribute
 
 ## IMU ↔ Pelvis Frame Conversion
 
-The single most important integration detail: **the InEKF estimates the IMU frame, but the MPC and GT use the pelvis** (the URDF floating-base root). On the G1 the IMU sits at $\mathbf t_{PI}=(0.04525,\,0,\,-0.08339)\,\text{m}$ below the pelvis, so a naive comparison shows an $\approx 8.3\,\text{cm}$ height offset. The wrapper removes this with the fixed transform $X_{PI}=(\mathbf R_{PI},\mathbf t_{PI})$ of the IMU frame in the pelvis frame, computed once from the model at construction: [constructor FK](../src/humanoid_state_estimation/inekf_floating_base_estimator.cpp#L96-L107).
+The single most important integration detail: **the InEKF estimates the IMU frame, but the MPC uses the pelvis** (the URDF floating-base root).
+On the G1 the IMU sits at $\mathbf t_{PI}=(0.04525,\,0,\,-0.08339)\,\text{m}$ below the pelvis, so a naive comparison shows an $\approx 8.3\,\text{cm}$ height offset.
+The wrapper removes this with the fixed transform $X_{PI}=(\mathbf R_{PI},\mathbf t_{PI})$ of the IMU frame in the pelvis frame, computed once from the model at construction: [constructor FK](../src/humanoid_state_estimation/inekf_floating_base_estimator.cpp#L96-L107).
 
 At initialization, the incoming **pelvis** pose is converted to the **IMU** frame before seeding the filter,
 $$
@@ -113,12 +117,10 @@ These are claimed in [`state_interface_configuration()`](../src/humanoid_centroi
 
 ## Bootstrapping and Selection
 
-The filter is seeded once, on the first tick, from the MuJoCo GT body pose (on hardware this becomes a known start pose): [bootstrap](../src/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller.cpp#L596-L616). It runs every tick and publishes its odometry to `stateEstimator.odomTopic` for evaluation against GT.
-
-Whether the estimate **drives control** is a single switch:
-
-- `floatingBase.source: ground_truth_state` — GT body drives the MPC; the InEKF (if `enabled`) runs only for comparison.
-- `floatingBase.source: state_estimator` — the InEKF estimate replaces the GT body in the observation: [`use_estimate` branch](../src/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller.cpp#L686-L719).
+The current bring-up requests estimator initialization after the robot has settled on its feet, then waits for the estimator's matching initialization epoch and readiness before starting MPC.
+This replaces the older simulator-pose bootstrap described in earlier versions of this document.
+The deployed control path uses `floatingBase.source: state_estimator` and reads the estimator controller's exported state interfaces.
+See the current [settling/convergence phases](../src/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller.cpp#L1006) and [initialization epoch check](../src/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller.cpp#L1257).
 
 ## Configuration and Tuning
 

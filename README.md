@@ -231,12 +231,12 @@ flowchart LR
     world -->|"environment robot_state_publisher"| stairs_base
     stairs_base --> stairs_steps["stairs_step_1 ... N"]
 
-    world -->|"simulator ground truth"| gt_pelvis["gt/pelvis"]
 ```
 
 - `odom → pelvis` is the estimate, published as TF by the estimator controller next to `/humanoid/state_estimate/odom`. It appears once the bring-up initialises the estimator.
-- `world → odom` is identity until something localises the robot, so estimator drift (x, y, yaw) shows as the robot moving relative to the stairs. A localisation source - ground truth in sim, lidar or markers on hardware - would replace the static transform.
-- Ground truth is `world → gt/pelvis`, for comparison. With `floatingBaseEstimator:=none` nothing estimates, and ground truth publishes `world → pelvis` instead.
+- `world → odom` is identity until something localises the robot, so estimator drift (x, y, yaw) shows as the robot moving relative to the stairs. A localisation source such as lidar or markers would replace the static transform.
+
+For simulation debugging, `floatingBaseSource:=ground_truth_state` can replace estimator feedback with GT, but this bypass is not available for real-world deployment.
 
 
 ## Acknowledgements

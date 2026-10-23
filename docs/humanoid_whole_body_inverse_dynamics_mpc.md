@@ -26,9 +26,7 @@ flowchart TB
     subgraph FEEDBACK["State estimation and observation"]
         direction LR
         SENSORS["Joint encoders<br/>and IMU"] --> EST["State estimator<br/>contact-aided InEKF"]
-        EST --> SOURCE{"Floating-base<br/>source"}
-        GT["MuJoCo<br/>ground truth"] --> SOURCE
-        SOURCE --> OBS["Observation<br/>x = q, v"]
+        EST --> OBS["Observation<br/>x = q, v"]
         SENSORS -->|"Joint state"| OBS
     end
     PLANNING -->|"State / input policy"| EXECUTION
@@ -37,7 +35,8 @@ flowchart TB
 ```
 
 The solver runs asynchronously at the requested MPC frequency, while ros2_control evaluates the latest policy at the MRT/control frequency.
-The body-state feedback comes from the InEKF estimate or ground-truth interfaces, depending on the selected floating-base source.
+The body-state feedback comes from the contact-aided InEKF estimate.
+For simulation debugging, `floatingBaseSource:=ground_truth_state` can replace estimator feedback with GT, but this bypass is not available for real-world deployment.
 The WB-ID execution path does not call the centroidal controller's weighted WBC QP.
 Requested rates are scheduling targets, so policy age matters when a solve runs slowly.
 
@@ -77,7 +76,7 @@ There is no centroidal-momentum state or momentum-to-velocity reconstruction in 
 
 ### 2.3 Initial state from sensors
 
-The controller combines joint interfaces with either the estimator's exported body state or ground-truth body interfaces:
+The controller combines joint interfaces with the estimator's exported body state:
 
 $$
 q_0=\begin{bmatrix}\hat p_{WB}^{W}\\\operatorname{EulerZYX}(\hat R_{WB})\\q_{j,\mathrm{meas}}\end{bmatrix},
