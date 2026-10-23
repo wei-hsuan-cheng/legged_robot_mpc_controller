@@ -184,7 +184,10 @@ $$
 The input reference distributes weight equally among the $`N_s`$ scheduled stance contacts:
 
 $$
-f_{c,\mathrm{nom}}=\begin{cases}[0,0,mg/N_s]^{\mathsf T},&c\text{ in stance},\cr 0,&c\text{ in swing},\end{cases}
+f_{c,\mathrm{nom}}=\left\{\begin{array}{ll}
+[0,0,mg/N_s]^{\mathsf T},&c\text{ in stance},\\
+0,&c\text{ in swing},
+\end{array}\right.
 \qquad m_{c,\mathrm{nom}}=0,\quad a_{\mathrm{nom}}=0,\quad\tau_{j,\mathrm{nom}}=0.
 $$
 
@@ -339,20 +342,20 @@ These inequalities are soft costs rather than hard QP box/cone constraints.
 Friction, CoP, joint velocity and joint torque use the relaxed logarithmic barrier:
 
 $$
-p_{\mu,\delta}(h)=\mu\begin{cases}
--\ln h,&h>\delta,\cr 
+p_{\mu,\delta}(h)=\mu\left\{\begin{array}{ll}
+-\ln h,&h>\delta,\\
 -\ln\delta+\tfrac12\left(\dfrac{h-2\delta}{\delta}\right)^2-\tfrac12,&h\le\delta.
-\end{cases}
+\end{array}\right.
 $$
 
 Joint positions and foot/knee collision margins use a piecewise polynomial penalty:
 
 $$
-p^{\mathrm{poly}}_{\mu,\delta}(h)=\mu\begin{cases}
-\tfrac12h^2-\tfrac12\delta h+\tfrac16\delta^2,&h\le0,\cr 
--\dfrac{h^3}{6\delta}+\tfrac12h^2-\tfrac12\delta h+\tfrac16\delta^2,&0<h<\delta,\cr 
+p^{\mathrm{poly}}_{\mu,\delta}(h)=\mu\left\{\begin{array}{ll}
+\tfrac12h^2-\tfrac12\delta h+\tfrac16\delta^2,&h\le0,\\
+-\dfrac{h^3}{6\delta}+\tfrac12h^2-\tfrac12\delta h+\tfrac16\delta^2,&0<h<\delta,\\
 0,&h\ge\delta.
-\end{cases}
+\end{array}\right.
 $$
 
 Both penalties remain finite when violated, so returned trajectories can violate the margins.
@@ -449,16 +452,16 @@ The contact-plane and friction-normal assumptions still limit general terrain us
 The controller evaluates the policy at $`t_e=t+\texttt{policyTimeOffset}`$ and takes desired joint position/velocity from its planned state:
 
 $$
-q_{j,\mathrm{des}}=q_j^*(t_e),\qquad\dot q_{j,\mathrm{des}}=\dot q_j^*(t_e).
+q_{j,\mathrm{des}}=q_j^{*}(t_e),\qquad\dot q_{j,\mathrm{des}}=\dot q_j^{*}(t_e).
 $$
 
 With `control.feedforward: policy_torque`, it selects:
 
 $$
-\tau_{\mathrm{ff}}=\begin{cases}
-\tau_j^*(t_e),&\text{policy interpolation knots lie inside its torque window},\cr 
-\mathrm{ID}_j(q^*,v^*,a_j^*,W^*),&\text{otherwise}.
-\end{cases}
+\tau_{\mathrm{ff}}=\left\{\begin{array}{ll}
+\tau_j^{*}(t_e),&\text{policy interpolation knots lie inside its torque window},\\
+\mathrm{ID}_j(q^{*},v^{*},a_j^{*},W^{*}),&\text{otherwise}.
+\end{array}\right.
 $$
 
 The fallback computes base acceleration from the unactuated equations before computing joint inverse dynamics.
