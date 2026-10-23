@@ -222,10 +222,16 @@ There is one robot URDF, [`description/g1/urdf/g1_29dof.urdf`](./description/g1/
 
 The environment is not part of the robot: [`stairs.urdf.xacro`](./description/g1/urdf/stairs.urdf.xacro), rooted at `world` and driven by the same `stairs_params.yaml` as the MuJoCo stairs, is published by a second robot_state_publisher as `/environment/robot_description` (the "Environment" display in rviz). Pass `environmentDescription:=""` with a scene that has no stairs, e.g. `scene_flat.xml`.
 
-```
-world ──(static, identity)──▶ odom ──(estimator, odom → pelvis)──▶ pelvis ──(robot_state_publisher)──▶ links
-  ├──(environment robot_state_publisher)──▶ stairs_base ──▶ stairs_step_1 … N
-  └──(simulator ground truth)──▶ gt/pelvis
+```mermaid
+flowchart LR
+    world -->|"static, identity"| odom
+    odom -->|"estimator, odom → pelvis"| pelvis
+    pelvis -->|"robot_state_publisher"| links
+
+    world -->|"environment robot_state_publisher"| stairs_base
+    stairs_base --> stairs_steps["stairs_step_1 ... N"]
+
+    world -->|"simulator ground truth"| gt_pelvis["gt/pelvis"]
 ```
 
 - `odom → pelvis` is the estimate, published as TF by the estimator controller next to `/humanoid/state_estimate/odom`. It appears once the bring-up initialises the estimator.
