@@ -768,14 +768,14 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
       reference:
         targetDisplacementVelocity: 0.5
         targetRotationVelocity: 0.5
-        maxDisplacementVelocityX: 0.5
+        maxDisplacementVelocityX: 0.75
         maxDisplacementVelocityY: 0.5
         maxDeltaPelvisHeight: 0.4
-        maxRotationVelocity: 0.7854
+        maxRotationVelocity: 1.5708
         # Slew limits on the scaled walking command, applied after the max* scaling
         # above: [ax, ay (m/s^2), height rate (m/s), yaw acceleration (rad/s^2)].
         velocityCommandRateLimits:
-          [0.5, 0.5, 0.1, 0.75]
+          [0.5, 0.5, 0.5, 0.75]
         defaultBaseHeight: $(var refBaseHeight)
         basePosePositionTolerance: 0.02
         basePoseOrientationTolerance: 0.03
