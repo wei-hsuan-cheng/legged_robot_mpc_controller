@@ -3,7 +3,7 @@
 [ROS 2 controller](https://control.ros.org/rolling/index.html) integration for legged robot MPC using [OCS2](https://github.com/wei-hsuan-cheng/ocs2_ros2.git) and [Pinocchio](https://github.com/stack-of-tasks/pinocchio.git). Tested in [MuJoCo](https://mujoco.readthedocs.io/en/stable/overview.html) simulation environment. The codes are successfully tested in [`ros2 jazzy`](https://docs.ros.org/en/jazzy/index.html).
 
 
-### Interactive Velocity and Base Height Control via GUI & Joystick
+## Interactive Velocity and Base Height Control via GUI & Joystick
 
 <p align="center">
   <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/g1.gif?raw=true" width="400" />
@@ -686,6 +686,7 @@ This is deliberate. A `start_locomotion` remembered from too early, with the rob
 **Closed-loop status:** verified on flat ground — `tests/state_estimator_closed_loop_test.sh` reports `VERDICT: SUCCESS` (2.1 m of walking, height error 1.8 mm, roll/pitch < 0.6°, body-velocity error 0.026 m/s). Backward, lateral and turning motions all match the ground-truth-driven behaviour. Note the default scene has a staircase in front of the robot, so plain forward walking runs into it and falls **with ground truth as well** — flat-ground tests command motion away from the stairs.
 
 See [`docs/humanoid_state_estimation.md`](./docs/humanoid_state_estimation.md) for the equations, implementation and the terrain limitation of the kinematic height anchor.
+
 
 ## Acknowledgements
 
