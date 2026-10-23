@@ -31,12 +31,12 @@ Dimensions are constructed at [line 37](../include/humanoid_wb_id_mpc/common/WbI
 The inherited `getBaseComVelocity` name returns pelvis world linear velocity and Euler rates in WB-ID, not centroidal momentum.
 Joint velocities are read from the state at [line 105](../include/humanoid_wb_id_mpc/common/WbIdMpcRobotModel.h#L105), while generalized accelerations and joint torques are read from the input at [line 120](../include/humanoid_wb_id_mpc/common/WbIdMpcRobotModel.h#L120).
 
-[build_observation():947](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L947) combines joint interfaces and floating-base feedback.
-Estimator feedback is read at [line 973](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L973).
+[build_observation():991](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L991) combines joint interfaces and floating-base feedback.
+Estimator feedback is read at [line 1017](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1017).
 For simulation debugging, `floatingBaseSource:=ground_truth_state` can replace estimator feedback with GT, but this bypass is not available for real-world deployment.
-Quaternion normalization, yaw unwrapping and angular velocity conversion are at [line 1012](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1012).
-The optional generalized velocity low-pass is at [line 1031](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1031).
-`observation.input` is zeroed at [line 957](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L957), not filled with measured torques or wrenches.
+Quaternion normalization, yaw unwrapping and angular velocity conversion are at [line 1056](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1056).
+The optional generalized velocity low-pass is at [line 1075](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1075).
+`observation.input` is zeroed at [line 1001](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1001), not filled with measured torques or wrenches.
 
 
 ## 3. Dynamics, Constraints and Initialization
@@ -164,14 +164,24 @@ Implementing frame relations requires schema/builder frame-pair declarations and
 
 ## 7. Solver, Policy and Actuation
 
-[construct_solver():1106](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1106) accepts only `sqp`, constructs `SqpMpc`, connects MRT and installs the synchronized modules.
-The asynchronous worker starts at [line 1136](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1136).
-[compute_mpc_joint_action():1274](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1274) evaluates the policy using `control.policyTimeOffset`.
-Planned joint position/velocity extraction is at [line 1292](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1292).
-The torque-window check and planned-state inverse-dynamics fallback are at [line 1306](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1306).
-The alternative measured-state inverse dynamics is at [line 1326](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1326).
-Feedforward clipping is [clamp_torque():1267](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1267).
-Joint position/velocity/effort and optional gain interface writes are at [line 1598](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1598).
+[construct_solver():1159](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1159) accepts only `sqp`, constructs `SqpMpc`, connects MRT and installs the synchronized modules.
+The asynchronous worker starts at [line 1189](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1189).
+The control loop forwards each valid observation through OCS2's existing `setCurrentObservation()` before policy checks or bring-up dispatch at [line 518](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L518).
+After construction, the worker waits for a new control-loop observation before its first solve at [line 1151](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1151).
+Policy handover checks finite timestamps and requires the evaluation time to lie inside the plan, with two control periods remaining, at [line 531](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L531).
+An unusable policy requests `resetMpcNode()` on the solver worker, following the atomic warm-start reset pattern in `dynamics_mpc_controller`, rather than resetting the solver from the control thread.
+Startup keeps holding the standing posture and retries; loss of a valid policy during the startup blend returns to `StartingMpc`, while loss after entering estimator-driven `Locomotion` latches the existing `Fault` state.
+The ground-truth feedback path holds the last commanded posture while awaiting a valid replacement policy.
+No additional age-limit parameter or alternative observation interface is introduced.
+[compute_mpc_joint_action():1343](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1343) evaluates the policy using `control.policyTimeOffset`.
+Planned joint position/velocity extraction is at [line 1359](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1359).
+The torque-window check and planned-state inverse-dynamics fallback are at [line 1377](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1377).
+The alternative measured-state inverse dynamics is at [line 1393](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1393).
+Feedforward clipping is [clamp_torque():1335](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1335).
+Joint position/velocity/effort and optional gain interface writes are at [line 1661](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1661).
+
+`python3 tests/wb_id_startup_contract_test.py -v` checks the startup observation flow, policy bounds, reset ownership and bring-up guards without a ROS build.
+These are static regression checks, not a substitute for repeated startup tests in the simulator.
 
 
 ## 8. Parameter Map
@@ -195,4 +205,4 @@ Joint position/velocity/effort and optional gain interface writes are at [line 1
 | `control.jointEffortPd.kp`, `kd` | Inner servo gains |
 
 Read these from the `humanoid_whole_body_inverse_dynamics_mpc_controller` YAML block rather than the similarly named centroidal settings.
-This documentation change does not modify control code or tuning and does not add a new runtime validation claim.
+The startup regression checks above are static and do not constitute runtime validation.

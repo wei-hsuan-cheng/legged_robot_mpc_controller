@@ -39,6 +39,9 @@ The body-state feedback comes from the contact-aided InEKF estimate.
 For simulation debugging, `floatingBaseSource:=ground_truth_state` can replace estimator feedback with GT, but this bypass is not available for real-world deployment.
 The WB-ID execution path does not call the centroidal controller's weighted WBC QP.
 Requested rates are scheduling targets, so policy age matters when a solve runs slowly.
+During startup, valid observations continue to reach MPC while the joint servo holds the standing posture.
+Handover requires a policy whose timestamps cover the evaluation time; an expired startup horizon is reset on the solver worker and retried rather than evaluated outside its interval.
+After estimator-driven locomotion has begun, losing a valid policy latches the bring-up fault instead of automatically restarting the walking motion.
 
 
 ## 2. State, Input and Observation

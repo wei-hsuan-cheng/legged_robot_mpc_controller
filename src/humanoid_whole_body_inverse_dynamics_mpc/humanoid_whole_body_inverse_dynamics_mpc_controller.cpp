@@ -268,6 +268,9 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
   }
 
   motion_manager_->requestVelocityTargetFilterReset();
+  stop_solver_thread();
+  solver_observation_ready_.store(false);
+  reset_mpc_warm_start_requested_.store(false);
   yaw_unwrapper_.reset();
   filtered_generalized_velocity_.resize(0);
   estimator_interface_index_.clear();
@@ -326,6 +329,7 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
   start_requested_.store(false);
   locomotion_requested_.store(false);
   mpc_ready_.store(false);
+  has_active_policy_ = false;
   active_policy_ready_ = false;
 
   publish_mode_schedule();
@@ -512,16 +516,45 @@ controller_interface::return_type HumanoidWholeBodyInverseDynamicsMpcController:
   read_state_estimator();
 
   const auto observation = build_observation(time);
+  const bool solver_ready = mpc_ready_.load(std::memory_order_acquire);
+  if (solver_ready && observation_from_hardware_ && std::isfinite(observation.time) && observation.state.allFinite()) {
+    // As in the arm MPCs, feed observations even while holding for an initial policy.
+    mrt_interface_->setCurrentObservation(observation);
+    solver_observation_ready_.store(true, std::memory_order_release);
+  }
   // The worker only fills the MRT buffer. Swap the active policy here so evaluation
   // and visualization cannot read a policy being replaced by the solver thread.
-  if (mpc_ready_.load(std::memory_order_acquire) && mrt_interface_->updatePolicy()) {
-    active_policy_ready_ = true;
+  const bool policy_updated = solver_ready && mrt_interface_->updatePolicy();
+  const bool previous_policy_ready = active_policy_ready_;
+  if (policy_updated) {
+    has_active_policy_ = true;
+  }
+  active_policy_ready_ = false;
+  if (has_active_policy_) {
+    const auto& times = mrt_interface_->getPolicy().timeTrajectory_;
+    const double evaluation_time = observation.time + parameters_.control.policyTimeOffset;
+    const double margin = 2.0 / std::max(1.0, static_cast<double>(get_update_rate()));
+    active_policy_ready_ = observation_from_hardware_ && times.size() >= 2 &&
+      std::isfinite(evaluation_time) && std::isfinite(times.front()) && std::isfinite(times.back()) &&
+      evaluation_time >= times.front() && evaluation_time + margin < times.back();
+    if (!active_policy_ready_) {
+      // Match dynamics_mpc_controller: request reset here, execute it on the worker.
+      // Request once per rejected plan, not every hold tick while a new solve runs.
+      if (policy_updated || previous_policy_ready) {
+        reset_mpc_warm_start_requested_.store(true, std::memory_order_release);
+      }
+      RCLCPP_WARN_THROTTLE(
+        get_node()->get_logger(), *get_node()->get_clock(), 2000,
+        "%s rejecting unusable policy: evaluation=%.6f, plan=[%.6f, %.6f]; holding and requesting a new horizon.",
+        kTag, evaluation_time, times.empty() ? 0.0 : times.front(), times.empty() ? 0.0 : times.back());
+    }
   }
   JointActionCommand command;
   if (uses_state_estimator(parameters_.floatingBase.source)) {
     command = run_bring_up(time, observation);
   } else if (active_policy_ready_) {
     command = compute_mpc_joint_action(observation);
+    passive_hold_joints_ = command.policy_position;
   } else {
     // Ground-truth base, first ticks: seed the solver from this tick's observation
     // (see on_activate) and hold the activation pose until the first policy.
@@ -766,6 +799,11 @@ HumanoidWholeBodyInverseDynamicsMpcController::run_bring_up(
       return hold_command(stand_nominal_joints_, q, imu);
 
     case BringUpPhase::Blend: {
+      if (!active_policy_ready_) {
+        estimator_driving_control_ = false;
+        enter_bring_up_phase(BringUpPhase::StartingMpc, t);
+        return hold_command(stand_nominal_joints_, q, imu);
+      }
       const JointActionCommand stand = hold_command(stand_nominal_joints_, q, imu);
       const JointActionCommand mpc = compute_mpc_joint_action(observation);
       const double a = bu.blendSeconds > 0.0
@@ -781,6 +819,12 @@ HumanoidWholeBodyInverseDynamicsMpcController::run_bring_up(
     }
 
     case BringUpPhase::Locomotion:
+      if (!active_policy_ready_) {
+        RCLCPP_ERROR(get_node()->get_logger(), "%s no valid MPC policy during locomotion; latching FAULT.", kTag);
+        estimator_driving_control_ = false;
+        enter_bring_up_phase(BringUpPhase::Fault, t);
+        return damping_command(q);
+      }
       return compute_mpc_joint_action(observation);
 
     case BringUpPhase::Fault:
@@ -1079,9 +1123,8 @@ ocs2::TargetTrajectories HumanoidWholeBodyInverseDynamicsMpcController::current_
 
 void HumanoidWholeBodyInverseDynamicsMpcController::start_deferred_solver_thread()
 {
-  // The worker waits for the control loop's go (locomotion_requested_, with
-  // start_observation_ written before it), builds the solver from that observation
-  // off the control thread, and runs it.
+  // Solver construction and resets stay on the worker. Observations keep arriving
+  // while the control loop holds the standing posture and waits for a fresh policy.
   stop_solver_thread();
   terminate_solver_thread_.store(false);
   solver_thread_ = std::jthread([this] {
@@ -1092,13 +1135,23 @@ void HumanoidWholeBodyInverseDynamicsMpcController::start_deferred_solver_thread
     if (terminate_solver_thread_.load() || !rclcpp::ok()) {
       return;
     }
+    const auto construction_start = std::chrono::steady_clock::now();
     try {
       construct_solver(start_observation_);
     } catch (const std::exception& e) {
       RCLCPP_ERROR(get_node()->get_logger(), "%s failed to start the MPC solver: %s", kTag, e.what());
       return;
     }
+    RCLCPP_INFO(
+      get_node()->get_logger(), "%s solver initialized in %.3f s; waiting for a fresh policy before takeover.",
+      kTag, std::chrono::duration<double>(std::chrono::steady_clock::now() - construction_start).count());
     mpc_ready_.store(true, std::memory_order_release);
+    // Construction may have taken longer than a horizon. Do not solve the old
+    // seed: the next control tick supplies the current observation through MRT.
+    while (!terminate_solver_thread_.load() && rclcpp::ok() &&
+           !solver_observation_ready_.load(std::memory_order_acquire)) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
     solver_worker();
   });
 }
@@ -1115,10 +1168,10 @@ void HumanoidWholeBodyInverseDynamicsMpcController::construct_solver(const ocs2:
   mpc_solver_->getSolverPtr()->setReferenceManager(mpc_interface_->getReferenceManagerPtr());
   mrt_interface_ = std::make_unique<ocs2::MPC_MRT_Interface>(*mpc_solver_);
   mrt_interface_->initRollout(&mpc_interface_->getRollout());
-  mrt_interface_->setCurrentObservation(initial_observation);
-  mrt_interface_->resetMpcNode(current_observation_to_reset_trajectory(initial_observation));
   mpc_solver_->getSolverPtr()->addSynchronizedModule(motion_manager_);
   mpc_solver_->getSolverPtr()->addSynchronizedModule(mpc_interface_->getTorqueWindowModule());
+  mrt_interface_->setCurrentObservation(initial_observation);
+  mrt_interface_->resetMpcNode(current_observation_to_reset_trajectory(initial_observation));
 }
 
 void HumanoidWholeBodyInverseDynamicsMpcController::stop_solver_thread()
@@ -1163,6 +1216,7 @@ void HumanoidWholeBodyInverseDynamicsMpcController::solver_worker()
     equality_terms.emplace_back(name, index);
   }
   std::vector<double> max_term_sse(equality_terms.size(), 0.0);
+  bool first_solve = true;
 
   while (!terminate_solver_thread_.load() && rclcpp::ok()) {
     const auto iteration_start = Clock::now();
@@ -1175,8 +1229,21 @@ void HumanoidWholeBodyInverseDynamicsMpcController::solver_worker()
 
     double advance_ms = 0.0;
     try {
+      if (reset_mpc_warm_start_requested_.exchange(false, std::memory_order_acq_rel)) {
+        RCLCPP_WARN_THROTTLE(
+          get_node()->get_logger(), *get_node()->get_clock(), 2000,
+          "%s resetting MPC warm start after an unusable policy; next solve uses the current observation and target.",
+          kTag);
+        mrt_interface_->resetMpcNode(mpc_interface_->getReferenceManagerPtr()->getTargetTrajectories());
+      }
       mrt_interface_->advanceMpc();
       advance_ms = std::chrono::duration<double, std::milli>(Clock::now() - iteration_start).count();
+      if (first_solve) {
+        RCLCPP_INFO(
+          get_node()->get_logger(), "%s first MPC advance: horizon end=%.6f, wall time=%.3f ms.",
+          kTag, mpc_solver_->getSolverPtr()->getFinalTime(), advance_ms);
+        first_solve = false;
+      }
       accumulated_advance_ms += advance_ms;
       ++advance_samples;
       max_advance_ms = std::max(max_advance_ms, advance_ms);
@@ -1200,6 +1267,7 @@ void HumanoidWholeBodyInverseDynamicsMpcController::solver_worker()
         max_term_sse[t] = std::max(max_term_sse[t], sse);
       }
     } catch (const std::exception& e) {
+      reset_mpc_warm_start_requested_.store(true, std::memory_order_release);
       ++solver_exceptions;
       RCLCPP_ERROR_THROTTLE(get_node()->get_logger(), *get_node()->get_clock(), 2000, "%s MPC solver exception: %s",
                             kTag, e.what());
@@ -1274,8 +1342,6 @@ void HumanoidWholeBodyInverseDynamicsMpcController::clamp_torque(vector_t& tau) 
 HumanoidWholeBodyInverseDynamicsMpcController::JointActionCommand
 HumanoidWholeBodyInverseDynamicsMpcController::compute_mpc_joint_action(const ocs2::SystemObservation& observation)
 {
-  mrt_interface_->setCurrentObservation(observation);
-
   JointActionCommand command;
   vector_t policy_state;
   vector_t policy_input;

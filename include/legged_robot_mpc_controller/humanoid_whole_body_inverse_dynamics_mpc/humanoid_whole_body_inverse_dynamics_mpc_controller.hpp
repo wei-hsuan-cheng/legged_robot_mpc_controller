@@ -109,8 +109,7 @@ private:
   bool estimator_initialized_for_request() const;
   ocs2::TargetTrajectories current_observation_to_reset_trajectory(
     const ocs2::SystemObservation& observation);
-  //! Start the worker that builds the solver from start_observation_ once the
-  //! control loop sets locomotion_requested_, then runs it.
+  //! Build the solver after locomotion_requested_, then wait for a fresh control tick.
   void start_deferred_solver_thread();
   void construct_solver(const ocs2::SystemObservation& initial_observation);
   void stop_solver_thread();
@@ -230,7 +229,10 @@ private:
   ocs2::SystemObservation start_observation_;
   std::atomic_bool locomotion_requested_{false};
   std::atomic_bool mpc_ready_{false};
-  bool active_policy_ready_{false};  // Owned by the control thread, like the active MRT policy.
+  std::atomic_bool solver_observation_ready_{false};
+  std::atomic_bool reset_mpc_warm_start_requested_{false};
+  bool has_active_policy_{false};  // Owned by the control thread, like the active MRT policy.
+  bool active_policy_ready_{false};  // Revalidated against this tick's timestamp.
   std::atomic_bool stand_up_requested_{false};
   std::atomic_bool start_requested_{false};
   rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr stand_up_service_;

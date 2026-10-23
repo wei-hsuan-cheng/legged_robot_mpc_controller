@@ -1,5 +1,24 @@
 # WB-ID MPC Walking Robustness Handoff
 
+## WB-ID Startup Horizon Recovery (2026-10-23, needs build and runtime test)
+
+The intermittent takeover failure showed control time around 15.7 s while the last plan ended at 9.5024 s.
+Observations were only forwarded from `compute_mpc_joint_action()`, so startup could keep solving the initial snapshot and then accept an expired first policy.
+OCS2's `MPC_BASE::run()` refuses a new start time beyond its previous final time until reset, making the failure persistent.
+
+The fix follows the existing arm-controller OCS2 pattern: `setCurrentObservation()` on every valid control tick, `updatePolicy()` on the control thread, and `advanceMpc()` on the worker.
+The deferred worker waits for a post-construction observation before its first solve.
+Policy evaluation is gated on finite timestamps and interval coverage with two control periods of end margin.
+An atomic warm-start reset request is consumed by the worker through `resetMpcNode()`, as in `dynamics_mpc_controller`.
+No custom observation mailbox, new tuning parameter, OCS2 library change or weight/gain change remains in this patch.
+Startup holds and retries; a blend interruption returns to startup, while policy loss after estimator-driven locomotion latches `Fault` and requires controller reactivation.
+The ground-truth path holds the last commanded posture until a usable plan arrives.
+
+The arm controllers normally compute their initial policy synchronously in activation, whereas this legged controller must keep standing and estimating while constructing/starting MPC asynchronously.
+The centroidal controller has the same latent observation-delivery gap and is not inherently immune, but is unchanged in this WB-ID checkpoint.
+Six static startup/thread-ownership regression checks and the WB-ID parameter contract pass; no ROS build or simulator validation was performed for this patch.
+Test repeated launches at the usual rates and inspect the new construction/first-advance logs, rejected-policy timestamps and warm-start reset messages.
+
 ## Description Layout (2026-10-23)
 
 Robot assets moved from `description/g1/` to `description/robots/g1/` (`urdf/`, `mujoco/`, `meshes/`).
