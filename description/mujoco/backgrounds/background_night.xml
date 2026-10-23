@@ -1,6 +1,6 @@
 <mujoco model="background_night">
 
-  <include file="terrain_materials.xml" />
+  <include file="../materials/terrain_materials.xml" />
 
   <default>
     <geom material="studio_finish" />

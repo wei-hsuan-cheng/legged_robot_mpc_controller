@@ -13,7 +13,7 @@
   </material>
 
   <mujoco>
-    <compiler meshdir="package://legged_robot_mpc_controller/description/g1/meshes" discardvisual="false"/>
+    <compiler meshdir="package://legged_robot_mpc_controller/description/robots/g1/meshes" discardvisual="false"/>
   </mujoco>
 
   <!-- [CAUTION] uncomment when convert to mujoco -->
@@ -32,7 +32,7 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/pelvis.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/pelvis.STL"/>
       </geometry>
       <material name="dark"/>
     </visual>
@@ -46,14 +46,14 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/pelvis_contour_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/pelvis_contour_link.STL"/>
       </geometry>
       <material name="white"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/pelvis_contour_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/pelvis_contour_link.STL"/>
       </geometry>
     </collision>
   </link>
@@ -72,14 +72,14 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/left_hip_pitch_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/left_hip_pitch_link.STL"/>
       </geometry>
       <material name="dark"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/left_hip_pitch_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/left_hip_pitch_link.STL"/>
       </geometry>
     </collision>
   </link>
@@ -99,14 +99,14 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/left_hip_roll_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/left_hip_roll_link.STL"/>
       </geometry>
       <material name="white"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/left_hip_roll_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/left_hip_roll_link.STL"/>
       </geometry>
     </collision>
   </link>
@@ -126,14 +126,14 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/left_hip_yaw_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/left_hip_yaw_link.STL"/>
       </geometry>
       <material name="white"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/left_hip_yaw_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/left_hip_yaw_link.STL"/>
       </geometry>
     </collision>
   </link>
@@ -153,14 +153,14 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/left_knee_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/left_knee_link.STL"/>
       </geometry>
       <material name="white"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/left_knee_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/left_knee_link.STL"/>
       </geometry>
     </collision>
   </link>
@@ -180,14 +180,14 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/left_ankle_pitch_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/left_ankle_pitch_link.STL"/>
       </geometry>
       <material name="white"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/left_ankle_pitch_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/left_ankle_pitch_link.STL"/>
       </geometry>
     </collision>
   </link>
@@ -207,7 +207,7 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/left_ankle_roll_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/left_ankle_roll_link.STL"/>
       </geometry>
       <material name="dark"/>
     </visual>
@@ -252,14 +252,14 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/right_hip_pitch_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/right_hip_pitch_link.STL"/>
       </geometry>
       <material name="dark"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/right_hip_pitch_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/right_hip_pitch_link.STL"/>
       </geometry>
     </collision>
   </link>
@@ -279,14 +279,14 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/right_hip_roll_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/right_hip_roll_link.STL"/>
       </geometry>
       <material name="white"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/right_hip_roll_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/right_hip_roll_link.STL"/>
       </geometry>
     </collision>
   </link>
@@ -306,14 +306,14 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/right_hip_yaw_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/right_hip_yaw_link.STL"/>
       </geometry>
       <material name="white"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/right_hip_yaw_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/right_hip_yaw_link.STL"/>
       </geometry>
     </collision>
   </link>
@@ -333,14 +333,14 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/right_knee_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/right_knee_link.STL"/>
       </geometry>
       <material name="white"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/right_knee_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/right_knee_link.STL"/>
       </geometry>
     </collision>
   </link>
@@ -360,14 +360,14 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/right_ankle_pitch_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/right_ankle_pitch_link.STL"/>
       </geometry>
       <material name="white"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/right_ankle_pitch_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/right_ankle_pitch_link.STL"/>
       </geometry>
     </collision>
   </link>
@@ -387,7 +387,7 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/right_ankle_roll_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/right_ankle_roll_link.STL"/>
       </geometry>
       <material name="dark"/>
     </visual>
@@ -434,7 +434,7 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/waist_yaw_link_rev_1_0.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/waist_yaw_link_rev_1_0.STL"/>
       </geometry>
       <material name="white"/>
     </visual>
@@ -455,7 +455,7 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/waist_roll_link_rev_1_0.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/waist_roll_link_rev_1_0.STL"/>
       </geometry>
       <material name="white"/>
     </visual>
@@ -476,14 +476,14 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/torso_link_rev_1_0.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/torso_link_rev_1_0.STL"/>
       </geometry>
       <material name="white"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/torso_link_rev_1_0.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/torso_link_rev_1_0.STL"/>
       </geometry>
     </collision>
   </link>
@@ -510,14 +510,14 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/logo_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/logo_link.STL"/>
       </geometry>
       <material name="dark"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/logo_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/logo_link.STL"/>
       </geometry>
     </collision>
   </link>
@@ -532,14 +532,14 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/head_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/head_link.STL"/>
       </geometry>
       <material name="dark"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/head_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/head_link.STL"/>
       </geometry>
     </collision>
   </link>
@@ -591,7 +591,7 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/left_shoulder_pitch_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/left_shoulder_pitch_link.STL"/>
       </geometry>
       <material name="white"/>
     </visual>
@@ -618,7 +618,7 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/left_shoulder_roll_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/left_shoulder_roll_link.STL"/>
       </geometry>
       <material name="white"/>
     </visual>
@@ -645,14 +645,14 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/left_shoulder_yaw_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/left_shoulder_yaw_link.STL"/>
       </geometry>
       <material name="white"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/left_shoulder_yaw_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/left_shoulder_yaw_link.STL"/>
       </geometry>
     </collision>
   </link>
@@ -672,14 +672,14 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/left_elbow_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/left_elbow_link.STL"/>
       </geometry>
       <material name="white"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/left_elbow_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/left_elbow_link.STL"/>
       </geometry>
     </collision>
   </link>
@@ -706,14 +706,14 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/left_wrist_roll_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/left_wrist_roll_link.STL"/>
       </geometry>
       <material name="white"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/left_wrist_roll_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/left_wrist_roll_link.STL"/>
       </geometry>
     </collision>
   </link>
@@ -733,14 +733,14 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/left_wrist_pitch_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/left_wrist_pitch_link.STL"/>
       </geometry>
       <material name="white"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/left_wrist_pitch_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/left_wrist_pitch_link.STL"/>
       </geometry>
     </collision>
   </link>
@@ -760,14 +760,14 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/left_wrist_yaw_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/left_wrist_yaw_link.STL"/>
       </geometry>
       <material name="white"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/left_wrist_yaw_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/left_wrist_yaw_link.STL"/>
       </geometry>
     </collision>
   </link>
@@ -785,7 +785,7 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/left_rubber_hand.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/left_rubber_hand.STL"/>
       </geometry>
       <material name="white"/>
     </visual>
@@ -799,7 +799,7 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/right_shoulder_pitch_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/right_shoulder_pitch_link.STL"/>
       </geometry>
       <material name="white"/>
     </visual>
@@ -826,7 +826,7 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/right_shoulder_roll_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/right_shoulder_roll_link.STL"/>
       </geometry>
       <material name="white"/>
     </visual>
@@ -853,14 +853,14 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/right_shoulder_yaw_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/right_shoulder_yaw_link.STL"/>
       </geometry>
       <material name="white"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/right_shoulder_yaw_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/right_shoulder_yaw_link.STL"/>
       </geometry>
     </collision>
   </link>
@@ -880,14 +880,14 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/right_elbow_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/right_elbow_link.STL"/>
       </geometry>
       <material name="white"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/right_elbow_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/right_elbow_link.STL"/>
       </geometry>
     </collision>
   </link>
@@ -914,14 +914,14 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/right_wrist_roll_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/right_wrist_roll_link.STL"/>
       </geometry>
       <material name="white"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/right_wrist_roll_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/right_wrist_roll_link.STL"/>
       </geometry>
     </collision>
   </link>
@@ -941,14 +941,14 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/right_wrist_pitch_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/right_wrist_pitch_link.STL"/>
       </geometry>
       <material name="white"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/right_wrist_pitch_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/right_wrist_pitch_link.STL"/>
       </geometry>
     </collision>
   </link>
@@ -968,14 +968,14 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/right_wrist_yaw_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/right_wrist_yaw_link.STL"/>
       </geometry>
       <material name="white"/>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/right_wrist_yaw_link.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/right_wrist_yaw_link.STL"/>
       </geometry>
     </collision>
   </link>
@@ -993,7 +993,7 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/g1/meshes/right_rubber_hand.STL"/>
+        <mesh filename="package://legged_robot_mpc_controller/description/robots/g1/meshes/right_rubber_hand.STL"/>
       </geometry>
       <material name="white"/>
     </visual>

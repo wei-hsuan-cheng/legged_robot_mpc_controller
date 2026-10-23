@@ -11,8 +11,8 @@
 #     previous tread), depths are TREAD depths along +x, widths are along +y.
 #
 # This single file feeds BOTH:
-#   - mujoco/stairs.xml.xacro   -> stairs.xml
-#   - urdf/stairs.urdf.xacro    -> the environment description rviz shows (at launch)
+#   - stairs.xml.xacro         -> stairs.xml
+#   - stairs.urdf.xacro        -> the environment description rviz shows (at launch)
 # Keep it as the single source of truth.
 # -----------------------------------------------------------------------------
 stairs:

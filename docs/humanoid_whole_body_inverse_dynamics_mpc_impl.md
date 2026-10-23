@@ -13,10 +13,15 @@ Links use repository-relative paths with line anchors, which may shift as the so
 | Current G1 values | [ros2_controllers.yaml:709](../config/g1/ros2_controllers.yaml#L709) |
 | Config translation | [whole_body_inverse_dynamics_mpc_config_builder.cpp](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp) |
 | OCP assembly | [WbIdMpcInterface.cpp:85](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L85) |
+| G1 model and mesh paths | [g1_29dof.xml:16](../description/robots/g1/mujoco/g1_29dof.xml#L16), [g1_29dof.urdf:16](../description/robots/g1/urdf/g1_29dof.urdf#L16) |
+| Simulation scene composition | [scene.xml:3](../description/mujoco/scene.xml#L3), [shared module layout](../description/mujoco/README.md) |
+| Hardware interface description | [g1.ros2_control.xacro:17](../description/robots/g1/urdf/g1.ros2_control.xacro#L17) |
 
 WB-ID has its own generated parameter schema rather than loading the centroidal controller schema.
 The builder maps solver settings at [line 88](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L88), gait settings at [line 124](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L124) and costs at [line 171](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L171).
 The interface validates the Translation + SphericalZYX dimensions at [WbIdMpcInterface.cpp:45](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L45).
+The launch file selects the robot URDF at [line 56](../launch/g1.launch.py#L56), the separate RViz environment at [line 60](../launch/g1.launch.py#L60), and the top-level MuJoCo scene at [line 178](../launch/g1.launch.py#L178).
+Scene names passed through `mujocoModelFile` are unchanged by the description-directory reorganization.
 
 
 ## 2. Model and Observation

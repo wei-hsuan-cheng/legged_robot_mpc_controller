@@ -1,6 +1,6 @@
 <mujoco model="g1_scene_flat">
   <!-- Select one background, one robot, and any terrain/object modules. -->
-  <include file="g1_29dof.xml" />
-  <include file="background_day.xml" />
+  <include file="../robots/g1/mujoco/g1_29dof.xml" />
+  <include file="backgrounds/background_day.xml" />
   <option timestep="0.0001" />
 </mujoco>

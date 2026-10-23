@@ -12,7 +12,8 @@
     Local additions: meshdir, contact solref/solimp, a zero-damping free joint, the
     imu-pelvis-quat sensor, and the Mid-360 site.
   -->
-  <compiler angle="radian" meshdir="../meshes"/>
+  <!-- Asset directories resolve from the scene entry point in description/mujoco. -->
+  <compiler angle="radian" meshdir="../robots/g1/meshes"/>
   <option integrator="implicitfast"/>
   <default>
     <geom solimp="0.999 0.95 0.005" solref="0.001 1.0"/>

@@ -111,7 +111,7 @@ gt_body_frame:=pelvis                    # MuJoCo body published as ground truth
 mpcFreq:=100                             # integer
 mrtFreq:=1000                            # integer
 libFolder:=auto_generated/g1             # CppAD codegen output (wb_id_mpc_g1/, centroidal_mpc_g1/ inside)
-mujocoModelFile:=scene.xml               # swap scene: boxes / stairs / slope in description/g1/mujoco
+mujocoModelFile:=scene.xml               # swap scene: boxes / stairs / slope in description/mujoco
 stairClimbingFile:=stair_climbing.yaml
 terrainWalkingFile:terrain_walking.yaml
 ```
@@ -218,9 +218,12 @@ Supported target channels are soft costs balanced against the rest of the MPC; r
 
 ## Robot Description and Frames
 
-There is one robot URDF, [`description/g1/urdf/g1_29dof.urdf`](./description/g1/urdf/g1_29dof.urdf), rooted at the pelvis with **no `world` link and no floating joint**. The MPC and the estimators add the floating base themselves (Pinocchio), MuJoCo owns its free joint in the MJCF, and the base pose reaches the TF tree from the estimator. [`g1.ros2_control.xacro`](./description/g1/urdf/g1.ros2_control.xacro) includes that URDF and adds the `<ros2_control>` block; the result is the single `/robot_description`, used by the controller manager and robot_state_publisher.
+Robot-specific assets live in `description/robots/g1/`, while reusable scenes and environments live in `description/mujoco/`.
+See the [description layout](./description/README.md) and [MuJoCo scene composition guide](./description/mujoco/README.md).
 
-The environment is not part of the robot: [`stairs.urdf.xacro`](./description/g1/urdf/stairs.urdf.xacro), rooted at `world` and driven by the same `stairs_params.yaml` as the MuJoCo stairs, is published by a second robot_state_publisher as `/environment/robot_description` (the "Environment" display in rviz). Pass `environmentDescription:=""` with a scene that has no stairs, e.g. `scene_flat.xml`.
+There is one robot URDF, [`description/robots/g1/urdf/g1_29dof.urdf`](./description/robots/g1/urdf/g1_29dof.urdf), rooted at the pelvis with **no `world` link and no floating joint**. The MPC and the estimators add the floating base themselves (Pinocchio), MuJoCo owns its free joint in the MJCF, and the base pose reaches the TF tree from the estimator. [`g1.ros2_control.xacro`](./description/robots/g1/urdf/g1.ros2_control.xacro) includes that URDF and adds the `<ros2_control>` block; the result is the single `/robot_description`, used by the controller manager and robot_state_publisher.
+
+The environment is not part of the robot: [`stairs.urdf.xacro`](./description/mujoco/terrains/stairs.urdf.xacro), rooted at `world` and driven by the same `stairs_params.yaml` as the MuJoCo stairs, is published by a second robot_state_publisher as `/environment/robot_description` (the "Environment" display in rviz). Pass `environmentDescription:=""` with a scene that has no stairs, e.g. `scene_flat.xml`.
 
 ```mermaid
 flowchart LR

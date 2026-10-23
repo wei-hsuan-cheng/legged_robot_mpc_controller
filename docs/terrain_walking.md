@@ -630,7 +630,10 @@ subject to the centroidal dynamics and the mode-dependent contact constraints ab
 
 ## Configuration and Test
 
-The default launch file provides the stair-climbing and terrain-walking files via [`g1.launch.py`](../launch/g1.launch.py#L51-L66) and its launch arguments [`g1.launch.py`](../launch/g1.launch.py#L91-L100). The current default controller file is `ros2_controllers_legacy.yaml`, where the centroidal controller receives these paths under `ocs2.gait`: [`ros2_controllers_legacy.yaml`](../config/g1/ros2_controllers_legacy.yaml#L564-L571).
+The default launch file provides the stair-climbing and terrain-walking files via [`g1.launch.py`](../launch/g1.launch.py#L68-L78) and its [launch arguments](../launch/g1.launch.py#L145-L146).
+The current default controller file is [`ros2_controllers.yaml`](../config/g1/ros2_controllers.yaml#L605-L606), where the centroidal controller receives these paths under `ocs2.gait`.
+Shared simulator and RViz staircase geometry now lives in [`description/mujoco/terrains/`](../description/mujoco/terrains/), with both xacros reading [`stairs_params.yaml`](../description/mujoco/terrains/stairs_params.yaml#L18).
+Robot models live separately under [`description/robots/g1/`](../description/robots/g1/), and scene composition is documented in the [MuJoCo guide](../description/mujoco/README.md).
 
 Start the centroidal controller, select terrain mode, and publish a forward walking command:
 

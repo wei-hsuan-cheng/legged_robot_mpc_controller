@@ -1,5 +1,14 @@
 # WB-ID MPC Walking Robustness Handoff
 
+## Description Layout (2026-10-23)
+
+Robot assets moved from `description/g1/` to `description/robots/g1/` (`urdf/`, `mujoco/`, `meshes/`).
+Shared MuJoCo scene entry points, the generator and reusable environment modules now live under `description/mujoco/`, grouped into `backgrounds/`, `terrains/`, `objects/`, `materials/` and `textures/`.
+The RViz staircase xacro and its shared parameters moved to `description/mujoco/terrains/`.
+Launch defaults, robot mesh URIs, scene includes and documentation links were updated; `mujocoModelFile:=scene.xml` and other scene basenames remain unchanged.
+Compiled numerical model arrays and simulation options match the pre-move baselines for all three scenes and all optional terrain/object modules; only resource paths changed.
+See [the layout guide](description/mujoco/README.md) and `tests/test_mujoco_scene_layout.py` for regression coverage.
+
 ## Tuning Benchmark and Current Gains (2026-10-23, uncommitted)
 
 - `docs/wb_id_tuning_benchmark.md` has the current state in its section 0, plus the instrumentation, the tools, how to run and read a case, every result, the measurement biases found, and the open items.
@@ -105,7 +114,7 @@ Artifacts remain in the container: each prefix has `.json`, `.csv`, `.log`, `.ya
 
 ### G1 model: `g1_29dof.xml` / `g1_29dof.urdf` are now rev_1_0 (replaced in place)
 
-- **Single model for everything:** `description/g1/mujoco/g1_29dof.xml` (all scenes include it) and `description/g1/urdf/g1_29dof.urdf` (the launch default `urdfFile`, read by the MPC, both estimators and robot_state_publisher). The temporary `*_correct` files are gone. `g1_29dof_real.xml` is the superseded old-mass variant and nothing includes it.
+- **Single model for everything:** `description/robots/g1/mujoco/g1_29dof.xml` (all scenes include it) and `description/robots/g1/urdf/g1_29dof.urdf` (the launch default `urdfFile`, read by the MPC, both estimators and robot_state_publisher). The temporary `*_correct` files are gone. `g1_29dof_real.xml` is the superseded old-mass variant and nothing includes it.
 - **Previously Unitree's deprecated `g1_29dof`** (`mode_machine` 2, 35.11 kg, hip roll 88 Nm). Now `g1_29dof_rev_1_0` (`mode_machine` 5, the current standard 29-DoF). Changes:
   - torso 6.78 vs 8.56 kg, 33.34 kg total, no waist_support_link;
   - waist joint offsets and shoulder/sensor offsets changed;

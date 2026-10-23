@@ -1,6 +1,6 @@
 <mujoco model="background_day">
 
-  <include file="terrain_materials.xml"/>
+  <include file="../materials/terrain_materials.xml"/>
   
   <statistic center="1.0 0.7 1.0" extent="0.8"/>
   
