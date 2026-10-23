@@ -90,7 +90,7 @@ ros2 launch legged_robot_mpc_controller g1.launch.py \
 The first launch of each controller generates and compiles its CppAD libraries (several minutes); later launches load them from the cache.
 
 
-### Useful launch args
+**Useful launch args:**
 
 ```bash
 baseCommandGui:=true | false
