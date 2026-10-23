@@ -937,7 +937,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         taskSpaceFootCost:
           activate: true
           weights:
-            [0.0, 0.0, 0.0, 1000.0, 1000.0, 0.0,
+            [0.0, 0.0, 0.0, 50.0, 50.0, 0.0,
              10.0, 10.0, 0.0, 1.0, 1.0, 0.005]
 
         # Cartesian pose/twist tracking costs
