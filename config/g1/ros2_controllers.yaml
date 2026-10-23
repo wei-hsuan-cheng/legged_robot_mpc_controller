@@ -927,7 +927,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
              0.05, 0.05, 0.05, 0.05,
              0.05, 0.05, 0.05, 0.05]
 
-        # Optional G1 flat-foot/task-space adaptations beyond the papers' state/input objective.
+        # Flat-foot/task-space adaptations beyond the papers' state/input objective.
         taskSpaceFootCostWeights:
           [0.0, 0.0, 0.0, 1000.0, 1000.0, 0.0,
            10.0, 10.0, 0.0, 1.0, 1.0, 0.005]
@@ -940,7 +940,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
               [0.0, 0.0, 0.0, 100.0, 100.0, 0.0, 
                0.1, 0.1, 0.005, 5.0, 5.0, 2.0]
 
-        # Additional active J_leg^T W load cost; separate from r.jointTorques.
+        # Active J_leg^T W load cost; separate from r.jointTorques.
         legTorqueCost:
           scaling: 0.001
           leftActiveJointNames:
