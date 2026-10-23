@@ -228,6 +228,12 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         weights: {type: double_array, default_value: [0.0, 0.0, 0.0, 1000.0, 1000.0, 0.0, 10.0,
               10.0, 0.0, 1.0, 1.0, 0.005], description: "Foot task-space kinematics weights [pos xyz, orientation
             xyz, lin vel xyz, ang vel xyz]", validation: {fixed_size<>: [12]}}
+      torsoTiltCost:
+        activate: {type: bool, default_value: false, description: "Register the soft gravity-relative torso tilt and angular-motion cost at configuration"}
+        linkName: {type: string, default_value: "torso_link", description: "Tracked torso frame whose local +Z points upright"}
+        freeTiltAngle: {type: double, default_value: 0.08726646259971647, description: "Unpenalized torso tilt corridor in radians; widen or disable for intentional bending", validation: {gt: [0.0], lt: [1.5707963267948966]}}
+        tiltWeight: {type: double, default_value: 10.0, description: "Weight on squared tilt beyond the free corridor; independent of qScaling and rScaling", validation: {gt_eq: [0.0]}}
+        angularVelocityWeight: {type: double, default_value: 5.0, description: "Isotropic weight on squared angular velocity perpendicular to gravity; spin about gravity is unpenalized", validation: {gt_eq: [0.0]}}
       taskSpaceCosts:
         names: {type: string_array, default_value: [], description: "Named additional task-space kinematics tracking
             costs", validation: {unique<>: null}}

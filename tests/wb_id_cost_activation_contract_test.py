@@ -36,13 +36,14 @@ class CostActivationContractTest(unittest.TestCase):
         self.assertNotIn("taskSpaceFootCostWeights", costs)
 
     def test_all_switch_combinations_are_valid_yaml_parameters(self):
-        for foot, torso, leg in product((False, True), repeat=3):
-            with self.subTest(foot=foot, torso=torso, leg=leg):
+        for foot, torso, leg, tilt in product((False, True), repeat=4):
+            with self.subTest(foot=foot, torso=torso, leg=leg, tilt=tilt):
                 params = deepcopy(PARAMS)
                 costs = params["ocs2"]["costs"]
                 costs["taskSpaceFootCost"]["activate"] = foot
                 costs["taskSpaceCosts"]["torso"]["activate"] = torso
                 costs["legTorqueCost"]["activate"] = leg
+                costs["torsoTiltCost"]["activate"] = tilt
                 check_keys(yaml.safe_load(yaml.safe_dump(params)), SCHEMA)
 
     def test_builder_maps_flags_and_only_parses_enabled_weights(self):
@@ -74,7 +75,7 @@ class CostActivationContractTest(unittest.TestCase):
 
     def test_disabling_extra_costs_keeps_main_costs_and_constraints(self):
         remaining = INTERFACE
-        for flag in ("activateTaskSpaceFootCost", "activateLegTorqueCost"):
+        for flag in ("activateTaskSpaceFootCost", "activateLegTorqueCost", "torsoTiltCost.activate"):
             remaining = remaining.replace(block(remaining, f"if (config_.{flag})"), "")
         for name in ("stateInputQuadraticCost", "baseMotionTrackingCost", "jointTrackingCost", "terminalCost",
                      "rneaBaseDynamics", "rneaJointTorques", "_stanceAcceleration", "_swingVerticalAcceleration",

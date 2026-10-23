@@ -934,17 +934,25 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
             [0.0, 0.0, 0.0, 1000.0, 1000.0, 0.0,
              10.0, 10.0, 0.0, 1.0, 1.0, 0.005]
 
+        # Cartesian pose/twist tracking costs
         taskSpaceCosts:
           names:
             [torso]
 
-          # Torso preference: suppress upper-body sway
           torso:
-            activate: true
+            activate: false
             linkName: mid360_link
             weights:
               [0.0, 0.0, 0.0, 100.0, 100.0, 0.0,
                0.1, 0.1, 0.005, 5.0, 5.0, 2.0]
+
+        # Torso soft stabilization, not a hard upright constraint or a CoM-position target.
+        torsoTiltCost:
+          activate: true
+          linkName: torso_link
+          freeTiltAngle: 0.08726646259971647  # 5 degrees; widen for bending tasks.
+          tiltWeight: 10.0
+          angularVelocityWeight: 5.0
 
         # Active J_leg^T W load cost; separate from r.jointTorques.
         legTorqueCost:

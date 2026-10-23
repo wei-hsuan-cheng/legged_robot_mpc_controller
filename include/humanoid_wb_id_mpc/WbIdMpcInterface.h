@@ -21,6 +21,7 @@
 #include "humanoid_common_mpc/reference_manager/SwitchedModelReferenceManager.h"
 #include "humanoid_common_mpc/swing_foot_planner/SwingTrajectoryPlanner.h"
 #include "humanoid_wb_id_mpc/common/WbIdMpcRobotModel.h"
+#include "humanoid_wb_id_mpc/cost/WbIdTorsoTiltCost.h"
 #include "humanoid_wb_id_mpc/constraint/WbIdFootAccelerationConstraintCppAd.h"
 #include "humanoid_wb_id_mpc/constraint/WbIdTorqueWindow.h"
 #include "humanoid_wb_id_mpc/initialization/WbIdInitializer.h"
@@ -82,6 +83,7 @@ class WbIdMpcInterface final : public RobotInterface {
     bool activateTaskSpaceFootCost = true;
     EndEffectorKinematicsWeights taskSpaceFootCostWeights;
     bool activateLegTorqueCost = true;
+    WbIdTorsoTiltCost::Config torsoTiltCost;
 
     //! Acceleration-level stance/swing foot constraint gains.
     WbIdFootAccelerationConstraintCppAd::Gains footAccelerationGains;

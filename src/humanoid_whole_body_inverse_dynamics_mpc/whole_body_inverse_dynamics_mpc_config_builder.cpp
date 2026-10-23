@@ -255,6 +255,12 @@ ocs2::humanoid::WbIdMpcInterface::Config buildWholeBodyInverseDynamicsMpcConfig(
   config.useTerrainHeightEstimate = p.model.useTerrainHeightEstimate;
   config.maxTerrainHeightStep = p.model.maxTerrainHeightStep;
 
+  config.torsoTiltCost.activate = p.costs.torsoTiltCost.activate;
+  config.torsoTiltCost.linkName = p.costs.torsoTiltCost.linkName;
+  config.torsoTiltCost.freeTiltAngle = p.costs.torsoTiltCost.freeTiltAngle;
+  config.torsoTiltCost.tiltWeight = p.costs.torsoTiltCost.tiltWeight;
+  config.torsoTiltCost.angularVelocityWeight = p.costs.torsoTiltCost.angularVelocityWeight;
+
   for (const auto& costName : p.costs.taskSpaceCosts.names) {
     if (costName.empty()) {
       continue;

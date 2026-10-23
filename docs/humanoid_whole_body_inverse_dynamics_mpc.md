@@ -243,7 +243,7 @@ $$
 $d_{\mathrm{plane}}$ is the implemented orientation-to-plane residual and $s_c$ is the swing planner's impact-proximity factor.
 Default foot position/velocity references are zero, with zero position weights in the current YAML; a planned foothold can replace the position reference and horizontal weights.
 Current foot weights mainly penalize tilt and horizontal velocity, while vertical swing tracking is an equality.
-Optional named task-space costs use position, quaternion-distance orientation and velocity residuals for configured links, currently the torso's `mid360_link`.
+Optional named task-space costs use position, quaternion-distance orientation and velocity residuals for configured links; the previous `mid360_link` torso tracker is retained but disabled in the current WB-ID YAML.
 Their references are obtained by forward kinematics of the desired state, rather than being independent hand-pose commands:
 
 $$
@@ -269,8 +269,41 @@ This shapes contact loads and differs from regularizing $\tau_j$, which also con
 `ocs2.costs.legTorqueCost.activate` controls both leg-load costs.
 All these activation flags default to `true` and are applied when the controller is configured, following the cost-registration pattern in `mpc_controllers`.
 Setting a flag to `false` skips constructing and registering that cost, including its generated cost models; reconfigure the controller or relaunch to apply the change.
-These extra costs are not algebraically identical to Q/R: task-space costs couple base and joint motion through kinematics, and the load cost acts on $`J_j^{\mathsf T}W`$ rather than the torque decision variable.
+These extra costs are not algebraically identical to Q/R: task-space costs couple base and joint motion through kinematics, and the load cost acts on $J_j^{\mathsf T}W$ rather than the torque decision variable.
 Their switches do not change Q/R, inverse-dynamics equalities or stance/swing contact constraints, so disabling foot costs alone does not remove the hard flat-foot assumptions.
+
+### 4.6 Gravity-relative torso stabilization
+
+The G1 configuration enables `ocs2.costs.torsoTiltCost` instead of the generic torso tracker.
+This is a running soft cost, not a hard upright constraint, a CoM-position objective or a reference trajectory for the torso.
+For the tracked frame `torso_link`, local $+z$ is its upright axis; the model's gravity defines world up:
+
+$$
+\hat u=-\frac{g^W}{\|g^W\|},\qquad n_T=R_{WT}e_z,\qquad
+\theta_T=\arccos(\hat u^{\mathsf T}n_T),\qquad
+\omega_\perp=(I-\hat u\hat u^{\mathsf T})\omega_T^W.
+$$
+
+The cost allows a free lean corridor and damps only angular motion perpendicular to gravity:
+
+$$
+\ell_T=\frac12w_\theta\left[\max(0,\theta_T-\theta_{\mathrm{free}})\right]^2
++\frac12w_\omega\|\omega_\perp\|^2.
+$$
+
+The initial G1 settings are $\theta_{\mathrm{free}}=5^\circ$, $w_\theta=10$ and $w_\omega=5$; these are starting values, not simulator-validated gains.
+The angular-velocity penalty remains active inside the free tilt corridor, while position and spin about gravity are unpenalized.
+The term reads no desired pose/twist and is invariant to world translation and a common rotation of the state about gravity.
+Its scalar isotropic weights and the corridor are independent of `qScaling` and `rScaling`, and all settings are applied at controller configuration.
+The schema defaults `activate` to `false` for opt-in compatibility, while the shipped G1 WB-ID YAML explicitly enables it and disables the generic torso tracker to avoid competing objectives.
+
+Intentional bending remains dynamically feasible, but beyond the free corridor it incurs a soft penalty; widen `freeTiltAngle`, reduce `tiltWeight`, or disable this cost for a picking task.
+`freeTiltAngle` is in radians and must be positive and below $\pi/2$; it is not a maximum permitted torso angle.
+The existing pelvis pitch/roll and waist-posture terms in Q/Qf also oppose bending and may need task-specific tuning.
+Contact feasibility and the full-body dynamics remain responsible for physical consistency; this torso term alone does not certify balance, and it does not add arm--torso collision protection.
+
+For numerical robustness, the cosine is clamped before `acos` to avoid its singular derivative at upright, and to $-1+10^{-9}$ near inversion.
+Consequently the implemented tilt penalty is capped only extremely close to $180^\circ$, where normal locomotion is already outside its operating range.
 
 
 ## 5. Constraints and Penalties
@@ -508,7 +541,7 @@ flowchart LR
 | Arm `joint` | Connected to running/terminal arm position costs |
 | Arm `default` | Clears external arm targets |
 | Arm `frame_relation` / `joint_frame_relation` | No WB-ID declared frame pairs or corresponding cost; nonempty frame-pair commands are rejected |
-| Named torso/link costs | Configured independently of the frame-relation command API |
+| Torso stabilization | Gravity-relative free-tilt corridor and transverse angular damping; generic torso tracker disabled |
 | Centroidal momentum / ICP / WBC inner QP | Not part of this formulation |
 | Full-horizon torque feasibility | Requires full-horizon torque equations; limits still remain soft |
 | General perception and contact discovery | Not supplied by the OCP |

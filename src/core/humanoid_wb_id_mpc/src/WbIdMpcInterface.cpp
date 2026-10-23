@@ -99,6 +99,11 @@ void WbIdMpcInterface::setupOptimalControlProblem() {
   problemPtr_->finalCostPtr->add("baseMotionTrackingTerminalCost", factory.getBaseMotionTrackingTerminalCost());
   problemPtr_->finalCostPtr->add("jointTrackingTerminalCost", factory.getJointTrackingTerminalCost());
 
+  if (config_.torsoTiltCost.activate) {
+    problemPtr_->costPtr->add("torsoTiltCost", std::make_unique<WbIdTorsoTiltCost>(
+        config_.torsoTiltCost, *pinocchioInterfacePtr_, *mpcRobotModelADPtr_, modelSettings_));
+  }
+
   const WbIdPinocchioMappingCppAd pinocchioMappingCppAd(mpcRobotModelPtr_->getGenCoordinatesDim(), mpcRobotModelPtr_->getInputDim());
   for (const TaskSpaceCostConfig& taskSpaceCost : config_.taskSpaceCosts) {
     if (!taskSpaceCost.activate) {
