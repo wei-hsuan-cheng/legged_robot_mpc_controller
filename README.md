@@ -95,6 +95,31 @@ ros2 launch legged_robot_mpc_controller g1.launch.py \
 
 The first launch of each controller generates and compiles its CppAD libraries (several minutes); later launches load them from the cache.
 
+Useful launch args:
+
+```bash
+baseCommandGui:=true | false
+spawnMpcController:=true | false         # false is only for environment smoke tests; the robot will not balance
+mpcControllerName:=humanoid_centroidal_mpc_controller | humanoid_whole_body_inverse_dynamics_mpc_controller
+use_mujoco_sim:=true | false             # false: plain ros2_control_node (fake hardware)
+use_fake_hardware:=false | true          # mock_components/GenericSystem when not using MuJoCo
+ros2ControlCommandInterface:=effort | effort_pd | position
+mujocoEffortCommandMode:=actuator | qfrc_applied
+initialPoseFile:=<...>/initial_pose.yaml # initial joint state (config/g1/initial_pose.yaml)
+rviz:=true | false
+mujoco_headless:=false | true
+mujoco_wait_to_start:=true | false       # paused start + /mujoco_ros2_control/start service
+mujoco_real_time_factor:=1.0             # double
+mujoco_publish_rate:=100.0               # double
+gt_enabled:=true | false                 # floating-base ground-truth odometry for visualization / ROS consumers
+gt_body_frame:=pelvis                    # MuJoCo body published as ground truth
+mpcFreq:=100                             # integer
+mrtFreq:=1000                            # integer
+libFolder:=auto_generated/g1             # CppAD codegen output (centroidal_mpc_g1/, wb_id_mpc_g1/ inside)
+mujocoModelFile:=scene.xml               # swap scene: boxes / stairs / slope in description/g1/mujoco
+stairClimbingFile:=stair_climbing.yaml
+terrainWalkingFile:terrain_walking.yaml
+```
 
 ### Scripted trajectory tests (figure-eight)
 
@@ -191,32 +216,6 @@ ros2 topic pub --once /humanoid/mpc_targets ocs2_msgs/msg/MpcTargets "{
 ```
 
 Both channels are soft costs balanced against the rest of the MPC; raise the command weights to track tighter. `frame_relation` is currently registered for the centroidal controller only.
-
-Useful launch args:
-
-```bash
-baseCommandGui:=true | false
-spawnMpcController:=true | false         # false is only for environment smoke tests; the robot will not balance
-mpcControllerName:=humanoid_centroidal_mpc_controller | humanoid_whole_body_inverse_dynamics_mpc_controller
-use_mujoco_sim:=true | false             # false: plain ros2_control_node (fake hardware)
-use_fake_hardware:=false | true          # mock_components/GenericSystem when not using MuJoCo
-ros2ControlCommandInterface:=effort | effort_pd | position
-mujocoEffortCommandMode:=actuator | qfrc_applied
-initialPoseFile:=<...>/initial_pose.yaml # initial joint state (config/g1/initial_pose.yaml)
-rviz:=true | false
-mujoco_headless:=false | true
-mujoco_wait_to_start:=true | false       # paused start + /mujoco_ros2_control/start service
-mujoco_real_time_factor:=1.0             # double
-mujoco_publish_rate:=100.0               # double
-gt_enabled:=true | false                 # floating-base ground-truth odometry for visualization / ROS consumers
-gt_body_frame:=pelvis                    # MuJoCo body published as ground truth
-mpcFreq:=100                             # integer
-mrtFreq:=1000                            # integer
-libFolder:=auto_generated/g1             # CppAD codegen output (centroidal_mpc_g1/, wb_id_mpc_g1/ inside)
-mujocoModelFile:=scene.xml               # swap scene: boxes / stairs / slope in description/g1/mujoco
-stairClimbingFile:=stair_climbing.yaml
-terrainWalkingFile:terrain_walking.yaml
-```
 
 
 ## Robot Description and Frames
