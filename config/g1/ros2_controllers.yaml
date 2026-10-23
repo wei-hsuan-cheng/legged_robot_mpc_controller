@@ -802,11 +802,9 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
 
       model:
         robotName: g1
-        phaseTransitionStanceTime: 0.0
-        useTerrainHeightEstimate: false
-        maxTerrainHeightStep: 0.002
         verboseCppAd: true
         recompileLibrariesCppAd: false
+
         fixedJointNames:
           - left_wrist_roll_joint
           - left_wrist_pitch_joint
@@ -814,14 +812,21 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           - right_wrist_roll_joint
           - right_wrist_pitch_joint
           - right_wrist_yaw_joint
-        contactNames6DoF: [foot_l_contact, foot_r_contact]
-        contactParentJointNames: [left_ankle_roll_joint, right_ankle_roll_joint]
+
         armJointNames:
           - left_shoulder_pitch_joint
           - right_shoulder_pitch_joint
           - left_elbow_joint
           - right_elbow_joint
 
+        contactNames6DoF: 
+          [foot_l_contact, foot_r_contact]
+        contactParentJointNames: 
+          [left_ankle_roll_joint, right_ankle_roll_joint]
+        phaseTransitionStanceTime: 0.0
+        useTerrainHeightEstimate: false
+        maxTerrainHeightStep: 0.002
+        
         footConstraint:
           positionErrorGain_z: 250.0
           orientationErrorGain: 1000.0
@@ -831,6 +836,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           linearAccelerationErrorGain_z: 1.0
           linearAccelerationErrorGain_xy: 1.0
           angularAccelerationErrorGain: 1.0
+
         torqueConstraintNodes: 3
 
       sqp:
