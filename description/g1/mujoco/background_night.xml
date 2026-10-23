@@ -7,7 +7,7 @@
   </default>
 
   <visual>
-    <headlight ambient="0.14 0.14 0.14" diffuse="0.25 0.25 0.25" specular="0.15 0.15 0.15" />
+    <headlight ambient="0.22 0.22 0.22" diffuse="0.28 0.28 0.28" specular="0.1 0.1 0.1" />
     <rgba haze="0 0 0 1" fog="0 0 0 1" />
     <quality shadowsize="4096" offsamples="8" />
     <global azimuth="-90" elevation="-10" offwidth="1920" offheight="1080" />
@@ -19,17 +19,17 @@
     <texture type="skybox" builtin="flat" rgb1="0 0 0" rgb2="0 0 0" width="32" height="32" />
     <texture type="2d" name="studio_floor" file="textures/studio_floor.png" />
     <material name="studio_floor" texture="studio_floor" texuniform="true" texrepeat="2 2" rgba="1 1 1 1" 
-      reflectance="0.08" specular="0.15" shininess="0.2" />
+              reflectance="0.08" specular="0.15" shininess="0.2" />
     <material name="studio_finish" specular="1" shininess="0.8" />
   </asset>
 
   <worldbody>
-    <light name="studio_light_0" mode="targetbodycom" target="pelvis" pos="-0.941 1.629 5.168" 
-      diffuse="0.65 0.65 0.65" specular="0.3 0.3 0.3" cutoff="60" exponent="6" directional="true" castshadow="true" />
-    <light name="studio_light_1" mode="targetbodycom" target="pelvis" pos="-0.848 -3.165 2.294" 
-      diffuse="0.35 0.35 0.35" specular="0.25 0.25 0.25" cutoff="60" exponent="6" directional="true" castshadow="false" />
-    <geom name="floor" size="0 0 0.05" type="plane" material="studio_floor" priority="1" 
-      friction="0.8 0.1 0.001" />
+    <light name="main_studio_light" mode="targetbodycom" target="pelvis" pos="-0.941 1.629 5.168" 
+           diffuse="0.45 0.45 0.45" specular="0.18 0.18 0.18" cutoff="60" exponent="6" directional="true" castshadow="true" />
+    <light name="fill_studio_light" mode="targetbodycom" target="pelvis" pos="-0.848 -3.165 2.294" 
+           diffuse="0.45 0.45 0.45" specular="0.12 0.12 0.12" cutoff="60" exponent="6" directional="true" castshadow="false" />
+    <geom name="floor" size="0 0 0.05" type="plane" material="studio_floor" 
+          priority="1" friction="0.8 0.1 0.001" />
   </worldbody>
 
 </mujoco>

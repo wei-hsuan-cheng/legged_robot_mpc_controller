@@ -88,9 +88,9 @@ class Style:
   # Robot finish, via the default geom class. None keeps the plain look.
   robot_specular: float = 1.0
   robot_shininess: float = 0.8
-  headlight_ambient: float = 0.14
-  headlight_diffuse: float = 0.25    # fill shadowed faces without a concentrated light pool
-  headlight_specular: float = 0.15
+  headlight_ambient: float = 0.22
+  headlight_diffuse: float = 0.28    # fill shadowed faces without a concentrated light pool
+  headlight_specular: float = 0.1
   lights: tuple = ()
   # Viewer start pose. mujoco_ros2_control looks at `center` from 2 * extent.
   azimuth: float = -90.0            # side view from the robot's left: terrain ahead (+x) sits beside it
@@ -101,10 +101,10 @@ class Style:
 
 STUDIO_LIGHTS = (
     # Parallel rays illuminate the whole terrain instead of a bright spotlight pool.
-    Light(bearing=30.0, elevation=70.0, distance=5.5, diffuse=0.65, specular=0.3,
+    Light(bearing=30.0, elevation=70.0, distance=5.5, diffuse=0.45, specular=0.18,
           castshadow=True, directional=True),
     # Broad non-shadowing fill reduces contrast on risers and the robot's far side.
-    Light(bearing=165.0, elevation=35.0, distance=4.0, diffuse=0.35, specular=0.25,
+    Light(bearing=165.0, elevation=35.0, distance=4.0, diffuse=0.45, specular=0.12,
           directional=True),
 )
 
