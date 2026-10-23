@@ -64,7 +64,7 @@
             type="box"
             size="${D / 2.0} ${W / 2.0} ${ztop / 2.0}"
             pos="${xc} 0 ${ztop / 2.0}"
-            rgba="${gray} ${gray} ${gray} 1"
+            material="studio_terrain" rgba="1 1 1 1"
             priority="1"
             friction="${friction[0]} ${friction[1]} ${friction[2]}"/>
 

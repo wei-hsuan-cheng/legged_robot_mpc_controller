@@ -1,0 +1,8 @@
+<mujoco model="terrain_materials">
+  <!-- Included once by the selected background; shared by every terrain/object module. -->
+  <asset>
+    <texture type="2d" name="studio_terrain" file="textures/studio_terrain.png"/>
+    <material name="studio_terrain" texture="studio_terrain" texuniform="true" texrepeat="2 2"
+              rgba="1 1 1 1" reflectance="0" specular="0.08" shininess="0.15"/>
+  </asset>
+</mujoco>

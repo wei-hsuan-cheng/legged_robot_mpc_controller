@@ -1,0 +1,14 @@
+<mujoco model="ramp">
+  <!-- 3 degree ramp: low edge at (x, z) = (1.5, 0), top at z = 0.209 near x = 5.49. -->
+  <worldbody>
+    <body name="ramp" pos="3.49831 0 0.084699">
+      <geom name="ramp_surface" type="box" size="2.0 1.0 0.02"
+            quat="0.9996573 0 -0.0261769 0" material="studio_terrain" rgba="1 1 1 1"
+            priority="1" friction="0.8 0.1 0.001"/>
+    </body>
+  </worldbody>
+  <contact>
+    <!-- Keep the original floor/ramp exclusion while allowing robot contact with both. -->
+    <exclude body1="world" body2="ramp"/>
+  </contact>
+</mujoco>
