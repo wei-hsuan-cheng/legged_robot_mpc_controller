@@ -38,7 +38,7 @@ The RViz staircase belongs to `description/urdf/terrains/`, and its format-neutr
 | `../urdf/terrains/stairs.urdf.xacro` | Matching RViz environment geometry using the same staircase parameters |
 | `terrains/ramp.xml` | Flush-entry 3-degree ramp and its floor contact exclusion |
 | `terrains/slope.xml` | Original separate 5-degree slope |
-| `terrains/terrain_10x10.xml` | Textured rough tiles with a clear 0.5 x 0.5 m center patch using the background floor |
+| `terrains/uneven_terrain_10x10.xml` | Textured rough tiles with a clear 0.5 x 0.5 m center patch using the background floor |
 | `objects/boxes.xml` | Movable boxes with their original masses and colour tints |
 | `objects/boxes_scattered_50.xml` | Alternative box layout with additional scattered cubes |
 
@@ -71,7 +71,7 @@ Switch day/night by changing the scene's background include; separate scene file
 
 From the package root, the generator can compose scenes and regenerate night appearance assets:
 
-Use `--terrain rough` to select `terrains/terrain_10x10.xml`, `--terrain scattered_boxes` for the alternative box layout, or `--terrain none` to use only the background floor.
+Use `--terrain rough` to select `terrains/uneven_terrain_10x10.xml`, `--terrain scattered_boxes` for the alternative box layout, or `--terrain none` to use only the background floor.
 
 ```bash
 python3 description/mujoco/mujoco_scene_creator.py

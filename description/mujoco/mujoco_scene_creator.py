@@ -42,7 +42,7 @@ TERRAIN_FILES = {
     "scattered_boxes": "objects/boxes_scattered_50.xml",
     "slope": "terrains/slope.xml",
     "ramp": "terrains/ramp.xml",
-    "rough": "terrains/terrain_10x10.xml",
+    "rough": "terrains/uneven_terrain_10x10.xml",
 }
 
 RGB = tuple  # (r, g, b) in [0, 1]
