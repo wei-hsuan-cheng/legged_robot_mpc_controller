@@ -70,7 +70,7 @@ ros2 launch legged_robot_mpc_controller g1.launch.py \
 cd <workspace_dir>
 ros2 launch legged_robot_mpc_controller g1.launch.py \
   mpcControllerName:=humanoid_whole_body_inverse_dynamics_mpc_controller \
-  mpcFreq:=80 \
+  mpcFreq:=90 \
   mrtFreq:=1000 \
   rviz:=true \
   mujoco_headless:=false \
