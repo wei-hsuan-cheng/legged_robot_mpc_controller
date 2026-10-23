@@ -30,7 +30,7 @@ humanoid_centroidal_mpc_controller:
       basePoseTopic: /humanoid/base_pose_command
       modeTopic: /humanoid/target_mode
       defaultMode: base_twist
-      globalFrame: world
+      globalFrame: odom
 
     robot:
       commandInterface: effort_pd
@@ -449,7 +449,7 @@ humanoid_centroidal_mpc_controller:
         defaultSwitchingTimes: [0.0, 0.5]
 
     visualization:
-      frameId: world
+      frameId: odom
       update_rate: 30.0
       trajectory:
         activate: true
@@ -482,10 +482,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
       basePoseTopic: /humanoid/base_pose_command
       modeTopic: /humanoid/target_mode
       defaultMode: base_twist
-      globalFrame: world
-      # [ax, ay (m/s^2), height rate (m/s), yaw acceleration (rad/s^2)]
-      velocityCommandRateLimits: 
-        [0.5, 0.5, 0.1, 0.75]
+      globalFrame: odom
 
     robot:
       commandInterface: effort_pd
@@ -775,6 +772,10 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         maxDisplacementVelocityY: 0.5
         maxDeltaPelvisHeight: 0.4
         maxRotationVelocity: 0.7854
+        # Slew limits on the scaled walking command, applied after the max* scaling
+        # above: [ax, ay (m/s^2), height rate (m/s), yaw acceleration (rad/s^2)].
+        velocityCommandRateLimits:
+          [0.5, 0.5, 0.1, 0.75]
         defaultBaseHeight: $(var refBaseHeight)
         basePosePositionTolerance: 0.02
         basePoseOrientationTolerance: 0.03
@@ -796,7 +797,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         defaultSwitchingTimes: [0.0, 0.5]
 
     visualization:
-      frameId: world
+      frameId: odom
       update_rate: 30.0
       trajectory:
         activate: true

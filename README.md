@@ -491,7 +491,7 @@ GUI full-scale commands now match the selected YAML limits: WB-ID vx 0.25 m/s, v
 | `ocs2.constraints.jointVelocityLimits.{scale,mu,delta}` | joint velocity limits as a fraction of the URDF ones (`scale <= 0`: off) |
 | `ocs2.costs.q/qFinal.{basePose,baseVelocity,jointPositions,jointVelocities}` | complete state cost; pose `[x,y,z,yaw,pitch,roll]`, velocity `[vx,vy,vz,yaw_rate,pitch_rate,roll_rate]` |
 | `ocs2.costs.r.{contactWrenches,baseAccelerations,jointAccelerations,jointTorques}` | complete input weights (times `ocs2.costs.rScaling`) |
-| `target.velocityCommandRateLimits` | physical command slew limits `[ax,ay,height_rate,yaw_acceleration]`; zero disables an axis |
+| `ocs2.reference.velocityCommandRateLimits` | physical command slew limits `[ax,ay,height_rate,yaw_acceleration]`; zero disables an axis |
 | `control.feedforward` | `policy_torque` (default) or `inverse_dynamics` |
 
 The base uses Translation + SphericalZYX coordinates: its angular velocity state entries are Euler rates, not a spatial angular-velocity vector. This cleanup does not change that representation to a quaternion/Lie-group model. Task-space and leg-load costs are active G1 adaptations beyond the papers' state/input objective. Contact inequalities remain soft barriers, unlike the papers' explicit inequalities; this is not an exact reproduction. The ICP cost, frame-relation tracking, WBC inner loop, and diagnostics CSV are not exposed by the WB-ID schema. Stair climbing and terrain walking are untested with it.

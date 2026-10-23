@@ -116,7 +116,8 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
 
     configure_stage = "building the target-trajectories calculator / reference manager";
     auto reference_config = common::buildReferenceConfig(parameters_);
-    reference_config.commandRateLimits = Eigen::Map<const ocs2::vector4_t>(parameters_.target.velocityCommandRateLimits.data());
+    reference_config.commandRateLimits =
+      Eigen::Map<const ocs2::vector4_t>(parameters_.ocs2.reference.velocityCommandRateLimits.data());
     if (parameters_.ocs2.gait.gaitLibraryFile.empty()) {
       throw std::invalid_argument("ocs2.gait.gaitLibraryFile is empty.");
     }

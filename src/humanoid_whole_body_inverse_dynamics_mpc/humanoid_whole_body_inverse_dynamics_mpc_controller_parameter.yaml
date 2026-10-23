@@ -19,9 +19,6 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
     globalFrame: {type: string, default_value: "world", description: "Global frame used by MPC base-pose targets"}
     mpcTargetsTopic: {type: string, default_value: "/humanoid/mpc_targets", description: "ocs2_msgs/MpcTargets command
         topic (command_type dispatch: joint arm targets; frame_relation is a future extension)"}
-    velocityCommandRateLimits: {type: double_array, default_value: [0.1, 0.08, 0.05, 0.1], description: "Physical
-        slew limits [ax, ay (m/s^2), height rate (m/s), yaw acceleration (rad/s^2)] for base_twist/terrain_walk;
-        zero disables an axis", validation: {fixed_size<>: [4], element_bounds<>: [0.0, 100.0]}}
   robot:
     jointNames: {type: string_array, default_value: [], description: "Actuated joint names controlled by WB inverse-dynamics
         MPC", validation: {unique<>: null}}
@@ -311,6 +308,10 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
       maxDeltaPelvisHeight: {type: double, default_value: 0.4, description: "Maximum commanded pelvis height change
           [m]"}
       maxRotationVelocity: {type: double, default_value: 1.0, description: "Maximum commanded yaw rate [rad/s]"}
+      velocityCommandRateLimits: {type: double_array, default_value: [0.1, 0.08, 0.05, 0.1], description: "Physical
+          slew limits [ax, ay (m/s^2), height rate (m/s), yaw acceleration (rad/s^2)] applied to the scaled walking
+          command (base_twist/terrain_walk), next to the maxDisplacementVelocity/maxRotationVelocity scaling;
+          zero disables an axis", validation: {fixed_size<>: [4], element_bounds<>: [0.0, 100.0]}}
       defaultBaseHeight: {type: double, default_value: 0.7925, description: "Default pelvis height above ground
           [m]"}
       basePosePositionTolerance: {type: double, default_value: 0.02, description: "Planar position error below which
