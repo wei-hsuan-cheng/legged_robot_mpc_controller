@@ -1,6 +1,6 @@
 # Legged Robot MPC Controller
 
-[ROS 2 controller](https://control.ros.org/rolling/index.html) integration for legged robot MPC using [OCS2](https://github.com/wei-hsuan-cheng/ocs2_ros2.git) and [Pinocchio](https://github.com/stack-of-tasks/pinocchio.git). Tested in [MuJoCo](https://mujoco.readthedocs.io/en/stable/overview.html) simulation environment. The codes are successfully tested in [`ros2 jazzy`](https://docs.ros.org/en/jazzy/index.html).
+[`ros2_control`](https://control.ros.org/rolling/index.html) implementation for legged robot MPC using [`ocs2_ros2`](https://github.com/wei-hsuan-cheng/ocs2_ros2.git) and [`pinocchio`](https://github.com/stack-of-tasks/pinocchio.git).  Tested in [`ros2 jazzy`](https://docs.ros.org/en/jazzy/index.html) and [`mujoco`](https://mujoco.readthedocs.io/en/stable/overview.html) simulation environment.
 
 
 ## Interactive Velocity and Base Height Control via GUI & Joystick
@@ -66,7 +66,7 @@ Two MPC controllers are available, selected with `mpcControllerName`. Both walk 
 
 | `mpcControllerName` | MPC | state / input |
 |---|---|---|
-| `humanoid_centroidal_mpc_controller` (default) | centroidal dynamics + full kinematics | `[h/m, q]` / `[W, qd_j]` |
+| `humanoid_centroidal_mpc_controller` (default) | centroidal dynamics + whole-body kinematics | `[h/m, q]` / `[W, qd_j]` |
 | `humanoid_whole_body_inverse_dynamics_mpc_controller` | whole-body inverse dynamics (see [below](#whole-body-inverse-dynamics-mpc)) | `[q, v]` / `[W, a, tau_j]` |
 
 **Launch the humanoid robot (centroidal MPC)**:
