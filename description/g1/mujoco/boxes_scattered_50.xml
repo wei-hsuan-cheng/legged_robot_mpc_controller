@@ -1,0 +1,214 @@
+<mujoco model="boxes_scattered_50">
+  <worldbody>
+    <body name="purple_box" pos="0.65 0.0 0.4">
+      <freejoint />
+      <geom type="box" size="0.1 0.2 0.4" material="studio_terrain" rgba="0.5 0.0 0.5 1.0" />
+      <inertial pos="0 0 0" mass="5.0" diaginertia="1.0 1.0 1.0" />
+    </body>
+    <body name="orange_box" pos="0.3 -0.25 0.08">
+      <freejoint />
+      <geom type="box" size="0.08 0.08 0.08" material="studio_terrain" rgba="1.0 0.5 0.0 1.0" />
+      <inertial pos="0 0 0" mass="3.0" diaginertia="0.5 0.5 0.5" />
+    </body>
+    <body name="small_cube_01" pos="-1.118 0.472 0.005">
+      <freejoint />
+      <geom name="cube_geom_01" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.95 0.20 0.20 1.00" />
+    </body>
+    <body name="small_cube_02" pos="-0.637 0.466 0.005">
+      <freejoint />
+      <geom name="cube_geom_02" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.20 0.65 0.95 1.00" />
+    </body>
+    <body name="small_cube_03" pos="-0.597 -0.479 0.005">
+      <freejoint />
+      <geom name="cube_geom_03" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.20 0.85 0.40 1.00" />
+    </body>
+    <body name="small_cube_04" pos="-0.423 -0.027 0.005">
+      <freejoint />
+      <geom name="cube_geom_04" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.96 0.80 0.20 1.00" />
+    </body>
+    <body name="small_cube_05" pos="0.841 -0.489 0.005">
+      <freejoint />
+      <geom name="cube_geom_05" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.75 0.30 0.95 1.00" />
+    </body>
+    <body name="small_cube_06" pos="-0.570 -0.270 0.005">
+      <freejoint />
+      <geom name="cube_geom_06" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.95 0.45 0.15 1.00" />
+    </body>
+    <body name="small_cube_07" pos="0.836 0.027 0.005">
+      <freejoint />
+      <geom name="cube_geom_07" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.15 0.83 0.83 1.00" />
+    </body>
+    <body name="small_cube_08" pos="-0.424 -0.298 0.005">
+      <freejoint />
+      <geom name="cube_geom_08" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.95 0.40 0.66 1.00" />
+    </body>
+    <body name="small_cube_09" pos="1.097 0.220 0.005">
+      <freejoint />
+      <geom name="cube_geom_09" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.60 0.90 0.20 1.00" />
+    </body>
+    <body name="small_cube_10" pos="-0.083 -0.238 0.005">
+      <freejoint />
+      <geom name="cube_geom_10" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.45 0.50 0.95 1.00" />
+    </body>
+    <body name="small_cube_11" pos="-0.328 -0.550 0.005">
+      <freejoint />
+      <geom name="cube_geom_11" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.97 0.65 0.75 1.00" />
+    </body>
+    <body name="small_cube_12" pos="-0.675 -0.032 0.005">
+      <freejoint />
+      <geom name="cube_geom_12" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.55 0.30 0.17 1.00" />
+    </body>
+    <body name="small_cube_13" pos="-1.066 0.267 0.005">
+      <freejoint />
+      <geom name="cube_geom_13" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.95 0.20 0.20 1.00" />
+    </body>
+    <body name="small_cube_14" pos="-0.902 -0.533 0.005">
+      <freejoint />
+      <geom name="cube_geom_14" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.20 0.65 0.95 1.00" />
+    </body>
+    <body name="small_cube_15" pos="-0.109 -0.016 0.005">
+      <freejoint />
+      <geom name="cube_geom_15" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.20 0.85 0.40 1.00" />
+    </body>
+    <body name="small_cube_16" pos="0.162 -0.222 0.005">
+      <freejoint />
+      <geom name="cube_geom_16" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.96 0.80 0.20 1.00" />
+    </body>
+    <body name="small_cube_17" pos="0.644 0.237 0.005">
+      <freejoint />
+      <geom name="cube_geom_17" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.75 0.30 0.95 1.00" />
+    </body>
+    <body name="small_cube_18" pos="0.090 0.303 0.005">
+      <freejoint />
+      <geom name="cube_geom_18" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.95 0.45 0.15 1.00" />
+    </body>
+    <body name="small_cube_19" pos="0.109 -0.035 0.005">
+      <freejoint />
+      <geom name="cube_geom_19" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.15 0.83 0.83 1.00" />
+    </body>
+    <body name="small_cube_20" pos="0.078 0.515 0.005">
+      <freejoint />
+      <geom name="cube_geom_20" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.95 0.40 0.66 1.00" />
+    </body>
+    <body name="small_cube_21" pos="0.091 -0.499 0.005">
+      <freejoint />
+      <geom name="cube_geom_21" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.60 0.90 0.20 1.00" />
+    </body>
+    <body name="small_cube_22" pos="-0.408 0.194 0.005">
+      <freejoint />
+      <geom name="cube_geom_22" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.45 0.50 0.95 1.00" />
+    </body>
+    <body name="small_cube_23" pos="-0.134 -0.556 0.005">
+      <freejoint />
+      <geom name="cube_geom_23" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.97 0.65 0.75 1.00" />
+    </body>
+    <body name="small_cube_24" pos="-0.868 0.272 0.005">
+      <freejoint />
+      <geom name="cube_geom_24" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.55 0.30 0.17 1.00" />
+    </body>
+    <body name="small_cube_25" pos="1.168 -0.241 0.005">
+      <freejoint />
+      <geom name="cube_geom_25" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.95 0.20 0.20 1.00" />
+    </body>
+    <body name="small_cube_26" pos="-0.174 0.446 0.005">
+      <freejoint />
+      <geom name="cube_geom_26" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.20 0.65 0.95 1.00" />
+    </body>
+    <body name="small_cube_27" pos="0.420 0.228 0.005">
+      <freejoint />
+      <geom name="cube_geom_27" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.20 0.85 0.40 1.00" />
+    </body>
+    <body name="small_cube_28" pos="0.347 0.052 0.005">
+      <freejoint />
+      <geom name="cube_geom_28" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.96 0.80 0.20 1.00" />
+    </body>
+    <body name="small_cube_29" pos="1.162 -0.559 0.005">
+      <freejoint />
+      <geom name="cube_geom_29" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.75 0.30 0.95 1.00" />
+    </body>
+    <body name="small_cube_30" pos="-1.100 -0.055 0.005">
+      <freejoint />
+      <geom name="cube_geom_30" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.95 0.45 0.15 1.00" />
+    </body>
+    <body name="small_cube_31" pos="0.925 0.245 0.005">
+      <freejoint />
+      <geom name="cube_geom_31" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.15 0.83 0.83 1.00" />
+    </body>
+    <body name="small_cube_32" pos="0.318 -0.536 0.005">
+      <freejoint />
+      <geom name="cube_geom_32" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.95 0.40 0.66 1.00" />
+    </body>
+    <body name="small_cube_33" pos="-0.894 -0.291 0.005">
+      <freejoint />
+      <geom name="cube_geom_33" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.60 0.90 0.20 1.00" />
+    </body>
+    <body name="small_cube_34" pos="-0.584 0.283 0.005">
+      <freejoint />
+      <geom name="cube_geom_34" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.45 0.50 0.95 1.00" />
+    </body>
+    <body name="small_cube_35" pos="0.379 -0.193 0.005">
+      <freejoint />
+      <geom name="cube_geom_35" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.97 0.65 0.75 1.00" />
+    </body>
+    <body name="small_cube_36" pos="1.182 0.543 0.005">
+      <freejoint />
+      <geom name="cube_geom_36" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.55 0.30 0.17 1.00" />
+    </body>
+    <body name="small_cube_37" pos="1.085 -0.014 0.005">
+      <freejoint />
+      <geom name="cube_geom_37" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.95 0.20 0.20 1.00" />
+    </body>
+    <body name="small_cube_38" pos="-1.088 -0.226 0.005">
+      <freejoint />
+      <geom name="cube_geom_38" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.20 0.65 0.95 1.00" />
+    </body>
+    <body name="small_cube_39" pos="0.643 0.013 0.005">
+      <freejoint />
+      <geom name="cube_geom_39" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.20 0.85 0.40 1.00" />
+    </body>
+    <body name="small_cube_40" pos="0.915 -0.236 0.005">
+      <freejoint />
+      <geom name="cube_geom_40" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.96 0.80 0.20 1.00" />
+    </body>
+    <body name="small_cube_41" pos="0.573 0.486 0.005">
+      <freejoint />
+      <geom name="cube_geom_41" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.75 0.30 0.95 1.00" />
+    </body>
+    <body name="small_cube_42" pos="-0.908 -0.025 0.005">
+      <freejoint />
+      <geom name="cube_geom_42" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.95 0.45 0.15 1.00" />
+    </body>
+    <body name="small_cube_43" pos="-0.865 0.548 0.005">
+      <freejoint />
+      <geom name="cube_geom_43" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.15 0.83 0.83 1.00" />
+    </body>
+    <body name="small_cube_44" pos="0.610 -0.244 0.005">
+      <freejoint />
+      <geom name="cube_geom_44" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.95 0.40 0.66 1.00" />
+    </body>
+    <body name="small_cube_45" pos="-0.147 0.222 0.005">
+      <freejoint />
+      <geom name="cube_geom_45" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.60 0.90 0.20 1.00" />
+    </body>
+    <body name="small_cube_46" pos="0.935 0.503 0.005">
+      <freejoint />
+      <geom name="cube_geom_46" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.45 0.50 0.95 1.00" />
+    </body>
+    <body name="small_cube_47" pos="0.643 -0.495 0.005">
+      <freejoint />
+      <geom name="cube_geom_47" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.97 0.65 0.75 1.00" />
+    </body>
+    <body name="small_cube_48" pos="0.410 0.491 0.005">
+      <freejoint />
+      <geom name="cube_geom_48" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.55 0.30 0.17 1.00" />
+    </body>
+    <body name="small_cube_49" pos="-0.315 0.501 0.005">
+      <freejoint />
+      <geom name="cube_geom_49" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.95 0.20 0.20 1.00" />
+    </body>
+    <body name="small_cube_50" pos="-1.108 -0.557 0.005">
+      <freejoint />
+      <geom name="cube_geom_50" type="box" size="0.005 0.005 0.005" mass="0.002" rgba="0.20 0.65 0.95 1.00" />
+    </body>
+  </worldbody>
+</mujoco>
