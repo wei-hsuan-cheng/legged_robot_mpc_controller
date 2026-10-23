@@ -10,17 +10,22 @@
 #include <thread>
 #include <vector>
 
+#include <std_msgs/msg/float64_multi_array.hpp>
+#include <std_msgs/msg/string.hpp>
 #include <std_srvs/srv/trigger.hpp>
 
 #include <controller_interface/chainable_controller_interface.hpp>
 #include <hardware_interface/loaned_command_interface.hpp>
 #include <hardware_interface/loaned_state_interface.hpp>
 #include <realtime_tools/realtime_buffer.h>
+#include <realtime_tools/realtime_publisher.hpp>
 #include <ocs2_core/Types.h>
 #include <ocs2_core/reference/TargetTrajectories.h>
 #include <ocs2_mpc/MPC_BASE.h>
 #include <ocs2_mpc/MPC_MRT_Interface.h>
 #include <ocs2_mpc/SystemObservation.h>
+#include <ocs2_oc/oc_data/PrimalSolution.h>
+#include <ocs2_oc/oc_problem/OptimalControlProblem.h>
 #include <ocs2_pinocchio_interface/PinocchioInterface.h>
 #include <ocs2_sqp/SqpMpc.h>
 #include <rclcpp/rclcpp.hpp>
@@ -153,6 +158,36 @@ private:
   vector_t joint_kd_;
   //! Command-interface indices of <joint>/kp, <joint>/kd, interleaved per MPC joint.
   std::vector<std::size_t> gain_command_index_;
+
+  //! Tracking debug (diagnostics.trackingRate): one row per published tick of the MPC
+  //! policy at the current time, the command written and the measured / estimated state.
+  void configure_tracking();
+  void publish_tracking(const ocs2::SystemObservation& observation, const JointActionCommand& command);
+  std::vector<std::string> tracking_names_;
+  std_msgs::msg::Float64MultiArray tracking_row_;
+  rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr tracking_publisher_raw_;
+  std::unique_ptr<realtime_tools::RealtimePublisher<std_msgs::msg::Float64MultiArray>> tracking_publisher_;
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr tracking_names_publisher_;
+  std::size_t tracking_decimation_{0};
+  std::size_t tracking_tick_{0};
+  std::vector<std::size_t> tracking_foot_frames_;
+  //! Solver metrics (same switch): one row per solve on ~/solver, from the solver thread.
+  void publish_solver_metrics(double advance_ms);
+  std::unique_ptr<ocs2::OptimalControlProblem> solver_diag_problem_;  //!< private copy: never races the solver
+  rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr solver_publisher_;
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr solver_names_publisher_;
+  std::vector<std::pair<std::string, std::size_t>> solver_eq_terms_;
+  std::vector<std::string> solver_cost_terms_;
+  std::vector<std::string> solver_state_cost_terms_;
+  std::vector<std::string> solver_soft_terms_;
+  std::vector<std::string> solver_state_soft_terms_;
+  ocs2::PrimalSolution solver_primal_;
+  std_msgs::msg::Float64MultiArray solver_row_;
+  //! The policy compute_mpc_joint_action evaluated this tick, if any.
+  bool tracking_policy_valid_{false};
+  vector_t tracking_policy_state_;
+  vector_t tracking_policy_input_;
+  std::size_t tracking_policy_mode_{0};
   //! Ticks whose policy time fell past the torque window (see compute_mpc_joint_action).
   //! Atomic: counted on the control thread, reported by the solver thread.
   std::atomic<uint64_t> torque_window_overruns_{0};

@@ -1,5 +1,21 @@
 # WB-ID MPC Walking Robustness Handoff
 
+## Tuning Benchmark and Current Gains (2026-10-23, uncommitted)
+
+- `docs/wb_id_tuning_benchmark.md` has the current state in its section 0, plus the instrumentation, the tools, how to run and read a case, every result, the measurement biases found, and the open items.
+- **Instrumentation:** `diagnostics.trackingRate > 0` publishes `~/tracking` (plan / command / measurement per tick) and `~/solver` (per-solve metrics, constraint violation including over the first 3 nodes, and cost terms).
+- **Tools and results:** the tools are in `tests/tuning/` (recording via `ros2 bag`, not Python subscribers); results go to `tuning_results/<tag>/` (git-ignored).
+- **Shipped WB-ID values:**
+  - `jointEffortPd` kp 200 / kd 20;
+  - `q/qFinal.baseVelocity` vz 10 and pitch/roll rate 30;
+  - arm `q.jointVelocities` 0.06;
+  - `sqp.useFeedbackPolicy: false`;
+  - `sqpIteration` stays 1.
+- **`mujoco_ros2_control` (jazzy, uncommitted): `controller_time_from_sim` (default true).** The controller manager's clock is set from MuJoCo time every update, with its `/clock` remapped away. Before, controllers saw time in 10 ms steps, the default `mujoco_publish_rate`.
+- **Net, same 0.5 m/s walk:** bounce 14.4 → 11.5 mm; tracking error legs 0.39 → 0.13°, arms 0.11 → 0.02°; leg / arm torque jitter 5.9 → 4.2 / 1.7 → 0.9 Nm; MPC 78 → 97 Hz.
+- **Knee kd 10** has since halved the touchdown spikes. Robustness passed: lateral, turning, stop cycles, 0.25 and 0.75 m/s, with no falls.
+- **Resume:** from `docs/wb_id_tuning_benchmark.md` → "Resume here". Round 7 (`walk` gait timing) was in progress at handoff.
+
 ## Servo Gains: Controller-Written Per Joint for WB-ID (2026-10-23, implemented, needs build)
 
 This supersedes the launch-argument proposal that was here. Launch has no gain arguments any more; gains are set in YAML or Xacro only.

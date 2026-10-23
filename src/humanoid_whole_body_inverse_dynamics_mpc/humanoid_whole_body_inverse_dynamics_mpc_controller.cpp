@@ -17,6 +17,8 @@
 #include <hardware_interface/types/hardware_interface_type_values.hpp>
 #include <ocs2_robotic_tools/common/RotationDerivativesTransforms.h>
 #include <ocs2_robotic_tools/common/RotationTransforms.h>
+#include <pinocchio/algorithm/frames.hpp>
+#include <pinocchio/algorithm/kinematics.hpp>
 #include <pluginlib/class_list_macros.hpp>
 
 #include <humanoid_common_mpc/gait/MotionPhaseDefinition.h>
@@ -186,6 +188,9 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
       mpc_interface_->getPinocchioInterface(),
       mpc_interface_->getMpcRobotModel(),
       visualization::makePerformanceVisualizationSettings(parameters_));
+
+    configure_stage = "setting up the tracking debug topic";
+    configure_tracking();
 
     configure_stage = "connecting to the estimator controller";
     if (uses_state_estimator(parameters_.floatingBase.source) && !has_estimator()) {
@@ -535,6 +540,11 @@ controller_interface::return_type HumanoidWholeBodyInverseDynamicsMpcController:
 
   write_joint_action_command(command.policy_position, command.policy_velocity, command.feedforward);
   write_estimator_references(time.seconds());
+  if (tracking_publisher_ && ++tracking_tick_ >= tracking_decimation_) {
+    tracking_tick_ = 0;
+    publish_tracking(observation, command);
+  }
+  tracking_policy_valid_ = false;
 
   if (performance_visualization_ && active_policy_ready_ &&
       (last_visualization_time_ < 0.0 || observation.time - last_visualization_time_ >= 0.1)) {
@@ -1171,6 +1181,9 @@ void HumanoidWholeBodyInverseDynamicsMpcController::solver_worker()
       ++advance_samples;
       max_advance_ms = std::max(max_advance_ms, advance_ms);
       publish_mode_schedule();
+      if (solver_publisher_) {
+        publish_solver_metrics(advance_ms);
+      }
       // Between iterations, so the solver is idle and this read does not race.
       const auto& performance = mpc_solver_->getSolverPtr()->getPerformanceIndeces();
       max_equality_sse = std::max(max_equality_sse, performance.equalityConstraintsSSE);
@@ -1269,6 +1282,12 @@ HumanoidWholeBodyInverseDynamicsMpcController::compute_mpc_joint_action(const oc
   size_t policy_mode = ocs2::humanoid::STANCE;
   const double policy_time = observation.time + parameters_.control.policyTimeOffset;
   mrt_interface_->evaluatePolicy(policy_time, observation.state, policy_state, policy_input, policy_mode);
+  if (tracking_publisher_) {
+    tracking_policy_valid_ = true;
+    tracking_policy_state_ = policy_state;
+    tracking_policy_input_ = policy_input;
+    tracking_policy_mode_ = policy_mode;
+  }
 
   // Joint servo targets: the planned joint positions and velocities.
   command.policy_position = control_model_->getJointAngles(policy_state);
@@ -1311,6 +1330,266 @@ HumanoidWholeBodyInverseDynamicsMpcController::compute_mpc_joint_action(const oc
   }
   clamp_torque(command.feedforward);
   return command;
+}
+
+void HumanoidWholeBodyInverseDynamicsMpcController::configure_tracking()
+{
+  tracking_publisher_.reset();
+  tracking_publisher_raw_.reset();
+  tracking_names_publisher_.reset();
+  solver_publisher_.reset();
+  solver_names_publisher_.reset();
+  solver_diag_problem_.reset();
+  if (parameters_.diagnostics.trackingRate <= 0.0) {
+    return;
+  }
+  const double control_rate = get_update_rate() > 0 ? static_cast<double>(get_update_rate()) : 1000.0;
+  tracking_decimation_ = std::max<std::size_t>(1, static_cast<std::size_t>(std::lround(control_rate / parameters_.diagnostics.trackingRate)));
+  tracking_tick_ = 0;
+
+  const auto& model = control_pinocchio_->getModel();
+  tracking_foot_frames_.clear();
+  for (const auto& frame : parameters_.ocs2.model.contactNames6DoF) {
+    if (!model.existFrame(frame)) {
+      throw std::invalid_argument("tracking debug: contact frame " + frame + " is not in the model");
+    }
+    tracking_foot_frames_.push_back(model.getFrameId(frame));
+  }
+
+  tracking_names_ = {"t", "phase", "policy_valid", "plan_mode", "policy_t0"};
+  for (const char* group : {"cmd_q", "cmd_qd", "cmd_tau", "plan_q", "plan_v", "plan_tau", "meas_q", "meas_v", "meas_tau"}) {
+    for (const auto& joint : parameters_.robot.jointNames) {
+      tracking_names_.push_back(std::string(group) + "/" + joint);
+    }
+  }
+  // Base: [x y z yaw pitch roll] and [vx vy vz yaw_rate pitch_rate roll_rate] (world, Euler rates), as in the state.
+  for (const char* group : {"plan_base", "obs_base"}) {
+    for (const char* axis : {"x", "y", "z", "yaw", "pitch", "roll", "vx", "vy", "vz", "dyaw", "dpitch", "droll"}) {
+      tracking_names_.push_back(std::string(group) + "/" + axis);
+    }
+  }
+  // Feet: contact-frame position and linear velocity in world axes.
+  for (const char* group : {"plan_foot", "obs_foot"}) {
+    for (const auto& frame : parameters_.ocs2.model.contactNames6DoF) {
+      for (const char* axis : {"x", "y", "z", "vx", "vy", "vz"}) {
+        tracking_names_.push_back(std::string(group) + "/" + frame + "/" + axis);
+      }
+    }
+  }
+  for (const auto& frame : parameters_.ocs2.model.contactNames6DoF) {
+    for (const char* axis : {"fx", "fy", "fz", "mx", "my", "mz"}) {
+      tracking_names_.push_back("plan_wrench/" + frame + "/" + axis);
+    }
+  }
+  tracking_row_.data.assign(tracking_names_.size(), std::numeric_limits<double>::quiet_NaN());
+
+  tracking_publisher_raw_ = get_node()->create_publisher<std_msgs::msg::Float64MultiArray>("~/tracking", rclcpp::SensorDataQoS());
+  tracking_publisher_ = std::make_unique<realtime_tools::RealtimePublisher<std_msgs::msg::Float64MultiArray>>(tracking_publisher_raw_);
+  tracking_names_publisher_ =
+    get_node()->create_publisher<std_msgs::msg::String>("~/tracking_names", rclcpp::QoS(1).transient_local().reliable());
+  std_msgs::msg::String names;
+  for (std::size_t i = 0; i < tracking_names_.size(); ++i) {
+    names.data += (i ? "," : "") + tracking_names_[i];
+  }
+  tracking_names_publisher_->publish(names);
+  RCLCPP_INFO(get_node()->get_logger(), "%s tracking debug: %zu columns on ~/tracking every %zu ticks", kTag,
+              tracking_names_.size(), tracking_decimation_);
+
+  // Solver metrics, published by the solver thread after each solve.
+  const auto& problem = mpc_interface_->getOptimalControlProblem();
+  solver_diag_problem_ = std::make_unique<ocs2::OptimalControlProblem>(problem);
+  const auto sorted_names = [](const auto& map) {
+    std::vector<std::pair<std::string, std::size_t>> v(map.begin(), map.end());
+    std::sort(v.begin(), v.end(), [](const auto& a, const auto& b) { return a.second < b.second; });
+    return v;
+  };
+  solver_eq_terms_ = sorted_names(problem.equalityConstraintPtr->getTermNameMap());
+  const auto names_of = [&](const auto& map) {
+    std::vector<std::string> out;
+    for (const auto& [name, index] : sorted_names(map)) {
+      out.push_back(name);
+    }
+    return out;
+  };
+  solver_cost_terms_ = names_of(problem.costPtr->getTermNameMap());
+  solver_state_cost_terms_ = names_of(problem.stateCostPtr->getTermNameMap());
+  solver_soft_terms_ = names_of(problem.softConstraintPtr->getTermNameMap());
+  solver_state_soft_terms_ = names_of(problem.stateSoftConstraintPtr->getTermNameMap());
+  std::vector<std::string> solver_names = {"t", "advance_ms", "merit", "cost", "dyn_sse", "eq_sse", "ineq_sse",
+                                           "eq_lagrangian", "ineq_lagrangian", "dual_sse"};
+  for (const auto& [name, index] : solver_eq_terms_) {
+    solver_names.push_back("eq_sse/" + name);
+  }
+  // The same over the first nodes only: those drive the command, the rest is the tail of the plan.
+  solver_names.push_back("eq_sse_near");
+  for (const auto& [name, index] : solver_eq_terms_) {
+    solver_names.push_back("eq_sse_near/" + name);
+  }
+  for (const auto& name : solver_cost_terms_) solver_names.push_back("cost/" + name);
+  for (const auto& name : solver_state_cost_terms_) solver_names.push_back("state_cost/" + name);
+  for (const auto& name : solver_soft_terms_) solver_names.push_back("soft/" + name);
+  for (const auto& name : solver_state_soft_terms_) solver_names.push_back("state_soft/" + name);
+  solver_row_.data.assign(solver_names.size(), std::numeric_limits<double>::quiet_NaN());
+  solver_publisher_ = get_node()->create_publisher<std_msgs::msg::Float64MultiArray>("~/solver", rclcpp::QoS(200));
+  solver_names_publisher_ =
+    get_node()->create_publisher<std_msgs::msg::String>("~/solver_names", rclcpp::QoS(1).transient_local().reliable());
+  std_msgs::msg::String solver_header;
+  for (std::size_t i = 0; i < solver_names.size(); ++i) {
+    solver_header.data += (i ? "," : "") + solver_names[i];
+  }
+  solver_names_publisher_->publish(solver_header);
+}
+
+void HumanoidWholeBodyInverseDynamicsMpcController::publish_solver_metrics(double advance_ms)
+{
+  auto* solver = mpc_solver_->getSolverPtr();
+  const auto& performance = solver->getPerformanceIndeces();
+  const auto& metrics = solver->getSolutionMetrics();
+  auto& row = solver_row_.data;
+  std::fill(row.begin(), row.end(), std::numeric_limits<double>::quiet_NaN());
+  std::size_t k = 0;
+  const auto put = [&](double value) { row[k++] = value; };
+  solver->getPrimalSolution(solver->getFinalTime(), &solver_primal_);
+  put(solver_primal_.timeTrajectory_.empty() ? std::numeric_limits<double>::quiet_NaN() : solver_primal_.timeTrajectory_.front());
+  put(advance_ms);
+  put(performance.merit);
+  put(performance.cost);
+  put(performance.dynamicsViolationSSE);
+  put(performance.equalityConstraintsSSE);
+  put(performance.inequalityConstraintsSSE);
+  put(performance.equalityLagrangian);
+  put(performance.inequalityLagrangian);
+  put(performance.dualFeasibilitiesSSE);
+  for (const auto& [name, index] : solver_eq_terms_) {
+    double sse = 0.0;
+    for (const auto& node : metrics.intermediates) {
+      if (index < node.stateInputEqConstraint.size()) {
+        sse += node.stateInputEqConstraint[index].squaredNorm();
+      }
+    }
+    put(sse);
+  }
+  constexpr std::size_t kNearNodes = 3;
+  const std::size_t near_nodes = std::min(kNearNodes, metrics.intermediates.size());
+  const std::size_t near_total = k;
+  put(0.0);
+  for (const auto& [name, index] : solver_eq_terms_) {
+    double sse = 0.0;
+    for (std::size_t n = 0; n < near_nodes; ++n) {
+      const auto& node = metrics.intermediates[n];
+      if (index < node.stateInputEqConstraint.size()) {
+        sse += node.stateInputEqConstraint[index].squaredNorm();
+      }
+    }
+    row[near_total] += sse;
+    put(sse);
+  }
+  // Cost terms at the first node of the new solution, on the private problem copy. A diagnostic
+  // must never take the solver thread down, so evaluation errors leave the columns NaN.
+  try {
+    if (!solver_primal_.timeTrajectory_.empty() && !solver_primal_.inputTrajectory_.empty()) {
+      const double t = solver_primal_.timeTrajectory_.front();
+      const auto& x = solver_primal_.stateTrajectory_.front();
+      const auto& u = solver_primal_.inputTrajectory_.front();
+      const auto& targets = solver->getReferenceManager().getTargetTrajectories();
+      auto& problem = *solver_diag_problem_;
+      problem.preComputationPtr->request(ocs2::Request::Cost + ocs2::Request::SoftConstraint, t, x, u);
+      for (const auto& name : solver_cost_terms_) {
+        put(problem.costPtr->get<ocs2::StateInputCost>(name).getValue(t, x, u, targets, *problem.preComputationPtr));
+      }
+      for (const auto& name : solver_state_cost_terms_) {
+        put(problem.stateCostPtr->get<ocs2::StateCost>(name).getValue(t, x, targets, *problem.preComputationPtr));
+      }
+      for (const auto& name : solver_soft_terms_) {
+        put(problem.softConstraintPtr->get<ocs2::StateInputCost>(name).getValue(t, x, u, targets, *problem.preComputationPtr));
+      }
+      for (const auto& name : solver_state_soft_terms_) {
+        put(problem.stateSoftConstraintPtr->get<ocs2::StateCost>(name).getValue(t, x, targets, *problem.preComputationPtr));
+      }
+    }
+  } catch (const std::exception&) {
+  }
+  solver_publisher_->publish(solver_row_);
+}
+
+void HumanoidWholeBodyInverseDynamicsMpcController::publish_tracking(
+  const ocs2::SystemObservation& observation, const JointActionCommand& command)
+{
+  auto& row = tracking_row_.data;
+  std::fill(row.begin(), row.end(), std::numeric_limits<double>::quiet_NaN());
+  const auto nj = static_cast<Eigen::Index>(parameters_.robot.jointNames.size());
+  std::size_t k = 0;
+  const auto put = [&](double value) { row[k++] = value; };
+  const auto put_vec = [&](const vector_t& v, Eigen::Index n) {
+    for (Eigen::Index i = 0; i < n; ++i) {
+      put(i < v.size() ? v[i] : std::numeric_limits<double>::quiet_NaN());
+    }
+  };
+  const auto skip = [&](std::size_t n) { k += n; };
+  const bool plan = tracking_policy_valid_ && tracking_policy_state_.size() > 0;
+
+  put(observation.time);
+  put(static_cast<double>(static_cast<int>(bring_up_phase_.load())));
+  put(plan ? 1.0 : 0.0);
+  put(plan ? static_cast<double>(tracking_policy_mode_) : std::numeric_limits<double>::quiet_NaN());
+  put(active_policy_ready_ ? mrt_interface_->getPolicy().timeTrajectory_.front() : std::numeric_limits<double>::quiet_NaN());
+
+  put_vec(command.policy_position, nj);
+  put_vec(command.policy_velocity, nj);
+  put_vec(command.feedforward, nj);
+  if (plan) {
+    put_vec(control_model_->getJointAngles(tracking_policy_state_), nj);
+    put_vec(control_model_->getJointVelocities(tracking_policy_state_, tracking_policy_input_), nj);
+    put_vec(control_model_->getJointTorques(tracking_policy_input_), nj);
+  } else {
+    skip(3 * static_cast<std::size_t>(nj));
+  }
+  put_vec(control_model_->getJointAngles(observation.state), nj);
+  put_vec(control_model_->getJointVelocities(observation.state, observation.input), nj);
+  const auto effort_offset = interface_offset(parameters_.robot.stateInterfaces, hardware_interface::HW_IF_EFFORT);
+  const std::size_t stride = parameters_.robot.stateInterfaces.size();
+  for (Eigen::Index i = 0; i < nj; ++i) {
+    const std::size_t index = static_cast<std::size_t>(i) * stride + (effort_offset ? *effort_offset : 0);
+    const auto value = effort_offset && index < state_interfaces_.size() ? state_interfaces_[index].get_optional() : std::nullopt;
+    put(value ? *value : std::numeric_limits<double>::quiet_NaN());
+  }
+
+  const auto base = [&](const vector_t& state) {
+    put_vec(control_model_->getBasePose(state), 6);
+    put_vec(control_model_->getBaseComVelocity(state), 6);
+  };
+  if (plan) {
+    base(tracking_policy_state_);
+  } else {
+    skip(12);
+  }
+  base(observation.state);
+
+  auto& data = control_pinocchio_->getData();
+  const auto& model = control_pinocchio_->getModel();
+  const auto feet = [&](const vector_t& state) {
+    pinocchio::forwardKinematics(model, data, control_model_->getGeneralizedCoordinates(state),
+                                 control_model_->getGeneralizedVelocities(state));
+    for (const auto frame : tracking_foot_frames_) {
+      const auto& placement = pinocchio::updateFramePlacement(model, data, frame);
+      const auto velocity = pinocchio::getFrameVelocity(model, data, frame, pinocchio::LOCAL_WORLD_ALIGNED);
+      put_vec(placement.translation(), 3);
+      put_vec(velocity.linear(), 3);
+    }
+  };
+  const std::size_t foot_columns = 6 * tracking_foot_frames_.size();
+  if (plan) {
+    feet(tracking_policy_state_);
+  } else {
+    skip(foot_columns);
+  }
+  feet(observation.state);
+  if (plan) {
+    for (std::size_t c = 0; c < tracking_foot_frames_.size(); ++c) {
+      put_vec(control_model_->getContactWrench(tracking_policy_input_, c), 6);
+    }
+  }
+  (void)tracking_publisher_->try_publish(tracking_row_);
 }
 
 void HumanoidWholeBodyInverseDynamicsMpcController::write_joint_action_command(

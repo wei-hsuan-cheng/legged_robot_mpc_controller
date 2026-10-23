@@ -46,6 +46,12 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
   diagnostics:
     statusLogPeriod: {type: double, default_value: 5.0, description: "Period of the MPC timing/utilization status
         log [s]", validation: {gt: [0.0]}}
+    trackingRate: {type: double, default_value: 0.0, description: "Rate [Hz] of the tracking debug topic
+        ~/tracking (std_msgs/Float64MultiArray; column names on ~/tracking_names): the MPC policy at the current
+        time, the joint command sent to the hardware and the measured / estimated state, in joint and Cartesian
+        space. Also enables ~/solver (names on ~/solver_names): per solve, the solve time, the SQP performance
+        indices, the equality violation per constraint term and every cost / soft-constraint term at the first
+        node. 0 disables both.", validation: {gt_eq: [0.0]}}
   floatingBase:
     source: {type: string, default_value: "ground_truth_state", description: "Where the floating-base state comes
         from. ground_truth_state = the simulator/hardware body state (ground truth in MuJoCo). state_estimator =

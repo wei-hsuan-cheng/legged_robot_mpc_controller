@@ -601,18 +601,26 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
       # controller writes these per joint every tick through the <joint>/kp, <joint>/kd command
       # interfaces (like Unitree's LowCmd kp/kd), index-aligned with robot.jointNames. Before
       # activation, and for the fixed wrists, the hardware uses the xacro's effort_pd_kp/kd.
-      # kd 20: the G1 model's joint damping is 0.05 (unitree_mujoco), so the servo supplies the
-      # damping.
+      # The G1 model's joint damping is 0.05 (unitree_mujoco), so the servo supplies the damping.
+      # Tuned 2026-10-23 with tests/tuning (docs/wb_id_tuning_benchmark.md): the MPC feedforward
+      # already tracks to 0.1-0.4 deg, and kp 1200 only turned plan steps into 4-40 Hz servo
+      # torque. kp 200 cut that feedback jitter (legs 4.2 -> 2.7 Nm, arms 1.0 -> 0.4 Nm) with
+      # unchanged tracking error. Keep kd >= 20 on light joints (shoulder yaw, elbow, ankles):
+      # lowering it there made arm jitter 9x worse, and ankle kd 6 fell. Knee kd 10: the knee
+      # servo's touchdown spike (kd x the impact velocity jump) 85 -> 50 Nm, roll -23%, pelvis
+      # 4-40 Hz acceleration -21%, same tracking (still ~critically damped in swing at kp 200).
+      # Order: hip pitch/roll/yaw, knee, ankle pitch/roll | waist yaw/roll/pitch |
+      # shoulder pitch/roll/yaw, elbow.
       jointEffortPd:
         kp:
-          [1200.0, 1200.0, 1200.0, 1200.0, 1200.0, 1200.0,
-           1200.0, 1200.0, 1200.0, 1200.0, 1200.0, 1200.0,
-           1200.0, 1200.0, 1200.0,
-           1200.0, 1200.0, 1200.0, 1200.0,
-           1200.0, 1200.0, 1200.0, 1200.0]
+          [200.0, 200.0, 200.0, 200.0, 200.0, 200.0,
+           200.0, 200.0, 200.0, 200.0, 200.0, 200.0,
+           200.0, 200.0, 200.0,
+           200.0, 200.0, 200.0, 200.0,
+           200.0, 200.0, 200.0, 200.0]
         kd:
-          [20.0, 20.0, 20.0, 20.0, 20.0, 20.0,
-           20.0, 20.0, 20.0, 20.0, 20.0, 20.0,
+          [20.0, 20.0, 20.0, 10.0, 20.0, 20.0,
+           20.0, 20.0, 20.0, 10.0, 20.0, 20.0,
            20.0, 20.0, 20.0,
            20.0, 20.0, 20.0, 20.0,
            20.0, 20.0, 20.0, 20.0]
@@ -686,7 +694,11 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         printSolverStatistics: true
         printSolverStatus: false
         printLinesearch: false
-        useFeedbackPolicy: true
+        # false (2026-10-23, docs/wb_id_tuning_benchmark.md): the SQP feedback gains add K (x - x_plan)
+        # from the measured state every tick and change with every solve. Without them the solve is
+        # ~1.5 ms faster (97-98 Hz instead of ~86), the command jumps less at each new solution and
+        # leg torque jitter drops ~20%; tracking, bounce and roll are equal or better.
+        useFeedbackPolicy: false
         integratorType: RK4
         threadPriority: 50
 
@@ -716,23 +728,33 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         # Base velocity: [vx, vy, vz, yaw rate, pitch rate, roll rate] (Euler rates).
         q:
           basePose: [0.0, 0.0, 100.0, 0.0, 100.0, 100.0]
-          baseVelocity: [30.0, 15.0, 3.0, 30.0, 3.0, 3.0]
+          # vz 3 -> 10: the MPC plans the step-rate bounce (plan z sd 14.7 mm, tracked to 0.2 mm);
+          # 10 cuts it ~27%. Pitch/roll rate 3 -> 30: without them the plan snaps the pelvis roll
+          # 2-3.5 deg at each touchdown and the arms absorb it. vz 30 halves the bounce but moves
+          # the motion into the arms and roll (docs/wb_id_tuning_benchmark.md).
+          baseVelocity: [30.0, 15.0, 10.0, 30.0, 30.0, 30.0]
           jointPositions:
             [0.05, 0.2, 15.0, 0.1, 0.1, 0.1,
              0.05, 0.2, 15.0, 0.1, 0.1, 0.1,
              2.0, 2.0, 2.0,
              5.0, 5.0, 2.0, 4.0,
              5.0, 5.0, 2.0, 4.0]
+          # Arms 0.02 -> 0.06: the arm jitter is in the MPC plan (command and measurement match);
+          # 3x halves arm torque jitter and keeps a ~13 deg swing (10x: ~6 deg).
           jointVelocities:
             [0.001, 0.001, 0.001, 0.001, 0.001, 0.001,
              0.001, 0.001, 0.001, 0.001, 0.001, 0.001,
              0.2, 0.2, 0.2,
-             0.02, 0.02, 0.02, 0.02,
-             0.02, 0.02, 0.02, 0.02]
+             0.06, 0.06, 0.06, 0.06,
+             0.06, 0.06, 0.06, 0.06]
 
         qFinal:
           basePose: [0.0, 0.0, 100.0, 0.0, 100.0, 100.0]
-          baseVelocity: [30.0, 15.0, 3.0, 30.0, 3.0, 3.0]
+          # vz 3 -> 10: the MPC plans the step-rate bounce (plan z sd 14.7 mm, tracked to 0.2 mm);
+          # 10 cuts it ~27%. Pitch/roll rate 3 -> 30: without them the plan snaps the pelvis roll
+          # 2-3.5 deg at each touchdown and the arms absorb it. vz 30 halves the bounce but moves
+          # the motion into the arms and roll (docs/wb_id_tuning_benchmark.md).
+          baseVelocity: [30.0, 15.0, 10.0, 30.0, 30.0, 30.0]
           jointPositions:
             [0.05, 0.1, 30.0, 0.1, 0.1, 0.1,
              0.05, 0.1, 30.0, 0.1, 0.1, 0.1,
