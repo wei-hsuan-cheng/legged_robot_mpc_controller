@@ -45,10 +45,13 @@ GaitScheduleUpdater::GaitScheduleUpdater(std::shared_ptr<GaitSchedule> gaitSched
 void GaitScheduleUpdater::updateGaitSchedule(std::shared_ptr<GaitSchedule>& gaitSchedulePtr,
                                              const ModeSequenceTemplate& updatedGait,
                                              scalar_t initTime,
-                                             scalar_t finalTime) {
+                                             scalar_t finalTime,
+                                             scalar_t switchDelayHorizonFraction) {
   std::cerr << updatedGait;
   const scalar_t timeHorizon = finalTime - initTime;
-  const scalar_t earliestSwitchingTime = (0.7 * finalTime + 0.3 * initTime);  // This is a heuristic
+  // A heuristic: far enough ahead that the solver has a few nodes to prepare for the
+  // new contact pattern. 0.7 reproduces the original (0.7 * finalTime + 0.3 * initTime).
+  const scalar_t earliestSwitchingTime = initTime + switchDelayHorizonFraction * timeHorizon;
   std::cerr << "[GaitScheduleUpdater]: Setting new gait after time " << earliestSwitchingTime << "\n";
   // Find the first time that is greater than current_time
   const auto& modeSchedule = gaitSchedulePtr->getModeSchedule(initTime, finalTime + timeHorizon);

@@ -75,6 +75,7 @@ ocs2::humanoid::ProceduralMpcMotionManager::TargetMode targetModeFromString(
 
 Ros2ProceduralMpcMotionManager::Ros2ProceduralMpcMotionManager(
   ocs2::humanoid::GaitMap gait_map,
+  GaitTransitionConfig gait_transition_config,
   const ocs2::humanoid::ReferenceConfig& reference_config,
   std::shared_ptr<ocs2::humanoid::SwitchedModelReferenceManager> reference_manager,
   const ocs2::humanoid::MpcRobotModelBase<ocs2::scalar_t>& mpc_robot_model,
@@ -83,6 +84,7 @@ Ros2ProceduralMpcMotionManager::Ros2ProceduralMpcMotionManager(
   const std::string& default_target_mode)
 : ProceduralMpcMotionManager(
     std::move(gait_map),
+    std::move(gait_transition_config),
     reference_config,
     std::move(reference_manager),
     mpc_robot_model,

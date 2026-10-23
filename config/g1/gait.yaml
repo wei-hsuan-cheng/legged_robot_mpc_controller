@@ -66,3 +66,48 @@ jump:
 terrain_walk:
   modeSequence: [LF, STANCE, RF, STANCE]
   switchingTimes: [0.0, 0.6, 0.7, 1.3, 1.4]
+
+# ---- Gait selection: which template runs, and when ------------------------------
+# ProceduralMpcMotionManager picks a template from this ladder once per MPC solve,
+# from the commanded velocity (scaled to m/s, rate limited and filtered) and the
+# measured base velocity:
+#   - the ladder is ordered slowest -> fastest and must start with `stance`; the FSM
+#     moves at most one rung per change;
+#   - UP one rung when the command leaves the current rung's band upward
+#     (|vx| or |vy| > linearVelocity max, or |yaw| > yawRate max) AND the measured
+#     speed is near that top (|vx| or |vy| > max - margin, or |yaw rate| > yaw max - margin);
+#   - DOWN one rung when the command is below the band's min on all axes AND the
+#     measured speed is below min + margin on all axes;
+#   - overlapping bands give hysteresis between neighbouring rungs.
+# The command is in the heading frame. In this (centroidal) model the "measured"
+# values are the CoM velocity in world axes, and the "measured yaw" term reads
+# state(3) = h_ang,x / m, not the yaw rate. That is kept as it was; it only matters
+# for the yaw margins.
+# Units are m/s and rad/s; 10.0 stands for "no limit". A margin of 10 (stance) means
+# the robot leaves stance on the command alone.
+#
+# Common things to tune:
+#   - a rung's bands: the speeds at which its gait engages and disengages;
+#   - measuredMargin: how close the measured speed must come to a band's top before
+#     escalating (larger = escalate on the command alone, smaller = wait for the robot);
+#   - minDwellTime: a change only takes effect after the splice delay below (0.7 s
+#     here), so a dwell shorter than that lets the next change be requested before
+#     the previous one has started;
+#   - switchDelayHorizonFraction: smaller reacts sooner, larger gives the solver more
+#     of the horizon to prepare for the new contact pattern;
+#   - `gait`: any template from `list`, so a rung can use a different contact pattern.
+gaitTransitions:
+  # Minimum time between two gait changes [s].
+  minDwellTime: 0.2
+  # A new gait starts at the first contact event after
+  # initTime + switchDelayHorizonFraction * horizon (0.7 of a 1.0 s horizon = 0.7 s).
+  switchDelayHorizonFraction: 0.7
+  ladder:
+    #  gait                     linearVelocity [m/s]         yawRate [rad/s]              measuredMargin [lin, yaw]
+    - {gait: stance,            linearVelocity: [-0.1, 0.1],  yawRate: [-0.1, 0.1],   measuredMargin: [10.0, 10.0]}
+    - {gait: slow_walk,         linearVelocity: [0.05, 0.3],  yawRate: [0.05, 0.2],   measuredMargin: [0.05, 0.05]}
+    - {gait: walk,              linearVelocity: [0.25, 0.5],  yawRate: [0.15, 0.35],  measuredMargin: [0.05, 0.05]}
+    - {gait: slower_trot,       linearVelocity: [0.45, 0.7],  yawRate: [0.3, 0.55],   measuredMargin: [0.1, 0.1]}
+    - {gait: slow_trot,         linearVelocity: [0.65, 0.9],  yawRate: [0.5, 0.7],    measuredMargin: [0.2, 0.2]}
+    - {gait: trot,              linearVelocity: [0.8, 1.3],   yawRate: [0.65, 10.0],  measuredMargin: [0.2, 0.2]}
+    - {gait: run,               linearVelocity: [1.2, 10.0],  yawRate: [0.65, 10.0],  measuredMargin: [0.2, 0.2]}

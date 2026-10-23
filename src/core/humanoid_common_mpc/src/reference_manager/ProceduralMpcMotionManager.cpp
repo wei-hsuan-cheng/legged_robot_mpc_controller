@@ -32,6 +32,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 #include <cmath>
+#include <stdexcept>
 #include "humanoid_common_mpc/gait/GaitScheduleUpdater.h"
 #include "humanoid_common_mpc/gait/ModeSequenceTemplate.h"
 
@@ -41,18 +42,33 @@ namespace ocs2::humanoid {
 /******************************************************************************************************/
 /******************************************************************************************************/
 ProceduralMpcMotionManager::ProceduralMpcMotionManager(GaitMap gaitMap,
+                                                       GaitTransitionConfig gaitTransitionConfig,
                                                        const ReferenceConfig& referenceConfig,
                                                        std::shared_ptr<SwitchedModelReferenceManager> switchedModelReferenceManagerPtr,
                                                        const MpcRobotModelBase<scalar_t>& mpcRobotModel,
                                                        VelocityTargetToTargetTrajectories velocityTargetToTargetTrajectories,
                                                        BasePoseTargetToTargetTrajectories basePoseTargetToTargetTrajectories)
-    : switchedModelReferenceManagerPtr_(switchedModelReferenceManagerPtr),
+    : gaitModeStates_(std::move(gaitTransitionConfig.ladder)),
+      minGaitDwellTime_(gaitTransitionConfig.minDwellTime),
+      gaitSwitchDelayHorizonFraction_(gaitTransitionConfig.switchDelayHorizonFraction),
+      switchedModelReferenceManagerPtr_(switchedModelReferenceManagerPtr),
       gaitSchedulePtr_(switchedModelReferenceManagerPtr_->getGaitSchedule()),
       mpcRobotModelPtr_(&mpcRobotModel),
       walkingVelocityTarget_(referenceConfig, std::move(velocityTargetToTargetTrajectories)),
       basePoseTarget_(referenceConfig, mpcRobotModel, std::move(basePoseTargetToTargetTrajectories)),
       referenceConfig_(referenceConfig) {
   gaitMap_ = std::move(gaitMap);
+  // preSolverRun() indexes the ladder and falls back to rung 0 as "stance"; the loader
+  // validates the file, this guards direct construction.
+  if (gaitModeStates_.empty() || gaitModeStates_.front().gaitCommand != "stance") {
+    throw std::invalid_argument("[ProceduralMpcMotionManager] the gait ladder must start with 'stance'");
+  }
+  for (const auto& rung : gaitModeStates_) {
+    if (gaitMap_.count(rung.gaitCommand) == 0) {
+      throw std::invalid_argument("[ProceduralMpcMotionManager] gait ladder names '" + rung.gaitCommand +
+                                  "', which the gait library does not define");
+    }
+  }
 }
 
 /******************************************************************************************************/
@@ -221,7 +237,7 @@ void ProceduralMpcMotionManager::preSolverRun(scalar_t initTime,
                         std::abs(filteredVelCommand(3)) > 0.05;
     currentGaitMode_ = 0;
     currentGaitCommand_ = moving ? terrainGait : "stance";
-  } else if (initTime > lastGaitChangeTime_ + 0.2) {  // do not change the gait pattern for at least 0.2s
+  } else if (initTime > lastGaitChangeTime_ + minGaitDwellTime_) {  // do not change the gait pattern too often
     // The bounds are enforced explicitly rather than left to the sentinel
     // thresholds in gaitModeStates_ ("stance" has minLinVelCmd = -0.1, which no
     // absolute value can go below; "run" has maxLinVelCmd = 10.0, which none
@@ -250,7 +266,8 @@ void ProceduralMpcMotionManager::preSolverRun(scalar_t initTime,
   if (currentGaitCommand_ != lastGaitCommand_) {
     ModeSequenceTemplate modeSequenceTemplate = gaitMap_.at(currentGaitCommand_);
 
-    GaitScheduleUpdater::updateGaitSchedule(gaitSchedulePtr_, modeSequenceTemplate, initTime, finalTime);
+    GaitScheduleUpdater::updateGaitSchedule(gaitSchedulePtr_, modeSequenceTemplate, initTime, finalTime,
+                                            gaitSwitchDelayHorizonFraction_);
     lastGaitCommand_ = currentGaitCommand_;
   }
 }

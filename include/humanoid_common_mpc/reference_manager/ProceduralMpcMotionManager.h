@@ -63,6 +63,7 @@ class ProceduralMpcMotionManager : public SolverSynchronizedModule {
 
   enum class TargetMode { BaseTwist, BasePose, StairClimb, TerrainWalk };
 
+  /** One rung of the gait ladder: a gait template and the command band it serves. */
   struct GaitModeStateConfig {
     std::string gaitCommand = "stance";
     scalar_t minLinVelCmd;
@@ -74,14 +75,31 @@ class ProceduralMpcMotionManager : public SolverSynchronizedModule {
   };
 
   /**
+   * Velocity-based gait selection, loaded from the gait library file's
+   * `gaitTransitions:` block (see config/g1/gait.yaml for the semantics).
+   */
+  struct GaitTransitionConfig {
+    //! Ordered from slowest to fastest; the first rung must be "stance". The FSM moves
+    //! at most one rung per change.
+    std::vector<GaitModeStateConfig> ladder;
+    //! Minimum time between two gait changes [s].
+    scalar_t minDwellTime = 0.2;
+    //! A new gait is spliced in at the first event after initTime + this fraction of
+    //! the horizon (GaitScheduleUpdater::updateGaitSchedule).
+    scalar_t switchDelayHorizonFraction = 0.7;
+  };
+
+  /**
    * Constructor
    *
    * @param [in] gaitMap: The named gait library loaded from the configured file.
+   * @param [in] gaitTransitionConfig: The gait ladder and switching timing from the same file.
    * @param [in] referenceFile: The file path containing the default references and velocity limits.
    * @param [in] velocityTargetToTargetTrajectories: A function which transforms the commanded velocities to TargetTrajectories.
    * @param [in] switchedModelReferenceManagerPtr: A pointer to the switched model reference manager used to update gait and references
    */
   ProceduralMpcMotionManager(GaitMap gaitMap,
+                             GaitTransitionConfig gaitTransitionConfig,
                              const ReferenceConfig& referenceConfig,
                              std::shared_ptr<SwitchedModelReferenceManager> switchedModelReferenceManagerPtr,
                              const MpcRobotModelBase<scalar_t>& mpcRobotModel,
@@ -132,16 +150,10 @@ class ProceduralMpcMotionManager : public SolverSynchronizedModule {
   static bool transitionToSlowerGait(const vector4_t& velCommandVec, const vector6_t& baseVelocity, const GaitModeStateConfig& cfg);
 
  protected:
-  // clang-format off
-  const std::vector<GaitModeStateConfig> gaitModeStates_ {
-    { "stance",       -0.1,  0.1, -0.1,  0.1,  10.0,   10.0 }, // Large threshold allows switching aw3ay from stance purely command based. 
-    { "slow_walk",     0.05,  0.3,  0.05,  0.2,    0.05,  0.05},
-    { "walk",          0.25,  0.5, 0.15,  0.35,    0.05,  0.05},
-    { "slower_trot",   0.45, 0.7, 0.3,  0.55,      0.1,  0.1},
-    { "slow_trot",     0.65, 0.9,  0.5,  0.7,      0.2,  0.2},
-    { "trot",          0.8,  1.3,  0.65,  10.0,    0.2,  0.2},
-    { "run",           1.2,  10.0,  0.65,  10.0,   0.2,  0.2}  
-  };  // clang-format on
+  //! The gait ladder, from the gait library file (GaitTransitionConfig::ladder).
+  const std::vector<GaitModeStateConfig> gaitModeStates_;
+  const scalar_t minGaitDwellTime_;
+  const scalar_t gaitSwitchDelayHorizonFraction_;
 
   size_t currentGaitMode_{0};
 

@@ -28,6 +28,66 @@ ocs2::humanoid::GaitMap loadGaitMap(const std::string& gaitLibraryFile)
   return gaitMap;
 }
 
+ocs2::humanoid::ProceduralMpcMotionManager::GaitTransitionConfig loadGaitTransitionConfig(
+  const std::string& gaitLibraryFile, const ocs2::humanoid::GaitMap& gaitMap)
+{
+  using Config = ocs2::humanoid::ProceduralMpcMotionManager::GaitTransitionConfig;
+  using Rung = ocs2::humanoid::ProceduralMpcMotionManager::GaitModeStateConfig;
+  const std::string where = " (gaitTransitions in " + gaitLibraryFile + ")";
+
+  const YAML::Node root = YAML::LoadFile(gaitLibraryFile);
+  const YAML::Node node = root["gaitTransitions"];
+  if (!node || !node["ladder"] || !node["ladder"].IsSequence()) {
+    throw std::runtime_error("[config_builder] gait library has no gaitTransitions.ladder: " + gaitLibraryFile);
+  }
+
+  Config config;
+  config.minDwellTime = node["minDwellTime"].as<double>(config.minDwellTime);
+  config.switchDelayHorizonFraction = node["switchDelayHorizonFraction"].as<double>(config.switchDelayHorizonFraction);
+  if (config.minDwellTime < 0.0) {
+    throw std::runtime_error("[config_builder] minDwellTime must be >= 0" + where);
+  }
+  if (config.switchDelayHorizonFraction < 0.0 || config.switchDelayHorizonFraction > 1.0) {
+    throw std::runtime_error("[config_builder] switchDelayHorizonFraction must be in [0, 1]" + where);
+  }
+
+  const auto pair = [&](const YAML::Node& rung, const char* key, const std::string& gait) {
+    const auto values = rung[key].as<std::vector<double>>();
+    if (values.size() != 2) {
+      throw std::runtime_error("[config_builder] '" + gait + "'." + key + " must be [min, max] or [linear, yaw]" + where);
+    }
+    return values;
+  };
+  for (const auto& rungNode : node["ladder"]) {
+    if (!rungNode["gait"] || !rungNode["linearVelocity"] || !rungNode["yawRate"] || !rungNode["measuredMargin"]) {
+      throw std::runtime_error(
+        "[config_builder] every ladder entry needs gait, linearVelocity, yawRate and measuredMargin" + where);
+    }
+    Rung rung;
+    rung.gaitCommand = rungNode["gait"].as<std::string>();
+    if (gaitMap.count(rung.gaitCommand) == 0) {
+      throw std::runtime_error("[config_builder] ladder gait '" + rung.gaitCommand + "' is not in the gait list" + where);
+    }
+    const auto linear = pair(rungNode, "linearVelocity", rung.gaitCommand);
+    const auto yaw = pair(rungNode, "yawRate", rung.gaitCommand);
+    const auto margin = pair(rungNode, "measuredMargin", rung.gaitCommand);
+    if (linear[0] > linear[1] || yaw[0] > yaw[1] || margin[0] < 0.0 || margin[1] < 0.0) {
+      throw std::runtime_error("[config_builder] '" + rung.gaitCommand + "': bands need min <= max and margins >= 0" + where);
+    }
+    rung.minLinVelCmd = linear[0];
+    rung.maxLinVelCmd = linear[1];
+    rung.minAngVelCmd = yaw[0];
+    rung.maxAngVelCmd = yaw[1];
+    rung.linVelErrorThresh = margin[0];
+    rung.angVelErrorThresh = margin[1];
+    config.ladder.push_back(rung);
+  }
+  if (config.ladder.empty() || config.ladder.front().gaitCommand != "stance") {
+    throw std::runtime_error("[config_builder] the gait ladder must start with 'stance'" + where);
+  }
+  return config;
+}
+
 namespace
 {
 /// Parses the shared `stairs:` geometry sub-schema (base_pos, yaw, start_offset,

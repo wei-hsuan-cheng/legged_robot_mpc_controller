@@ -239,8 +239,12 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_configu
         return target_trajectories_calculator_->commandedBasePoseToTargetTrajectories(
           base_pose_target, init_time, init_state);
       };
+    // Gait templates and the velocity-based selection between them, from one file.
+    auto gait_map = common::loadGaitMap(parameters_.ocs2.gait.gaitLibraryFile);
+    auto gait_transitions = common::loadGaitTransitionConfig(parameters_.ocs2.gait.gaitLibraryFile, gait_map);
     auto motion_manager = std::make_shared<Ros2ProceduralMpcMotionManager>(
-      common::loadGaitMap(parameters_.ocs2.gait.gaitLibraryFile),
+      std::move(gait_map),
+      std::move(gait_transitions),
       reference_config,
       mpc_interface_->getSwitchedModelReferenceManagerPtr(),
       mpc_interface_->getMpcRobotModel(),

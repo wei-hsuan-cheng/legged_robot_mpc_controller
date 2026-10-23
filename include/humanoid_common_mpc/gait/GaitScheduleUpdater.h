@@ -62,10 +62,13 @@ class GaitScheduleUpdater : public SolverSynchronizedModule {
   // make sure this function is not called in paralell to the presolver run without proper protection against race condition.
   void updateModeSequence(const ModeSequenceTemplate& modeSequenceTemplate);
 
+  //! Splice `updatedGait` into the schedule at the first event after
+  //! initTime + switchDelayHorizonFraction * (finalTime - initTime).
   static void updateGaitSchedule(std::shared_ptr<GaitSchedule>& gaitSchedulePtr,
                                  const ModeSequenceTemplate& updatedGait,
                                  scalar_t initTime,
-                                 scalar_t finalTime);
+                                 scalar_t finalTime,
+                                 scalar_t switchDelayHorizonFraction = 0.7);
 
  protected:
   std::shared_ptr<GaitSchedule> gaitSchedulePtr_;

@@ -27,6 +27,7 @@ class Ros2ProceduralMpcMotionManager final : public ocs2::humanoid::ProceduralMp
 public:
   Ros2ProceduralMpcMotionManager(
     ocs2::humanoid::GaitMap gait_map,
+    GaitTransitionConfig gait_transition_config,
     const ocs2::humanoid::ReferenceConfig& reference_config,
     std::shared_ptr<ocs2::humanoid::SwitchedModelReferenceManager> reference_manager,
     const ocs2::humanoid::MpcRobotModelBase<ocs2::scalar_t>& mpc_robot_model,
