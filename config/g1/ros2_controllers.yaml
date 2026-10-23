@@ -5,17 +5,180 @@ controller_manager:
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
 
+    humanoid_inekf:
+      type: legged_robot_mpc_controller/HumanoidInEkfController
+
+    humanoid_linear_kf:
+      type: legged_robot_mpc_controller/HumanoidLinearKfController
+
     humanoid_centroidal_mpc_controller:
       type: legged_robot_mpc_controller/HumanoidCentroidalMpcController
 
     humanoid_whole_body_inverse_dynamics_mpc_controller:
       type: legged_robot_mpc_controller/HumanoidWholeBodyInverseDynamicsMpcController
 
-    humanoid_inekf:
-      type: legged_robot_mpc_controller/HumanoidInEkfController
 
-    humanoid_linear_kf:
-      type: legged_robot_mpc_controller/HumanoidLinearKfController
+# Contact-aided right-invariant EKF (Hartley et al. 2018)
+humanoid_inekf:
+  ros__parameters:
+    update_rate: $(var mrtFreq)
+    urdfFile: $(var urdfFile)
+    baseFrame: pelvis
+    # Read by name, so the order is free; the MPC's robot.jointNames.
+    jointNames:
+      - left_hip_pitch_joint
+      - left_hip_roll_joint
+      - left_hip_yaw_joint
+      - left_knee_joint
+      - left_ankle_pitch_joint
+      - left_ankle_roll_joint
+      - right_hip_pitch_joint
+      - right_hip_roll_joint
+      - right_hip_yaw_joint
+      - right_knee_joint
+      - right_ankle_pitch_joint
+      - right_ankle_roll_joint
+      - waist_yaw_joint
+      - waist_roll_joint
+      - waist_pitch_joint
+      - left_shoulder_pitch_joint
+      - left_shoulder_roll_joint
+      - left_shoulder_yaw_joint
+      - left_elbow_joint
+      - right_shoulder_pitch_joint
+      - right_shoulder_roll_joint
+      - right_shoulder_yaw_joint
+      - right_elbow_joint
+
+    imuInterfaceName: pelvis_imu
+    imuFrame: imu_in_pelvis
+    contactFrames:
+      [foot_l_heel_est, foot_l_toe_est, foot_r_heel_est, foot_r_toe_est]
+    odomTopic: /humanoid/state_estimate/odom
+    odomFrame: odom
+    publishRate: 100.0
+
+    # When the estimate may take over from ground truth. The timer is the real
+    # gate: the filter starts confident (ground-truth seed, small initial
+    # covariance) and its biases are barely observable while standing, so no
+    # covariance can show it has converged. The std-devs below are divergence
+    # guards on the OBSERVABLE states only - yaw and x/y position are gauge
+    # states whose covariance grows without bound, so they are not checked.
+    readiness:
+      minSeconds: 5.0
+      rollPitchStdDevMax: 0.10
+      heightStdDevMax: 0.10
+      velocityStdDevMax: 0.50
+
+    noise:
+      gyroscope: 1.0e-2
+      accelerometer: 1.5e0
+      gyroscopeBias: 1.0e-5
+      accelerometerBias: 1.0e-4
+      contact: 1.0e-2
+      contactPosition: 2.0e-3
+      contactRotation: 1.0e-2
+    height:
+      source: kinematic
+      kinematicWeight: 0.9
+      anchorUpdateThreshold: 0.05
+      groundZ: 0.0
+    contact:
+      source: scheduled
+      footIndices:
+        [0, 0, 1, 1]
+      beta0:
+        [-20.0, -20.0, -20.0, -20.0]
+      beta1:
+        [0.7, 0.7, 0.7, 0.7]
+      forceCovarianceAlpha: 10.0
+      probabilityThreshold: 0.5
+      dynamicEstimation: false
+    lpf:
+      gyroCutoff: 80.0
+      gyroAccelCutoff: 50.0
+      linAccelCutoff: 15.0
+      dqJCutoff: 10.0
+      ddqJCutoff: 5.0
+      tauJCutoff: 10.0
+
+
+# Two-stage linear KF (Bledt et al. 2018)
+humanoid_linear_kf:
+  ros__parameters:
+    update_rate: $(var mrtFreq)
+    urdfFile: $(var urdfFile)
+    baseFrame: pelvis
+    # Read by name, so the order is free; the MPC's robot.jointNames.
+    jointNames:
+      - left_hip_pitch_joint
+      - left_hip_roll_joint
+      - left_hip_yaw_joint
+      - left_knee_joint
+      - left_ankle_pitch_joint
+      - left_ankle_roll_joint
+      - right_hip_pitch_joint
+      - right_hip_roll_joint
+      - right_hip_yaw_joint
+      - right_knee_joint
+      - right_ankle_pitch_joint
+      - right_ankle_roll_joint
+      - waist_yaw_joint
+      - waist_roll_joint
+      - waist_pitch_joint
+      - left_shoulder_pitch_joint
+      - left_shoulder_roll_joint
+      - left_shoulder_yaw_joint
+      - left_elbow_joint
+      - right_shoulder_pitch_joint
+      - right_shoulder_roll_joint
+      - right_shoulder_yaw_joint
+      - right_elbow_joint
+
+    imuInterfaceName: pelvis_imu
+    imuFrame: imu_in_pelvis
+    contactFrames:
+      [foot_l_heel_est, foot_l_toe_est, foot_r_heel_est, foot_r_toe_est]
+    odomTopic: /humanoid/state_estimate/odom
+    odomFrame: odom
+    publishRate: 100.0
+
+    # When the estimate may take over from ground truth. The timer is the real
+    # gate: the filter starts confident (ground-truth seed, small initial
+    # covariance) and its biases are barely observable while standing, so no
+    # covariance can show it has converged. The std-devs below are divergence
+    # guards on the OBSERVABLE states only - yaw and x/y position are gauge
+    # states whose covariance grows without bound, so they are not checked.
+    readiness:
+      minSeconds: 5.0
+      rollPitchStdDevMax: 0.10
+      heightStdDevMax: 0.10
+      velocityStdDevMax: 0.50
+
+    # The linear KF needs to know which feet are loaded too.
+    contact:
+      source: scheduled
+      footIndices: [0, 0, 1, 1]
+
+    # 0 = derive from inEKF.contact.footIndices ([0,0,1,1] -> 2 feet).
+    # The G1 has 2 FEET but 4 CONTACT POINTS (heel + toe each).
+    numFeet: 2
+    # 0.0, NOT legged_control's 0.02: that value compensates a SPHERICAL foot
+    # whose contact frame sits at the sphere centre (Unitree A1/Go1). The G1's
+    # foot_*_est frames are already at the sole (urdf origin z = -0.035 from the
+    # ankle), so a radius here biases the estimated base height up by exactly
+    # that amount - measured as a +20 mm offset before this was zeroed.
+    footRadius: 0.0
+    imuProcessNoisePosition: 0.02
+    imuProcessNoiseVelocity: 0.02
+    footProcessNoisePosition: 0.002
+    footSensorNoisePosition: 0.005
+    footSensorNoiseVelocity: 0.1
+    footHeightSensorNoise: 0.01
+    # A swing foot's noise is scaled by this, which is how the filter ignores
+    # a foot that is off the ground without resizing the problem.
+    swingNoiseMultiplier: 100.0
+
 
 humanoid_centroidal_mpc_controller:
   ros__parameters:
@@ -948,173 +1111,3 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           - foot_r_contact
         lineWidth: 0.005
         pointScale: 0.01
-
-
-# ---- floating-base estimators ---------------------------------------------
-# Each is its own ros2_control controller. It exports the estimate as state
-# interfaces, which the MPC claims (so the controller manager runs it first in
-# every tick), and takes the gait and its initialization epoch back from the MPC
-# over topics. Which filter runs is which controller is loaded; the launch loads
-# the one named by floatingBaseEstimator.
-
-# Contact-aided right-invariant EKF (Hartley et al. 2018). The default.
-humanoid_inekf:
-  ros__parameters:
-    update_rate: $(var mrtFreq)
-    urdfFile: $(var urdfFile)
-    baseFrame: pelvis
-    # Read by name, so the order is free; the MPC's robot.jointNames.
-    jointNames:
-      - left_hip_pitch_joint
-      - left_hip_roll_joint
-      - left_hip_yaw_joint
-      - left_knee_joint
-      - left_ankle_pitch_joint
-      - left_ankle_roll_joint
-      - right_hip_pitch_joint
-      - right_hip_roll_joint
-      - right_hip_yaw_joint
-      - right_knee_joint
-      - right_ankle_pitch_joint
-      - right_ankle_roll_joint
-      - waist_yaw_joint
-      - waist_roll_joint
-      - waist_pitch_joint
-      - left_shoulder_pitch_joint
-      - left_shoulder_roll_joint
-      - left_shoulder_yaw_joint
-      - left_elbow_joint
-      - right_shoulder_pitch_joint
-      - right_shoulder_roll_joint
-      - right_shoulder_yaw_joint
-      - right_elbow_joint
-
-    imuInterfaceName: pelvis_imu
-    imuFrame: imu_in_pelvis
-    contactFrames:
-      [foot_l_heel_est, foot_l_toe_est, foot_r_heel_est, foot_r_toe_est]
-    odomTopic: /humanoid/state_estimate/odom
-    odomFrame: odom
-    publishRate: 100.0
-
-    # When the estimate may take over from ground truth. The timer is the real
-    # gate: the filter starts confident (ground-truth seed, small initial
-    # covariance) and its biases are barely observable while standing, so no
-    # covariance can show it has converged. The std-devs below are divergence
-    # guards on the OBSERVABLE states only - yaw and x/y position are gauge
-    # states whose covariance grows without bound, so they are not checked.
-    readiness:
-      minSeconds: 5.0
-      rollPitchStdDevMax: 0.10
-      heightStdDevMax: 0.10
-      velocityStdDevMax: 0.50
-
-    noise:
-      gyroscope: 1.0e-2
-      accelerometer: 1.5e0
-      gyroscopeBias: 1.0e-5
-      accelerometerBias: 1.0e-4
-      contact: 1.0e-2
-      contactPosition: 2.0e-3
-      contactRotation: 1.0e-2
-    height:
-      source: kinematic
-      kinematicWeight: 0.9
-      anchorUpdateThreshold: 0.05
-      groundZ: 0.0
-    contact:
-      source: scheduled
-      footIndices:
-        [0, 0, 1, 1]
-      beta0:
-        [-20.0, -20.0, -20.0, -20.0]
-      beta1:
-        [0.7, 0.7, 0.7, 0.7]
-      forceCovarianceAlpha: 10.0
-      probabilityThreshold: 0.5
-      dynamicEstimation: false
-    lpf:
-      gyroCutoff: 80.0
-      gyroAccelCutoff: 50.0
-      linAccelCutoff: 15.0
-      dqJCutoff: 10.0
-      ddqJCutoff: 5.0
-      tauJCutoff: 10.0
-
-# Two-stage linear KF (Bledt et al. 2018). Not the default: with it driving
-# control the robot fell in 8 of 8 runs on the robustness and combined
-# sequences, where the InEKF survived 6 of 6. Kept for comparison.
-humanoid_linear_kf:
-  ros__parameters:
-    update_rate: $(var mrtFreq)
-    urdfFile: $(var urdfFile)
-    baseFrame: pelvis
-    # Read by name, so the order is free; the MPC's robot.jointNames.
-    jointNames:
-      - left_hip_pitch_joint
-      - left_hip_roll_joint
-      - left_hip_yaw_joint
-      - left_knee_joint
-      - left_ankle_pitch_joint
-      - left_ankle_roll_joint
-      - right_hip_pitch_joint
-      - right_hip_roll_joint
-      - right_hip_yaw_joint
-      - right_knee_joint
-      - right_ankle_pitch_joint
-      - right_ankle_roll_joint
-      - waist_yaw_joint
-      - waist_roll_joint
-      - waist_pitch_joint
-      - left_shoulder_pitch_joint
-      - left_shoulder_roll_joint
-      - left_shoulder_yaw_joint
-      - left_elbow_joint
-      - right_shoulder_pitch_joint
-      - right_shoulder_roll_joint
-      - right_shoulder_yaw_joint
-      - right_elbow_joint
-
-    imuInterfaceName: pelvis_imu
-    imuFrame: imu_in_pelvis
-    contactFrames:
-      [foot_l_heel_est, foot_l_toe_est, foot_r_heel_est, foot_r_toe_est]
-    odomTopic: /humanoid/state_estimate/odom
-    odomFrame: odom
-    publishRate: 100.0
-
-    # When the estimate may take over from ground truth. The timer is the real
-    # gate: the filter starts confident (ground-truth seed, small initial
-    # covariance) and its biases are barely observable while standing, so no
-    # covariance can show it has converged. The std-devs below are divergence
-    # guards on the OBSERVABLE states only - yaw and x/y position are gauge
-    # states whose covariance grows without bound, so they are not checked.
-    readiness:
-      minSeconds: 5.0
-      rollPitchStdDevMax: 0.10
-      heightStdDevMax: 0.10
-      velocityStdDevMax: 0.50
-
-    # The linear KF needs to know which feet are loaded too.
-    contact:
-      source: scheduled
-      footIndices: [0, 0, 1, 1]
-
-    # 0 = derive from inEKF.contact.footIndices ([0,0,1,1] -> 2 feet).
-    # The G1 has 2 FEET but 4 CONTACT POINTS (heel + toe each).
-    numFeet: 2
-    # 0.0, NOT legged_control's 0.02: that value compensates a SPHERICAL foot
-    # whose contact frame sits at the sphere centre (Unitree A1/Go1). The G1's
-    # foot_*_est frames are already at the sole (urdf origin z = -0.035 from the
-    # ankle), so a radius here biases the estimated base height up by exactly
-    # that amount - measured as a +20 mm offset before this was zeroed.
-    footRadius: 0.0
-    imuProcessNoisePosition: 0.02
-    imuProcessNoiseVelocity: 0.02
-    footProcessNoisePosition: 0.002
-    footSensorNoisePosition: 0.005
-    footSensorNoiseVelocity: 0.1
-    footHeightSensorNoise: 0.01
-    # A swing foot's noise is scaled by this, which is how the filter ignores
-    # a foot that is off the ground without resizing the problem.
-    swingNoiseMultiplier: 100.0
