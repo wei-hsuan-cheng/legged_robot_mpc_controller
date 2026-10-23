@@ -719,7 +719,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
              0.02, 0.02, 0.02, 0.02,
              0.02, 0.02, 0.02, 0.02]
 
-        # R on u = [W_left, W_right, base acceleration, joint acceleration, joint torque].
+        # R on u = [wrench_left, wrench_right, base acceleration, joint acceleration, joint torque].
         # Contact wrench order per foot: [fx, fy, fz, mx, my, mz].
         r:
           contactWrenches:
