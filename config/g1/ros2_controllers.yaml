@@ -929,13 +929,16 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
 
         # Optional G1 flat-foot/task-space adaptations beyond the papers' state/input objective.
         taskSpaceFootCostWeights:
-          [0.0, 0.0, 0.0, 1000.0, 1000.0, 0.0, 10.0, 10.0, 0.0, 1.0, 1.0, 0.005]
+          [0.0, 0.0, 0.0, 1000.0, 1000.0, 0.0,
+           10.0, 10.0, 0.0, 1.0, 1.0, 0.005]
+
         taskSpaceCosts:
           names: [torso]
           torso:
             linkName: mid360_link
             weights:
-              [0.0, 0.0, 0.0, 100.0, 100.0, 0.0, 0.1, 0.1, 0.005, 5.0, 5.0, 2.0]
+              [0.0, 0.0, 0.0, 100.0, 100.0, 0.0, 
+               0.1, 0.1, 0.005, 5.0, 5.0, 2.0]
 
         # Additional active J_leg^T W load cost; separate from r.jointTorques.
         legTorqueCost:
@@ -947,7 +950,8 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
             - left_knee_joint
             - left_ankle_pitch_joint
             - left_ankle_roll_joint
-          leftWeights: [2.0, 2.0, 1.0, 8.0, 0.2, 0.2]
+          leftWeights: 
+            [2.0, 2.0, 1.0, 8.0, 0.2, 0.2]
           rightActiveJointNames:
             - right_hip_pitch_joint
             - right_hip_roll_joint
@@ -955,7 +959,8 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
             - right_knee_joint
             - right_ankle_pitch_joint
             - right_ankle_roll_joint
-          rightWeights: [2.0, 2.0, 1.0, 8.0, 0.2, 0.2]
+          rightWeights: 
+            [2.0, 2.0, 1.0, 8.0, 0.2, 0.2]
 
       constraints:
         contact:
