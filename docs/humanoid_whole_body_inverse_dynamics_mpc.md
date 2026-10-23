@@ -50,9 +50,9 @@ Let $`n_j`$ be the number of MPC joints and $`n_v=6+n_j`$.
 The generalized configuration and velocity are:
 
 $$
-q=\begin{bmatrix}p_{WB}^{W}\\\eta\\q_j\end{bmatrix},
+q=\begin{bmatrix}p_{WB}^{W}\cr \eta\cr q_j\end{bmatrix},
 \qquad
-v=\dot q=\begin{bmatrix}v_{WB}^{W}\\\dot\eta\\\dot q_j\end{bmatrix},
+v=\dot q=\begin{bmatrix}v_{WB}^{W}\cr \dot\eta\cr \dot q_j\end{bmatrix},
 \qquad
 \eta=\begin{bmatrix}\psi&\theta&\phi\end{bmatrix}^{\mathsf T}.
 $$
@@ -65,9 +65,9 @@ The implementation uses Euler coordinates rather than quaternion or SE(3) integr
 ### 2.2 Optimization variables
 
 $$
-x=\begin{bmatrix}q\\v\end{bmatrix}\in\mathbb R^{2n_v},
+x=\begin{bmatrix}q\cr v\end{bmatrix}\in\mathbb R^{2n_v},
 \qquad
-u=\begin{bmatrix}W_L\\W_R\\a\\\tau_j\end{bmatrix},
+u=\begin{bmatrix}W_L\cr W_R\cr a\cr \tau_j\end{bmatrix},
 \qquad a=\dot v.
 $$
 
@@ -80,9 +80,9 @@ There is no centroidal-momentum state or momentum-to-velocity reconstruction in 
 The controller combines joint interfaces with either the estimator's exported body state or ground-truth body interfaces:
 
 $$
-q_0=\begin{bmatrix}\hat p_{WB}^{W}\\\mathrm{EulerZYX}(\hat R_{WB})\\q_{j,\mathrm{meas}}\end{bmatrix},
+q_0=\begin{bmatrix}\hat p_{WB}^{W}\cr \mathrm{EulerZYX}(\hat R_{WB})\cr q_{j,\mathrm{meas}}\end{bmatrix},
 \qquad
-v_{0,\mathrm{raw}}=\begin{bmatrix}\hat v_{WB}^{W}\\E_{\mathrm{ZYX}}(\eta)\hat\omega_{WB}^{B}\\\dot q_{j,\mathrm{meas}}\end{bmatrix}.
+v_{0,\mathrm{raw}}=\begin{bmatrix}\hat v_{WB}^{W}\cr E_{\mathrm{ZYX}}(\eta)\hat\omega_{WB}^{B}\cr \dot q_{j,\mathrm{meas}}\end{bmatrix}.
 $$
 
 $`E_{\mathrm{ZYX}}`$ converts body angular velocity into Euler rates, and yaw is unwrapped before constructing the state.
@@ -106,7 +106,7 @@ Joint velocities already belong to the WB-ID state and must not be inserted into
 OCS2 receives a double-integrator flow map:
 
 $$
-\dot x=\begin{bmatrix}v\\a\end{bmatrix}.
+\dot x=\begin{bmatrix}v\cr a\end{bmatrix}.
 $$
 
 For constant input over $`\Delta t_k`$, the exact flow is:
@@ -184,7 +184,7 @@ $$
 The input reference distributes weight equally among the $`N_s`$ scheduled stance contacts:
 
 $$
-f_{c,\mathrm{nom}}=\begin{cases}[0,0,mg/N_s]^{\mathsf T},&c\text{ in stance},\\0,&c\text{ in swing},\end{cases}
+f_{c,\mathrm{nom}}=\begin{cases}[0,0,mg/N_s]^{\mathsf T},&c\text{ in stance},\cr 0,&c\text{ in swing},\end{cases}
 \qquad m_{c,\mathrm{nom}}=0,\quad a_{\mathrm{nom}}=0,\quad\tau_{j,\mathrm{nom}}=0.
 $$
 
@@ -205,11 +205,11 @@ Horizontal velocities are compared in their respective heading frames, while the
 $$
 e_{v,xy}=R_2(\psi)^{\mathsf T}v_{B,xy}^{W}-R_2(\psi_d)^{\mathsf T}v_{B,d,xy}^{W},
 \qquad
-e_{v,\mathrm{rest}}=\begin{bmatrix}v_z-v_{z,d}\\\dot\eta-\dot\eta_d\end{bmatrix},
+e_{v,\mathrm{rest}}=\begin{bmatrix}v_z-v_{z,d}\cr \dot\eta-\dot\eta_d\end{bmatrix},
 $$
 
 $$
-\ell_{\mathrm{base}}=\tfrac12\left\|\begin{bmatrix}e_{\mathrm{pose}}\\e_{v,xy}\\e_{v,\mathrm{rest}}\end{bmatrix}\right\|_{Q_B}^2.
+\ell_{\mathrm{base}}=\tfrac12\left\|\begin{bmatrix}e_{\mathrm{pose}}\cr e_{v,xy}\cr e_{v,\mathrm{rest}}\end{bmatrix}\right\|_{Q_B}^2.
 $$
 
 $`R_2`$ is the planar yaw rotation and $`\mathrm{wrap}`$ is the signed angle difference modulo $`2\pi`$.
@@ -234,7 +234,7 @@ It does not supply a separate commanded arm-velocity trajectory, and `default` c
 The foot residual has 12 components:
 
 $$
-e_c=\begin{bmatrix}p_c-p_{c,d}\\d_{\mathrm{plane}}(R_c,n_d)\\s_c(t)(v_c-v_{c,d})\\\omega_c-\omega_{c,d}\end{bmatrix},
+e_c=\begin{bmatrix}p_c-p_{c,d}\cr d_{\mathrm{plane}}(R_c,n_d)\cr s_c(t)(v_c-v_{c,d})\cr \omega_c-\omega_{c,d}\end{bmatrix},
 \qquad \ell_{\mathrm{feet}}=\tfrac12\sum_c\|e_c\|_{Q_c}^2.
 $$
 
@@ -245,7 +245,7 @@ Optional named task-space costs use position, quaternion-distance orientation an
 Their references are obtained by forward kinematics of the desired state, rather than being independent hand-pose commands:
 
 $$
-e_{\mathrm{task}}=\begin{bmatrix}p_{\mathrm{link}}-p_{\mathrm{link},d}\\d_q(Q_{\mathrm{link}},Q_{\mathrm{link},d})\\v_{\mathrm{link}}-v_{\mathrm{link},d}\\\omega_{\mathrm{link}}-\omega_{\mathrm{link},d}\end{bmatrix},
+e_{\mathrm{task}}=\begin{bmatrix}p_{\mathrm{link}}-p_{\mathrm{link},d}\cr d_q(Q_{\mathrm{link}},Q_{\mathrm{link},d})\cr v_{\mathrm{link}}-v_{\mathrm{link},d}\cr \omega_{\mathrm{link}}-\omega_{\mathrm{link},d}\end{bmatrix},
 \qquad \ell_{\mathrm{task}}=\tfrac12\|e_{\mathrm{task}}\|_{Q_{\mathrm{task}}}^2.
 $$
 
@@ -279,9 +279,9 @@ The stance equations are:
 
 $$
 \begin{aligned}
-k_{a,xy}a_{c,x}+k_{d,xy}v_{c,x}&=0,\\
-k_{a,xy}a_{c,y}+k_{d,xy}v_{c,y}&=0,\\
-k_{a,z}a_{c,z}+k_{d,z}v_{c,z}+k_{p,z}(z_c-z_{c,d})&=0,\\
+k_{a,xy}a_{c,x}+k_{d,xy}v_{c,x}&=0,\cr 
+k_{a,xy}a_{c,y}+k_{d,xy}v_{c,y}&=0,\cr 
+k_{a,z}a_{c,z}+k_{d,z}v_{c,z}+k_{p,z}(z_c-z_{c,d})&=0,\cr 
 k_{a,R}\dot\omega_c+k_{d,R}\omega_c+k_{p,R}d_{\mathrm{plane}}(R_c,e_z)&=0.
 \end{aligned}
 $$
@@ -313,7 +313,7 @@ The current friction coefficient $`\mu_f=0.4`$ is distinct from the soft penalty
 For CoP, forces and moments are rotated into the foot frame and the margins are:
 
 $$
-\begin{bmatrix}m_x-y_{\min}f_z\\-m_x+y_{\max}f_z\\-m_y-x_{\min}f_z\\m_y+x_{\max}f_z\end{bmatrix}\ge0.
+\begin{bmatrix}m_x-y_{\min}f_z\cr -m_x+y_{\max}f_z\cr -m_y-x_{\min}f_z\cr m_y+x_{\max}f_z\end{bmatrix}\ge0.
 $$
 
 For $`f_z>0`$, these bound $`x_{\mathrm{CoP}}=-m_y/f_z`$ and $`y_{\mathrm{CoP}}=m_x/f_z`$ within the rectangle.
@@ -340,7 +340,7 @@ Friction, CoP, joint velocity and joint torque use the relaxed logarithmic barri
 
 $$
 p_{\mu,\delta}(h)=\mu\begin{cases}
--\ln h,&h>\delta,\\
+-\ln h,&h>\delta,\cr 
 -\ln\delta+\tfrac12\left(\dfrac{h-2\delta}{\delta}\right)^2-\tfrac12,&h\le\delta.
 \end{cases}
 $$
@@ -349,8 +349,8 @@ Joint positions and foot/knee collision margins use a piecewise polynomial penal
 
 $$
 p^{\mathrm{poly}}_{\mu,\delta}(h)=\mu\begin{cases}
-\tfrac12h^2-\tfrac12\delta h+\tfrac16\delta^2,&h\le0,\\
--\dfrac{h^3}{6\delta}+\tfrac12h^2-\tfrac12\delta h+\tfrac16\delta^2,&0<h<\delta,\\
+\tfrac12h^2-\tfrac12\delta h+\tfrac16\delta^2,&h\le0,\cr 
+-\dfrac{h^3}{6\delta}+\tfrac12h^2-\tfrac12\delta h+\tfrac16\delta^2,&0<h<\delta,\cr 
 0,&h\ge\delta.
 \end{cases}
 $$
@@ -456,7 +456,7 @@ With `control.feedforward: policy_torque`, it selects:
 
 $$
 \tau_{\mathrm{ff}}=\begin{cases}
-\tau_j^*(t_e),&\text{policy interpolation knots lie inside its torque window},\\
+\tau_j^*(t_e),&\text{policy interpolation knots lie inside its torque window},\cr 
 \mathrm{ID}_j(q^*,v^*,a_j^*,W^*),&\text{otherwise}.
 \end{cases}
 $$
