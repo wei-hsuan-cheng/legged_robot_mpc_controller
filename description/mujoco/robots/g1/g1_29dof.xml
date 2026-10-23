@@ -13,7 +13,7 @@
     imu-pelvis-quat sensor, and the Mid-360 site.
   -->
   <!-- Asset directories resolve from the scene entry point in description/mujoco. -->
-  <compiler angle="radian" meshdir="../robots/g1/meshes"/>
+  <compiler angle="radian" meshdir="../meshes/robots/g1"/>
   <option integrator="implicitfast"/>
   <default>
     <geom solimp="0.999 0.95 0.005" solref="0.001 1.0"/>

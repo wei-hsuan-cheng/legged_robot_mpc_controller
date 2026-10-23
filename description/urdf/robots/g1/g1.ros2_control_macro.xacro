@@ -122,7 +122,7 @@
         </sensor>
 
         <!-- Pelvis IMU (raw gyro + accelerometer + orientation) for the InEKF state
-             estimator. MuJoCo sensor names come from description/robots/g1/mujoco/g1_29dof.xml. -->
+             estimator. MuJoCo sensor names come from description/mujoco/robots/g1/g1_29dof.xml. -->
         <sensor name="pelvis_imu">
           <param name="mujoco_quat_sensor_name">imu-pelvis-quat</param>
           <param name="mujoco_gyro_sensor_name">imu-pelvis-angular-velocity</param>

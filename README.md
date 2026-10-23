@@ -218,12 +218,13 @@ Supported target channels are soft costs balanced against the rest of the MPC; r
 
 ## Robot Description and Frames
 
-Robot-specific assets live in `description/robots/g1/`, while reusable scenes and environments live in `description/mujoco/`.
+Descriptions are grouped by format: `description/meshes/robots/g1/`, `description/mujoco/robots/g1/` and `description/urdf/robots/g1/` contain the G1 assets.
+Scene entry points and shared simulation environments live under `description/mujoco/`, while RViz environment descriptions live under `description/urdf/terrains/`.
 See the [description layout](./description/README.md) and [MuJoCo scene composition guide](./description/mujoco/README.md).
 
-There is one robot URDF, [`description/robots/g1/urdf/g1_29dof.urdf`](./description/robots/g1/urdf/g1_29dof.urdf), rooted at the pelvis with **no `world` link and no floating joint**. The MPC and the estimators add the floating base themselves (Pinocchio), MuJoCo owns its free joint in the MJCF, and the base pose reaches the TF tree from the estimator. [`g1.ros2_control.xacro`](./description/robots/g1/urdf/g1.ros2_control.xacro) includes that URDF and adds the `<ros2_control>` block; the result is the single `/robot_description`, used by the controller manager and robot_state_publisher.
+There is one robot URDF, [`description/urdf/robots/g1/g1_29dof.urdf`](./description/urdf/robots/g1/g1_29dof.urdf), rooted at the pelvis with **no `world` link and no floating joint**. The MPC and the estimators add the floating base themselves (Pinocchio), MuJoCo owns its free joint in the MJCF, and the base pose reaches the TF tree from the estimator. [`g1.ros2_control.xacro`](./description/urdf/robots/g1/g1.ros2_control.xacro) includes that URDF and adds the `<ros2_control>` block; the result is the single `/robot_description`, used by the controller manager and robot_state_publisher.
 
-The environment is not part of the robot: [`stairs.urdf.xacro`](./description/mujoco/terrains/stairs.urdf.xacro), rooted at `world` and driven by the same `stairs_params.yaml` as the MuJoCo stairs, is published by a second robot_state_publisher as `/environment/robot_description` (the "Environment" display in rviz). Pass `environmentDescription:=""` with a scene that has no stairs, e.g. `scene_flat.xml`.
+The environment is not part of the robot: [`stairs.urdf.xacro`](./description/urdf/terrains/stairs.urdf.xacro), rooted at `world` and driven by the same [`stairs_params.yaml`](./config/terrains/stairs_params.yaml) as the MuJoCo stairs, is published by a second robot_state_publisher as `/environment/robot_description` (the "Environment" display in rviz). Pass `environmentDescription:=""` with a scene that has no stairs, e.g. `scene_flat.xml`.
 
 ```mermaid
 flowchart LR

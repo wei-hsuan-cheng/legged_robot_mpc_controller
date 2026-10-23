@@ -2,9 +2,9 @@
 """Generate modular G1 MuJoCo scenes and reusable studio backgrounds.
 
 Scene entry points include a robot, one background and optional terrain modules.
-backgrounds/background_day.xml keeps the original daytime appearance; background_night.xml
+common/backgrounds/background_day.xml keeps the original daytime appearance; background_night.xml
 owns studio lighting, camera settings and the satin floor. Both backgrounds load
-materials/terrain_materials.xml once, providing textures/studio_terrain.png to stairs, ramps,
+common/materials/terrain_materials.xml once, providing textures/studio_terrain.png to stairs, ramps,
 slopes and boxes. Geometry/contact definitions stay in their own modules, so terrain
 edits immediately reach every scene without copying or regenerating geometry.
 
@@ -16,7 +16,7 @@ Usage (paths are relative to description/mujoco unless absolute):
     python3 description/mujoco/mujoco_scene_creator.py --style studio_blue -o scene_blue.xml
     python3 description/mujoco/mujoco_scene_creator.py --preview /tmp/studio.png
 
-The default run updates the shared backgrounds/background_night.xml. Appearance overrides write
+The default run updates the shared common/backgrounds/background_night.xml. Appearance overrides write
 an output-specific background module. Preview rendering needs the mujoco Python
 package; XML/texture generation uses only the standard library. Select the scene
 with g1.launch.py mujocoModelFile:=scene.xml.
@@ -242,7 +242,7 @@ def build_background(style, style_name, texture_rel, target_body, scene_dir):
                   directional="true" if light.directional else "false",
                   castshadow="true" if light.castshadow else "false")
   # Both backgrounds use exactly the same physical floor; only its material differs.
-  floor = copy.deepcopy(ET.parse(os.path.join(scene_dir, "backgrounds", "background_day.xml")).find("./worldbody/geom"))
+  floor = copy.deepcopy(ET.parse(os.path.join(scene_dir, "common", "backgrounds", "background_day.xml")).find("./worldbody/geom"))
   floor.set("material", "studio_floor")
   world.append(floor)
   ET.indent(root, space="  ")
@@ -375,10 +375,10 @@ def main():
   defaults = vars(parser.parse_args([]))
   command = " ".join(f"{k}={' '.join(v) if isinstance(v, list) else v}" for k, v in vars(args).items()
                      if v != defaults[k] and k not in ("scene_dir", "preview", "preview_size")) or "(defaults)"
-  background = os.path.join("backgrounds", f"background_{args.background}.xml")
+  background = os.path.join("common", "backgrounds", f"background_{args.background}.xml")
   if args.background == "night":
     if args.style != "studio" or overrides or args.target_body != "pelvis":
-      background = os.path.join("backgrounds", f"background_night_{os.path.splitext(os.path.basename(output))[0]}.xml")
+      background = os.path.join("common", "backgrounds", f"background_night_{os.path.splitext(os.path.basename(output))[0]}.xml")
     background_path = os.path.join(out_dir, background)
     os.makedirs(os.path.dirname(background_path), exist_ok=True)
     build_background(style, args.style, texture_rel, args.target_body, out_dir).write(

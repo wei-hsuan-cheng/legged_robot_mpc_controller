@@ -6,7 +6,7 @@
     Generate the xml file using xacro with the following command:
       sudo xacro \
         ./stairs.xml.xacro \
-        stairs_params_file:=./stairs_params.yaml \
+        stairs_params_file:=../../../config/terrains/stairs_params.yaml \
         -o ./stairs.xml
 
     Schematic (side view, local frame of the 0th step):
@@ -24,7 +24,7 @@
     Each step is a SOLID box from the ground (local z=0) up to its tread
     height, so its half-size in z is (cumulative height)/2.
   -->
-  <xacro:arg name="stairs_params_file" default="stairs_params.yaml"/>
+  <xacro:arg name="stairs_params_file" default="../../../config/terrains/stairs_params.yaml"/>
   <xacro:property name="stairs_params_file" value="$(arg stairs_params_file)"/>
 
   <xacro:property name="stairs" value="${xacro.load_yaml(stairs_params_file)['stairs']}"/>

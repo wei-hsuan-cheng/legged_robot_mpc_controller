@@ -53,12 +53,12 @@ def generate_launch_description():
     # The one robot URDF, pelvis-rooted with no world link or floating joint: the MPC
     # and the estimators add the floating base themselves, and robot_state_publisher
     # gets it from g1.ros2_control.xacro, which includes this file.
-    urdf_default = PathJoinSubstitution([mpc_share_dir, "description", "robots", "g1", "urdf", "g1_29dof.urdf"])
+    urdf_default = PathJoinSubstitution([mpc_share_dir, "description", "urdf", "robots", "g1", "g1_29dof.urdf"])
 
     # The environment, rooted at world - not part of the robot. "" for none (e.g. with scene_flat.xml). 
     # Driven by the same params file as the MuJoCo stairs.
-    environment_default = PathJoinSubstitution([mpc_share_dir, "description", "mujoco", "terrains", "stairs.urdf.xacro"])
-    stairs_params_file = PathJoinSubstitution([mpc_share_dir, "description", "mujoco", "terrains", "stairs_params.yaml"])
+    environment_default = PathJoinSubstitution([mpc_share_dir, "description", "urdf", "terrains", "stairs.urdf.xacro"])
+    stairs_params_file = PathJoinSubstitution([mpc_share_dir, "config", "terrains", "stairs_params.yaml"])
 
     controllers_file_default = PathJoinSubstitution([
         mpc_share_dir, "config", "g1",
@@ -77,7 +77,7 @@ def generate_launch_description():
         "terrain_walking.yaml"
         ])
 
-    ros2_control_xacro = PathJoinSubstitution([mpc_share_dir, "description", "robots", "g1", "urdf", "g1.ros2_control.xacro"])
+    ros2_control_xacro = PathJoinSubstitution([mpc_share_dir, "description", "urdf", "robots", "g1", "g1.ros2_control.xacro"])
 
     declared_arguments = [
         DeclareLaunchArgument("rviz", default_value="true"),

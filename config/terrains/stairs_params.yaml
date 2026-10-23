@@ -1,7 +1,7 @@
 # -----------------------------------------------------------------------------
 # Semantic-level parameters for a parametric staircase.
 #
-# Geometry convention (see the schematic in stairs.xml.xacro):
+# Geometry convention (see description/mujoco/terrains/stairs.xml.xacro):
 #   - The "0th step" is the reference frame. It lies in the horizontal plane and
 #     is fully described by its world center position and yaw orientation.
 #   - Steps 1..N ascend from the 0th step in the local +x direction (the
@@ -11,8 +11,8 @@
 #     previous tread), depths are TREAD depths along +x, widths are along +y.
 #
 # This single file feeds BOTH:
-#   - stairs.xml.xacro         -> stairs.xml
-#   - stairs.urdf.xacro        -> the environment description rviz shows (at launch)
+#   - description/mujoco/terrains/stairs.xml.xacro -> stairs.xml
+#   - description/urdf/terrains/stairs.urdf.xacro  -> the RViz environment
 # Keep it as the single source of truth.
 # -----------------------------------------------------------------------------
 stairs:

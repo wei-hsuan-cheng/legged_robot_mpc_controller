@@ -76,7 +76,7 @@ While foot $i$ is in stance, the InEKF assumes its contact point is **fixed in t
 
 Contact state per foot may come from the joint torques (logistic regression inside the library) or, as configured by default, from the **MPC gait schedule** (`stateEstimator.contact.source: scheduled`), which is deterministic and matches the MIT Humanoid approach.
 
-The InEKF requires exactly **four point contacts**, so each flat foot contributes a **heel and a toe** point (as in the MIT Humanoid whole-body work). These are added to the URDF at the sole, offset from the ankle-roll link, with names distinct from the MPC's own contact frames to avoid a Pinocchio frame-name collision: [`foot_l_heel_est` … `foot_r_toe_est`](../description/robots/g1/urdf/g1_29dof.urdf#L1003-L1026).
+The InEKF requires exactly **four point contacts**, so each flat foot contributes a **heel and a toe** point (as in the MIT Humanoid whole-body work). These are added to the URDF at the sole, offset from the ankle-roll link, with names distinct from the MPC's own contact frames to avoid a Pinocchio frame-name collision: [`foot_l_heel_est` … `foot_r_toe_est`](../description/urdf/robots/g1/g1_29dof.urdf#L1003-L1026).
 
 ## IMU ↔ Pelvis Frame Conversion
 
@@ -110,7 +110,7 @@ The controller provides joint values in its own `robot.jointNames` order (23 act
 
 The estimator inputs come from `ros2_control` state interfaces exposed by `mujoco_ros2_control`:
 
-- **Pelvis IMU** — a `<sensor name="pelvis_imu">` in [`g1.ros2_control_macro.xacro`](../description/robots/g1/urdf/g1.ros2_control_macro.xacro#L126-L141) maps the MuJoCo `imu-pelvis-*` sensors to `orientation.*`, `angular_velocity.*`, and `linear_acceleration.*`. The MuJoCo model already has the gyro/accelerometer on the `imu_in_pelvis` site; a [`framequat`](../description/robots/g1/mujoco/g1_29dof.xml#L297) was added because the IMU mapping requires a quaternion sensor. The IMU site pose matches the URDF `imu_in_pelvis` frame exactly.
+- **Pelvis IMU** — a `<sensor name="pelvis_imu">` in [`g1.ros2_control_macro.xacro`](../description/urdf/robots/g1/g1.ros2_control_macro.xacro#L126-L141) maps the MuJoCo `imu-pelvis-*` sensors to `orientation.*`, `angular_velocity.*`, and `linear_acceleration.*`. The MuJoCo model already has the gyro/accelerometer on the `imu_in_pelvis` site; a [`framequat`](../description/mujoco/robots/g1/g1_29dof.xml#L297) was added because the IMU mapping requires a quaternion sensor. The IMU site pose matches the URDF `imu_in_pelvis` frame exactly.
 - **Joint torque** — the joint macro already exposes an `effort` state interface, read for the torque-based contact estimator.
 
 These are claimed in [`state_interface_configuration()`](../src/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller.cpp#L363-L402) whenever the estimator is active. The same wiring applies on hardware: real IMU, encoders, and joint-torque sensing replace the MuJoCo sources with no controller change.
@@ -249,4 +249,4 @@ All inputs are proprioceptive — IMU (roll/pitch), joint encoders, and contact 
 | InEKF wrapper | [`humanoid_state_estimation/inekf_floating_base_estimator.{hpp,cpp}`](../src/humanoid_state_estimation/inekf_floating_base_estimator.cpp) |
 | Controller integration | [`humanoid_centroidal_mpc_controller.cpp`](../src/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller.cpp) |
 | Parameters | [`humanoid_centroidal_mpc_controller_parameter.yaml`](../src/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller_parameter.yaml) |
-| IMU / contact frames | [`g1_29dof.urdf`](../description/robots/g1/urdf/g1_29dof.urdf), [`g1.ros2_control_macro.xacro`](../description/robots/g1/urdf/g1.ros2_control_macro.xacro), [`g1_29dof.xml`](../description/robots/g1/mujoco/g1_29dof.xml) |
+| IMU / contact frames | [`g1_29dof.urdf`](../description/urdf/robots/g1/g1_29dof.urdf), [`g1.ros2_control_macro.xacro`](../description/urdf/robots/g1/g1.ros2_control_macro.xacro), [`g1_29dof.xml`](../description/mujoco/robots/g1/g1_29dof.xml) |

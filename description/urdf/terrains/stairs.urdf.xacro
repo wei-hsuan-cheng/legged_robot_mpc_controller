@@ -2,7 +2,7 @@
 <robot name="stairs" xmlns:xacro="http://www.ros.org/wiki/xacro">
   <!--
     Environment description: a parametric staircase (same geometry convention
-    as stairs.xml.xacro, driven by the SAME params file). It is not
+    as ../../mujoco/terrains/stairs.xml.xacro, driven by the SAME params file). It is not
     part of the robot. g1.launch.py runs it through xacro and publishes it with
     its own robot_state_publisher in the "environment" namespace, so rviz shows
     it next to the robot.
@@ -14,7 +14,7 @@
     Each step is a SOLID box from the ground up to its tread height; the box
     origin sits at half that height.
   -->
-  <xacro:arg name="stairs_params_file" default="stairs_params.yaml"/>
+  <xacro:arg name="stairs_params_file" default="../../../config/terrains/stairs_params.yaml"/>
   <xacro:arg name="parent" default="world"/>
 
   <xacro:property name="stairs_params_file" value="$(arg stairs_params_file)"/>
