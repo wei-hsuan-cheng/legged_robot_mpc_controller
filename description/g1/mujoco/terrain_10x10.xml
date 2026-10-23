@@ -1,446 +1,446 @@
 <!-- Include at the top level of <mujoco>, alongside the main <worldbody>. -->
+<!-- The central 0.5 x 0.5 m patch uses the background floor; terrain shares the stair material. -->
 <mujocoinclude>
   <worldbody>
-    <geom name="terrain_00_00" type="box" pos="-4.76250 -4.76250 -0.22429" size="0.23750 0.23750 0.25000" rgba="0.320 0.420 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_00_01" type="box" pos="-4.76250 -4.28750 -0.23106" size="0.23750 0.23750 0.25000" rgba="0.328 0.429 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_00_02" type="box" pos="-4.76250 -3.81250 -0.24109" size="0.23750 0.23750 0.25000" rgba="0.336 0.438 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_00_03" type="box" pos="-4.76250 -3.33750 -0.24696" size="0.23750 0.23750 0.25000" rgba="0.344 0.447 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_00_04" type="box" pos="-4.76250 -2.86250 -0.24720" size="0.23750 0.23750 0.25000" rgba="0.320 0.456 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_00_05" type="box" pos="-4.76250 -2.38750 -0.24638" size="0.23750 0.23750 0.25000" rgba="0.328 0.420 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_00_06" type="box" pos="-4.76250 -1.91250 -0.24925" size="0.23750 0.23750 0.25000" rgba="0.336 0.429 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_00_07" type="box" pos="-4.76250 -1.43750 -0.25531" size="0.23750 0.23750 0.25000" rgba="0.344 0.438 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_00_08" type="box" pos="-4.76250 -0.96250 -0.25921" size="0.23750 0.23750 0.25000" rgba="0.320 0.447 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_00_09" type="box" pos="-4.76250 -0.48750 -0.25660" size="0.23750 0.23750 0.25000" rgba="0.328 0.456 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_00_10" type="box" pos="-4.76250 0.00000 -0.24919" size="0.23750 0.25000 0.25000" rgba="0.336 0.420 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_00_11" type="box" pos="-4.76250 0.48750 -0.24465" size="0.23750 0.23750 0.25000" rgba="0.344 0.429 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_00_12" type="box" pos="-4.76250 0.96250 -0.24877" size="0.23750 0.23750 0.25000" rgba="0.320 0.438 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_00_13" type="box" pos="-4.76250 1.43750 -0.25959" size="0.23750 0.23750 0.25000" rgba="0.328 0.447 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_00_14" type="box" pos="-4.76250 1.91250 -0.26914" size="0.23750 0.23750 0.25000" rgba="0.336 0.456 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_00_15" type="box" pos="-4.76250 2.38750 -0.27010" size="0.23750 0.23750 0.25000" rgba="0.344 0.420 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_00_16" type="box" pos="-4.76250 2.86250 -0.26197" size="0.23750 0.23750 0.25000" rgba="0.320 0.429 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_00_17" type="box" pos="-4.76250 3.33750 -0.25072" size="0.23750 0.23750 0.25000" rgba="0.328 0.438 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_00_18" type="box" pos="-4.76250 3.81250 -0.24274" size="0.23750 0.23750 0.25000" rgba="0.336 0.447 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_00_19" type="box" pos="-4.76250 4.28750 -0.23907" size="0.23750 0.23750 0.25000" rgba="0.344 0.456 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_00_20" type="box" pos="-4.76250 4.76250 -0.23577" size="0.23750 0.23750 0.25000" rgba="0.320 0.420 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_01_00" type="box" pos="-4.28750 -4.76250 -0.24346" size="0.23750 0.23750 0.25000" rgba="0.328 0.447 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_01_01" type="box" pos="-4.28750 -4.28750 -0.24672" size="0.23750 0.23750 0.25000" rgba="0.336 0.456 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_01_02" type="box" pos="-4.28750 -3.81250 -0.24959" size="0.23750 0.23750 0.25000" rgba="0.344 0.420 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_01_03" type="box" pos="-4.28750 -3.33750 -0.24679" size="0.23750 0.23750 0.25000" rgba="0.320 0.429 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_01_04" type="box" pos="-4.28750 -2.86250 -0.23952" size="0.23750 0.23750 0.25000" rgba="0.328 0.438 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_01_05" type="box" pos="-4.28750 -2.38750 -0.23415" size="0.23750 0.23750 0.25000" rgba="0.336 0.447 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_01_06" type="box" pos="-4.28750 -1.91250 -0.23565" size="0.23750 0.23750 0.25000" rgba="0.344 0.456 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_01_07" type="box" pos="-4.28750 -1.43750 -0.24265" size="0.23750 0.23750 0.25000" rgba="0.320 0.420 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_01_08" type="box" pos="-4.28750 -0.96250 -0.24887" size="0.23750 0.23750 0.25000" rgba="0.328 0.429 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_01_09" type="box" pos="-4.28750 -0.48750 -0.24957" size="0.23750 0.23750 0.25000" rgba="0.336 0.438 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_01_10" type="box" pos="-4.28750 0.00000 -0.24640" size="0.23750 0.25000 0.25000" rgba="0.344 0.447 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_01_11" type="box" pos="-4.28750 0.48750 -0.24625" size="0.23750 0.23750 0.25000" rgba="0.320 0.456 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_01_12" type="box" pos="-4.28750 0.96250 -0.25352" size="0.23750 0.23750 0.25000" rgba="0.328 0.420 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_01_13" type="box" pos="-4.28750 1.43750 -0.26535" size="0.23750 0.23750 0.25000" rgba="0.336 0.429 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_01_14" type="box" pos="-4.28750 1.91250 -0.27387" size="0.23750 0.23750 0.25000" rgba="0.344 0.438 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_01_15" type="box" pos="-4.28750 2.38750 -0.27312" size="0.23750 0.23750 0.25000" rgba="0.320 0.447 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_01_16" type="box" pos="-4.28750 2.86250 -0.26425" size="0.23750 0.23750 0.25000" rgba="0.328 0.456 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_01_17" type="box" pos="-4.28750 3.33750 -0.25399" size="0.23750 0.23750 0.25000" rgba="0.336 0.420 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_01_18" type="box" pos="-4.28750 3.81250 -0.24800" size="0.23750 0.23750 0.25000" rgba="0.344 0.429 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_01_19" type="box" pos="-4.28750 4.28750 -0.24587" size="0.23750 0.23750 0.25000" rgba="0.320 0.438 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_01_20" type="box" pos="-4.28750 4.76250 -0.24259" size="0.23750 0.23750 0.25000" rgba="0.328 0.447 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_02_00" type="box" pos="-3.81250 -4.76250 -0.26160" size="0.23750 0.23750 0.25000" rgba="0.336 0.429 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_02_01" type="box" pos="-3.81250 -4.28750 -0.26369" size="0.23750 0.23750 0.25000" rgba="0.344 0.438 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_02_02" type="box" pos="-3.81250 -3.81250 -0.26147" size="0.23750 0.23750 0.25000" rgba="0.320 0.447 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_02_03" type="box" pos="-3.81250 -3.33750 -0.25172" size="0.23750 0.23750 0.25000" rgba="0.328 0.456 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_02_04" type="box" pos="-3.81250 -2.86250 -0.23818" size="0.23750 0.23750 0.25000" rgba="0.336 0.420 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_02_05" type="box" pos="-3.81250 -2.38750 -0.22877" size="0.23750 0.23750 0.25000" rgba="0.344 0.429 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_02_06" type="box" pos="-3.81250 -1.91250 -0.22858" size="0.23750 0.23750 0.25000" rgba="0.320 0.438 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_02_07" type="box" pos="-3.81250 -1.43750 -0.23539" size="0.23750 0.23750 0.25000" rgba="0.328 0.447 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_02_08" type="box" pos="-3.81250 -0.96250 -0.24218" size="0.23750 0.23750 0.25000" rgba="0.336 0.456 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_02_09" type="box" pos="-3.81250 -0.48750 -0.24406" size="0.23750 0.23750 0.25000" rgba="0.344 0.420 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_02_10" type="box" pos="-3.81250 0.00000 -0.24270" size="0.23750 0.25000 0.25000" rgba="0.320 0.429 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_02_11" type="box" pos="-3.81250 0.48750 -0.24440" size="0.23750 0.23750 0.25000" rgba="0.328 0.438 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_02_12" type="box" pos="-3.81250 0.96250 -0.25251" size="0.23750 0.23750 0.25000" rgba="0.336 0.447 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_02_13" type="box" pos="-3.81250 1.43750 -0.26356" size="0.23750 0.23750 0.25000" rgba="0.344 0.456 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_02_14" type="box" pos="-3.81250 1.91250 -0.27024" size="0.23750 0.23750 0.25000" rgba="0.320 0.420 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_02_15" type="box" pos="-3.81250 2.38750 -0.26828" size="0.23750 0.23750 0.25000" rgba="0.328 0.429 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_02_16" type="box" pos="-3.81250 2.86250 -0.26048" size="0.23750 0.23750 0.25000" rgba="0.336 0.438 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_02_17" type="box" pos="-3.81250 3.33750 -0.25399" size="0.23750 0.23750 0.25000" rgba="0.344 0.447 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_02_18" type="box" pos="-3.81250 3.81250 -0.25330" size="0.23750 0.23750 0.25000" rgba="0.320 0.456 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_02_19" type="box" pos="-3.81250 4.28750 -0.25606" size="0.23750 0.23750 0.25000" rgba="0.328 0.420 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_02_20" type="box" pos="-3.81250 4.76250 -0.25576" size="0.23750 0.23750 0.25000" rgba="0.336 0.429 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_03_00" type="box" pos="-3.33750 -4.76250 -0.27249" size="0.23750 0.23750 0.25000" rgba="0.344 0.456 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_03_01" type="box" pos="-3.33750 -4.28750 -0.27541" size="0.23750 0.23750 0.25000" rgba="0.320 0.420 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_03_02" type="box" pos="-3.33750 -3.81250 -0.27092" size="0.23750 0.23750 0.25000" rgba="0.328 0.429 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_03_03" type="box" pos="-3.33750 -3.33750 -0.25752" size="0.23750 0.23750 0.25000" rgba="0.336 0.438 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_03_04" type="box" pos="-3.33750 -2.86250 -0.24091" size="0.23750 0.23750 0.25000" rgba="0.344 0.447 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_03_05" type="box" pos="-3.33750 -2.38750 -0.23002" size="0.23750 0.23750 0.25000" rgba="0.320 0.456 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_03_06" type="box" pos="-3.33750 -1.91250 -0.22957" size="0.23750 0.23750 0.25000" rgba="0.328 0.420 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_03_07" type="box" pos="-3.33750 -1.43750 -0.23638" size="0.23750 0.23750 0.25000" rgba="0.336 0.429 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_03_08" type="box" pos="-3.33750 -0.96250 -0.24284" size="0.23750 0.23750 0.25000" rgba="0.344 0.438 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_03_09" type="box" pos="-3.33750 -0.48750 -0.24413" size="0.23750 0.23750 0.25000" rgba="0.320 0.447 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_03_10" type="box" pos="-3.33750 0.00000 -0.24210" size="0.23750 0.25000 0.25000" rgba="0.328 0.456 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_03_11" type="box" pos="-3.33750 0.48750 -0.24278" size="0.23750 0.23750 0.25000" rgba="0.336 0.420 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_03_12" type="box" pos="-3.33750 0.96250 -0.24881" size="0.23750 0.23750 0.25000" rgba="0.344 0.429 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_03_13" type="box" pos="-3.33750 1.43750 -0.25651" size="0.23750 0.23750 0.25000" rgba="0.320 0.438 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_03_14" type="box" pos="-3.33750 1.91250 -0.25959" size="0.23750 0.23750 0.25000" rgba="0.328 0.447 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_03_15" type="box" pos="-3.33750 2.38750 -0.25571" size="0.23750 0.23750 0.25000" rgba="0.336 0.456 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_03_16" type="box" pos="-3.33750 2.86250 -0.24935" size="0.23750 0.23750 0.25000" rgba="0.344 0.420 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_03_17" type="box" pos="-3.33750 3.33750 -0.24788" size="0.23750 0.23750 0.25000" rgba="0.320 0.429 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_03_18" type="box" pos="-3.33750 3.81250 -0.25436" size="0.23750 0.23750 0.25000" rgba="0.328 0.438 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_03_19" type="box" pos="-3.33750 4.28750 -0.26433" size="0.23750 0.23750 0.25000" rgba="0.336 0.447 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_03_20" type="box" pos="-3.33750 4.76250 -0.26962" size="0.23750 0.23750 0.25000" rgba="0.344 0.456 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_04_00" type="box" pos="-2.86250 -4.76250 -0.27345" size="0.23750 0.23750 0.25000" rgba="0.320 0.438 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_04_01" type="box" pos="-2.86250 -4.28750 -0.27789" size="0.23750 0.23750 0.25000" rgba="0.328 0.447 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_04_02" type="box" pos="-2.86250 -3.81250 -0.27331" size="0.23750 0.23750 0.25000" rgba="0.336 0.456 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_04_03" type="box" pos="-2.86250 -3.33750 -0.25952" size="0.23750 0.23750 0.25000" rgba="0.344 0.420 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_04_04" type="box" pos="-2.86250 -2.86250 -0.24354" size="0.23750 0.23750 0.25000" rgba="0.320 0.429 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_04_05" type="box" pos="-2.86250 -2.38750 -0.23451" size="0.23750 0.23750 0.25000" rgba="0.328 0.438 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_04_06" type="box" pos="-2.86250 -1.91250 -0.23623" size="0.23750 0.23750 0.25000" rgba="0.336 0.447 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_04_07" type="box" pos="-2.86250 -1.43750 -0.24436" size="0.23750 0.23750 0.25000" rgba="0.344 0.456 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_04_08" type="box" pos="-2.86250 -0.96250 -0.25076" size="0.23750 0.23750 0.25000" rgba="0.320 0.420 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_04_09" type="box" pos="-2.86250 -0.48750 -0.25089" size="0.23750 0.23750 0.25000" rgba="0.328 0.429 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_04_10" type="box" pos="-2.86250 0.00000 -0.24696" size="0.23750 0.25000 0.25000" rgba="0.336 0.438 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_04_11" type="box" pos="-2.86250 0.48750 -0.24484" size="0.23750 0.23750 0.25000" rgba="0.344 0.447 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_04_12" type="box" pos="-2.86250 0.96250 -0.24678" size="0.23750 0.23750 0.25000" rgba="0.320 0.456 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_04_13" type="box" pos="-2.86250 1.43750 -0.24910" size="0.23750 0.23750 0.25000" rgba="0.328 0.420 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_04_14" type="box" pos="-2.86250 1.91250 -0.24676" size="0.23750 0.23750 0.25000" rgba="0.336 0.429 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_04_15" type="box" pos="-2.86250 2.38750 -0.23950" size="0.23750 0.23750 0.25000" rgba="0.344 0.438 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_04_16" type="box" pos="-2.86250 2.86250 -0.23345" size="0.23750 0.23750 0.25000" rgba="0.320 0.447 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_04_17" type="box" pos="-2.86250 3.33750 -0.23611" size="0.23750 0.23750 0.25000" rgba="0.328 0.456 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_04_18" type="box" pos="-2.86250 3.81250 -0.24919" size="0.23750 0.23750 0.25000" rgba="0.336 0.420 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_04_19" type="box" pos="-2.86250 4.28750 -0.26634" size="0.23750 0.23750 0.25000" rgba="0.344 0.429 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_04_20" type="box" pos="-2.86250 4.76250 -0.27803" size="0.23750 0.23750 0.25000" rgba="0.320 0.438 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_05_00" type="box" pos="-2.38750 -4.76250 -0.26625" size="0.23750 0.23750 0.25000" rgba="0.328 0.420 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_05_01" type="box" pos="-2.38750 -4.28750 -0.27136" size="0.23750 0.23750 0.25000" rgba="0.336 0.429 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_05_02" type="box" pos="-2.38750 -3.81250 -0.26745" size="0.23750 0.23750 0.25000" rgba="0.344 0.438 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_05_03" type="box" pos="-2.38750 -3.33750 -0.25530" size="0.23750 0.23750 0.25000" rgba="0.320 0.447 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_05_04" type="box" pos="-2.38750 -2.86250 -0.24260" size="0.23750 0.23750 0.25000" rgba="0.328 0.456 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_05_05" type="box" pos="-2.38750 -2.38750 -0.23801" size="0.23750 0.23750 0.25000" rgba="0.336 0.420 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_05_06" type="box" pos="-2.38750 -1.91250 -0.24397" size="0.23750 0.23750 0.25000" rgba="0.344 0.429 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_05_07" type="box" pos="-2.38750 -1.43750 -0.25480" size="0.23750 0.23750 0.25000" rgba="0.320 0.438 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_05_08" type="box" pos="-2.38750 -0.96250 -0.26201" size="0.23750 0.23750 0.25000" rgba="0.328 0.447 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_05_09" type="box" pos="-2.38750 -0.48750 -0.26158" size="0.23750 0.23750 0.25000" rgba="0.336 0.456 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_05_10" type="box" pos="-2.38750 0.00000 -0.25621" size="0.23750 0.25000 0.25000" rgba="0.344 0.420 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_05_11" type="box" pos="-2.38750 0.48750 -0.25157" size="0.23750 0.23750 0.25000" rgba="0.320 0.429 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_05_12" type="box" pos="-2.38750 0.96250 -0.24944" size="0.23750 0.23750 0.25000" rgba="0.328 0.438 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_05_13" type="box" pos="-2.38750 1.43750 -0.24612" size="0.23750 0.23750 0.25000" rgba="0.336 0.447 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_05_14" type="box" pos="-2.38750 1.91250 -0.23776" size="0.23750 0.23750 0.25000" rgba="0.344 0.456 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_05_15" type="box" pos="-2.38750 2.38750 -0.22601" size="0.23750 0.23750 0.25000" rgba="0.320 0.420 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_05_16" type="box" pos="-2.38750 2.86250 -0.21847" size="0.23750 0.23750 0.25000" rgba="0.328 0.429 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_05_17" type="box" pos="-2.38750 3.33750 -0.22274" size="0.23750 0.23750 0.25000" rgba="0.336 0.438 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_05_18" type="box" pos="-2.38750 3.81250 -0.23946" size="0.23750 0.23750 0.25000" rgba="0.344 0.447 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_05_19" type="box" pos="-2.38750 4.28750 -0.26103" size="0.23750 0.23750 0.25000" rgba="0.320 0.456 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_05_20" type="box" pos="-2.38750 4.76250 -0.27732" size="0.23750 0.23750 0.25000" rgba="0.328 0.420 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_06_00" type="box" pos="-1.91250 -4.76250 -0.25583" size="0.23750 0.23750 0.25000" rgba="0.336 0.447 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_06_01" type="box" pos="-1.91250 -4.28750 -0.26000" size="0.23750 0.23750 0.25000" rgba="0.344 0.456 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_06_02" type="box" pos="-1.91250 -3.81250 -0.25623" size="0.23750 0.23750 0.25000" rgba="0.320 0.420 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_06_03" type="box" pos="-1.91250 -3.33750 -0.24607" size="0.23750 0.23750 0.25000" rgba="0.328 0.429 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_06_04" type="box" pos="-1.91250 -2.86250 -0.23740" size="0.23750 0.23750 0.25000" rgba="0.336 0.438 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_06_05" type="box" pos="-1.91250 -2.38750 -0.23796" size="0.23750 0.23750 0.25000" rgba="0.344 0.447 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_06_06" type="box" pos="-1.91250 -1.91250 -0.24856" size="0.23750 0.23750 0.25000" rgba="0.320 0.456 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_06_07" type="box" pos="-1.91250 -1.43750 -0.26228" size="0.23750 0.23750 0.25000" rgba="0.328 0.420 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_06_08" type="box" pos="-1.91250 -0.96250 -0.27041" size="0.23750 0.23750 0.25000" rgba="0.336 0.429 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_06_09" type="box" pos="-1.91250 -0.48750 -0.27008" size="0.23750 0.23750 0.25000" rgba="0.344 0.438 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_06_10" type="box" pos="-1.91250 0.00000 -0.26502" size="0.23750 0.25000 0.25000" rgba="0.320 0.447 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_06_11" type="box" pos="-1.91250 0.48750 -0.26016" size="0.23750 0.23750 0.25000" rgba="0.328 0.456 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_06_12" type="box" pos="-1.91250 0.96250 -0.25644" size="0.23750 0.23750 0.25000" rgba="0.336 0.420 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_06_13" type="box" pos="-1.91250 1.43750 -0.24972" size="0.23750 0.23750 0.25000" rgba="0.344 0.429 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_06_14" type="box" pos="-1.91250 1.91250 -0.23685" size="0.23750 0.23750 0.25000" rgba="0.320 0.438 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_06_15" type="box" pos="-1.91250 2.38750 -0.22098" size="0.23750 0.23750 0.25000" rgba="0.328 0.447 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_06_16" type="box" pos="-1.91250 2.86250 -0.21077" size="0.23750 0.23750 0.25000" rgba="0.336 0.456 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_06_17" type="box" pos="-1.91250 3.33750 -0.21378" size="0.23750 0.23750 0.25000" rgba="0.344 0.420 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_06_18" type="box" pos="-1.91250 3.81250 -0.22994" size="0.23750 0.23750 0.25000" rgba="0.320 0.429 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_06_19" type="box" pos="-1.91250 4.28750 -0.25124" size="0.23750 0.23750 0.25000" rgba="0.328 0.438 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_06_20" type="box" pos="-1.91250 4.76250 -0.26801" size="0.23750 0.23750 0.25000" rgba="0.336 0.447 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_07_00" type="box" pos="-1.43750 -4.76250 -0.24761" size="0.23750 0.23750 0.25000" rgba="0.344 0.429 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_07_01" type="box" pos="-1.43750 -4.28750 -0.24964" size="0.23750 0.23750 0.25000" rgba="0.320 0.438 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_07_02" type="box" pos="-1.43750 -3.81250 -0.24511" size="0.23750 0.23750 0.25000" rgba="0.328 0.447 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_07_03" type="box" pos="-1.43750 -3.33750 -0.23618" size="0.23750 0.23750 0.25000" rgba="0.336 0.456 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_07_04" type="box" pos="-1.43750 -2.86250 -0.23058" size="0.23750 0.23750 0.25000" rgba="0.344 0.420 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_07_05" type="box" pos="-1.43750 -2.38750 -0.23493" size="0.23750 0.23750 0.25000" rgba="0.320 0.429 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_07_06" type="box" pos="-1.43750 -1.91250 -0.24851" size="0.23750 0.23750 0.25000" rgba="0.328 0.438 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_07_07" type="box" pos="-1.43750 -1.43750 -0.26318" size="0.23750 0.23750 0.25000" rgba="0.336 0.447 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_07_08" type="box" pos="-1.43750 -0.96250 -0.27009" size="0.23750 0.23750 0.25000" rgba="0.344 0.456 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_07_09" type="box" pos="-1.43750 -0.48750 -0.26890" size="0.23750 0.23750 0.25000" rgba="0.320 0.420 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_07_10" type="box" pos="-1.43750 0.00000 -0.26583" size="0.23750 0.25000 0.25000" rgba="0.328 0.429 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_07_11" type="box" pos="-1.43750 0.48750 -0.26384" size="0.23750 0.23750 0.25000" rgba="0.336 0.438 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_07_12" type="box" pos="-1.43750 0.96250 -0.26313" size="0.23750 0.23750 0.25000" rgba="0.344 0.447 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_07_13" type="box" pos="-1.43750 1.43750 -0.25791" size="0.23750 0.23750 0.25000" rgba="0.320 0.456 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_07_14" type="box" pos="-1.43750 1.91250 -0.24437" size="0.23750 0.23750 0.25000" rgba="0.328 0.420 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_07_15" type="box" pos="-1.43750 2.38750 -0.22671" size="0.23750 0.23750 0.25000" rgba="0.336 0.429 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_07_16" type="box" pos="-1.43750 2.86250 -0.21428" size="0.23750 0.23750 0.25000" rgba="0.344 0.438 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_07_17" type="box" pos="-1.43750 3.33750 -0.21429" size="0.23750 0.23750 0.25000" rgba="0.320 0.447 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_07_18" type="box" pos="-1.43750 3.81250 -0.22619" size="0.23750 0.23750 0.25000" rgba="0.328 0.456 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_07_19" type="box" pos="-1.43750 4.28750 -0.24231" size="0.23750 0.23750 0.25000" rgba="0.336 0.420 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_07_20" type="box" pos="-1.43750 4.76250 -0.25451" size="0.23750 0.23750 0.25000" rgba="0.344 0.429 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_08_00" type="box" pos="-0.96250 -4.76250 -0.24483" size="0.23750 0.23750 0.25000" rgba="0.320 0.456 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_08_01" type="box" pos="-0.96250 -4.28750 -0.24493" size="0.23750 0.23750 0.25000" rgba="0.328 0.420 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_08_02" type="box" pos="-0.96250 -3.81250 -0.23943" size="0.23750 0.23750 0.25000" rgba="0.336 0.429 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_08_03" type="box" pos="-0.96250 -3.33750 -0.23089" size="0.23750 0.23750 0.25000" rgba="0.344 0.438 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_08_04" type="box" pos="-0.96250 -2.86250 -0.22669" size="0.23750 0.23750 0.25000" rgba="0.320 0.447 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_08_05" type="box" pos="-0.96250 -2.38750 -0.23229" size="0.23750 0.23750 0.25000" rgba="0.328 0.456 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_08_06" type="box" pos="-0.96250 -1.91250 -0.24575" size="0.23750 0.23750 0.25000" rgba="0.336 0.420 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_08_07" type="box" pos="-0.96250 -1.43750 -0.25812" size="0.23750 0.23750 0.25000" rgba="0.344 0.429 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_08_08" type="box" pos="-0.96250 -0.96250 -0.26100" size="0.23750 0.23750 0.25000" rgba="0.320 0.438 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_08_09" type="box" pos="-0.96250 -0.48750 -0.25770" size="0.23750 0.23750 0.25000" rgba="0.328 0.447 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_08_10" type="box" pos="-0.96250 0.00000 -0.25655" size="0.23750 0.25000 0.25000" rgba="0.336 0.456 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_08_11" type="box" pos="-0.96250 0.48750 -0.25780" size="0.23750 0.23750 0.25000" rgba="0.344 0.420 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_08_12" type="box" pos="-0.96250 0.96250 -0.26311" size="0.23750 0.23750 0.25000" rgba="0.320 0.429 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_08_13" type="box" pos="-0.96250 1.43750 -0.26513" size="0.23750 0.23750 0.25000" rgba="0.328 0.438 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_08_14" type="box" pos="-0.96250 1.91250 -0.25633" size="0.23750 0.23750 0.25000" rgba="0.336 0.447 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_08_15" type="box" pos="-0.96250 2.38750 -0.24085" size="0.23750 0.23750 0.25000" rgba="0.344 0.456 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_08_16" type="box" pos="-0.96250 2.86250 -0.22849" size="0.23750 0.23750 0.25000" rgba="0.320 0.420 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_08_17" type="box" pos="-0.96250 3.33750 -0.22579" size="0.23750 0.23750 0.25000" rgba="0.328 0.429 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_08_18" type="box" pos="-0.96250 3.81250 -0.23169" size="0.23750 0.23750 0.25000" rgba="0.336 0.438 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_08_19" type="box" pos="-0.96250 4.28750 -0.23935" size="0.23750 0.23750 0.25000" rgba="0.344 0.447 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_08_20" type="box" pos="-0.96250 4.76250 -0.24290" size="0.23750 0.23750 0.25000" rgba="0.320 0.456 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_09_00" type="box" pos="-0.48750 -4.76250 -0.24719" size="0.23750 0.23750 0.25000" rgba="0.328 0.438 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_09_01" type="box" pos="-0.48750 -4.28750 -0.24708" size="0.23750 0.23750 0.25000" rgba="0.336 0.447 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_09_02" type="box" pos="-0.48750 -3.81250 -0.24166" size="0.23750 0.23750 0.25000" rgba="0.344 0.456 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_09_03" type="box" pos="-0.48750 -3.33750 -0.23358" size="0.23750 0.23750 0.25000" rgba="0.320 0.420 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_09_04" type="box" pos="-0.48750 -2.86250 -0.22965" size="0.23750 0.23750 0.25000" rgba="0.328 0.429 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_09_05" type="box" pos="-0.48750 -2.38750 -0.23412" size="0.23750 0.23750 0.25000" rgba="0.336 0.438 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_09_06" type="box" pos="-0.48750 -1.91250 -0.24426" size="0.23750 0.23750 0.25000" rgba="0.344 0.447 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_09_07" type="box" pos="-0.48750 -1.43750 -0.25187" size="0.23750 0.23750 0.25000" rgba="0.320 0.456 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_09_08" type="box" pos="-0.48750 -0.96250 -0.25196" size="0.23750 0.23750 0.25000" rgba="0.328 0.420 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_09_09" type="box" pos="-0.48750 -0.48750 -0.25020" size="0.23750 0.23750 0.25000" rgba="0.336 0.429 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_09_10" type="box" pos="-0.48750 0.00000 -0.25008" size="0.23750 0.25000 0.25000" rgba="0.344 0.438 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_09_11" type="box" pos="-0.48750 0.48750 -0.25087" size="0.23750 0.23750 0.25000" rgba="0.320 0.447 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_09_12" type="box" pos="-0.48750 0.96250 -0.25765" size="0.23750 0.23750 0.25000" rgba="0.328 0.456 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_09_13" type="box" pos="-0.48750 1.43750 -0.26711" size="0.23750 0.23750 0.25000" rgba="0.336 0.420 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_09_14" type="box" pos="-0.48750 1.91250 -0.26667" size="0.23750 0.23750 0.25000" rgba="0.344 0.429 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_09_15" type="box" pos="-0.48750 2.38750 -0.25739" size="0.23750 0.23750 0.25000" rgba="0.320 0.438 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_09_16" type="box" pos="-0.48750 2.86250 -0.24842" size="0.23750 0.23750 0.25000" rgba="0.328 0.447 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_09_17" type="box" pos="-0.48750 3.33750 -0.24516" size="0.23750 0.23750 0.25000" rgba="0.336 0.456 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_09_18" type="box" pos="-0.48750 3.81250 -0.24586" size="0.23750 0.23750 0.25000" rgba="0.344 0.420 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_09_19" type="box" pos="-0.48750 4.28750 -0.24457" size="0.23750 0.23750 0.25000" rgba="0.320 0.429 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_09_20" type="box" pos="-0.48750 4.76250 -0.23795" size="0.23750 0.23750 0.25000" rgba="0.328 0.438 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_10_00" type="box" pos="0.00000 -4.76250 -0.25149" size="0.25000 0.23750 0.25000" rgba="0.336 0.420 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_10_01" type="box" pos="0.00000 -4.28750 -0.25377" size="0.25000 0.23750 0.25000" rgba="0.344 0.429 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_10_02" type="box" pos="0.00000 -3.81250 -0.25049" size="0.25000 0.23750 0.25000" rgba="0.320 0.438 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_10_03" type="box" pos="0.00000 -3.33750 -0.24413" size="0.25000 0.23750 0.25000" rgba="0.328 0.447 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_10_04" type="box" pos="0.00000 -2.86250 -0.24067" size="0.25000 0.23750 0.25000" rgba="0.336 0.456 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_10_05" type="box" pos="0.00000 -2.38750 -0.24298" size="0.25000 0.23750 0.25000" rgba="0.344 0.420 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_10_06" type="box" pos="0.00000 -1.91250 -0.24759" size="0.25000 0.23750 0.25000" rgba="0.320 0.429 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_10_07" type="box" pos="0.00000 -1.43750 -0.24837" size="0.25000 0.23750 0.25000" rgba="0.328 0.438 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_10_08" type="box" pos="0.00000 -0.96250 -0.24649" size="0.25000 0.23750 0.25000" rgba="0.336 0.447 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_10_09" type="box" pos="0.00000 -0.48750 -0.24902" size="0.25000 0.23750 0.25000" rgba="0.344 0.456 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_10_10" type="box" pos="0.00000 0.00000 -0.25000" size="0.25000 0.25000 0.25000" rgba="0.320 0.420 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_10_11" type="box" pos="0.00000 0.48750 -0.24945" size="0.25000 0.23750 0.25000" rgba="0.328 0.429 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_10_12" type="box" pos="0.00000 0.96250 -0.25235" size="0.25000 0.23750 0.25000" rgba="0.336 0.438 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_10_13" type="box" pos="0.00000 1.43750 -0.26387" size="0.25000 0.23750 0.25000" rgba="0.344 0.447 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_10_14" type="box" pos="0.00000 1.91250 -0.27078" size="0.25000 0.23750 0.25000" rgba="0.320 0.456 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_10_15" type="box" pos="0.00000 2.38750 -0.26969" size="0.25000 0.23750 0.25000" rgba="0.328 0.420 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_10_16" type="box" pos="0.00000 2.86250 -0.26701" size="0.25000 0.23750 0.25000" rgba="0.336 0.429 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_10_17" type="box" pos="0.00000 3.33750 -0.26623" size="0.25000 0.23750 0.25000" rgba="0.344 0.438 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_10_18" type="box" pos="0.00000 3.81250 -0.26445" size="0.25000 0.23750 0.25000" rgba="0.320 0.447 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_10_19" type="box" pos="0.00000 4.28750 -0.25642" size="0.25000 0.23750 0.25000" rgba="0.328 0.456 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_10_20" type="box" pos="0.00000 4.76250 -0.24110" size="0.25000 0.23750 0.25000" rgba="0.336 0.420 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_11_00" type="box" pos="0.48750 -4.76250 -0.25335" size="0.23750 0.23750 0.25000" rgba="0.344 0.447 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_11_01" type="box" pos="0.48750 -4.28750 -0.25994" size="0.23750 0.23750 0.25000" rgba="0.320 0.456 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_11_02" type="box" pos="0.48750 -3.81250 -0.26073" size="0.23750 0.23750 0.25000" rgba="0.328 0.420 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_11_03" type="box" pos="0.48750 -3.33750 -0.25791" size="0.23750 0.23750 0.25000" rgba="0.336 0.429 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_11_04" type="box" pos="0.48750 -2.86250 -0.25638" size="0.23750 0.23750 0.25000" rgba="0.344 0.438 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_11_05" type="box" pos="0.48750 -2.38750 -0.25751" size="0.23750 0.23750 0.25000" rgba="0.320 0.447 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_11_06" type="box" pos="0.48750 -1.91250 -0.25691" size="0.23750 0.23750 0.25000" rgba="0.328 0.456 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_11_07" type="box" pos="0.48750 -1.43750 -0.24993" size="0.23750 0.23750 0.25000" rgba="0.336 0.420 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_11_08" type="box" pos="0.48750 -0.96250 -0.24321" size="0.23750 0.23750 0.25000" rgba="0.344 0.429 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_11_09" type="box" pos="0.48750 -0.48750 -0.24656" size="0.23750 0.23750 0.25000" rgba="0.320 0.438 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_11_10" type="box" pos="0.48750 0.00000 -0.24790" size="0.23750 0.25000 0.25000" rgba="0.328 0.447 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_11_11" type="box" pos="0.48750 0.48750 -0.24692" size="0.23750 0.23750 0.25000" rgba="0.336 0.456 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_11_12" type="box" pos="0.48750 0.96250 -0.24559" size="0.23750 0.23750 0.25000" rgba="0.344 0.420 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_11_13" type="box" pos="0.48750 1.43750 -0.25545" size="0.23750 0.23750 0.25000" rgba="0.320 0.429 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_11_14" type="box" pos="0.48750 1.91250 -0.26635" size="0.23750 0.23750 0.25000" rgba="0.328 0.438 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_11_15" type="box" pos="0.48750 2.38750 -0.27230" size="0.23750 0.23750 0.25000" rgba="0.336 0.447 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_11_16" type="box" pos="0.48750 2.86250 -0.27667" size="0.23750 0.23750 0.25000" rgba="0.344 0.456 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_11_17" type="box" pos="0.48750 3.33750 -0.28060" size="0.23750 0.23750 0.25000" rgba="0.320 0.420 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_11_18" type="box" pos="0.48750 3.81250 -0.27982" size="0.23750 0.23750 0.25000" rgba="0.328 0.429 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_11_19" type="box" pos="0.48750 4.28750 -0.26927" size="0.23750 0.23750 0.25000" rgba="0.336 0.438 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_11_20" type="box" pos="0.48750 4.76250 -0.24954" size="0.23750 0.23750 0.25000" rgba="0.344 0.447 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_12_00" type="box" pos="0.96250 -4.76250 -0.25049" size="0.23750 0.23750 0.25000" rgba="0.320 0.429 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_12_01" type="box" pos="0.96250 -4.28750 -0.26121" size="0.23750 0.23750 0.25000" rgba="0.328 0.438 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_12_02" type="box" pos="0.96250 -3.81250 -0.26636" size="0.23750 0.23750 0.25000" rgba="0.336 0.447 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_12_03" type="box" pos="0.96250 -3.33750 -0.26799" size="0.23750 0.23750 0.25000" rgba="0.344 0.456 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_12_04" type="box" pos="0.96250 -2.86250 -0.27000" size="0.23750 0.23750 0.25000" rgba="0.320 0.420 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_12_05" type="box" pos="0.96250 -2.38750 -0.27228" size="0.23750 0.23750 0.25000" rgba="0.328 0.429 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_12_06" type="box" pos="0.96250 -1.91250 -0.26943" size="0.23750 0.23750 0.25000" rgba="0.336 0.438 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_12_07" type="box" pos="0.96250 -1.43750 -0.25692" size="0.23750 0.23750 0.25000" rgba="0.344 0.447 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_12_08" type="box" pos="0.96250 -0.96250 -0.24154" size="0.23750 0.23750 0.25000" rgba="0.320 0.456 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_12_09" type="box" pos="0.96250 -0.48750 -0.23491" size="0.23750 0.23750 0.25000" rgba="0.328 0.420 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_12_10" type="box" pos="0.96250 0.00000 -0.23196" size="0.23750 0.25000 0.25000" rgba="0.336 0.429 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_12_11" type="box" pos="0.96250 0.48750 -0.23313" size="0.23750 0.23750 0.25000" rgba="0.344 0.438 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_12_12" type="box" pos="0.96250 0.96250 -0.23554" size="0.23750 0.23750 0.25000" rgba="0.320 0.447 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_12_13" type="box" pos="0.96250 1.43750 -0.24498" size="0.23750 0.23750 0.25000" rgba="0.328 0.456 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_12_14" type="box" pos="0.96250 1.91250 -0.25594" size="0.23750 0.23750 0.25000" rgba="0.336 0.420 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_12_15" type="box" pos="0.96250 2.38750 -0.26512" size="0.23750 0.23750 0.25000" rgba="0.344 0.429 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_12_16" type="box" pos="0.96250 2.86250 -0.27452" size="0.23750 0.23750 0.25000" rgba="0.320 0.438 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_12_17" type="box" pos="0.96250 3.33750 -0.28324" size="0.23750 0.23750 0.25000" rgba="0.328 0.447 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_12_18" type="box" pos="0.96250 3.81250 -0.28567" size="0.23750 0.23750 0.25000" rgba="0.336 0.456 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_12_19" type="box" pos="0.96250 4.28750 -0.27663" size="0.23750 0.23750 0.25000" rgba="0.344 0.420 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_12_20" type="box" pos="0.96250 4.76250 -0.25752" size="0.23750 0.23750 0.25000" rgba="0.320 0.429 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_13_00" type="box" pos="1.43750 -4.76250 -0.24410" size="0.23750 0.23750 0.25000" rgba="0.328 0.456 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_13_01" type="box" pos="1.43750 -4.28750 -0.25658" size="0.23750 0.23750 0.25000" rgba="0.336 0.420 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_13_02" type="box" pos="1.43750 -3.81250 -0.26429" size="0.23750 0.23750 0.25000" rgba="0.344 0.429 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_13_03" type="box" pos="1.43750 -3.33750 -0.26964" size="0.23750 0.23750 0.25000" rgba="0.320 0.438 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_13_04" type="box" pos="1.43750 -2.86250 -0.27582" size="0.23750 0.23750 0.25000" rgba="0.328 0.447 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_13_05" type="box" pos="1.43750 -2.38750 -0.28141" size="0.23750 0.23750 0.25000" rgba="0.336 0.456 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_13_06" type="box" pos="1.43750 -1.91250 -0.28016" size="0.23750 0.23750 0.25000" rgba="0.344 0.420 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_13_07" type="box" pos="1.43750 -1.43750 -0.26718" size="0.23750 0.23750 0.25000" rgba="0.320 0.429 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_13_08" type="box" pos="1.43750 -0.96250 -0.24669" size="0.23750 0.23750 0.25000" rgba="0.328 0.438 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_13_09" type="box" pos="1.43750 -0.48750 -0.22962" size="0.23750 0.23750 0.25000" rgba="0.336 0.447 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_13_10" type="box" pos="1.43750 0.00000 -0.22067" size="0.23750 0.25000 0.25000" rgba="0.344 0.456 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_13_11" type="box" pos="1.43750 0.48750 -0.22187" size="0.23750 0.23750 0.25000" rgba="0.320 0.420 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_13_12" type="box" pos="1.43750 0.96250 -0.22809" size="0.23750 0.23750 0.25000" rgba="0.328 0.429 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_13_13" type="box" pos="1.43750 1.43750 -0.23646" size="0.23750 0.23750 0.25000" rgba="0.336 0.438 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_13_14" type="box" pos="1.43750 1.91250 -0.24410" size="0.23750 0.23750 0.25000" rgba="0.344 0.447 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_13_15" type="box" pos="1.43750 2.38750 -0.25210" size="0.23750 0.23750 0.25000" rgba="0.320 0.456 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_13_16" type="box" pos="1.43750 2.86250 -0.26290" size="0.23750 0.23750 0.25000" rgba="0.328 0.420 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_13_17" type="box" pos="1.43750 3.33750 -0.27454" size="0.23750 0.23750 0.25000" rgba="0.336 0.429 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_13_18" type="box" pos="1.43750 3.81250 -0.28044" size="0.23750 0.23750 0.25000" rgba="0.344 0.438 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_13_19" type="box" pos="1.43750 4.28750 -0.27518" size="0.23750 0.23750 0.25000" rgba="0.320 0.447 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_13_20" type="box" pos="1.43750 4.76250 -0.26044" size="0.23750 0.23750 0.25000" rgba="0.328 0.456 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_14_00" type="box" pos="1.91250 -4.76250 -0.23816" size="0.23750 0.23750 0.25000" rgba="0.336 0.438 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_14_01" type="box" pos="1.91250 -4.28750 -0.24847" size="0.23750 0.23750 0.25000" rgba="0.344 0.447 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_14_02" type="box" pos="1.91250 -3.81250 -0.25510" size="0.23750 0.23750 0.25000" rgba="0.320 0.456 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_14_03" type="box" pos="1.91250 -3.33750 -0.26147" size="0.23750 0.23750 0.25000" rgba="0.328 0.420 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_14_04" type="box" pos="1.91250 -2.86250 -0.27064" size="0.23750 0.23750 0.25000" rgba="0.336 0.429 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_14_05" type="box" pos="1.91250 -2.38750 -0.28023" size="0.23750 0.23750 0.25000" rgba="0.344 0.438 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_14_06" type="box" pos="1.91250 -1.91250 -0.28325" size="0.23750 0.23750 0.25000" rgba="0.320 0.447 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_14_07" type="box" pos="1.91250 -1.43750 -0.27451" size="0.23750 0.23750 0.25000" rgba="0.328 0.456 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_14_08" type="box" pos="1.91250 -0.96250 -0.25663" size="0.23750 0.23750 0.25000" rgba="0.336 0.420 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_14_09" type="box" pos="1.91250 -0.48750 -0.23889" size="0.23750 0.23750 0.25000" rgba="0.344 0.429 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_14_10" type="box" pos="1.91250 0.00000 -0.22898" size="0.23750 0.25000 0.25000" rgba="0.320 0.438 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_14_11" type="box" pos="1.91250 0.48750 -0.22890" size="0.23750 0.23750 0.25000" rgba="0.328 0.447 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_14_12" type="box" pos="1.91250 0.96250 -0.23299" size="0.23750 0.23750 0.25000" rgba="0.336 0.456 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_14_13" type="box" pos="1.91250 1.43750 -0.23576" size="0.23750 0.23750 0.25000" rgba="0.344 0.420 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_14_14" type="box" pos="1.91250 1.91250 -0.23646" size="0.23750 0.23750 0.25000" rgba="0.320 0.429 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_14_15" type="box" pos="1.91250 2.38750 -0.23917" size="0.23750 0.23750 0.25000" rgba="0.328 0.438 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_14_16" type="box" pos="1.91250 2.86250 -0.24741" size="0.23750 0.23750 0.25000" rgba="0.336 0.447 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_14_17" type="box" pos="1.91250 3.33750 -0.25893" size="0.23750 0.23750 0.25000" rgba="0.344 0.456 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_14_18" type="box" pos="1.91250 3.81250 -0.26673" size="0.23750 0.23750 0.25000" rgba="0.320 0.420 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_14_19" type="box" pos="1.91250 4.28750 -0.26537" size="0.23750 0.23750 0.25000" rgba="0.328 0.429 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_14_20" type="box" pos="1.91250 4.76250 -0.25649" size="0.23750 0.23750 0.25000" rgba="0.336 0.438 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_15_00" type="box" pos="2.38750 -4.76250 -0.23742" size="0.23750 0.23750 0.25000" rgba="0.344 0.420 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_15_01" type="box" pos="2.38750 -4.28750 -0.24164" size="0.23750 0.23750 0.25000" rgba="0.320 0.429 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_15_02" type="box" pos="2.38750 -3.81250 -0.24298" size="0.23750 0.23750 0.25000" rgba="0.328 0.438 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_15_03" type="box" pos="2.38750 -3.33750 -0.24654" size="0.23750 0.23750 0.25000" rgba="0.336 0.447 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_15_04" type="box" pos="2.38750 -2.86250 -0.25588" size="0.23750 0.23750 0.25000" rgba="0.344 0.456 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_15_05" type="box" pos="2.38750 -2.38750 -0.26818" size="0.23750 0.23750 0.25000" rgba="0.320 0.420 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_15_06" type="box" pos="2.38750 -1.91250 -0.27595" size="0.23750 0.23750 0.25000" rgba="0.328 0.429 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_15_07" type="box" pos="2.38750 -1.43750 -0.27376" size="0.23750 0.23750 0.25000" rgba="0.336 0.438 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_15_08" type="box" pos="2.38750 -0.96250 -0.26343" size="0.23750 0.23750 0.25000" rgba="0.344 0.447 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_15_09" type="box" pos="2.38750 -0.48750 -0.25254" size="0.23750 0.23750 0.25000" rgba="0.320 0.456 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_15_10" type="box" pos="2.38750 0.00000 -0.24745" size="0.23750 0.25000 0.25000" rgba="0.328 0.420 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_15_11" type="box" pos="2.38750 0.48750 -0.24817" size="0.23750 0.23750 0.25000" rgba="0.336 0.429 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_15_12" type="box" pos="2.38750 0.96250 -0.24858" size="0.23750 0.23750 0.25000" rgba="0.344 0.438 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_15_13" type="box" pos="2.38750 1.43750 -0.24406" size="0.23750 0.23750 0.25000" rgba="0.320 0.447 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_15_14" type="box" pos="2.38750 1.91250 -0.23626" size="0.23750 0.23750 0.25000" rgba="0.328 0.456 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_15_15" type="box" pos="2.38750 2.38750 -0.23155" size="0.23750 0.23750 0.25000" rgba="0.336 0.420 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_15_16" type="box" pos="2.38750 2.86250 -0.23453" size="0.23750 0.23750 0.25000" rgba="0.344 0.429 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_15_17" type="box" pos="2.38750 3.33750 -0.24319" size="0.23750 0.23750 0.25000" rgba="0.320 0.438 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_15_18" type="box" pos="2.38750 3.81250 -0.25058" size="0.23750 0.23750 0.25000" rgba="0.328 0.447 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_15_19" type="box" pos="2.38750 4.28750 -0.25154" size="0.23750 0.23750 0.25000" rgba="0.336 0.456 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_15_20" type="box" pos="2.38750 4.76250 -0.24768" size="0.23750 0.23750 0.25000" rgba="0.344 0.420 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_16_00" type="box" pos="2.86250 -4.76250 -0.24470" size="0.23750 0.23750 0.25000" rgba="0.320 0.447 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_16_01" type="box" pos="2.86250 -4.28750 -0.24062" size="0.23750 0.23750 0.25000" rgba="0.328 0.456 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_16_02" type="box" pos="2.86250 -3.81250 -0.23366" size="0.23750 0.23750 0.25000" rgba="0.336 0.420 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_16_03" type="box" pos="2.86250 -3.33750 -0.23099" size="0.23750 0.23750 0.25000" rgba="0.344 0.429 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_16_04" type="box" pos="2.86250 -2.86250 -0.23711" size="0.23750 0.23750 0.25000" rgba="0.320 0.438 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_16_05" type="box" pos="2.86250 -2.38750 -0.24933" size="0.23750 0.23750 0.25000" rgba="0.328 0.447 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_16_06" type="box" pos="2.86250 -1.91250 -0.26015" size="0.23750 0.23750 0.25000" rgba="0.336 0.456 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_16_07" type="box" pos="2.86250 -1.43750 -0.26413" size="0.23750 0.23750 0.25000" rgba="0.344 0.420 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_16_08" type="box" pos="2.86250 -0.96250 -0.26255" size="0.23750 0.23750 0.25000" rgba="0.320 0.429 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_16_09" type="box" pos="2.86250 -0.48750 -0.26124" size="0.23750 0.23750 0.25000" rgba="0.328 0.438 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_16_10" type="box" pos="2.86250 0.00000 -0.26412" size="0.23750 0.25000 0.25000" rgba="0.336 0.447 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_16_11" type="box" pos="2.86250 0.48750 -0.26842" size="0.23750 0.23750 0.25000" rgba="0.344 0.456 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_16_12" type="box" pos="2.86250 0.96250 -0.26727" size="0.23750 0.23750 0.25000" rgba="0.320 0.420 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_16_13" type="box" pos="2.86250 1.43750 -0.25738" size="0.23750 0.23750 0.25000" rgba="0.328 0.429 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_16_14" type="box" pos="2.86250 1.91250 -0.24260" size="0.23750 0.23750 0.25000" rgba="0.336 0.438 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_16_15" type="box" pos="2.86250 2.38750 -0.23119" size="0.23750 0.23750 0.25000" rgba="0.344 0.447 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_16_16" type="box" pos="2.86250 2.86250 -0.22867" size="0.23750 0.23750 0.25000" rgba="0.320 0.456 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_16_17" type="box" pos="2.86250 3.33750 -0.23332" size="0.23750 0.23750 0.25000" rgba="0.328 0.420 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_16_18" type="box" pos="2.86250 3.81250 -0.23856" size="0.23750 0.23750 0.25000" rgba="0.336 0.429 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_16_19" type="box" pos="2.86250 4.28750 -0.23979" size="0.23750 0.23750 0.25000" rgba="0.344 0.438 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_16_20" type="box" pos="2.86250 4.76250 -0.23876" size="0.23750 0.23750 0.25000" rgba="0.320 0.447 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_17_00" type="box" pos="3.33750 -4.76250 -0.25902" size="0.23750 0.23750 0.25000" rgba="0.328 0.429 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_17_01" type="box" pos="3.33750 -4.28750 -0.24711" size="0.23750 0.23750 0.25000" rgba="0.336 0.438 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_17_02" type="box" pos="3.33750 -3.81250 -0.23146" size="0.23750 0.23750 0.25000" rgba="0.344 0.447 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_17_03" type="box" pos="3.33750 -3.33750 -0.22116" size="0.23750 0.23750 0.25000" rgba="0.320 0.456 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_17_04" type="box" pos="3.33750 -2.86250 -0.22170" size="0.23750 0.23750 0.25000" rgba="0.328 0.420 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_17_05" type="box" pos="3.33750 -2.38750 -0.23084" size="0.23750 0.23750 0.25000" rgba="0.336 0.429 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_17_06" type="box" pos="3.33750 -1.91250 -0.24158" size="0.23750 0.23750 0.25000" rgba="0.344 0.438 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_17_07" type="box" pos="3.33750 -1.43750 -0.24902" size="0.23750 0.23750 0.25000" rgba="0.320 0.447 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_17_08" type="box" pos="3.33750 -0.96250 -0.25424" size="0.23750 0.23750 0.25000" rgba="0.328 0.456 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_17_09" type="box" pos="3.33750 -0.48750 -0.26157" size="0.23750 0.23750 0.25000" rgba="0.336 0.420 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_17_10" type="box" pos="3.33750 0.00000 -0.27258" size="0.23750 0.25000 0.25000" rgba="0.344 0.429 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_17_11" type="box" pos="3.33750 0.48750 -0.28178" size="0.23750 0.23750 0.25000" rgba="0.320 0.438 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_17_12" type="box" pos="3.33750 0.96250 -0.28146" size="0.23750 0.23750 0.25000" rgba="0.328 0.447 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_17_13" type="box" pos="3.33750 1.43750 -0.26943" size="0.23750 0.23750 0.25000" rgba="0.336 0.456 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_17_14" type="box" pos="3.33750 1.91250 -0.25118" size="0.23750 0.23750 0.25000" rgba="0.344 0.420 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_17_15" type="box" pos="3.33750 2.38750 -0.23621" size="0.23750 0.23750 0.25000" rgba="0.320 0.429 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_17_16" type="box" pos="3.33750 2.86250 -0.23039" size="0.23750 0.23750 0.25000" rgba="0.328 0.438 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_17_17" type="box" pos="3.33750 3.33750 -0.23203" size="0.23750 0.23750 0.25000" rgba="0.336 0.447 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_17_18" type="box" pos="3.33750 3.81250 -0.23489" size="0.23750 0.23750 0.25000" rgba="0.344 0.456 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_17_19" type="box" pos="3.33750 4.28750 -0.23507" size="0.23750 0.23750 0.25000" rgba="0.320 0.420 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_17_20" type="box" pos="3.33750 4.76250 -0.23465" size="0.23750 0.23750 0.25000" rgba="0.328 0.429 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_18_00" type="box" pos="3.81250 -4.76250 -0.27555" size="0.23750 0.23750 0.25000" rgba="0.336 0.456 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_18_01" type="box" pos="3.81250 -4.28750 -0.25887" size="0.23750 0.23750 0.25000" rgba="0.344 0.420 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_18_02" type="box" pos="3.81250 -3.81250 -0.23713" size="0.23750 0.23750 0.25000" rgba="0.320 0.429 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_18_03" type="box" pos="3.81250 -3.33750 -0.22069" size="0.23750 0.23750 0.25000" rgba="0.328 0.438 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_18_04" type="box" pos="3.81250 -2.86250 -0.21555" size="0.23750 0.23750 0.25000" rgba="0.336 0.447 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_18_05" type="box" pos="3.81250 -2.38750 -0.21987" size="0.23750 0.23750 0.25000" rgba="0.344 0.456 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_18_06" type="box" pos="3.81250 -1.91250 -0.22746" size="0.23750 0.23750 0.25000" rgba="0.320 0.420 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_18_07" type="box" pos="3.81250 -1.43750 -0.23448" size="0.23750 0.23750 0.25000" rgba="0.328 0.429 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_18_08" type="box" pos="3.81250 -0.96250 -0.24247" size="0.23750 0.23750 0.25000" rgba="0.336 0.438 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_18_09" type="box" pos="3.81250 -0.48750 -0.25485" size="0.23750 0.23750 0.25000" rgba="0.344 0.447 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_18_10" type="box" pos="3.81250 0.00000 -0.27137" size="0.23750 0.25000 0.25000" rgba="0.320 0.456 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_18_11" type="box" pos="3.81250 0.48750 -0.28453" size="0.23750 0.23750 0.25000" rgba="0.328 0.420 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_18_12" type="box" pos="3.81250 0.96250 -0.28603" size="0.23750 0.23750 0.25000" rgba="0.336 0.429 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_18_13" type="box" pos="3.81250 1.43750 -0.27456" size="0.23750 0.23750 0.25000" rgba="0.344 0.438 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_18_14" type="box" pos="3.81250 1.91250 -0.25667" size="0.23750 0.23750 0.25000" rgba="0.320 0.447 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_18_15" type="box" pos="3.81250 2.38750 -0.24224" size="0.23750 0.23750 0.25000" rgba="0.328 0.456 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_18_16" type="box" pos="3.81250 2.86250 -0.23671" size="0.23750 0.23750 0.25000" rgba="0.336 0.420 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_18_17" type="box" pos="3.81250 3.33750 -0.23787" size="0.23750 0.23750 0.25000" rgba="0.344 0.429 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_18_18" type="box" pos="3.81250 3.81250 -0.23963" size="0.23750 0.23750 0.25000" rgba="0.320 0.438 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_18_19" type="box" pos="3.81250 4.28750 -0.23876" size="0.23750 0.23750 0.25000" rgba="0.328 0.447 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_18_20" type="box" pos="3.81250 4.76250 -0.23780" size="0.23750 0.23750 0.25000" rgba="0.336 0.456 0.310 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_19_00" type="box" pos="4.28750 -4.76250 -0.28761" size="0.23750 0.23750 0.25000" rgba="0.344 0.438 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_19_01" type="box" pos="4.28750 -4.28750 -0.27052" size="0.23750 0.23750 0.25000" rgba="0.320 0.447 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_19_02" type="box" pos="4.28750 -3.81250 -0.24745" size="0.23750 0.23750 0.25000" rgba="0.328 0.456 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_19_03" type="box" pos="4.28750 -3.33750 -0.22891" size="0.23750 0.23750 0.25000" rgba="0.336 0.420 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_19_04" type="box" pos="4.28750 -2.86250 -0.22058" size="0.23750 0.23750 0.25000" rgba="0.344 0.429 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_19_05" type="box" pos="4.28750 -2.38750 -0.22050" size="0.23750 0.23750 0.25000" rgba="0.320 0.438 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_19_06" type="box" pos="4.28750 -1.91250 -0.22331" size="0.23750 0.23750 0.25000" rgba="0.328 0.447 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_19_07" type="box" pos="4.28750 -1.43750 -0.22659" size="0.23750 0.23750 0.25000" rgba="0.336 0.456 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_19_08" type="box" pos="4.28750 -0.96250 -0.23291" size="0.23750 0.23750 0.25000" rgba="0.344 0.420 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_19_09" type="box" pos="4.28750 -0.48750 -0.24557" size="0.23750 0.23750 0.25000" rgba="0.320 0.429 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_19_10" type="box" pos="4.28750 0.00000 -0.26328" size="0.23750 0.25000 0.25000" rgba="0.328 0.438 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_19_11" type="box" pos="4.28750 0.48750 -0.27755" size="0.23750 0.23750 0.25000" rgba="0.336 0.447 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_19_12" type="box" pos="4.28750 0.96250 -0.28007" size="0.23750 0.23750 0.25000" rgba="0.344 0.456 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_19_13" type="box" pos="4.28750 1.43750 -0.27034" size="0.23750 0.23750 0.25000" rgba="0.320 0.420 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_19_14" type="box" pos="4.28750 1.91250 -0.25550" size="0.23750 0.23750 0.25000" rgba="0.328 0.429 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_19_15" type="box" pos="4.28750 2.38750 -0.24499" size="0.23750 0.23750 0.25000" rgba="0.336 0.438 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_19_16" type="box" pos="4.28750 2.86250 -0.24307" size="0.23750 0.23750 0.25000" rgba="0.344 0.447 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_19_17" type="box" pos="4.28750 3.33750 -0.24649" size="0.23750 0.23750 0.25000" rgba="0.320 0.456 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_19_18" type="box" pos="4.28750 3.81250 -0.24904" size="0.23750 0.23750 0.25000" rgba="0.328 0.420 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_19_19" type="box" pos="4.28750 4.28750 -0.24813" size="0.23750 0.23750 0.25000" rgba="0.336 0.429 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_19_20" type="box" pos="4.28750 4.76250 -0.24679" size="0.23750 0.23750 0.25000" rgba="0.344 0.438 0.317 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_20_00" type="box" pos="4.76250 -4.76250 -0.28968" size="0.23750 0.23750 0.25000" rgba="0.320 0.420 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_20_01" type="box" pos="4.76250 -4.28750 -0.27613" size="0.23750 0.23750 0.25000" rgba="0.328 0.429 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_20_02" type="box" pos="4.76250 -3.81250 -0.25685" size="0.23750 0.23750 0.25000" rgba="0.336 0.438 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_20_03" type="box" pos="4.76250 -3.33750 -0.24142" size="0.23750 0.23750 0.25000" rgba="0.344 0.447 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_20_04" type="box" pos="4.76250 -2.86250 -0.23407" size="0.23750 0.23750 0.25000" rgba="0.320 0.456 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_20_05" type="box" pos="4.76250 -2.38750 -0.23204" size="0.23750 0.23750 0.25000" rgba="0.328 0.420 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_20_06" type="box" pos="4.76250 -1.91250 -0.23049" size="0.23750 0.23750 0.25000" rgba="0.336 0.429 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_20_07" type="box" pos="4.76250 -1.43750 -0.22852" size="0.23750 0.23750 0.25000" rgba="0.344 0.438 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_20_08" type="box" pos="4.76250 -0.96250 -0.23007" size="0.23750 0.23750 0.25000" rgba="0.320 0.447 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_20_09" type="box" pos="4.76250 -0.48750 -0.23895" size="0.23750 0.23750 0.25000" rgba="0.328 0.456 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_20_10" type="box" pos="4.76250 0.00000 -0.25357" size="0.23750 0.25000 0.25000" rgba="0.336 0.420 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_20_11" type="box" pos="4.76250 0.48750 -0.26548" size="0.23750 0.23750 0.25000" rgba="0.344 0.429 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_20_12" type="box" pos="4.76250 0.96250 -0.26705" size="0.23750 0.23750 0.25000" rgba="0.320 0.438 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_20_13" type="box" pos="4.76250 1.43750 -0.25867" size="0.23750 0.23750 0.25000" rgba="0.328 0.447 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_20_14" type="box" pos="4.76250 1.91250 -0.24772" size="0.23750 0.23750 0.25000" rgba="0.336 0.456 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_20_15" type="box" pos="4.76250 2.38750 -0.24267" size="0.23750 0.23750 0.25000" rgba="0.344 0.420 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_20_16" type="box" pos="4.76250 2.86250 -0.24601" size="0.23750 0.23750 0.25000" rgba="0.320 0.429 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_20_17" type="box" pos="4.76250 3.33750 -0.25317" size="0.23750 0.23750 0.25000" rgba="0.328 0.438 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_20_18" type="box" pos="4.76250 3.81250 -0.25773" size="0.23750 0.23750 0.25000" rgba="0.336 0.447 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_20_19" type="box" pos="4.76250 4.28750 -0.25781" size="0.23750 0.23750 0.25000" rgba="0.344 0.456 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
-    <geom name="terrain_20_20" type="box" pos="4.76250 4.76250 -0.25694" size="0.23750 0.23750 0.25000" rgba="0.320 0.420 0.324 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_00_00" type="box" pos="-4.76250 -4.76250 -0.22429" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_00_01" type="box" pos="-4.76250 -4.28750 -0.23106" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_00_02" type="box" pos="-4.76250 -3.81250 -0.24109" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_00_03" type="box" pos="-4.76250 -3.33750 -0.24696" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_00_04" type="box" pos="-4.76250 -2.86250 -0.24720" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_00_05" type="box" pos="-4.76250 -2.38750 -0.24638" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_00_06" type="box" pos="-4.76250 -1.91250 -0.24925" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_00_07" type="box" pos="-4.76250 -1.43750 -0.25531" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_00_08" type="box" pos="-4.76250 -0.96250 -0.25921" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_00_09" type="box" pos="-4.76250 -0.48750 -0.25660" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_00_10" type="box" pos="-4.76250 0.00000 -0.24919" size="0.23750 0.25000 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_00_11" type="box" pos="-4.76250 0.48750 -0.24465" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_00_12" type="box" pos="-4.76250 0.96250 -0.24877" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_00_13" type="box" pos="-4.76250 1.43750 -0.25959" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_00_14" type="box" pos="-4.76250 1.91250 -0.26914" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_00_15" type="box" pos="-4.76250 2.38750 -0.27010" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_00_16" type="box" pos="-4.76250 2.86250 -0.26197" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_00_17" type="box" pos="-4.76250 3.33750 -0.25072" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_00_18" type="box" pos="-4.76250 3.81250 -0.24274" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_00_19" type="box" pos="-4.76250 4.28750 -0.23907" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_00_20" type="box" pos="-4.76250 4.76250 -0.23577" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_01_00" type="box" pos="-4.28750 -4.76250 -0.24346" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_01_01" type="box" pos="-4.28750 -4.28750 -0.24672" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_01_02" type="box" pos="-4.28750 -3.81250 -0.24959" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_01_03" type="box" pos="-4.28750 -3.33750 -0.24679" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_01_04" type="box" pos="-4.28750 -2.86250 -0.23952" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_01_05" type="box" pos="-4.28750 -2.38750 -0.23415" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_01_06" type="box" pos="-4.28750 -1.91250 -0.23565" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_01_07" type="box" pos="-4.28750 -1.43750 -0.24265" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_01_08" type="box" pos="-4.28750 -0.96250 -0.24887" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_01_09" type="box" pos="-4.28750 -0.48750 -0.24957" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_01_10" type="box" pos="-4.28750 0.00000 -0.24640" size="0.23750 0.25000 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_01_11" type="box" pos="-4.28750 0.48750 -0.24625" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_01_12" type="box" pos="-4.28750 0.96250 -0.25352" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_01_13" type="box" pos="-4.28750 1.43750 -0.26535" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_01_14" type="box" pos="-4.28750 1.91250 -0.27387" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_01_15" type="box" pos="-4.28750 2.38750 -0.27312" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_01_16" type="box" pos="-4.28750 2.86250 -0.26425" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_01_17" type="box" pos="-4.28750 3.33750 -0.25399" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_01_18" type="box" pos="-4.28750 3.81250 -0.24800" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_01_19" type="box" pos="-4.28750 4.28750 -0.24587" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_01_20" type="box" pos="-4.28750 4.76250 -0.24259" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_02_00" type="box" pos="-3.81250 -4.76250 -0.26160" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_02_01" type="box" pos="-3.81250 -4.28750 -0.26369" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_02_02" type="box" pos="-3.81250 -3.81250 -0.26147" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_02_03" type="box" pos="-3.81250 -3.33750 -0.25172" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_02_04" type="box" pos="-3.81250 -2.86250 -0.23818" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_02_05" type="box" pos="-3.81250 -2.38750 -0.22877" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_02_06" type="box" pos="-3.81250 -1.91250 -0.22858" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_02_07" type="box" pos="-3.81250 -1.43750 -0.23539" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_02_08" type="box" pos="-3.81250 -0.96250 -0.24218" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_02_09" type="box" pos="-3.81250 -0.48750 -0.24406" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_02_10" type="box" pos="-3.81250 0.00000 -0.24270" size="0.23750 0.25000 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_02_11" type="box" pos="-3.81250 0.48750 -0.24440" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_02_12" type="box" pos="-3.81250 0.96250 -0.25251" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_02_13" type="box" pos="-3.81250 1.43750 -0.26356" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_02_14" type="box" pos="-3.81250 1.91250 -0.27024" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_02_15" type="box" pos="-3.81250 2.38750 -0.26828" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_02_16" type="box" pos="-3.81250 2.86250 -0.26048" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_02_17" type="box" pos="-3.81250 3.33750 -0.25399" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_02_18" type="box" pos="-3.81250 3.81250 -0.25330" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_02_19" type="box" pos="-3.81250 4.28750 -0.25606" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_02_20" type="box" pos="-3.81250 4.76250 -0.25576" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_03_00" type="box" pos="-3.33750 -4.76250 -0.27249" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_03_01" type="box" pos="-3.33750 -4.28750 -0.27541" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_03_02" type="box" pos="-3.33750 -3.81250 -0.27092" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_03_03" type="box" pos="-3.33750 -3.33750 -0.25752" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_03_04" type="box" pos="-3.33750 -2.86250 -0.24091" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_03_05" type="box" pos="-3.33750 -2.38750 -0.23002" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_03_06" type="box" pos="-3.33750 -1.91250 -0.22957" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_03_07" type="box" pos="-3.33750 -1.43750 -0.23638" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_03_08" type="box" pos="-3.33750 -0.96250 -0.24284" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_03_09" type="box" pos="-3.33750 -0.48750 -0.24413" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_03_10" type="box" pos="-3.33750 0.00000 -0.24210" size="0.23750 0.25000 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_03_11" type="box" pos="-3.33750 0.48750 -0.24278" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_03_12" type="box" pos="-3.33750 0.96250 -0.24881" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_03_13" type="box" pos="-3.33750 1.43750 -0.25651" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_03_14" type="box" pos="-3.33750 1.91250 -0.25959" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_03_15" type="box" pos="-3.33750 2.38750 -0.25571" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_03_16" type="box" pos="-3.33750 2.86250 -0.24935" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_03_17" type="box" pos="-3.33750 3.33750 -0.24788" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_03_18" type="box" pos="-3.33750 3.81250 -0.25436" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_03_19" type="box" pos="-3.33750 4.28750 -0.26433" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_03_20" type="box" pos="-3.33750 4.76250 -0.26962" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_04_00" type="box" pos="-2.86250 -4.76250 -0.27345" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_04_01" type="box" pos="-2.86250 -4.28750 -0.27789" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_04_02" type="box" pos="-2.86250 -3.81250 -0.27331" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_04_03" type="box" pos="-2.86250 -3.33750 -0.25952" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_04_04" type="box" pos="-2.86250 -2.86250 -0.24354" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_04_05" type="box" pos="-2.86250 -2.38750 -0.23451" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_04_06" type="box" pos="-2.86250 -1.91250 -0.23623" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_04_07" type="box" pos="-2.86250 -1.43750 -0.24436" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_04_08" type="box" pos="-2.86250 -0.96250 -0.25076" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_04_09" type="box" pos="-2.86250 -0.48750 -0.25089" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_04_10" type="box" pos="-2.86250 0.00000 -0.24696" size="0.23750 0.25000 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_04_11" type="box" pos="-2.86250 0.48750 -0.24484" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_04_12" type="box" pos="-2.86250 0.96250 -0.24678" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_04_13" type="box" pos="-2.86250 1.43750 -0.24910" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_04_14" type="box" pos="-2.86250 1.91250 -0.24676" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_04_15" type="box" pos="-2.86250 2.38750 -0.23950" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_04_16" type="box" pos="-2.86250 2.86250 -0.23345" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_04_17" type="box" pos="-2.86250 3.33750 -0.23611" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_04_18" type="box" pos="-2.86250 3.81250 -0.24919" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_04_19" type="box" pos="-2.86250 4.28750 -0.26634" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_04_20" type="box" pos="-2.86250 4.76250 -0.27803" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_05_00" type="box" pos="-2.38750 -4.76250 -0.26625" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_05_01" type="box" pos="-2.38750 -4.28750 -0.27136" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_05_02" type="box" pos="-2.38750 -3.81250 -0.26745" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_05_03" type="box" pos="-2.38750 -3.33750 -0.25530" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_05_04" type="box" pos="-2.38750 -2.86250 -0.24260" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_05_05" type="box" pos="-2.38750 -2.38750 -0.23801" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_05_06" type="box" pos="-2.38750 -1.91250 -0.24397" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_05_07" type="box" pos="-2.38750 -1.43750 -0.25480" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_05_08" type="box" pos="-2.38750 -0.96250 -0.26201" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_05_09" type="box" pos="-2.38750 -0.48750 -0.26158" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_05_10" type="box" pos="-2.38750 0.00000 -0.25621" size="0.23750 0.25000 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_05_11" type="box" pos="-2.38750 0.48750 -0.25157" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_05_12" type="box" pos="-2.38750 0.96250 -0.24944" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_05_13" type="box" pos="-2.38750 1.43750 -0.24612" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_05_14" type="box" pos="-2.38750 1.91250 -0.23776" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_05_15" type="box" pos="-2.38750 2.38750 -0.22601" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_05_16" type="box" pos="-2.38750 2.86250 -0.21847" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_05_17" type="box" pos="-2.38750 3.33750 -0.22274" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_05_18" type="box" pos="-2.38750 3.81250 -0.23946" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_05_19" type="box" pos="-2.38750 4.28750 -0.26103" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_05_20" type="box" pos="-2.38750 4.76250 -0.27732" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_06_00" type="box" pos="-1.91250 -4.76250 -0.25583" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_06_01" type="box" pos="-1.91250 -4.28750 -0.26000" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_06_02" type="box" pos="-1.91250 -3.81250 -0.25623" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_06_03" type="box" pos="-1.91250 -3.33750 -0.24607" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_06_04" type="box" pos="-1.91250 -2.86250 -0.23740" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_06_05" type="box" pos="-1.91250 -2.38750 -0.23796" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_06_06" type="box" pos="-1.91250 -1.91250 -0.24856" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_06_07" type="box" pos="-1.91250 -1.43750 -0.26228" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_06_08" type="box" pos="-1.91250 -0.96250 -0.27041" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_06_09" type="box" pos="-1.91250 -0.48750 -0.27008" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_06_10" type="box" pos="-1.91250 0.00000 -0.26502" size="0.23750 0.25000 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_06_11" type="box" pos="-1.91250 0.48750 -0.26016" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_06_12" type="box" pos="-1.91250 0.96250 -0.25644" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_06_13" type="box" pos="-1.91250 1.43750 -0.24972" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_06_14" type="box" pos="-1.91250 1.91250 -0.23685" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_06_15" type="box" pos="-1.91250 2.38750 -0.22098" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_06_16" type="box" pos="-1.91250 2.86250 -0.21077" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_06_17" type="box" pos="-1.91250 3.33750 -0.21378" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_06_18" type="box" pos="-1.91250 3.81250 -0.22994" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_06_19" type="box" pos="-1.91250 4.28750 -0.25124" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_06_20" type="box" pos="-1.91250 4.76250 -0.26801" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_07_00" type="box" pos="-1.43750 -4.76250 -0.24761" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_07_01" type="box" pos="-1.43750 -4.28750 -0.24964" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_07_02" type="box" pos="-1.43750 -3.81250 -0.24511" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_07_03" type="box" pos="-1.43750 -3.33750 -0.23618" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_07_04" type="box" pos="-1.43750 -2.86250 -0.23058" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_07_05" type="box" pos="-1.43750 -2.38750 -0.23493" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_07_06" type="box" pos="-1.43750 -1.91250 -0.24851" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_07_07" type="box" pos="-1.43750 -1.43750 -0.26318" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_07_08" type="box" pos="-1.43750 -0.96250 -0.27009" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_07_09" type="box" pos="-1.43750 -0.48750 -0.26890" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_07_10" type="box" pos="-1.43750 0.00000 -0.26583" size="0.23750 0.25000 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_07_11" type="box" pos="-1.43750 0.48750 -0.26384" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_07_12" type="box" pos="-1.43750 0.96250 -0.26313" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_07_13" type="box" pos="-1.43750 1.43750 -0.25791" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_07_14" type="box" pos="-1.43750 1.91250 -0.24437" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_07_15" type="box" pos="-1.43750 2.38750 -0.22671" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_07_16" type="box" pos="-1.43750 2.86250 -0.21428" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_07_17" type="box" pos="-1.43750 3.33750 -0.21429" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_07_18" type="box" pos="-1.43750 3.81250 -0.22619" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_07_19" type="box" pos="-1.43750 4.28750 -0.24231" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_07_20" type="box" pos="-1.43750 4.76250 -0.25451" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_08_00" type="box" pos="-0.96250 -4.76250 -0.24483" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_08_01" type="box" pos="-0.96250 -4.28750 -0.24493" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_08_02" type="box" pos="-0.96250 -3.81250 -0.23943" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_08_03" type="box" pos="-0.96250 -3.33750 -0.23089" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_08_04" type="box" pos="-0.96250 -2.86250 -0.22669" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_08_05" type="box" pos="-0.96250 -2.38750 -0.23229" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_08_06" type="box" pos="-0.96250 -1.91250 -0.24575" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_08_07" type="box" pos="-0.96250 -1.43750 -0.25812" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_08_08" type="box" pos="-0.96250 -0.96250 -0.26100" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_08_09" type="box" pos="-0.96250 -0.48750 -0.25770" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_08_10" type="box" pos="-0.96250 0.00000 -0.25655" size="0.23750 0.25000 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_08_11" type="box" pos="-0.96250 0.48750 -0.25780" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_08_12" type="box" pos="-0.96250 0.96250 -0.26311" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_08_13" type="box" pos="-0.96250 1.43750 -0.26513" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_08_14" type="box" pos="-0.96250 1.91250 -0.25633" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_08_15" type="box" pos="-0.96250 2.38750 -0.24085" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_08_16" type="box" pos="-0.96250 2.86250 -0.22849" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_08_17" type="box" pos="-0.96250 3.33750 -0.22579" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_08_18" type="box" pos="-0.96250 3.81250 -0.23169" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_08_19" type="box" pos="-0.96250 4.28750 -0.23935" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_08_20" type="box" pos="-0.96250 4.76250 -0.24290" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_09_00" type="box" pos="-0.48750 -4.76250 -0.24719" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_09_01" type="box" pos="-0.48750 -4.28750 -0.24708" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_09_02" type="box" pos="-0.48750 -3.81250 -0.24166" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_09_03" type="box" pos="-0.48750 -3.33750 -0.23358" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_09_04" type="box" pos="-0.48750 -2.86250 -0.22965" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_09_05" type="box" pos="-0.48750 -2.38750 -0.23412" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_09_06" type="box" pos="-0.48750 -1.91250 -0.24426" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_09_07" type="box" pos="-0.48750 -1.43750 -0.25187" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_09_08" type="box" pos="-0.48750 -0.96250 -0.25196" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_09_09" type="box" pos="-0.48750 -0.48750 -0.25020" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_09_10" type="box" pos="-0.48750 0.00000 -0.25008" size="0.23750 0.25000 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_09_11" type="box" pos="-0.48750 0.48750 -0.25087" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_09_12" type="box" pos="-0.48750 0.96250 -0.25765" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_09_13" type="box" pos="-0.48750 1.43750 -0.26711" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_09_14" type="box" pos="-0.48750 1.91250 -0.26667" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_09_15" type="box" pos="-0.48750 2.38750 -0.25739" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_09_16" type="box" pos="-0.48750 2.86250 -0.24842" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_09_17" type="box" pos="-0.48750 3.33750 -0.24516" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_09_18" type="box" pos="-0.48750 3.81250 -0.24586" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_09_19" type="box" pos="-0.48750 4.28750 -0.24457" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_09_20" type="box" pos="-0.48750 4.76250 -0.23795" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_10_00" type="box" pos="0.00000 -4.76250 -0.25149" size="0.25000 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_10_01" type="box" pos="0.00000 -4.28750 -0.25377" size="0.25000 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_10_02" type="box" pos="0.00000 -3.81250 -0.25049" size="0.25000 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_10_03" type="box" pos="0.00000 -3.33750 -0.24413" size="0.25000 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_10_04" type="box" pos="0.00000 -2.86250 -0.24067" size="0.25000 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_10_05" type="box" pos="0.00000 -2.38750 -0.24298" size="0.25000 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_10_06" type="box" pos="0.00000 -1.91250 -0.24759" size="0.25000 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_10_07" type="box" pos="0.00000 -1.43750 -0.24837" size="0.25000 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_10_08" type="box" pos="0.00000 -0.96250 -0.24649" size="0.25000 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_10_09" type="box" pos="0.00000 -0.48750 -0.24902" size="0.25000 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_10_11" type="box" pos="0.00000 0.48750 -0.24945" size="0.25000 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_10_12" type="box" pos="0.00000 0.96250 -0.25235" size="0.25000 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_10_13" type="box" pos="0.00000 1.43750 -0.26387" size="0.25000 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_10_14" type="box" pos="0.00000 1.91250 -0.27078" size="0.25000 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_10_15" type="box" pos="0.00000 2.38750 -0.26969" size="0.25000 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_10_16" type="box" pos="0.00000 2.86250 -0.26701" size="0.25000 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_10_17" type="box" pos="0.00000 3.33750 -0.26623" size="0.25000 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_10_18" type="box" pos="0.00000 3.81250 -0.26445" size="0.25000 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_10_19" type="box" pos="0.00000 4.28750 -0.25642" size="0.25000 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_10_20" type="box" pos="0.00000 4.76250 -0.24110" size="0.25000 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_11_00" type="box" pos="0.48750 -4.76250 -0.25335" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_11_01" type="box" pos="0.48750 -4.28750 -0.25994" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_11_02" type="box" pos="0.48750 -3.81250 -0.26073" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_11_03" type="box" pos="0.48750 -3.33750 -0.25791" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_11_04" type="box" pos="0.48750 -2.86250 -0.25638" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_11_05" type="box" pos="0.48750 -2.38750 -0.25751" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_11_06" type="box" pos="0.48750 -1.91250 -0.25691" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_11_07" type="box" pos="0.48750 -1.43750 -0.24993" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_11_08" type="box" pos="0.48750 -0.96250 -0.24321" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_11_09" type="box" pos="0.48750 -0.48750 -0.24656" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_11_10" type="box" pos="0.48750 0.00000 -0.24790" size="0.23750 0.25000 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_11_11" type="box" pos="0.48750 0.48750 -0.24692" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_11_12" type="box" pos="0.48750 0.96250 -0.24559" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_11_13" type="box" pos="0.48750 1.43750 -0.25545" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_11_14" type="box" pos="0.48750 1.91250 -0.26635" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_11_15" type="box" pos="0.48750 2.38750 -0.27230" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_11_16" type="box" pos="0.48750 2.86250 -0.27667" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_11_17" type="box" pos="0.48750 3.33750 -0.28060" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_11_18" type="box" pos="0.48750 3.81250 -0.27982" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_11_19" type="box" pos="0.48750 4.28750 -0.26927" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_11_20" type="box" pos="0.48750 4.76250 -0.24954" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_12_00" type="box" pos="0.96250 -4.76250 -0.25049" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_12_01" type="box" pos="0.96250 -4.28750 -0.26121" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_12_02" type="box" pos="0.96250 -3.81250 -0.26636" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_12_03" type="box" pos="0.96250 -3.33750 -0.26799" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_12_04" type="box" pos="0.96250 -2.86250 -0.27000" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_12_05" type="box" pos="0.96250 -2.38750 -0.27228" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_12_06" type="box" pos="0.96250 -1.91250 -0.26943" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_12_07" type="box" pos="0.96250 -1.43750 -0.25692" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_12_08" type="box" pos="0.96250 -0.96250 -0.24154" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_12_09" type="box" pos="0.96250 -0.48750 -0.23491" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_12_10" type="box" pos="0.96250 0.00000 -0.23196" size="0.23750 0.25000 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_12_11" type="box" pos="0.96250 0.48750 -0.23313" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_12_12" type="box" pos="0.96250 0.96250 -0.23554" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_12_13" type="box" pos="0.96250 1.43750 -0.24498" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_12_14" type="box" pos="0.96250 1.91250 -0.25594" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_12_15" type="box" pos="0.96250 2.38750 -0.26512" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_12_16" type="box" pos="0.96250 2.86250 -0.27452" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_12_17" type="box" pos="0.96250 3.33750 -0.28324" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_12_18" type="box" pos="0.96250 3.81250 -0.28567" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_12_19" type="box" pos="0.96250 4.28750 -0.27663" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_12_20" type="box" pos="0.96250 4.76250 -0.25752" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_13_00" type="box" pos="1.43750 -4.76250 -0.24410" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_13_01" type="box" pos="1.43750 -4.28750 -0.25658" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_13_02" type="box" pos="1.43750 -3.81250 -0.26429" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_13_03" type="box" pos="1.43750 -3.33750 -0.26964" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_13_04" type="box" pos="1.43750 -2.86250 -0.27582" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_13_05" type="box" pos="1.43750 -2.38750 -0.28141" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_13_06" type="box" pos="1.43750 -1.91250 -0.28016" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_13_07" type="box" pos="1.43750 -1.43750 -0.26718" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_13_08" type="box" pos="1.43750 -0.96250 -0.24669" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_13_09" type="box" pos="1.43750 -0.48750 -0.22962" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_13_10" type="box" pos="1.43750 0.00000 -0.22067" size="0.23750 0.25000 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_13_11" type="box" pos="1.43750 0.48750 -0.22187" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_13_12" type="box" pos="1.43750 0.96250 -0.22809" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_13_13" type="box" pos="1.43750 1.43750 -0.23646" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_13_14" type="box" pos="1.43750 1.91250 -0.24410" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_13_15" type="box" pos="1.43750 2.38750 -0.25210" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_13_16" type="box" pos="1.43750 2.86250 -0.26290" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_13_17" type="box" pos="1.43750 3.33750 -0.27454" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_13_18" type="box" pos="1.43750 3.81250 -0.28044" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_13_19" type="box" pos="1.43750 4.28750 -0.27518" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_13_20" type="box" pos="1.43750 4.76250 -0.26044" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_14_00" type="box" pos="1.91250 -4.76250 -0.23816" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_14_01" type="box" pos="1.91250 -4.28750 -0.24847" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_14_02" type="box" pos="1.91250 -3.81250 -0.25510" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_14_03" type="box" pos="1.91250 -3.33750 -0.26147" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_14_04" type="box" pos="1.91250 -2.86250 -0.27064" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_14_05" type="box" pos="1.91250 -2.38750 -0.28023" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_14_06" type="box" pos="1.91250 -1.91250 -0.28325" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_14_07" type="box" pos="1.91250 -1.43750 -0.27451" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_14_08" type="box" pos="1.91250 -0.96250 -0.25663" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_14_09" type="box" pos="1.91250 -0.48750 -0.23889" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_14_10" type="box" pos="1.91250 0.00000 -0.22898" size="0.23750 0.25000 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_14_11" type="box" pos="1.91250 0.48750 -0.22890" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_14_12" type="box" pos="1.91250 0.96250 -0.23299" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_14_13" type="box" pos="1.91250 1.43750 -0.23576" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_14_14" type="box" pos="1.91250 1.91250 -0.23646" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_14_15" type="box" pos="1.91250 2.38750 -0.23917" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_14_16" type="box" pos="1.91250 2.86250 -0.24741" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_14_17" type="box" pos="1.91250 3.33750 -0.25893" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_14_18" type="box" pos="1.91250 3.81250 -0.26673" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_14_19" type="box" pos="1.91250 4.28750 -0.26537" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_14_20" type="box" pos="1.91250 4.76250 -0.25649" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_15_00" type="box" pos="2.38750 -4.76250 -0.23742" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_15_01" type="box" pos="2.38750 -4.28750 -0.24164" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_15_02" type="box" pos="2.38750 -3.81250 -0.24298" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_15_03" type="box" pos="2.38750 -3.33750 -0.24654" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_15_04" type="box" pos="2.38750 -2.86250 -0.25588" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_15_05" type="box" pos="2.38750 -2.38750 -0.26818" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_15_06" type="box" pos="2.38750 -1.91250 -0.27595" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_15_07" type="box" pos="2.38750 -1.43750 -0.27376" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_15_08" type="box" pos="2.38750 -0.96250 -0.26343" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_15_09" type="box" pos="2.38750 -0.48750 -0.25254" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_15_10" type="box" pos="2.38750 0.00000 -0.24745" size="0.23750 0.25000 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_15_11" type="box" pos="2.38750 0.48750 -0.24817" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_15_12" type="box" pos="2.38750 0.96250 -0.24858" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_15_13" type="box" pos="2.38750 1.43750 -0.24406" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_15_14" type="box" pos="2.38750 1.91250 -0.23626" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_15_15" type="box" pos="2.38750 2.38750 -0.23155" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_15_16" type="box" pos="2.38750 2.86250 -0.23453" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_15_17" type="box" pos="2.38750 3.33750 -0.24319" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_15_18" type="box" pos="2.38750 3.81250 -0.25058" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_15_19" type="box" pos="2.38750 4.28750 -0.25154" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_15_20" type="box" pos="2.38750 4.76250 -0.24768" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_16_00" type="box" pos="2.86250 -4.76250 -0.24470" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_16_01" type="box" pos="2.86250 -4.28750 -0.24062" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_16_02" type="box" pos="2.86250 -3.81250 -0.23366" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_16_03" type="box" pos="2.86250 -3.33750 -0.23099" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_16_04" type="box" pos="2.86250 -2.86250 -0.23711" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_16_05" type="box" pos="2.86250 -2.38750 -0.24933" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_16_06" type="box" pos="2.86250 -1.91250 -0.26015" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_16_07" type="box" pos="2.86250 -1.43750 -0.26413" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_16_08" type="box" pos="2.86250 -0.96250 -0.26255" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_16_09" type="box" pos="2.86250 -0.48750 -0.26124" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_16_10" type="box" pos="2.86250 0.00000 -0.26412" size="0.23750 0.25000 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_16_11" type="box" pos="2.86250 0.48750 -0.26842" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_16_12" type="box" pos="2.86250 0.96250 -0.26727" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_16_13" type="box" pos="2.86250 1.43750 -0.25738" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_16_14" type="box" pos="2.86250 1.91250 -0.24260" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_16_15" type="box" pos="2.86250 2.38750 -0.23119" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_16_16" type="box" pos="2.86250 2.86250 -0.22867" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_16_17" type="box" pos="2.86250 3.33750 -0.23332" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_16_18" type="box" pos="2.86250 3.81250 -0.23856" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_16_19" type="box" pos="2.86250 4.28750 -0.23979" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_16_20" type="box" pos="2.86250 4.76250 -0.23876" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_17_00" type="box" pos="3.33750 -4.76250 -0.25902" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_17_01" type="box" pos="3.33750 -4.28750 -0.24711" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_17_02" type="box" pos="3.33750 -3.81250 -0.23146" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_17_03" type="box" pos="3.33750 -3.33750 -0.22116" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_17_04" type="box" pos="3.33750 -2.86250 -0.22170" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_17_05" type="box" pos="3.33750 -2.38750 -0.23084" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_17_06" type="box" pos="3.33750 -1.91250 -0.24158" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_17_07" type="box" pos="3.33750 -1.43750 -0.24902" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_17_08" type="box" pos="3.33750 -0.96250 -0.25424" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_17_09" type="box" pos="3.33750 -0.48750 -0.26157" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_17_10" type="box" pos="3.33750 0.00000 -0.27258" size="0.23750 0.25000 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_17_11" type="box" pos="3.33750 0.48750 -0.28178" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_17_12" type="box" pos="3.33750 0.96250 -0.28146" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_17_13" type="box" pos="3.33750 1.43750 -0.26943" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_17_14" type="box" pos="3.33750 1.91250 -0.25118" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_17_15" type="box" pos="3.33750 2.38750 -0.23621" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_17_16" type="box" pos="3.33750 2.86250 -0.23039" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_17_17" type="box" pos="3.33750 3.33750 -0.23203" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_17_18" type="box" pos="3.33750 3.81250 -0.23489" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_17_19" type="box" pos="3.33750 4.28750 -0.23507" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_17_20" type="box" pos="3.33750 4.76250 -0.23465" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_18_00" type="box" pos="3.81250 -4.76250 -0.27555" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_18_01" type="box" pos="3.81250 -4.28750 -0.25887" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_18_02" type="box" pos="3.81250 -3.81250 -0.23713" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_18_03" type="box" pos="3.81250 -3.33750 -0.22069" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_18_04" type="box" pos="3.81250 -2.86250 -0.21555" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_18_05" type="box" pos="3.81250 -2.38750 -0.21987" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_18_06" type="box" pos="3.81250 -1.91250 -0.22746" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_18_07" type="box" pos="3.81250 -1.43750 -0.23448" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_18_08" type="box" pos="3.81250 -0.96250 -0.24247" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_18_09" type="box" pos="3.81250 -0.48750 -0.25485" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_18_10" type="box" pos="3.81250 0.00000 -0.27137" size="0.23750 0.25000 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_18_11" type="box" pos="3.81250 0.48750 -0.28453" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_18_12" type="box" pos="3.81250 0.96250 -0.28603" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_18_13" type="box" pos="3.81250 1.43750 -0.27456" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_18_14" type="box" pos="3.81250 1.91250 -0.25667" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_18_15" type="box" pos="3.81250 2.38750 -0.24224" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_18_16" type="box" pos="3.81250 2.86250 -0.23671" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_18_17" type="box" pos="3.81250 3.33750 -0.23787" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_18_18" type="box" pos="3.81250 3.81250 -0.23963" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_18_19" type="box" pos="3.81250 4.28750 -0.23876" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_18_20" type="box" pos="3.81250 4.76250 -0.23780" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_19_00" type="box" pos="4.28750 -4.76250 -0.28761" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_19_01" type="box" pos="4.28750 -4.28750 -0.27052" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_19_02" type="box" pos="4.28750 -3.81250 -0.24745" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_19_03" type="box" pos="4.28750 -3.33750 -0.22891" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_19_04" type="box" pos="4.28750 -2.86250 -0.22058" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_19_05" type="box" pos="4.28750 -2.38750 -0.22050" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_19_06" type="box" pos="4.28750 -1.91250 -0.22331" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_19_07" type="box" pos="4.28750 -1.43750 -0.22659" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_19_08" type="box" pos="4.28750 -0.96250 -0.23291" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_19_09" type="box" pos="4.28750 -0.48750 -0.24557" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_19_10" type="box" pos="4.28750 0.00000 -0.26328" size="0.23750 0.25000 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_19_11" type="box" pos="4.28750 0.48750 -0.27755" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_19_12" type="box" pos="4.28750 0.96250 -0.28007" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_19_13" type="box" pos="4.28750 1.43750 -0.27034" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_19_14" type="box" pos="4.28750 1.91250 -0.25550" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_19_15" type="box" pos="4.28750 2.38750 -0.24499" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_19_16" type="box" pos="4.28750 2.86250 -0.24307" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_19_17" type="box" pos="4.28750 3.33750 -0.24649" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_19_18" type="box" pos="4.28750 3.81250 -0.24904" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_19_19" type="box" pos="4.28750 4.28750 -0.24813" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_19_20" type="box" pos="4.28750 4.76250 -0.24679" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_20_00" type="box" pos="4.76250 -4.76250 -0.28968" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_20_01" type="box" pos="4.76250 -4.28750 -0.27613" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_20_02" type="box" pos="4.76250 -3.81250 -0.25685" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_20_03" type="box" pos="4.76250 -3.33750 -0.24142" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_20_04" type="box" pos="4.76250 -2.86250 -0.23407" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_20_05" type="box" pos="4.76250 -2.38750 -0.23204" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_20_06" type="box" pos="4.76250 -1.91250 -0.23049" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_20_07" type="box" pos="4.76250 -1.43750 -0.22852" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_20_08" type="box" pos="4.76250 -0.96250 -0.23007" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_20_09" type="box" pos="4.76250 -0.48750 -0.23895" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_20_10" type="box" pos="4.76250 0.00000 -0.25357" size="0.23750 0.25000 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_20_11" type="box" pos="4.76250 0.48750 -0.26548" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_20_12" type="box" pos="4.76250 0.96250 -0.26705" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_20_13" type="box" pos="4.76250 1.43750 -0.25867" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_20_14" type="box" pos="4.76250 1.91250 -0.24772" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_20_15" type="box" pos="4.76250 2.38750 -0.24267" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_20_16" type="box" pos="4.76250 2.86250 -0.24601" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_20_17" type="box" pos="4.76250 3.33750 -0.25317" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_20_18" type="box" pos="4.76250 3.81250 -0.25773" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_20_19" type="box" pos="4.76250 4.28750 -0.25781" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
+    <geom name="terrain_20_20" type="box" pos="4.76250 4.76250 -0.25694" size="0.23750 0.23750 0.25000" material="studio_terrain" rgba="1 1 1 1" friction="0.9 0.005 0.0001" contype="1" conaffinity="1" />
   </worldbody>
 </mujocoinclude>

@@ -6,11 +6,12 @@ Each `scene*.xml` is a small composition of one robot, one background and option
 | --- | --- |
 | `g1_29dof.xml` | Robot bodies, joints, meshes, actuators and sensors |
 | `background_day.xml` | Original daytime sky, lighting, camera and physical floor |
-| `background_night.xml` | Studio studio lighting, camera, satin floor and robot finish |
+| `background_night.xml` | Studio lighting, camera, satin floor and robot finish |
 | `terrain_materials.xml` | Shared matte material using `textures/studio_terrain.png` |
 | `stairs.xml` | Stair geometry generated from `stairs.xml.xacro` and `stairs_params.yaml` |
 | `ramp.xml` | Flush-entry 3-degree ramp and its floor contact exclusion |
 | `slope.xml` | Original separate 5-degree slope |
+| `terrain_10x10.xml` | Textured rough tiles with a clear 0.5 x 0.5 m center patch using the background floor |
 | `boxes.xml` | Movable boxes with their original masses and colour tints |
 
 Both backgrounds include `terrain_materials.xml` once, so multiple terrains can coexist without duplicate material definitions.
@@ -34,11 +35,13 @@ Keep scene files in this directory so the robot mesh and texture paths resolve c
 The floor's size, friction and priority are identical in both backgrounds.
 Terrain dimensions, contact properties, inertias and actuator settings are independent of the background choice.
 
-Entry points are `scene.xml` (night/stairs), `scene_flat.xml` (day/flat) and `scene_ramp.xml` (night/ramp).
+Entry points are `scene.xml` (night/configured terrain), `scene_flat.xml` (day/flat) and `scene_ramp.xml` (night/ramp).
 Choose one through `g1.launch.py mujocoModelFile:=scene.xml`.
 Switch day/night by changing the scene's background include; separate scene files for each appearance are unnecessary.
 
 From the package root, the generator can compose scenes and regenerate night appearance assets:
+
+Use `--terrain rough` to select `terrain_10x10.xml`, or `--terrain none` to use only the background floor.
 
 ```bash
 python3 description/g1/mujoco/mujoco_scene_creator.py

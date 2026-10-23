@@ -36,7 +36,8 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_SCENE_DIR = SCRIPT_DIR
 
 # Terrain includes known in description/g1/mujoco. "none" drops them.
-TERRAIN_FILES = {"stairs": "stairs.xml", "boxes": "boxes.xml", "slope": "slope.xml", "ramp": "ramp.xml"}
+TERRAIN_FILES = {"stairs": "stairs.xml", "boxes": "boxes.xml", "slope": "slope.xml", "ramp": "ramp.xml",
+                 "rough": "terrain_10x10.xml"}
 
 RGB = tuple  # (r, g, b) in [0, 1]
 
