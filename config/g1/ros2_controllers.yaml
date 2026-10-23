@@ -937,7 +937,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           torso:
             linkName: mid360_link
             weights:
-              [0.0, 0.0, 0.0, 100.0, 100.0, 0.0, 
+              [0.0, 0.0, 0.0, 100.0, 100.0, 0.0,
                0.1, 0.1, 0.005, 5.0, 5.0, 2.0]
 
         # Active J_leg^T W load cost; separate from r.jointTorques.
