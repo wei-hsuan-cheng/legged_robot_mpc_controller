@@ -55,8 +55,8 @@ def generate_launch_description():
     # gets it from g1.ros2_control.xacro, which includes this file.
     urdf_default = PathJoinSubstitution([mpc_share_dir, "description", "g1", "urdf", "g1_29dof.urdf"])
 
-    # The environment, rooted at world - not part of the robot. "" for none (e.g. with
-    # scene_flat.xml). Driven by the same params file as the MuJoCo stairs.
+    # The environment, rooted at world - not part of the robot. "" for none (e.g. with scene_flat.xml). 
+    # Driven by the same params file as the MuJoCo stairs.
     environment_default = PathJoinSubstitution([mpc_share_dir, "description", "g1", "urdf", "stairs.urdf.xacro"])
     stairs_params_file = PathJoinSubstitution([mpc_share_dir, "description", "g1", "mujoco", "stairs_params.yaml"])
 
