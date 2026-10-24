@@ -1,5 +1,19 @@
 # WB-ID MPC Walking Robustness Handoff
 
+## WB-ID Parameter Ownership Cleanup (2026-10-24)
+
+WB-ID now groups SQP and rollout settings under `ocs2.solver.sqp` and `ocs2.solver.rollout`, while keeping `ocs2.mpc` at its existing location.
+`control.policyTimeOffset` moved to `ocs2.solver.rollout.policyTimeOffset`; both policy-coverage validation and execution use the same value, which is still 0.000 in the G1 YAML.
+Code-generation flags moved to `ocs2.codegen`; physical contact geometry to `ocs2.model.contactGeometry`; torque-window nodes to `ocs2.constraints.inverseDynamics`; transition stance timing to `ocs2.gait`; and ground-height/arm-name settings to `ocs2.reference.groundHeight` and `.armSwing`.
+See [Implementation Guide, Section 10](docs/humanoid_whole_body_inverse_dynamics_mpc_impl.md#10-wb-id-parameter-layout-migration) for the complete old/new path table and external-YAML migration instructions.
+All configured values, schema defaults/types/validation, `ocs2.mpc` settings and every other controller's YAML block were compared against the previous revision after normalizing these path moves and found unchanged.
+No launch, estimator, shared OCP equation or CppAD signature changed, and the common model still resolves the same arm joint indices even when arm swing is disabled.
+The shared torque-limit roles and the pre-existing zero acceleration-gain schema defaults were not changed as part of a layout-only task.
+External WB-ID overrides need the new names and a rebuilt controller; the centroidal controller deliberately retains its existing paths.
+The two-job Jazzy Release symlink-install build passed in 1 min 19 s with `BUILD_TESTING=OFF`; container log: `/tmp/wbid_parameter_layout_build_20261024.log`.
+The parameter contract, six startup checks, six cost-activation checks and nine torso-cost checks passed, with YAML/schema value-preservation checks confirming a migration-only change.
+No simulation was started for this structural cleanup, so these checks do not add a new walking validation.
+
 ## WB-ID Foot-Constraint Parameter Migration (2026-10-24)
 
 The WB-ID YAML and generated parameter schema now place the eight foot-stabilization gains at `ocs2.constraints.footConstraint`, replacing `ocs2.model.footConstraint`.
@@ -50,8 +64,9 @@ Only two WB-ID controller parameters changed from the user's current configurati
 
 ```yaml
 ocs2:
-  model:
-    useTerrainHeightEstimate: false  # unchanged
+  reference:
+    groundHeight:
+      useEstimate: false  # unchanged
   constraints:
     footConstraint:
       positionErrorGain_z: 50.0     # previously 250
@@ -342,7 +357,7 @@ The user requested committing and pushing this unbuilt checkpoint for their own 
 - A single `ocs2.costs.q/qFinal` contains `basePose`, `baseVelocity`, `jointPositions`, `jointVelocities`.
 - A single `ocs2.costs.r` contains `contactWrenches`, `baseAccelerations`, `jointAccelerations`, `jointTorques`.
 - Values were moved without retuning Q/R. Runtime scales remain qScaling=1, rScaling=0.001, terminalCostScaling=4.
-- Torque-window setting is `ocs2.model.torqueConstraintNodes`; barrier settings are `ocs2.constraints.jointTorqueLimits` and `jointVelocityLimits`; feedforward is `control.feedforward`.
+- Torque-window setting is `ocs2.constraints.inverseDynamics.torqueConstraintNodes`; barrier settings are `ocs2.constraints.jointTorqueLimits` and `jointVelocityLimits`; feedforward is `control.feedforward`.
 - Removed WB-only unused centroidal momentum/model settings, inertia-weighted momentum toggle, centroidal input joint-velocity weights, unused controller PD arrays, unused gradient switches/ICP settings, diagnostics CSV parameters and future frame-relation parameters. The separate centroidal controller was not removed or retuned.
 - WB capture-foot placement is disabled in its builder and removed from its schema/YAML. The common terrain planner remains a separate feature. Earlier passing runs below used capture placement and do NOT validate this checkpoint; a previous capture-disabled experiment fell.
 - Controller-side rate limits are `ocs2.reference.velocityCommandRateLimits=[0.1,0.08,0.05,0.1]` (moved from `target.*` on 2026-10-23) for `[ax,ay,height_rate,yaw_acceleration]` in physical units. Centroidal defaults disable this new limiter. Solver time governs increments, capped at 50 ms per update; reset starts limited twist axes at zero.

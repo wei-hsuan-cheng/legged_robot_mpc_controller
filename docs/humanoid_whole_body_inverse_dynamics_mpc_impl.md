@@ -162,7 +162,7 @@ Target-mode changes request filter reset and pose latching at [ProceduralMpcMoti
 [ProceduralMpcMotionManager.cpp:126](../src/core/humanoid_common_mpc/src/reference_manager/ProceduralMpcMotionManager.cpp#L126) implements faster/slower gait guards.
 Per-solver target dispatch, measured-speed checks and template selection start at [line 173](../src/core/humanoid_common_mpc/src/reference_manager/ProceduralMpcMotionManager.cpp#L173).
 [GaitScheduleUpdater.cpp:45](../src/core/humanoid_common_mpc/src/gait/GaitScheduleUpdater.cpp#L45) delays template insertion, while [GaitSchedule.cpp](../src/core/humanoid_common_mpc/src/gait/GaitSchedule.cpp) extends the schedule.
-The current WB-ID `slow_walk` timing is [ros2_controllers.yaml:1048](../config/g1/ros2_controllers.yaml#L1048).
+The current WB-ID `slow_walk` timing is [ros2_controllers.yaml:1089](../config/g1/ros2_controllers.yaml#L1089).
 [SwitchedModelReferenceManager.cpp:224](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L224) combines schedule, support heights and swing references.
 [SwingTrajectoryPlanner.cpp:126](../src/core/humanoid_common_mpc/src/swing_foot_planner/SwingTrajectoryPlanner.cpp#L126) constructs the isolated swing spline with an apex above the higher endpoint.
 The WB-ID builder explicitly disables capture placement at [line 247](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L247).
@@ -196,7 +196,8 @@ An unusable policy requests `resetMpcNode()` on the solver worker, following the
 Startup keeps holding the standing posture and retries; loss of a valid policy during the startup blend returns to `StartingMpc`, while loss after entering estimator-driven `Locomotion` latches the existing `Fault` state.
 The ground-truth feedback path holds the last commanded posture while awaiting a valid replacement policy.
 No additional age-limit parameter or alternative observation interface is introduced.
-[compute_mpc_joint_action():1343](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1343) evaluates the policy using `control.policyTimeOffset`.
+[compute_mpc_joint_action():1343](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1343) evaluates the policy using `ocs2.solver.rollout.policyTimeOffset`.
+The same offset is used by policy-interval validation, so the accepted interval and execution time remain consistent; it is a runtime policy look-ahead, not an ODE timestep.
 Planned joint position/velocity extraction is at [line 1359](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1359).
 The torque-window check and planned-state inverse-dynamics fallback are at [line 1377](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1377).
 The alternative measured-state inverse dynamics is at [line 1393](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1393).
@@ -214,8 +215,11 @@ These are static regression checks, not a substitute for repeated startup tests 
 | `robot.jointNames`, `ocs2.model` | Reduced model, contact frames and array ordering |
 | `floatingBase.source`, `floatingBase.estimator` | Body state feeding the MPC |
 | `control.observationVelocityFilterCutoffHz` | Observation generalized velocity filter |
-| `ocs2.mpc`, `ocs2.sqp`, `ocs2.rollout` | Horizon, rates, grid, iterations and integration |
-| `ocs2.model.torqueConstraintNodes` | Initial inverse-dynamics/torque-limit window |
+| `ocs2.mpc` | MPC backend selection, horizon, rates, warm-start and policy window |
+| `ocs2.solver.sqp`, `ocs2.solver.rollout` | SQP numerics and rollout integration/execution settings |
+| `ocs2.codegen` | CppAD generation verbosity and forced regeneration |
+| `ocs2.model.contactGeometry` | Physical contact-frame offset and sole rectangle |
+| `ocs2.constraints.inverseDynamics.torqueConstraintNodes` | Initial inverse-dynamics/torque-limit window |
 | `ocs2.costs.q`, `qFinal`, `r` | State/input weight blocks |
 | `ocs2.costs.qScaling`, `rScaling`, `terminalCostScaling` | Global weight scaling |
 | `ocs2.costs.taskSpaceFootCost.activate`, `.weights` | Enable both foot costs and set their weights |
@@ -224,10 +228,13 @@ These are static regression checks, not a substitute for repeated startup tests 
 | `ocs2.costs.legTorqueCost.activate`, `.scaling`, leg joint names and weights | Enable and configure both external-load costs |
 | `ocs2.constraints.footConstraint` | Acceleration-level stance/swing gains |
 | `ocs2.constraints` | Friction, CoP, joint and collision soft penalties |
-| `ocs2.gait.templates`, `transitions`, `swingTrajectory` | Contact timing, transition guards and swing profiles |
+| `ocs2.gait.phaseTransitionStanceTime`, `templates`, `transitions`, `swingTrajectory` | Contact timing, transition guards and swing profiles |
 | `ocs2.reference` | Command scaling/slew, nominal posture, height and arm swing |
+| `ocs2.reference.groundHeight` | FK support-height reference option and per-solve rate limit |
+| `ocs2.reference.armSwing.jointNames` | Joint identities used by the arm-swing reference and model index setup |
 | `target.mpcTargetsTopic` | Arm joint command input |
-| `control.feedforward`, `policyTimeOffset`, `torqueLimit` | Policy-to-torque execution |
+| `control.feedforward`, `control.torqueLimit` | Feedforward selection and command torque clipping; the same limits currently bound MPC torques |
+| `ocs2.solver.rollout.policyTimeOffset` | Policy look-ahead time used by validation and execution |
 | `control.jointEffortPd.kp`, `kd` | Inner servo gains |
 
 Read these from the `humanoid_whole_body_inverse_dynamics_mpc_controller` YAML block rather than the similarly named centroidal settings.
@@ -241,18 +248,18 @@ The references below map that table to the current implementation; only the pair
 
 | Responsibility | Implementation or current parameters |
 | --- | --- |
-| Stance height/tilt correction gains | [ros2_controllers.yaml:977](../config/g1/ros2_controllers.yaml#L977), [stance equations:114](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdFootAccelerationConstraintCppAd.cpp#L114) |
+| Stance height/tilt correction gains | [ros2_controllers.yaml:972](../config/g1/ros2_controllers.yaml#L972), [stance equations:114](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdFootAccelerationConstraintCppAd.cpp#L114) |
 | Shared gain in swing vertical correction | [WbIdFootAccelerationConstraintCppAd.cpp:106](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdFootAccelerationConstraintCppAd.cpp#L106) |
-| Running/terminal base z and vz weights | [Q:875](../config/g1/ros2_controllers.yaml#L875), [Qf:891](../config/g1/ros2_controllers.yaml#L891) |
-| Foot task-space cost | [weights:927](../config/g1/ros2_controllers.yaml#L927) |
-| Swing clearance | [swingHeight:1061](../config/g1/ros2_controllers.yaml#L1061) |
-| Torso free lean and angular damping | [torsoTiltCost:946](../config/g1/ros2_controllers.yaml#L946) |
-| Extra leg-load cost activation | [legTorqueCost:954](../config/g1/ros2_controllers.yaml#L954) |
+| Running/terminal base z and vz weights | [Q:870](../config/g1/ros2_controllers.yaml#L870), [Qf:886](../config/g1/ros2_controllers.yaml#L886) |
+| Foot task-space cost | [weights:922](../config/g1/ros2_controllers.yaml#L922) |
+| Swing clearance | [swingHeight:1067](../config/g1/ros2_controllers.yaml#L1067) |
+| Torso free lean and angular damping | [torsoTiltCost:941](../config/g1/ros2_controllers.yaml#L941) |
+| Extra leg-load cost activation | [legTorqueCost:949](../config/g1/ros2_controllers.yaml#L949) |
 | Joint PD and feedforward | [control:756](../config/g1/ros2_controllers.yaml#L756) |
-| Command slew limits and filtering | [limits:1038](../config/g1/ros2_controllers.yaml#L1038), [WalkingVelocityTarget.cpp:90](../src/core/humanoid_common_mpc/src/target/WalkingVelocityTarget.cpp#L90) |
+| Command slew limits and filtering | [limits:1032](../config/g1/ros2_controllers.yaml#L1032), [WalkingVelocityTarget.cpp:90](../src/core/humanoid_common_mpc/src/target/WalkingVelocityTarget.cpp#L90) |
 | Planar-relative base tracking | [BaseMotionTrackingCost.cpp:51](../src/core/humanoid_common_mpc/src/cost/BaseMotionTrackingCost.cpp#L51) |
 | Mapped terrain planner inactive outside its explicit mode | [mode gate:189](../src/core/humanoid_common_mpc/src/reference_manager/ProceduralMpcMotionManager.cpp#L189), [world-up fallback:307](../include/humanoid_common_mpc/reference_manager/SwitchedModelReferenceManager.h#L307) |
-| Current flat support-height assumption | [option:827](../config/g1/ros2_controllers.yaml#L827), [reference fallback:126](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L126) |
+| Current flat support-height assumption | [option:1035](../config/g1/ros2_controllers.yaml#L1035), [reference fallback:126](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L126) |
 | Linear KF flat contact-height observation | [zero heights:159](../src/humanoid_state_estimation/linear_kf_floating_base_estimator.cpp#L159), [measurement:303](../src/humanoid_state_estimation/linear_kf_floating_base_estimator.cpp#L303) |
 | Scheduled estimator contacts | [contact source:168](../config/g1/ros2_controllers.yaml#L168) |
 | Automatic recording and scoring | [run_case.sh:35](../tests/tuning/run_case.sh#L35), [command schedule:76](../tests/tuning/tune_probe.py#L76) |
@@ -261,3 +268,32 @@ The references below map that table to the current implementation; only the pair
 Trial folders such as `tuning_results/ramp_rebuilt_baseline`, `ramp_final_headless`, `ramp_final_slow` and `ramp_final_rviz` contain exact configs, logs, arrays and plots on the development machine.
 They are git-ignored and are not bundled with this document; [Codex.md](../Codex.md) preserves the trial identifiers and numerical summary.
 Replay images reconstruct recorded physical poses and encoders rather than showing a live viewer or an estimated terrain map.
+
+
+## 10. WB-ID Parameter Layout Migration
+
+These paths are relative to `ocs2` unless a full path is shown; this migration is WB-ID only.
+All configured values and schema types/defaults/validation are preserved, including the blind-ramp gains; no cost, dynamics, contact equation or CppAD signature changed.
+`ocs2.mpc` deliberately remains outside `ocs2.solver`.
+
+| Previous path | Current path |
+| --- | --- |
+| `model.torqueConstraintNodes` | `constraints.inverseDynamics.torqueConstraintNodes` |
+| `model.phaseTransitionStanceTime` | `gait.phaseTransitionStanceTime` |
+| `model.useTerrainHeightEstimate` | `reference.groundHeight.useEstimate` |
+| `model.maxTerrainHeightStep` | `reference.groundHeight.maxStepPerSolve` |
+| `model.verboseCppAd` | `codegen.verbose` |
+| `model.recompileLibrariesCppAd` | `codegen.recompileLibraries` |
+| `model.armJointNames` | `reference.armSwing.jointNames` |
+| `constraints.contact.frameTranslation`, `.rectangle` | `model.contactGeometry.frameTranslation`, `.rectangle` |
+| `sqp` | `solver.sqp` |
+| `rollout` | `solver.rollout` |
+| Full path `control.policyTimeOffset` | Full path `ocs2.solver.rollout.policyTimeOffset` |
+
+Arm reference joint names remain required even when arm swing is disabled because common-model setup resolves their indices unconditionally.
+Physical contact geometry still feeds the same contact-frame construction and CoP bounds; barrier settings remain under `constraints`.
+Both policy-coverage validation and policy execution read the relocated time offset.
+The shared `control.torqueLimit` behavior and pre-existing acceleration-gain schema defaults are unchanged; neither is silently retuned or split by this layout change.
+The centroidal parameter schema, builder and YAML block, shared core model structures, and launch file retain their existing contracts.
+Update external WB-ID YAML files and dotted overrides, then rebuild the generated parameter library and controller before using these new paths; no deprecated aliases are provided.
+`tests/wb_id_parameter_contract_test.py` checks the schema/builder mapping, removal of obsolete WB-ID paths, both policy-offset readers and retention of the separate centroidal layout.

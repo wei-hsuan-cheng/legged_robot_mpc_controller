@@ -755,7 +755,6 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
 
     control:
       observationVelocityFilterCutoffHz: 30.0
-      policyTimeOffset: 0.000
       torqueLimit:
         [88.0, 139.0, 88.0, 139.0, 50.0, 50.0,
          88.0, 139.0, 88.0, 139.0, 50.0, 50.0,
@@ -800,10 +799,12 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
       interface:
         verbose: false
 
+      codegen:
+        verbose: true
+        recompileLibraries: false
+
       model:
         robotName: g1
-        verboseCppAd: true
-        recompileLibrariesCppAd: false
 
         fixedJointNames:
           - left_wrist_roll_joint
@@ -813,46 +814,40 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           - right_wrist_pitch_joint
           - right_wrist_yaw_joint
 
-        armJointNames:
-          - left_shoulder_pitch_joint
-          - right_shoulder_pitch_joint
-          - left_elbow_joint
-          - right_elbow_joint
-
         contactNames6DoF: 
           [foot_l_contact, foot_r_contact]
         contactParentJointNames: 
           [left_ankle_roll_joint, right_ankle_roll_joint]
-        phaseTransitionStanceTime: 0.0
-        useTerrainHeightEstimate: false
-        maxTerrainHeightStep: 0.002
-        
-        torqueConstraintNodes: 3
+        contactGeometry:
+          frameTranslation: [0.035, 0.0, -0.035]
+          rectangle: [0.09, -0.09, 0.03, -0.03]
 
-      sqp:
-        nThreads: 5
-        dt: 0.02
-        sqpIteration: 1
-        deltaTol: 0.0001
-        g_max: 0.01
-        g_min: 0.000001
-        inequalityConstraintMu: 0.1
-        inequalityConstraintDelta: 5.0
-        projectStateInputEqualityConstraints: true
-        printSolverStatistics: true
-        printSolverStatus: false
-        printLinesearch: false
-        useFeedbackPolicy: false
-        integratorType: RK4
-        threadPriority: 50
+      solver:
+        sqp:
+          nThreads: 5
+          dt: 0.02
+          sqpIteration: 1
+          deltaTol: 0.0001
+          g_max: 0.01
+          g_min: 0.000001
+          inequalityConstraintMu: 0.1
+          inequalityConstraintDelta: 5.0
+          projectStateInputEqualityConstraints: true
+          printSolverStatistics: true
+          printSolverStatus: false
+          printLinesearch: false
+          useFeedbackPolicy: false
+          integratorType: RK4
+          threadPriority: 50
 
-      rollout:
-        AbsTolODE: 0.00005
-        RelTolODE: 0.005
-        timeStep: 0.02
-        integratorType: ODE45
-        maxNumStepsPerSecond: 10000
-        checkNumericalStability: false
+        rollout:
+          policyTimeOffset: 0.000
+          AbsTolODE: 0.00005
+          RelTolODE: 0.005
+          timeStep: 0.02
+          integratorType: ODE45
+          maxNumStepsPerSecond: 10000
+          checkNumericalStability: false
 
       mpc:
         solverType: sqp
@@ -986,9 +981,8 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           linearAccelerationErrorGain_xy: 1.0
           angularAccelerationErrorGain: 1.0
 
-        contact:
-          frameTranslation: [0.035, 0.0, -0.035]
-          rectangle: [0.09, -0.09, 0.03, -0.03]
+        inverseDynamics:
+          torqueConstraintNodes: 3
 
         frictionCone:
           frictionCoefficient: 0.4
@@ -1033,11 +1027,21 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         basePosePositionTolerance: 0.02
         basePoseOrientationTolerance: 0.03
         
-        # Slew limits on the scaled walking command, applied after the max* scaling
-        # above: [ax, ay (m/s^2), height rate (m/s), yaw acceleration (rad/s^2)].
+        # Slew limits on the scaled walking command: ax, ay [m/s^2], height rate [m/s], yaw acceleration [rad/s^2]
         velocityCommandRateLimits:
           [0.5, 0.5, 0.5, 2.0]
         
+        groundHeight:
+          useEstimate: false
+          maxStepPerSolve: 0.002
+
+        armSwing:
+          jointNames:
+            - left_shoulder_pitch_joint
+            - right_shoulder_pitch_joint
+            - left_elbow_joint
+            - right_elbow_joint
+
         # Nominal crouch shared by bring-up and reference generation; default height 0.6 m.
         defaultJointState:
           [-0.8, 0.0, 0.0, 1.6, -0.8, 0.0,
@@ -1047,6 +1051,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
            0.20, -0.20, 0.0, 1.20]
 
       gait:
+        phaseTransitionStanceTime: 0.0
         stairClimbingFile: $(var stairClimbingFile)
         terrainWalkingFile: $(var terrainWalkingFile)
         initialModeSequence: [STANCE, STANCE]

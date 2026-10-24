@@ -8,6 +8,24 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 NAME = "humanoid_whole_body_inverse_dynamics_mpc_controller"
+WB_ID_LAYOUT_MIGRATIONS = (
+    ("model.torqueConstraintNodes", "constraints.inverseDynamics.torqueConstraintNodes"),
+    ("model.phaseTransitionStanceTime", "gait.phaseTransitionStanceTime"),
+    ("model.useTerrainHeightEstimate", "reference.groundHeight.useEstimate"),
+    ("model.maxTerrainHeightStep", "reference.groundHeight.maxStepPerSolve"),
+    ("model.verboseCppAd", "codegen.verbose"),
+    ("model.recompileLibrariesCppAd", "codegen.recompileLibraries"),
+    ("model.armJointNames", "reference.armSwing.jointNames"),
+    ("constraints.contact", "model.contactGeometry"),
+    ("sqp", "solver.sqp"),
+    ("rollout", "solver.rollout"),
+)
+
+
+def at_path(values, path):
+    for part in path.split("."):
+        values = values[part]
+    return values
 
 
 class UniqueLoader(yaml.SafeLoader):
@@ -105,6 +123,32 @@ def main():
     assert "p.model.footConstraint" not in builder
     for name in foot_gains:
         assert f"p.constraints.footConstraint.{name}" in builder
+    for previous, current in WB_ID_LAYOUT_MIGRATIONS:
+        for tree in (params["ocs2"], schema["ocs2"]):
+            at_path(tree, current)
+            try:
+                at_path(tree, previous)
+            except KeyError:
+                pass
+            else:
+                raise AssertionError(f"Obsolete WB-ID parameter path remains: ocs2.{previous}")
+        assert f"p.{current}" in builder, f"Missing WB-ID builder mapping: {current}"
+        assert not re.search(rf"\bp\.{re.escape(previous)}\b", builder), f"Obsolete WB-ID builder mapping: {previous}"
+    assert set(params["ocs2"]["model"]) == {
+        "robotName", "fixedJointNames", "contactNames6DoF", "contactParentJointNames", "contactGeometry",
+    }
+    assert len(params["ocs2"]["reference"]["armSwing"]["jointNames"]) == 4
+    assert set(params["ocs2"]["solver"]) == {"sqp", "rollout"}
+    assert "mpc" in params["ocs2"] and "mpc" not in params["ocs2"]["solver"]
+    assert "policyTimeOffset" not in params["control"] and "policyTimeOffset" not in schema["control"]
+    assert "policyTimeOffset" in params["ocs2"]["solver"]["rollout"]
+    controller = (folder / (NAME + ".cpp")).read_text()
+    assert controller.count("parameters_.ocs2.solver.rollout.policyTimeOffset") == 2
+    assert "parameters_.control.policyTimeOffset" not in controller
+    # The other controller deliberately retains its existing parameter contract.
+    centroidal = config["humanoid_centroidal_mpc_controller"]["ros__parameters"]["ocs2"]
+    assert "footConstraint" in centroidal["model"] and "armJointNames" in centroidal["model"]
+    assert "contact" in centroidal["constraints"]
     # Every direct p.* access in the builder must exist in the standalone schema.
     for access in re.findall(r"\bp\.([A-Za-z_][\w.]*)", builder):
         node = schema["ocs2"]

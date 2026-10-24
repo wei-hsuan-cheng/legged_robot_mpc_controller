@@ -531,7 +531,7 @@ controller_interface::return_type HumanoidWholeBodyInverseDynamicsMpcController:
   active_policy_ready_ = false;
   if (has_active_policy_) {
     const auto& times = mrt_interface_->getPolicy().timeTrajectory_;
-    const double evaluation_time = observation.time + parameters_.control.policyTimeOffset;
+    const double evaluation_time = observation.time + parameters_.ocs2.solver.rollout.policyTimeOffset;
     const double margin = 2.0 / std::max(1.0, static_cast<double>(get_update_rate()));
     active_policy_ready_ = observation_from_hardware_ && times.size() >= 2 &&
       std::isfinite(evaluation_time) && std::isfinite(times.front()) && std::isfinite(times.back()) &&
@@ -1345,7 +1345,7 @@ HumanoidWholeBodyInverseDynamicsMpcController::compute_mpc_joint_action(const oc
   vector_t policy_state;
   vector_t policy_input;
   size_t policy_mode = ocs2::humanoid::STANCE;
-  const double policy_time = observation.time + parameters_.control.policyTimeOffset;
+  const double policy_time = observation.time + parameters_.ocs2.solver.rollout.policyTimeOffset;
   mrt_interface_->evaluatePolicy(policy_time, observation.state, policy_state, policy_input, policy_mode);
   if (tracking_publisher_) {
     tracking_policy_valid_ = true;
@@ -1383,7 +1383,7 @@ HumanoidWholeBodyInverseDynamicsMpcController::compute_mpc_joint_action(const oc
       RCLCPP_WARN_THROTTLE(
         get_node()->get_logger(), *get_node()->get_clock(), 2000,
         "%s policy evaluated %.3f s into its horizon; its interpolation exceeds the %.3f s torque window (%lu ticks so far); using the "
-        "plan's inverse dynamics. Raise ocs2.model.torqueConstraintNodes or speed up the MPC.",
+        "plan's inverse dynamics. Raise ocs2.constraints.inverseDynamics.torqueConstraintNodes or speed up the MPC.",
         kTag, policy_time - policy_start, window.duration(), static_cast<unsigned long>(torque_window_overruns_.load()));
       command.feedforward = plan_inverse_dynamics(
         control_model_->getGeneralizedCoordinates(policy_state), control_model_->getGeneralizedVelocities(policy_state));

@@ -142,7 +142,7 @@ $$
 S_jr-\tau_j=0,\qquad t<t_0+T_\tau.
 $$
 
-For positive `torqueConstraintNodes` $N_\tau$, $T_\tau=(N_\tau-\tfrac12)\Delta t_{\mathrm{SQP}}$.
+For positive `ocs2.constraints.inverseDynamics.torqueConstraintNodes` $N_\tau$, $T_\tau=(N_\tau-\tfrac12)\Delta t_{\mathrm{SQP}}$.
 A nonpositive setting enables the joint equations and torque-limit penalties over the entire horizon.
 With the current $N_\tau=3$ and $\Delta t_{\mathrm{SQP}}=0.02$ s, the window is 0.05 s.
 Activation is time-based, so event-adjusted grid spacing can affect the number of knots inside the window.
@@ -495,6 +495,7 @@ The [Terrain Trial Checkpoint](./wb_id_terrain_checkpoint.md) is an archived pro
 
 ## 7. Policy Execution and Inner Servo
 
+The offset is configured at `ocs2.solver.rollout.policyTimeOffset`; it shifts policy evaluation rather than the ODE integration timestep.
 The controller evaluates the policy at $t_e=t+\texttt{policyTimeOffset}$ and takes desired joint position/velocity from its planned state:
 
 $$
@@ -632,7 +633,7 @@ Use measured physical outcomes, contact/actuator margins and repeatability along
 
 ### 9.4 Remaining limitations
 
-The linear KF still observes contact-foot height as zero, while `useTerrainHeightEstimate: false` keeps the ordinary support-height reference at zero.
+The linear KF still observes contact-foot height as zero, while `ocs2.reference.groundHeight.useEstimate: false` keeps the ordinary support-height reference at zero.
 The measured physical base rises on the ramp but its estimated absolute height does not follow that rise; the mean discrepancy on the ramp was around 0.1 m in these trials.
 That assumption must not be described as terrain-height adaptation, and merely enabling the FK height option cannot restore information already removed by the estimator.
 Contact flags remain scheduled rather than discovered from early/late touchdown, and the ordinary contact normal remains world-up.

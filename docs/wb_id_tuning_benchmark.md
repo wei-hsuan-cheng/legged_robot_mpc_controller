@@ -33,7 +33,7 @@ the MPC plans, or in how the joint servo follows it. Last updated 2026-10-23 (ro
 
 **Next steps, most promising first:**
 1. **Per-solve command steps.** Ripple at the solve period in the knee/shoulder feedback; legs `cmd_tau_jump_at_switch` 0.79 vs 0.31 on other ticks. Options: blend the new policy into the old one over a few ms in the controller, or cut solve time to raise the rate (`f_thr6_120` reached 104 Hz).
-2. **Foot contact model.** The MJCF sole is four spheres spanning 6 cm laterally, so the CoP soft constraint is near or over its limit (5.5). A realistic sole box plus a matching `constraints.contact.rectangle` would give lateral margin. Ask the user first: it's a model decision.
+2. **Foot contact model.** The MJCF sole is four spheres spanning 6 cm laterally, so the CoP soft constraint is near or over its limit (5.5). A realistic sole box plus a matching `model.contactGeometry.rectangle` would give lateral margin. Ask the user first: it's a model decision.
 3. **Lateral tracking** is 35% (`r_vy020`). The cost weight barely helps; look at gait and foot placement.
 4. **Plan consistency at higher speed** (`r_vx075`): walking equality violation 28, with isolated CoP-violation cost spikes.
 
@@ -46,8 +46,8 @@ the MPC plans, or in how the joint servo follows it. Last updated 2026-10-23 (ro
 | `control.jointEffortPd` kp / kd | 200 / 20 on all MPC joints, knee kd 10 | 1200 / 20 |
 | `ocs2.costs.q/qFinal.baseVelocity` vz, pitch rate, roll rate | 10, 30, 30 | 3, 3, 3 |
 | arm `ocs2.costs.q.jointVelocities` | 0.06 | 0.02 |
-| `ocs2.sqp.useFeedbackPolicy` | false | true |
-| `ocs2.sqp.sqpIteration` | 1 (kept: rate beats iterations, see 5.3) | 1 |
+| `ocs2.solver.sqp.useFeedbackPolicy` | false | true |
+| `ocs2.solver.sqp.sqpIteration` | 1 (kept: rate beats iterations, see 5.3) | 1 |
 
 **Simulation clock (`mujoco_ros2_control`, `controller_time_from_sim`, default true):**
 - **What it does:** the controller manager's clock is set from `mj_data->time` before every update. Its own `/clock` subscription is remapped to an unused topic, so controllers see exact 1 ms steps.

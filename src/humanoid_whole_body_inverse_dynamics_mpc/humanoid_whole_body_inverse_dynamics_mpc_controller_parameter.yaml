@@ -29,8 +29,6 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
   control:
     observationVelocityFilterCutoffHz: {type: double, default_value: 0.0, description: "Low-pass cutoff for observed
         generalized velocities [Hz]; 0 disables the filter (raw velocities)", validation: {gt_eq: [0.0]}}
-    policyTimeOffset: {type: double, default_value: 0.005, description: "Time offset used when evaluating the MPC
-        policy from the current observation [s]", validation: {gt_eq: [0.0]}}
     torqueLimit: {type: double_array, default_value: [], description: "Symmetric command torque limits for robot.jointNames.
         Empty means no software clamp."}
     feedforward: {type: string, default_value: "policy_torque", description: "policy_torque: interpolated MPC joint
@@ -98,65 +96,57 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
   ocs2:
     interface:
       verbose: {type: bool, default_value: false, description: "Print the loaded MPC interface parameters"}
+    codegen:
+      verbose: {type: bool, default_value: true, description: "Verbose output during CppAD model generation"}
+      recompileLibraries: {type: bool, default_value: true, description: "Force recompilation of the CppAD
+          generated libraries"}
     model:
       robotName: {type: string, default_value: "g1", description: "Robot name used by the MPC model and CppAD codegen"}
-      phaseTransitionStanceTime: {type: double, default_value: 0.0, description: "Minimum stance time inserted at
-          phase transitions [s]"}
-      useTerrainHeightEstimate: {type: bool, default_value: false, description: "Use the measured stance-foot height
-          as the swing planner's ground reference instead of assuming a flat floor at z=0. adaptToCurrentGroundHeight()
-          computes that estimate and then discards it with a hardcoded 0.0; that constant is what the swing trajectory
-          is built around, so it is the single thing preventing walking on sloped or stepped ground however well
-          the estimator tracks the terrain. Off by default because the shipped gains were tuned against the flat
-          assumption and on genuinely flat ground the estimate is strictly worse than the constant. Enable together
-          with stateEstimator.height.source of 'inekf' or 'anchored' - 'kinematic' and 'blend' pin the feet to groundZ
-          and would feed the flat assumption straight back in."}
-      maxTerrainHeightStep: {type: double, default_value: 0.01, description: "Bound [m] on how far the terrain-height
-          reference may move in one solver iteration, so a mis-detected contact cannot demand an impossible swing",
-        validation: {gt: [0.0]}}
-      verboseCppAd: {type: bool, default_value: true, description: "Verbose output during CppAD model generation"}
-      recompileLibrariesCppAd: {type: bool, default_value: true, description: "Force recompilation of the CppAD
-          generated libraries"}
       fixedJointNames: {type: string_array, default_value: [], description: "Joints excluded (locked) from the MPC
           model, e.g. wrists"}
       contactNames6DoF: {type: string_array, default_value: [], description: "Pinocchio frame names of the 6-DoF
           contact frames"}
       contactParentJointNames: {type: string_array, default_value: [], description: "Parent joints the contact frames
           are attached to"}
-      armJointNames: {type: string_array, default_value: [], description: "Arm swing reference joints in order [left_shoulder_y,
-          right_shoulder_y, left_elbow_y, right_elbow_y]"}
-      torqueConstraintNodes: {type: int, default_value: 3, description: "Nodes from the start of the horizon carrying
-          the joint-torque rows and torque limits; <= 0 for all"}
-    sqp:
-      nThreads: {type: int, default_value: 4, description: "Number of solver threads", validation: {gt: [0]}}
-      dt: {type: double, default_value: 0.02, description: "Multiple-shooting discretization step [s]",
+      contactGeometry:
+        frameTranslation: {type: double_array, default_value: [0.035, 0.0, -0.035], description: "Translation from
+            the contact parent joint to the contact frame [x, y, z]", validation: {fixed_size<>: [3]}}
+        rectangle: {type: double_array, default_value: [0.09, -0.09, 0.03, -0.03], description: "Contact rectangle
+            in the contact frame [x_max, x_min, y_max, y_min]", validation: {fixed_size<>: [4]}}
+    solver:
+      sqp:
+        nThreads: {type: int, default_value: 4, description: "Number of solver threads", validation: {gt: [0]}}
+        dt: {type: double, default_value: 0.02, description: "Multiple-shooting discretization step [s]",
+            validation: {gt: [0.0]}}
+        sqpIteration: {type: int, default_value: 1, description: "SQP iterations per MPC solve", validation: {gt: [
+              0]}}
+        deltaTol: {type: double, default_value: 0.0001, description: "Convergence tolerance on the primal step"}
+        g_max: {type: double, default_value: 0.01, description: "Maximum constraint violation for linesearch acceptance"}
+        g_min: {type: double, default_value: 0.000001, description: "Constraint violation treated as converged"}
+        inequalityConstraintMu: {type: double, default_value: 0.1, description: "Relaxed barrier mu for inequality
+            constraints"}
+        inequalityConstraintDelta: {type: double, default_value: 5.0, description: "Relaxed barrier delta for inequality
+            constraints"}
+        projectStateInputEqualityConstraints: {type: bool, default_value: true, description: "Project state-input
+            equality constraints"}
+        printSolverStatistics: {type: bool, default_value: true, description: "Print solver statistics"}
+        printSolverStatus: {type: bool, default_value: false, description: "Print solver status"}
+        printLinesearch: {type: bool, default_value: false, description: "Print linesearch information"}
+        useFeedbackPolicy: {type: bool, default_value: false, description: "Use the linear feedback policy instead
+            of feedforward"}
+        integratorType: {type: string, default_value: "RK4", description: "Sensitivity integrator type"}
+        threadPriority: {type: int, default_value: 50, description: "Solver thread priority"}
+      rollout:
+        policyTimeOffset: {type: double, default_value: 0.005, description: "Look-ahead offset when evaluating
+            the MPC policy at the current observation time [s]; not the ODE integration step", validation: {gt_eq: [0.0]}}
+        AbsTolODE: {type: double, default_value: 0.00001, description: "Absolute tolerance of the ODE integrator"}
+        RelTolODE: {type: double, default_value: 0.001, description: "Relative tolerance of the ODE integrator"}
+        timeStep: {type: double, default_value: 0.015, description: "Rollout time step, should be <= solver.sqp.dt [s]",
           validation: {gt: [0.0]}}
-      sqpIteration: {type: int, default_value: 1, description: "SQP iterations per MPC solve", validation: {gt: [
-            0]}}
-      deltaTol: {type: double, default_value: 0.0001, description: "Convergence tolerance on the primal step"}
-      g_max: {type: double, default_value: 0.01, description: "Maximum constraint violation for linesearch acceptance"}
-      g_min: {type: double, default_value: 0.000001, description: "Constraint violation treated as converged"}
-      inequalityConstraintMu: {type: double, default_value: 0.1, description: "Relaxed barrier mu for inequality
-          constraints"}
-      inequalityConstraintDelta: {type: double, default_value: 5.0, description: "Relaxed barrier delta for inequality
-          constraints"}
-      projectStateInputEqualityConstraints: {type: bool, default_value: true, description: "Project state-input
-          equality constraints"}
-      printSolverStatistics: {type: bool, default_value: true, description: "Print solver statistics"}
-      printSolverStatus: {type: bool, default_value: false, description: "Print solver status"}
-      printLinesearch: {type: bool, default_value: false, description: "Print linesearch information"}
-      useFeedbackPolicy: {type: bool, default_value: false, description: "Use the linear feedback policy instead
-          of feedforward"}
-      integratorType: {type: string, default_value: "RK4", description: "Sensitivity integrator type"}
-      threadPriority: {type: int, default_value: 50, description: "Solver thread priority"}
-    rollout:
-      AbsTolODE: {type: double, default_value: 0.00001, description: "Absolute tolerance of the ODE integrator"}
-      RelTolODE: {type: double, default_value: 0.001, description: "Relative tolerance of the ODE integrator"}
-      timeStep: {type: double, default_value: 0.015, description: "Rollout time step, should be <= sqp.dt [s]",
-        validation: {gt: [0.0]}}
-      integratorType: {type: string, default_value: "ODE45", description: "Rollout integrator type"}
-      maxNumStepsPerSecond: {type: int, default_value: 10000, description: "Maximum integrator steps per second"}
-      checkNumericalStability: {type: bool, default_value: false, description: "Check numerical stability during
-          rollout"}
+        integratorType: {type: string, default_value: "ODE45", description: "Rollout integrator type"}
+        maxNumStepsPerSecond: {type: int, default_value: 10000, description: "Maximum integrator steps per second"}
+        checkNumericalStability: {type: bool, default_value: false, description: "Check numerical stability during
+            rollout"}
     mpc:
       solverType: {type: string, default_value: "sqp", description: "Optimization backend used by WB-ID MPC", validation: {one_of<>: [["ddp", "sqp"]]}}
       mpcDesiredFrequency: {type: int, default_value: 80, description: "Desired MPC update frequency in Hz",
@@ -262,11 +252,9 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
             linear acceleration error feedback gain"}
         angularAccelerationErrorGain: {type: double, default_value: 0.0, description: "Stance foot angular acceleration
             error feedback gain"}
-      contact:
-        frameTranslation: {type: double_array, default_value: [0.035, 0.0, -0.035], description: "Translation from
-            the contact parent joint to the contact frame [x, y, z]", validation: {fixed_size<>: [3]}}
-        rectangle: {type: double_array, default_value: [0.09, -0.09, 0.03, -0.03], description: "Contact rectangle
-            in the contact frame [x_max, x_min, y_max, y_min]", validation: {fixed_size<>: [4]}}
+      inverseDynamics:
+        torqueConstraintNodes: {type: int, default_value: 3, description: "Nodes from the start of the horizon carrying
+            the joint-torque rows and torque limits; <= 0 for all"}
       frictionCone:
         frictionCoefficient: {type: double, default_value: 0.4, description: "Contact friction coefficient",
             validation: {gt: [0.0]}}
@@ -306,6 +294,12 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         delta: {type: double, default_value: 1.0, description: "Relaxed log barrier delta of the joint velocity
             limits [rad/s]"}
     reference:
+      groundHeight:
+        useEstimate: {type: bool, default_value: false, description: "Use stance-foot FK height for the ordinary
+            swing/support-height reference instead of fixed z=0. Requires a floating-base estimator that does
+            not itself pin contact heights to zero; does not supply a terrain map or surface normals."}
+        maxStepPerSolve: {type: double, default_value: 0.01, description: "Bound [m] on the support-height reference
+            change per solver iteration, limiting reference jumps at contact transitions", validation: {gt: [0.0]}}
       targetDisplacementVelocity: {type: double, default_value: 0.5, description: "Nominal displacement velocity
           used for target arrival time [m/s]"}
       targetRotationVelocity: {type: double, default_value: 0.5, description: "Nominal rotation velocity used for
@@ -332,12 +326,12 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           walking: with the swing below disabled, this is the whole arm reference. Keep it inside the self-collision-free
           envelope - the MPC has no self-collision constraint, so nothing else will."}
       armSwing:
+        jointNames: {type: string_array, default_value: [], description: "Reference joints in order [left shoulder
+            pitch, right shoulder pitch, left elbow, right elbow]. Required by model joint-index setup even
+            when arm swing is disabled."}
         enabled: {type: bool, default_value: false, description: "Superimpose a gait-phase-locked arm swing on the
-            nominal arm posture. OFF by default, which makes the arm reference a fixed posture. Two reasons: at
-            the shipped amplitude the motion is ~2.6 deg at 0.3 m/s, far too small to matter either way; and it
-            fights the momentum reference, which asks for h_ang,x = h_ang,y = 0 with terminal weight 75 while this
-            commands a swing that necessarily produces non-zero angular momentum. Turn it on as part of the phase-2
-            work that makes the arms regulate angular momentum for real."}
+            nominal arm posture. OFF by default, which keeps the nominal posture except for external arm
+            targets. This is reference generation, not an angular-momentum stabilization objective."}
         shoulderPitchAmplitude: {type: double, default_value: 0.15, description: "Shoulder-pitch swing amplitude
             per unit commanded forward speed [rad/(m/s)]", validation: {gt_eq: [0.0]}}
         elbowAmplitude: {type: double, default_value: 0.15, description: "Elbow swing amplitude per unit commanded
@@ -351,6 +345,8 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
             constraint this clamp is the only thing keeping the arm reference inside that envelope.",
             validation: {gt: [0.0]}}
     gait:
+      phaseTransitionStanceTime: {type: double, default_value: 0.0, description: "Minimum stance time inserted at
+          phase transitions [s]"}
       stairClimbingFile: {type: string, default_value: "", description: "YAML file with the fixed-sequence stair
           climbing parameters, see config/g1/terrain/stair_climbing/. Empty disables the stair_climb target mode."}
       terrainWalkingFile: {type: string, default_value: "", description: "YAML file with the online terrain-aware

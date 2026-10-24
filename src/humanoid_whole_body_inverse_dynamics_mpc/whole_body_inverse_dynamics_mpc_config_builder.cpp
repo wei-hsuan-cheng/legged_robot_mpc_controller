@@ -49,22 +49,22 @@ ocs2::humanoid::WbIdMpcInterface::Config buildWholeBodyInverseDynamicsMpcConfig(
   // --- model settings ---
   auto& model = config.modelParams;
   model.robotName = p.model.robotName;
-  model.verboseCppAd = p.model.verboseCppAd;
-  model.recompileLibrariesCppAd = p.model.recompileLibrariesCppAd;
+  model.verboseCppAd = p.codegen.verbose;
+  model.recompileLibrariesCppAd = p.codegen.recompileLibraries;
   model.modelFolderCppAd = params.paths.libFolder;
-  model.phaseTransitionStanceTime = p.model.phaseTransitionStanceTime;
+  model.phaseTransitionStanceTime = p.gait.phaseTransitionStanceTime;
   model.fixedJointNames = p.model.fixedJointNames;
   model.contactNames6DoF = p.model.contactNames6DoF;
   model.contactParentJointNames = p.model.contactParentJointNames;
-  if (p.model.armJointNames.size() != 4) {
+  if (p.reference.armSwing.jointNames.size() != 4) {
     throw std::invalid_argument(
-      "[whole_body_inverse_dynamics_mpc_config_builder] model.armJointNames must contain exactly 4 entries "
+      "[whole_body_inverse_dynamics_mpc_config_builder] reference.armSwing.jointNames must contain exactly 4 entries "
       "[left_shoulder_y, right_shoulder_y, left_elbow_y, right_elbow_y]");
   }
-  model.j_l_shoulder_y_name = p.model.armJointNames[0];
-  model.j_r_shoulder_y_name = p.model.armJointNames[1];
-  model.j_l_elbow_y_name = p.model.armJointNames[2];
-  model.j_r_elbow_y_name = p.model.armJointNames[3];
+  model.j_l_shoulder_y_name = p.reference.armSwing.jointNames[0];
+  model.j_r_shoulder_y_name = p.reference.armSwing.jointNames[1];
+  model.j_l_elbow_y_name = p.reference.armSwing.jointNames[2];
+  model.j_r_elbow_y_name = p.reference.armSwing.jointNames[3];
 
   auto& foot = model.footConstraintConfig;
   foot.positionErrorGain_z = p.constraints.footConstraint.positionErrorGain_z;
@@ -77,31 +77,31 @@ ocs2::humanoid::WbIdMpcInterface::Config buildWholeBodyInverseDynamicsMpcConfig(
   foot.angularAccelerationErrorGain = p.constraints.footConstraint.angularAccelerationErrorGain;
 
   model.contactFrameTranslation =
-    vector3_t(p.constraints.contact.frameTranslation[0], p.constraints.contact.frameTranslation[1],
-              p.constraints.contact.frameTranslation[2]);
+    vector3_t(p.model.contactGeometry.frameTranslation[0], p.model.contactGeometry.frameTranslation[1],
+              p.model.contactGeometry.frameTranslation[2]);
   // yaml order: [x_max, x_min, y_max, y_min]
-  model.contactRectangleXMax = p.constraints.contact.rectangle[0];
-  model.contactRectangleXMin = p.constraints.contact.rectangle[1];
-  model.contactRectangleYMax = p.constraints.contact.rectangle[2];
-  model.contactRectangleYMin = p.constraints.contact.rectangle[3];
+  model.contactRectangleXMax = p.model.contactGeometry.rectangle[0];
+  model.contactRectangleXMin = p.model.contactGeometry.rectangle[1];
+  model.contactRectangleYMax = p.model.contactGeometry.rectangle[2];
+  model.contactRectangleYMin = p.model.contactGeometry.rectangle[3];
 
   // --- solver settings ---
   auto& sqp = config.sqpSettings;
-  sqp.nThreads = static_cast<size_t>(p.sqp.nThreads);
-  sqp.dt = p.sqp.dt;
-  sqp.sqpIteration = static_cast<size_t>(p.sqp.sqpIteration);
-  sqp.deltaTol = p.sqp.deltaTol;
-  sqp.g_max = p.sqp.g_max;
-  sqp.g_min = p.sqp.g_min;
-  sqp.inequalityConstraintMu = p.sqp.inequalityConstraintMu;
-  sqp.inequalityConstraintDelta = p.sqp.inequalityConstraintDelta;
-  sqp.projectStateInputEqualityConstraints = p.sqp.projectStateInputEqualityConstraints;
-  sqp.printSolverStatistics = p.sqp.printSolverStatistics;
-  sqp.printSolverStatus = p.sqp.printSolverStatus;
-  sqp.printLinesearch = p.sqp.printLinesearch;
-  sqp.useFeedbackPolicy = p.sqp.useFeedbackPolicy;
-  sqp.integratorType = ocs2::sensitivity_integrator::fromString(p.sqp.integratorType);
-  sqp.threadPriority = p.sqp.threadPriority;
+  sqp.nThreads = static_cast<size_t>(p.solver.sqp.nThreads);
+  sqp.dt = p.solver.sqp.dt;
+  sqp.sqpIteration = static_cast<size_t>(p.solver.sqp.sqpIteration);
+  sqp.deltaTol = p.solver.sqp.deltaTol;
+  sqp.g_max = p.solver.sqp.g_max;
+  sqp.g_min = p.solver.sqp.g_min;
+  sqp.inequalityConstraintMu = p.solver.sqp.inequalityConstraintMu;
+  sqp.inequalityConstraintDelta = p.solver.sqp.inequalityConstraintDelta;
+  sqp.projectStateInputEqualityConstraints = p.solver.sqp.projectStateInputEqualityConstraints;
+  sqp.printSolverStatistics = p.solver.sqp.printSolverStatistics;
+  sqp.printSolverStatus = p.solver.sqp.printSolverStatus;
+  sqp.printLinesearch = p.solver.sqp.printLinesearch;
+  sqp.useFeedbackPolicy = p.solver.sqp.useFeedbackPolicy;
+  sqp.integratorType = ocs2::sensitivity_integrator::fromString(p.solver.sqp.integratorType);
+  sqp.threadPriority = p.solver.sqp.threadPriority;
 
   auto& mpc = config.mpcSettings;
   mpc.timeHorizon_ = p.mpc.timeHorizon;
@@ -112,12 +112,12 @@ ocs2::humanoid::WbIdMpcInterface::Config buildWholeBodyInverseDynamicsMpcConfig(
   mpc.mrtDesiredFrequency_ = static_cast<scalar_t>(p.mpc.mrtDesiredFrequency);
 
   auto& rollout = config.rolloutSettings;
-  rollout.absTolODE = p.rollout.AbsTolODE;
-  rollout.relTolODE = p.rollout.RelTolODE;
-  rollout.timeStep = p.rollout.timeStep;
-  rollout.integratorType = ocs2::integrator_type::fromString(p.rollout.integratorType);
-  rollout.maxNumStepsPerSecond = static_cast<size_t>(p.rollout.maxNumStepsPerSecond);
-  rollout.checkNumericalStability = p.rollout.checkNumericalStability;
+  rollout.absTolODE = p.solver.rollout.AbsTolODE;
+  rollout.relTolODE = p.solver.rollout.RelTolODE;
+  rollout.timeStep = p.solver.rollout.timeStep;
+  rollout.integratorType = ocs2::integrator_type::fromString(p.solver.rollout.integratorType);
+  rollout.maxNumStepsPerSecond = static_cast<size_t>(p.solver.rollout.maxNumStepsPerSecond);
+  rollout.checkNumericalStability = p.solver.rollout.checkNumericalStability;
 
   // WB-ID uses the SQP backend.
 
@@ -156,8 +156,8 @@ ocs2::humanoid::WbIdMpcInterface::Config buildWholeBodyInverseDynamicsMpcConfig(
   gains.linearAccelerationZ = foot.linearAccelerationErrorGain_z;
   gains.angularAcceleration = foot.angularAccelerationErrorGain;
 
-  config.torqueWindowDuration = p.model.torqueConstraintNodes > 0 ?
-    (static_cast<double>(p.model.torqueConstraintNodes) - 0.5) * p.sqp.dt : -1.0;
+  config.torqueWindowDuration = p.constraints.inverseDynamics.torqueConstraintNodes > 0 ?
+    (static_cast<double>(p.constraints.inverseDynamics.torqueConstraintNodes) - 0.5) * p.solver.sqp.dt : -1.0;
   if (!params.control.torqueLimit.empty()) {
     checkJointArraySize(params.control.torqueLimit, numJoints, "control.torqueLimit");
     config.torqueLimits = toVector(params.control.torqueLimit);
@@ -252,8 +252,8 @@ ocs2::humanoid::WbIdMpcInterface::Config buildWholeBodyInverseDynamicsMpcConfig(
   config.armSwing.phaseOffset = p.reference.armSwing.phaseOffset;
   config.armSwing.maxOffset = p.reference.armSwing.maxOffset;
 
-  config.useTerrainHeightEstimate = p.model.useTerrainHeightEstimate;
-  config.maxTerrainHeightStep = p.model.maxTerrainHeightStep;
+  config.useTerrainHeightEstimate = p.reference.groundHeight.useEstimate;
+  config.maxTerrainHeightStep = p.reference.groundHeight.maxStepPerSolve;
 
   config.torsoTiltCost.activate = p.costs.torsoTiltCost.activate;
   config.torsoTiltCost.linkName = p.costs.torsoTiltCost.linkName;
