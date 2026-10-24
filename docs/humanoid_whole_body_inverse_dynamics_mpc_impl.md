@@ -12,14 +12,14 @@ Links use repository-relative paths with line anchors, which may shift as the so
 | Standalone parameter schema | [humanoid_whole_body_inverse_dynamics_mpc_controller_parameter.yaml](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller_parameter.yaml) |
 | Current G1 values | [ros2_controllers.yaml:709](../config/g1/ros2_controllers.yaml#L709) |
 | Config translation | [whole_body_inverse_dynamics_mpc_config_builder.cpp](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp) |
-| OCP assembly | [WbIdMpcInterface.cpp:85](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L85) |
+| OCP assembly | [WbIdMpcInterface.cpp:101](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L101) |
 | G1 model and mesh paths | [g1_29dof.xml:16](../description/mujoco/robots/g1/g1_29dof.xml#L16), [g1_29dof.urdf:16](../description/urdf/robots/g1/g1_29dof.urdf#L16) |
 | Simulation scene composition | [scene.xml:3](../description/mujoco/scene.xml#L3), [shared module layout](../description/mujoco/README.md) |
 | Hardware interface description | [g1.ros2_control.xacro:17](../description/urdf/robots/g1/g1.ros2_control.xacro#L17) |
 
 WB-ID has its own generated parameter schema rather than loading the centroidal controller schema.
 The builder maps solver settings at [line 88](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L88), gait settings at [line 124](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L124) and costs at [line 171](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L171).
-The interface validates the Translation + SphericalZYX dimensions at [WbIdMpcInterface.cpp:45](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L45).
+The interface validates the Translation + SphericalZYX dimensions at [WbIdMpcInterface.cpp:46](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L46).
 The launch file selects the robot URDF at [line 56](../launch/g1.launch.py#L56), the separate RViz environment at [line 60](../launch/g1.launch.py#L60), and the top-level MuJoCo scene at [line 178](../launch/g1.launch.py#L178).
 Scene names passed through `mujocoModelFile` are unchanged by the description-directory reorganization.
 
@@ -31,12 +31,12 @@ Dimensions are constructed at [line 37](../include/humanoid_wb_id_mpc/common/WbI
 The inherited `getBaseComVelocity` name returns pelvis world linear velocity and Euler rates in WB-ID, not centroidal momentum.
 Joint velocities are read from the state at [line 105](../include/humanoid_wb_id_mpc/common/WbIdMpcRobotModel.h#L105), while generalized accelerations and joint torques are read from the input at [line 120](../include/humanoid_wb_id_mpc/common/WbIdMpcRobotModel.h#L120).
 
-[build_observation():991](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L991) combines joint interfaces and floating-base feedback.
-Estimator feedback is read at [line 1017](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1017).
+[build_observation():989](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L989) combines joint interfaces and floating-base feedback.
+Estimator feedback is read at [line 1015](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1015).
 For simulation debugging, `floatingBaseSource:=ground_truth_state` can replace estimator feedback with GT, but this bypass is not available for real-world deployment.
-Quaternion normalization, yaw unwrapping and angular velocity conversion are at [line 1056](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1056).
-The optional generalized velocity low-pass is at [line 1075](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1075).
-`observation.input` is zeroed at [line 1001](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1001), not filled with measured torques or wrenches.
+Quaternion normalization, yaw unwrapping and angular velocity conversion are at [line 1054](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1054).
+The optional generalized velocity low-pass is at [line 1073](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1073).
+`observation.input` is zeroed at [line 999](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L999), not filled with measured torques or wrenches.
 
 
 ## 3. Dynamics, Constraints and Initialization
@@ -46,7 +46,7 @@ The optional generalized velocity low-pass is at [line 1075](../src/humanoid_who
 [WbIdDynamics.cpp:18](../src/core/humanoid_wb_id_mpc/src/dynamics/WbIdDynamics.cpp#L18) implements $`\dot x=[v,a]`$.
 Its analytical linearization is initialized at [line 9](../src/core/humanoid_wb_id_mpc/src/dynamics/WbIdDynamics.cpp#L9).
 [WbIdRneaConstraintCppAd.cpp:58](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdRneaConstraintCppAd.cpp#L58) evaluates RNEA and subtracts contact Jacobian transpose contributions.
-Base and joint equations are registered independently at [WbIdMpcInterface.cpp:138](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L138).
+Base and joint equations are registered independently at [WbIdMpcInterface.cpp:154](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L154).
 The base rows are always active, while joint rows check the torque window at [WbIdRneaConstraintCppAd.cpp:54](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdRneaConstraintCppAd.cpp#L54).
 
 ### 3.2 Torque window
@@ -67,7 +67,7 @@ The config builder maps `ocs2.constraints.footConstraint` to these gains at [lin
 This WB-ID parameter path replaces `ocs2.model.footConstraint`; update external parameter files and rebuild the generated parameter library and controller before using the migrated YAML.
 Only parameter ownership changed: gain values, generated OCP equations and the internal `ModelSettings::footConstraintConfig` storage are unchanged.
 The centroidal controller retains its existing parameter path.
-The shared [ZeroWrenchConstraint.cpp](../src/core/humanoid_common_mpc/src/constraint/ZeroWrenchConstraint.cpp) supplies swing zero-wrench rows, registered at [WbIdMpcInterface.cpp:159](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L159).
+The shared [ZeroWrenchConstraint.cpp](../src/core/humanoid_common_mpc/src/constraint/ZeroWrenchConstraint.cpp) supplies swing zero-wrench rows, registered at [WbIdMpcInterface.cpp:175](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L175).
 
 ### 3.4 Soft inequalities
 
@@ -76,8 +76,8 @@ The shared [ZeroWrenchConstraint.cpp](../src/core/humanoid_common_mpc/src/constr
 | Friction | [FrictionForceConeConstraint.cpp:172](../src/core/humanoid_common_mpc/src/constraint/FrictionForceConeConstraint.cpp#L172) | [HumanoidCostConstraintFactory.cpp:196](../src/core/humanoid_common_mpc/src/HumanoidCostConstraintFactory.cpp#L196) |
 | CoP rectangle | [ContactMomentXYConstraintCppAd.cpp:86](../src/core/humanoid_common_mpc/src/constraint/ContactMomentXYConstraintCppAd.cpp#L86) | [Factory:173](../src/core/humanoid_common_mpc/src/HumanoidCostConstraintFactory.cpp#L173) |
 | Joint positions | [JointLimitsSoftConstraint.cpp](../src/core/humanoid_common_mpc/src/constraint/JointLimitsSoftConstraint.cpp) | [Factory:158](../src/core/humanoid_common_mpc/src/HumanoidCostConstraintFactory.cpp#L158) |
-| Joint velocities | [WbIdJointVelocityLimitConstraint.cpp](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdJointVelocityLimitConstraint.cpp) | [WbIdMpcInterface.cpp:125](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L125) |
-| Joint torques | [WbIdJointTorqueLimitConstraint.cpp](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdJointTorqueLimitConstraint.cpp) | [Interface:144](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L144) |
+| Joint velocities | [WbIdJointVelocityLimitConstraint.cpp](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdJointVelocityLimitConstraint.cpp) | [WbIdMpcInterface.cpp:141](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L141) |
+| Joint torques | [WbIdJointTorqueLimitConstraint.cpp](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdJointTorqueLimitConstraint.cpp) | [Interface:160](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L160) |
 | Foot/knee distances | [FootCollisionConstraint.cpp:89](../src/core/humanoid_common_mpc/src/constraint/FootCollisionConstraint.cpp#L89) | [Factory:142](../src/core/humanoid_common_mpc/src/HumanoidCostConstraintFactory.cpp#L142) |
 
 The friction surface-normal setter is unimplemented at [FrictionForceConeConstraint.cpp:62](../src/core/humanoid_common_mpc/src/constraint/FrictionForceConeConstraint.cpp#L62).
@@ -114,19 +114,19 @@ The factory constructs both variants at [HumanoidCostConstraintFactory.cpp:118](
 
 [CentroidalMpcEndEffectorFootCost.cpp:92](../src/core/humanoid_centroidal_mpc/src/cost/CentroidalMpcEndEffectorFootCost.cpp#L92) supplies the model-independent foot residual despite its historical class name.
 Default references, impact factors and optional foothold overrides are prepared at [line 127](../src/core/humanoid_centroidal_mpc/src/cost/CentroidalMpcEndEffectorFootCost.cpp#L127).
-Named link costs are registered at [WbIdMpcInterface.cpp:108](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L108) using [EndEffectorKinematicsQuadraticCost.cpp](../src/core/humanoid_common_mpc/src/cost/EndEffectorKinematicsQuadraticCost.cpp).
+Named link costs are registered at [WbIdMpcInterface.cpp:124](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L124) using [EndEffectorKinematicsQuadraticCost.cpp](../src/core/humanoid_common_mpc/src/cost/EndEffectorKinematicsQuadraticCost.cpp).
 Their reference link kinematics are computed at [EndEffectorKinematicsQuadraticCost.cpp:96](../src/core/humanoid_common_mpc/src/cost/EndEffectorKinematicsQuadraticCost.cpp#L96), and their quaternion-distance residual is defined at [EndEffectorKinematicCostHelpers.cpp:81](../src/core/humanoid_common_mpc/src/cost/EndEffectorKinematicCostHelpers.cpp#L81).
 [ExternalTorqueQuadraticCostAD.cpp:110](../src/core/humanoid_common_mpc/src/cost/ExternalTorqueQuadraticCostAD.cpp#L110) maps $`J_c^{\mathsf T}W_c`$ to selected joints and gates the residual using the opposite foot's impact factor.
-It is registered independently of the input torque regularizer at [WbIdMpcInterface.cpp:178](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L178).
+It is registered independently of the input torque regularizer at [WbIdMpcInterface.cpp:194](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L194).
 The builder maps `taskSpaceFootCost.activate` and `legTorqueCost.activate` at [lines 224 onward](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L224), and filters disabled `taskSpaceCosts.<name>.activate` entries before converting their weights at [line 269](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L269).
-The interface checks the named-link flag before constructing its CppAD kinematics and guards both foot-cost and leg-load-cost construction at [line 172](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L172), following `mpc_controllers`' configure-time `activate` pattern.
+The interface checks the named-link flag before constructing its CppAD kinematics and guards both foot-cost and leg-load-cost construction at [line 188](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L188), following `mpc_controllers`' configure-time `activate` pattern.
 All switches default to `true`; `false` removes only the corresponding extra cost, not the main Q/R objective or any contact/dynamics constraint.
 Use `taskSpaceFootCost.weights` instead of the old WB-ID `taskSpaceFootCostWeights` key; the centroidal controller's schema is unchanged.
 
 ### 4.4 Gravity-relative torso tilt cost
 
 [WbIdTorsoTiltCost.h](../include/humanoid_wb_id_mpc/cost/WbIdTorsoTiltCost.h) defines the opt-in configuration and the four-component Gauss--Newton residual.
-The builder maps `ocs2.costs.torsoTiltCost` at [line 258](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L258), and [WbIdMpcInterface.cpp:102](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L102) conditionally registers the running cost as `torsoTiltCost`.
+The builder maps `ocs2.costs.torsoTiltCost` at [line 258](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L258), and [WbIdMpcInterface.cpp:118](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L118) conditionally registers the running cost as `torsoTiltCost`.
 [WbIdTorsoTiltCost.cpp:22](../src/core/humanoid_wb_id_mpc/src/cost/WbIdTorsoTiltCost.cpp#L22) validates the tracked frame, positive free angle below $`\pi/2`$, nonnegative finite weights and nonzero finite gravity.
 World up, the free-angle cosine, the free angle and square-root weights are passed as seven AD parameters at [line 38](../src/core/humanoid_wb_id_mpc/src/cost/WbIdTorsoTiltCost.cpp#L38), so reconfiguration does not silently reuse old tuning values from generated libraries.
 The model cache uses a new `wb_id_torso_tilt_v1_<link>` name, distinct from the generic link tracker.
@@ -162,16 +162,16 @@ Target-mode changes request filter reset and pose latching at [ProceduralMpcMoti
 [ProceduralMpcMotionManager.cpp:126](../src/core/humanoid_common_mpc/src/reference_manager/ProceduralMpcMotionManager.cpp#L126) implements faster/slower gait guards.
 Per-solver target dispatch, measured-speed checks and template selection start at [line 173](../src/core/humanoid_common_mpc/src/reference_manager/ProceduralMpcMotionManager.cpp#L173).
 [GaitScheduleUpdater.cpp:45](../src/core/humanoid_common_mpc/src/gait/GaitScheduleUpdater.cpp#L45) delays template insertion, while [GaitSchedule.cpp](../src/core/humanoid_common_mpc/src/gait/GaitSchedule.cpp) extends the schedule.
-The current WB-ID `slow_walk` timing is [ros2_controllers.yaml:1089](../config/g1/ros2_controllers.yaml#L1089).
+The current WB-ID `slow_walk` timing is [ros2_controllers.yaml:1092](../config/g1/ros2_controllers.yaml#L1092).
 [SwitchedModelReferenceManager.cpp:224](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L224) combines schedule, support heights and swing references.
 [SwingTrajectoryPlanner.cpp:126](../src/core/humanoid_common_mpc/src/swing_foot_planner/SwingTrajectoryPlanner.cpp#L126) constructs the isolated swing spline with an apex above the higher endpoint.
 The WB-ID builder explicitly disables capture placement at [line 247](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L247).
-Shared stair/terrain setup is connected at [controller line 164](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L164), which should not be interpreted as validated WB-ID terrain performance.
+Shared stair/terrain setup is connected at [controller line 162](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L162), which should not be interpreted as validated WB-ID terrain performance.
 
 
 ## 6. Arm Command Support
 
-The WB-ID controller passes tracked arm names and two empty frame-pair lists to `subscribeMpcTargets` at [controller line 181](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L181).
+The WB-ID controller passes tracked arm names and two empty frame-pair lists to `subscribeMpcTargets` at [controller line 179](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L179).
 The shared subscriber dispatches through the parser at [Ros2ProceduralMpcMotionManager.cpp:150](../src/common/ros2_procedural_mpc_motion_manager.cpp#L150).
 
 | `command_type` | WB-ID behaviour | Code |
@@ -187,22 +187,22 @@ Implementing frame relations requires schema/builder frame-pair declarations and
 
 ## 7. Solver, Policy and Actuation
 
-[construct_solver():1159](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1159) accepts only `sqp`, constructs `SqpMpc`, connects MRT and installs the synchronized modules.
-The asynchronous worker starts at [line 1189](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1189).
-The control loop forwards each valid observation through OCS2's existing `setCurrentObservation()` before policy checks or bring-up dispatch at [line 518](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L518).
-After construction, the worker waits for a new control-loop observation before its first solve at [line 1151](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1151).
-Policy handover checks finite timestamps and requires the evaluation time to lie inside the plan, with two control periods remaining, at [line 531](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L531).
+[construct_solver():1157](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1157) accepts only `sqp`, constructs `SqpMpc`, connects MRT and installs the synchronized modules.
+The asynchronous worker starts at [line 1187](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1187).
+The control loop forwards each valid observation through OCS2's existing `setCurrentObservation()` before policy checks or bring-up dispatch at [line 516](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L516).
+After construction, the worker waits for a new control-loop observation before its first solve at [line 1149](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1149).
+Policy handover checks finite timestamps and requires the evaluation time to lie inside the plan, with two control periods remaining, at [line 529](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L529).
 An unusable policy requests `resetMpcNode()` on the solver worker, following the atomic warm-start reset pattern in `dynamics_mpc_controller`, rather than resetting the solver from the control thread.
 Startup keeps holding the standing posture and retries; loss of a valid policy during the startup blend returns to `StartingMpc`, while loss after entering estimator-driven `Locomotion` latches the existing `Fault` state.
 The ground-truth feedback path holds the last commanded posture while awaiting a valid replacement policy.
 No additional age-limit parameter or alternative observation interface is introduced.
-[compute_mpc_joint_action():1343](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1343) evaluates the policy using `ocs2.solver.rollout.policyTimeOffset`.
+[compute_mpc_joint_action():1341](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1341) evaluates the policy using `ocs2.solver.rollout.policyTimeOffset`.
 The same offset is used by policy-interval validation, so the accepted interval and execution time remain consistent; it is a runtime policy look-ahead, not an ODE timestep.
-Planned joint position/velocity extraction is at [line 1359](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1359).
-The torque-window check and planned-state inverse-dynamics fallback are at [line 1377](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1377).
-The alternative measured-state inverse dynamics is at [line 1393](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1393).
-Feedforward clipping is [clamp_torque():1335](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1335).
-Joint position/velocity/effort and optional gain interface writes are at [line 1661](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1661).
+Planned joint position/velocity extraction is at [line 1357](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1357).
+The torque-window check and planned-state inverse-dynamics fallback are at [line 1375](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1375).
+The alternative measured-state inverse dynamics is at [line 1391](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1391).
+Feedforward clipping is [clamp_torque():1333](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1333).
+Joint position/velocity/effort and optional gain interface writes are at [line 1659](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1659).
 
 `python3 tests/wb_id_startup_contract_test.py -v` checks the startup observation flow, policy bounds, reset ownership and bring-up guards without a ROS build.
 These are static regression checks, not a substitute for repeated startup tests in the simulator.
@@ -233,7 +233,8 @@ These are static regression checks, not a substitute for repeated startup tests 
 | `ocs2.reference.groundHeight` | FK support-height reference option and per-solve rate limit |
 | `ocs2.reference.armSwing.jointNames` | Joint identities used by the arm-swing reference and model index setup |
 | `target.mpcTargetsTopic` | Arm joint command input |
-| `control.feedforward`, `control.torqueLimit` | Feedforward selection and command torque clipping; the same limits currently bound MPC torques |
+| `control.feedforward` | Feedforward selection |
+| `ocs2.constraints.jointTorqueLimits.limits`, `.mu`, `.delta` | Omitted limits use URDF efforts; a full array overrides the bounds shared by the OCP soft penalty and runtime feedforward clamp; barrier parameters affect only the OCP |
 | `ocs2.solver.rollout.policyTimeOffset` | Policy look-ahead time used by validation and execution |
 | `control.jointEffortPd.kp`, `kd` | Inner servo gains |
 
@@ -248,18 +249,18 @@ The references below map that table to the current implementation; only the pair
 
 | Responsibility | Implementation or current parameters |
 | --- | --- |
-| Stance height/tilt correction gains | [ros2_controllers.yaml:972](../config/g1/ros2_controllers.yaml#L972), [stance equations:114](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdFootAccelerationConstraintCppAd.cpp#L114) |
+| Stance height/tilt correction gains | [ros2_controllers.yaml:969](../config/g1/ros2_controllers.yaml#L969), [stance equations:114](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdFootAccelerationConstraintCppAd.cpp#L114) |
 | Shared gain in swing vertical correction | [WbIdFootAccelerationConstraintCppAd.cpp:106](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdFootAccelerationConstraintCppAd.cpp#L106) |
-| Running/terminal base z and vz weights | [Q:870](../config/g1/ros2_controllers.yaml#L870), [Qf:886](../config/g1/ros2_controllers.yaml#L886) |
-| Foot task-space cost | [weights:922](../config/g1/ros2_controllers.yaml#L922) |
-| Swing clearance | [swingHeight:1067](../config/g1/ros2_controllers.yaml#L1067) |
-| Torso free lean and angular damping | [torsoTiltCost:941](../config/g1/ros2_controllers.yaml#L941) |
-| Extra leg-load cost activation | [legTorqueCost:949](../config/g1/ros2_controllers.yaml#L949) |
+| Running/terminal base z and vz weights | [Q:864](../config/g1/ros2_controllers.yaml#L864), [Qf:880](../config/g1/ros2_controllers.yaml#L880) |
+| Foot task-space cost | [weights:916](../config/g1/ros2_controllers.yaml#L916) |
+| Swing clearance | [swingHeight:1070](../config/g1/ros2_controllers.yaml#L1070) |
+| Torso free lean and angular damping | [torsoTiltCost:935](../config/g1/ros2_controllers.yaml#L935) |
+| Extra leg-load cost activation | [legTorqueCost:943](../config/g1/ros2_controllers.yaml#L943) |
 | Joint PD and feedforward | [control:756](../config/g1/ros2_controllers.yaml#L756) |
-| Command slew limits and filtering | [limits:1032](../config/g1/ros2_controllers.yaml#L1032), [WalkingVelocityTarget.cpp:90](../src/core/humanoid_common_mpc/src/target/WalkingVelocityTarget.cpp#L90) |
+| Command slew limits and filtering | [limits:1035](../config/g1/ros2_controllers.yaml#L1035), [WalkingVelocityTarget.cpp:90](../src/core/humanoid_common_mpc/src/target/WalkingVelocityTarget.cpp#L90) |
 | Planar-relative base tracking | [BaseMotionTrackingCost.cpp:51](../src/core/humanoid_common_mpc/src/cost/BaseMotionTrackingCost.cpp#L51) |
 | Mapped terrain planner inactive outside its explicit mode | [mode gate:189](../src/core/humanoid_common_mpc/src/reference_manager/ProceduralMpcMotionManager.cpp#L189), [world-up fallback:307](../include/humanoid_common_mpc/reference_manager/SwitchedModelReferenceManager.h#L307) |
-| Current flat support-height assumption | [option:1035](../config/g1/ros2_controllers.yaml#L1035), [reference fallback:126](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L126) |
+| Current flat support-height assumption | [option:1038](../config/g1/ros2_controllers.yaml#L1038), [reference fallback:126](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L126) |
 | Linear KF flat contact-height observation | [zero heights:159](../src/humanoid_state_estimation/linear_kf_floating_base_estimator.cpp#L159), [measurement:303](../src/humanoid_state_estimation/linear_kf_floating_base_estimator.cpp#L303) |
 | Scheduled estimator contacts | [contact source:168](../config/g1/ros2_controllers.yaml#L168) |
 | Automatic recording and scoring | [run_case.sh:35](../tests/tuning/run_case.sh#L35), [command schedule:76](../tests/tuning/tune_probe.py#L76) |
@@ -289,11 +290,18 @@ All configured values and schema types/defaults/validation are preserved, includ
 | `sqp` | `solver.sqp` |
 | `rollout` | `solver.rollout` |
 | Full path `control.policyTimeOffset` | Full path `ocs2.solver.rollout.policyTimeOffset` |
+| Full path `control.torqueLimit` | Full path `ocs2.constraints.jointTorqueLimits.limits` |
 
 Arm reference joint names remain required even when arm swing is disabled because common-model setup resolves their indices unconditionally.
 Physical contact geometry still feeds the same contact-frame construction and CoP bounds; barrier settings remain under `constraints`.
 Both policy-coverage validation and policy execution read the relocated time offset.
-The shared `control.torqueLimit` behavior and pre-existing acceleration-gain schema defaults are unchanged; neither is silently retuned or split by this layout change.
+The shared torque-limit behavior and pre-existing acceleration-gain schema defaults are unchanged; neither is silently retuned or split by this layout change.
+The limit array supplies both the soft OCP torque margins inside the inverse-dynamics torque window and the hard runtime feedforward clamp; final feedback-plus-feedforward torque is not bounded by this controller clamp.
+Omitting the override uses the reduced Pinocchio model's URDF effort limits, following the existing URDF/model-based position-limit pattern in `mpc_controllers` and the WB-ID velocity-limit implementation.
+The schema's typed empty-vector default is valid, but an explicit `limits: []` runtime YAML override is not: Jazzy reports `parameter_value_from failed` with `No parameter value set` before controller initialization.
+`WbIdMpcInterface` [resolves and validates limits during construction](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L59), and `getTorqueLimits()` supplies that same vector to the [runtime controller](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L110); missing, nonpositive or nonfinite resolved bounds fail configuration rather than silently disabling protection.
+`mu` scales the relaxed log barrier and `delta` sets the margin where its quadratic continuation begins; neither parameter affects runtime clipping.
 The centroidal parameter schema, builder and YAML block, shared core model structures, and launch file retain their existing contracts.
 Update external WB-ID YAML files and dotted overrides, then rebuild the generated parameter library and controller before using these new paths; no deprecated aliases are provided.
 `tests/wb_id_parameter_contract_test.py` checks the schema/builder mapping, removal of obsolete WB-ID paths, both policy-offset readers and retention of the separate centroidal layout.
+Run `python3 tests/wb_id_startup_smoke_test.py` from a sourced ROS workspace to test real WB-ID startup on `scene_flat.xml`, with MuJoCo headless, RViz and the command GUI disabled; it terminates its own launch group immediately after the `-> locomotion` transition and saves a log and JSON verdict under `/tmp/wb_id_startup`.

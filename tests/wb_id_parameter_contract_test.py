@@ -145,6 +145,19 @@ def main():
     controller = (folder / (NAME + ".cpp")).read_text()
     assert controller.count("parameters_.ocs2.solver.rollout.policyTimeOffset") == 2
     assert "parameters_.control.policyTimeOffset" not in controller
+    # One WB-ID limit array supplies both OCP soft bounds and feedforward clipping.
+    for tree in (params, schema):
+        assert "torqueLimit" not in tree["control"]
+    at_path(schema, "ocs2.constraints.jointTorqueLimits.limits")
+    limits = params["ocs2"]["constraints"]["jointTorqueLimits"].get("limits", [])
+    assert len(limits) in (0, count) and all(limit > 0 for limit in limits)
+    assert "p.constraints.jointTorqueLimits.limits" in builder
+    assert "parameters_.ocs2.constraints.jointTorqueLimits.limits" in controller
+    assert "torque_limit_ = mpc_interface_->getTorqueLimits();" in controller
+    assert "params.control.torqueLimit" not in builder
+    assert "parameters_.control.torqueLimit" not in controller
+    assert "clamp_torque(command.feedforward);" in controller
+    assert "torqueLimit" in config["humanoid_centroidal_mpc_controller"]["ros__parameters"]["control"]
     # The other controller deliberately retains its existing parameter contract.
     centroidal = config["humanoid_centroidal_mpc_controller"]["ros__parameters"]["ocs2"]
     assert "footConstraint" in centroidal["model"] and "armJointNames" in centroidal["model"]

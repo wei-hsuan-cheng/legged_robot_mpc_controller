@@ -91,7 +91,8 @@ class WbIdMpcInterface final : public RobotInterface {
     //! Time span from the start of the horizon in which the joint-torque rows of the
     //! inverse dynamics and the torque limits apply; < 0 for the whole horizon.
     scalar_t torqueWindowDuration = -1.0;
-    //! |tau| limits inside the torque window, index-aligned with the joints; empty = none.
+    //! Optional |tau| override in MPC joint order; empty uses the URDF effort limits.
+    //! Shared by the OCP torque-window penalty and runtime feedforward clipping.
     vector_t torqueLimits;
     RelaxedBarrierPenalty::Config torqueLimitBarrierConfig{0.1, 5.0};
 
@@ -119,6 +120,7 @@ class WbIdMpcInterface final : public RobotInterface {
   const sqp::Settings& sqpSettings() const { return sqpSettings_; }
 
   const vector_t& getInitialState() const { return initialState_; }
+  const vector_t& getTorqueLimits() const { return config_.torqueLimits; }
   const RolloutBase& getRollout() const { return *rolloutPtr_; }
   PinocchioInterface& getPinocchioInterface() { return *pinocchioInterfacePtr_; }
   std::shared_ptr<SwitchedModelReferenceManager> getSwitchedModelReferenceManagerPtr() const { return referenceManagerPtr_; }

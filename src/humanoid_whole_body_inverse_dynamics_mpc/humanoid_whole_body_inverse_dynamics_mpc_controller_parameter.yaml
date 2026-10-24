@@ -29,8 +29,6 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
   control:
     observationVelocityFilterCutoffHz: {type: double, default_value: 0.0, description: "Low-pass cutoff for observed
         generalized velocities [Hz]; 0 disables the filter (raw velocities)", validation: {gt_eq: [0.0]}}
-    torqueLimit: {type: double_array, default_value: [], description: "Symmetric command torque limits for robot.jointNames.
-        Empty means no software clamp."}
     feedforward: {type: string, default_value: "policy_torque", description: "policy_torque: interpolated MPC joint
         torque inside the constrained window, planned-state RNEA outside it; inverse_dynamics: RNEA at the measured
         state", validation: {one_of<>: [["policy_torque", "inverse_dynamics"]]}}
@@ -284,8 +282,12 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         mu: {type: double, default_value: 30000.0, description: "Barrier mu of the collision soft constraint"}
         delta: {type: double, default_value: 0.05, description: "Barrier delta of the collision soft constraint"}
       jointTorqueLimits:
-        mu: {type: double, default_value: 0.1, description: "Relaxed log barrier mu of the torque limits (control.torqueLimit;
-            empty = no limits)"}
+        limits: {type: double_array, default_value: [], description: "Symmetric torque bounds [Nm] in robot.jointNames
+            order, shared by the OCP soft penalty inside the torque window and runtime feedforward clipping.
+            Omit this parameter to use URDF joint effort limits; a full array overrides them.
+            Do not supply an explicit empty YAML array in Jazzy. Limits must be finite and positive.
+            Does not clamp the final effort_pd feedback-plus-feedforward torque."}
+        mu: {type: double, default_value: 0.1, description: "Relaxed log barrier strength of the torque limits"}
         delta: {type: double, default_value: 5.0, description: "Relaxed log barrier delta of the torque limits [Nm]"}
       jointVelocityLimits:
         scale: {type: double, default_value: 1.0, description: "Fraction of the URDF joint velocity limits enforced

@@ -374,7 +374,9 @@ q_j-q_{j,\min}\ge0,\quad q_{j,\max}-q_j\ge0,
 \qquad \bar\tau_j\pm\tau_j\ge0.
 $$
 
-Position limits come from the robot model, velocity bounds are scaled URDF limits, and torque bounds come from `control.torqueLimit`.
+Position limits come from the robot model, velocity bounds are scaled URDF limits, and torque bounds default to the URDF joint effort limits loaded by Pinocchio.
+Omitting `ocs2.constraints.jointTorqueLimits.limits` uses those defaults; a full positive, finite array in `robot.jointNames` order overrides them for both the OCP penalty and feedforward clipping.
+The generated parameter schema supplies the typed empty-vector default; do not explicitly write `limits: []` in the runtime YAML because Jazzy treats it as an unset override and rejects controller initialization.
 Torque penalties only act within the torque window, and a nonpositive velocity-limit scale disables that term.
 The foot/knee collision term has 16 frame-point separation margins of the form $\|p_i(q)-p_j(q)\|-(r_i+r_j)$.
 It is disabled in double support to avoid fighting stance constraints and is not a general mesh-based whole-body collision checker.
@@ -402,6 +404,8 @@ p^{\mathrm{poly}}_{\mu,\delta}(h)=\mu\begin{cases}
 $$
 
 Both penalties remain finite when violated, so returned trajectories can violate the margins.
+For `jointTorqueLimits`, `mu` scales the penalty and `delta` sets its transition margin in Nm; these are relaxed log-barrier parameters, not radial-basis-function parameters.
+With `delta: 5.0`, quadratic relaxation begins when the remaining torque margin is at most 5 Nm; this is not a permitted 5 Nm overrun or a hard feasibility guarantee.
 The runtime feedforward torque clamp is a separate control operation.
 
 
@@ -513,7 +517,8 @@ $$
 
 The fallback computes base acceleration from the unactuated equations before computing joint inverse dynamics.
 `control.feedforward: inverse_dynamics` instead uses measured $q,v$ with planned joint accelerations and wrenches.
-Feedforward is clamped to `control.torqueLimit` before sending joint position, velocity and effort commands to the hardware.
+Feedforward is clamped to the resolved URDF or override torque limits before sending joint position, velocity and effort commands to the hardware; this clamp does not use `mu` or `delta`.
+The omitted override selects URDF effort limits rather than disabling either use; invalid resolved limits fail configuration.
 The `effort_pd` servo evaluates:
 
 $$

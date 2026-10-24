@@ -1,3 +1,4 @@
+#include <cmath>
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -52,6 +53,21 @@ WbIdMpcInterface::WbIdMpcInterface(Config config, bool setupOCP)
   for (const auto& contactName : modelSettings_.contactNames) {
     if (model.getFrameId(contactName) >= static_cast<pinocchio::FrameIndex>(model.nframes)) {
       throw std::invalid_argument("[WbIdMpcInterface] contact frame '" + contactName + "' was not found in the Pinocchio model");
+    }
+  }
+
+  // Like position/velocity bounds, default torque bounds come from the reduced URDF model.
+  const auto nj = static_cast<Eigen::Index>(modelSettings_.mpc_joint_dim);
+  if (config_.torqueLimits.size() == 0) {
+    config_.torqueLimits = model.effortLimit.tail(nj);
+  }
+  if (config_.torqueLimits.size() != nj) {
+    throw std::invalid_argument("[WbIdMpcInterface] torque limits need one entry per MPC joint");
+  }
+  for (Eigen::Index i = 0; i < nj; ++i) {
+    if (!std::isfinite(config_.torqueLimits(i)) || config_.torqueLimits(i) <= 0.0) {
+      throw std::invalid_argument("[WbIdMpcInterface] torque limit for '" + modelSettings_.mpcModelJointNames[i] +
+                                  "' must be finite and positive; check URDF effort or jointTorqueLimits.limits override");
     }
   }
 

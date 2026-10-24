@@ -107,14 +107,12 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
     control_pinocchio_ = std::make_unique<ocs2::PinocchioInterface>(mpc_interface_->getPinocchioInterface());
 
     const auto joint_dim = static_cast<Eigen::Index>(control_model_->getJointDim());
-    torque_limit_.resize(0);
-    if (static_cast<Eigen::Index>(parameters_.control.torqueLimit.size()) == joint_dim) {
-      torque_limit_ = Eigen::Map<const vector_t>(parameters_.control.torqueLimit.data(), joint_dim);
-    }
+    torque_limit_ = mpc_interface_->getTorqueLimits();
     RCLCPP_INFO(
       get_node()->get_logger(), "%s feedforward: %s | torque clamp: %s", kTag,
       feedforward_ == Feedforward::PolicyTorque ? "MPC policy torque" : "inverse dynamics at the measured state",
-      torque_limit_.size() > 0 ? "control.torqueLimit" : "none");
+      parameters_.ocs2.constraints.jointTorqueLimits.limits.empty() ?
+        "URDF effort limits" : "ocs2.constraints.jointTorqueLimits.limits override");
 
     // effort_pd servo gains: written to the hardware every tick, or left to the hardware if empty.
     const auto& pd = parameters_.control.jointEffortPd;

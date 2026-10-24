@@ -158,9 +158,9 @@ ocs2::humanoid::WbIdMpcInterface::Config buildWholeBodyInverseDynamicsMpcConfig(
 
   config.torqueWindowDuration = p.constraints.inverseDynamics.torqueConstraintNodes > 0 ?
     (static_cast<double>(p.constraints.inverseDynamics.torqueConstraintNodes) - 0.5) * p.solver.sqp.dt : -1.0;
-  if (!params.control.torqueLimit.empty()) {
-    checkJointArraySize(params.control.torqueLimit, numJoints, "control.torqueLimit");
-    config.torqueLimits = toVector(params.control.torqueLimit);
+  if (!p.constraints.jointTorqueLimits.limits.empty()) {
+    checkJointArraySize(p.constraints.jointTorqueLimits.limits, numJoints, "ocs2.constraints.jointTorqueLimits.limits");
+    config.torqueLimits = toVector(p.constraints.jointTorqueLimits.limits);
   }
   config.torqueLimitBarrierConfig.mu = p.constraints.jointTorqueLimits.mu;
   config.torqueLimitBarrierConfig.delta = p.constraints.jointTorqueLimits.delta;

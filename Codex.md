@@ -1,5 +1,26 @@
 # WB-ID MPC Walking Robustness Handoff
 
+## WB-ID Shared Torque Limits (2026-10-24)
+
+`control.torqueLimit` moved to optional `ocs2.constraints.jointTorqueLimits.limits`, alongside the unchanged `mu: 0.1` and `delta: 5.0`.
+The YAML now omits `limits`, meaning URDF joint effort limits; a full positive finite array in joint order overrides those defaults.
+Do not write an explicit `limits: []` in the runtime YAML: Jazzy converts it to an unset override and rejects initialization with `parameter_value_from failed` / `No parameter value set`; the generated schema's typed empty-vector default works when the override is omitted.
+All 23 current URDF efforts match the former YAML array, so the effective G1 limits are unchanged.
+The interface resolves the limits from its reduced Pinocchio model or override once, validates them, and provides the same vector to the OCP penalty and runtime feedforward clamp through `getTorqueLimits()`.
+The OCP uses soft margins `limits - tau` and `limits + tau` with a relaxed log barrier, active only inside the inverse-dynamics torque window (currently 3 nodes, approximately 0.05 s).
+Runtime clamps only the computed MPC feedforward torque; the downstream effort_pd feedback can increase the total torque beyond these bounds, and final saturation is a separate hardware/simulator responsibility.
+`mu` is penalty strength and `delta` is the relaxation transition margin, not an allowed overrun; neither affects the hard feedforward clamp.
+An empty array now selects URDF bounds instead of disabling both uses; invalid resolved limits fail configuration, and the centroidal controller retains `control.torqueLimit`.
+No dynamics, CppAD signature, tuning values or launch behavior changed; external WB-ID YAML files and overrides need the new path and a controller rebuild.
+The two-job Jazzy Release symlink-install build passed in 1 min 22 s; log: `/tmp/wbid_urdf_torque_limits_build_20261024.log`.
+The parameter contract, 16 static wiring checks and nine torso-cost checks passed, including URDF-default and override checks; no simulation or walking trial was launched for this change.
+The subsequent startup-error reproduction is saved in `/tmp/wbid_urdf_startup_before.log` inside the Jazzy container; that real launch exposed the empty-YAML-override issue despite the earlier successful build and static tests.
+`tests/wb_id_startup_smoke_test.py` now runs a real flat-scene launch without the GUI or RViz, detects initialization failures, records its result and shuts down immediately on MPC takeover; this is startup validation, not a walking robustness test.
+After omitting the runtime `limits` override, the two-job Release rebuild passed in 1 min 14 s (`/tmp/wbid_urdf_startup_fix_build_20261024.log`).
+The rebuilt flat-scene startup smoke test returned `MPC_RUNNING` after 11.28 s and immediately stopped its launch group; results are `/tmp/wbid_urdf_startup_after.log` and `.json` in the Jazzy container.
+The trial used the existing estimator defaults, `mpcFreq:=100`, `mrtFreq:=1000`, `mujoco_headless:=true`, `rviz:=false` and `baseCommandGui:=false`; no walking commands or subsequent robustness tests were run.
+
+
 ## WB-ID Parameter Ownership Cleanup (2026-10-24)
 
 WB-ID now groups SQP and rollout settings under `ocs2.solver.sqp` and `ocs2.solver.rollout`, while keeping `ocs2.mpc` at its existing location.
@@ -335,7 +356,7 @@ Artifacts remain in the container: each prefix has `.json`, `.csv`, `.log`, `.ya
   - The libraries generated from the old 35.1 kg URDF were renamed `wb_id_mpc_g1_old_35kg` / `centroidal_mpc_g1_old_35kg`, not deleted. The rev_1_0 WB libraries moved in as `wb_id_mpc_g1`.
   - With `recompileLibrariesCppAd: false` OCS2 never checks that cached libraries match the URDF, so any future model change needs the same swap or a fresh folder.
   - The centroidal rev_1_0 libraries don't exist yet; the first centroidal launch regenerates them, which takes long.
-- `control.torqueLimit` hip roll is 139 in both controller blocks; the ros2_control command limit in the xacro is 139 too.
+- Hip-roll torque limits are 139 in both controller blocks: WB-ID uses `ocs2.constraints.jointTorqueLimits.limits` and centroidal uses `control.torqueLimit`; the ros2_control command limit in the xacro is 139 too.
 - **Expected risks:**
   - Losing damping 10 removes a lot of free passive stability, so the controller may need retuning.
   - Armature should fix the ankle-chatter instability (kd*dt/I about 12 -> about 0.7), though that's unmeasured.

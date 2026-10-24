@@ -755,12 +755,6 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
 
     control:
       observationVelocityFilterCutoffHz: 30.0
-      torqueLimit:
-        [88.0, 139.0, 88.0, 139.0, 50.0, 50.0,
-         88.0, 139.0, 88.0, 139.0, 50.0, 50.0,
-         88.0, 50.0, 50.0,
-         25.0, 25.0, 25.0, 25.0,
-         25.0, 25.0, 25.0, 25.0]
       feedforward: policy_torque
       jointEffortPd:
         kp:
@@ -969,6 +963,9 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
             [2.0, 2.0, 1.0, 8.0, 0.2, 0.2]
 
       constraints:
+        inverseDynamics:
+          torqueConstraintNodes: 3
+
         footConstraint:
           # Slower position/tilt correction avoids fighting a shallow incline.
           # These are acceleration equalities, not soft-cost weights.
@@ -980,10 +977,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           linearAccelerationErrorGain_z: 1.0
           linearAccelerationErrorGain_xy: 1.0
           angularAccelerationErrorGain: 1.0
-
-        inverseDynamics:
-          torqueConstraintNodes: 3
-
+        
         frictionCone:
           frictionCoefficient: 0.4
           mu: 0.2
@@ -997,6 +991,24 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           mu: 1200.0
           delta: 0.1
 
+        jointVelocityLimits:
+          scale: 1.0
+          mu: 0.1
+          delta: 1.0
+
+        jointTorqueLimits:
+          # Omit limits to use URDF joint <limit effort="..."> values for OCP bounds and feedforward clipping.
+          # To override, uncomment a full positive array in robot.jointNames order [Nm].
+          # Do not set limits: []; Jazzy treats an explicit empty YAML array as an unset override.
+          # This does not clamp the final effort_pd feedback-plus-feedforward torque.
+          # limits: [88.0, 139.0, 88.0, 139.0, 50.0, 50.0,
+          #          88.0, 139.0, 88.0, 139.0, 50.0, 50.0,
+          #          88.0, 50.0, 50.0,
+          #          25.0, 25.0, 25.0, 25.0,
+          #          25.0, 25.0, 25.0, 25.0]
+          mu: 0.1
+          delta: 5.0
+
         footCollision:
           leftAnkleFrame: left_ankle_roll_joint
           rightAnkleFrame: right_ankle_roll_joint
@@ -1006,15 +1018,6 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           kneeCollisionSphereRadius: 0.07
           mu: 30000.0
           delta: 0.05
-
-        jointTorqueLimits:
-          mu: 0.1
-          delta: 5.0
-
-        jointVelocityLimits:
-          scale: 1.0
-          mu: 0.1
-          delta: 1.0
 
       reference:
         targetDisplacementVelocity: 0.5
