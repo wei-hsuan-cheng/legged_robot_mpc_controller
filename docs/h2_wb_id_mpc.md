@@ -95,7 +95,7 @@ The positive lateral trial used an override numerically equal to the now-saved c
 The +0.15 m/s run accumulated 0.158 rad maximum heading error and 0.282 m cross-axis displacement, while the +0.20 m/s run accumulated 0.359 rad and 0.717 m respectively.
 Lateral displacement remains roughly 75-78% of the requested integral, so this is a working low-speed checkpoint, not precise trajectory tracking or a formal robustness guarantee.
 Combined vx/vy/yaw commands, full-speed gaits, height sweeps, stairs, ramps, rough terrain, InEKF feedback and real hardware are not validated here.
-The optional H2 terrain YAML files only provide geometry-dependent starting values and are not used by these `base_twist` trials.
+The optional H2 variants in shared [`config/terrains/`](../config/terrains/README.md) only provide geometry-dependent starting values and are not used by these `base_twist` trials.
 
 Local raw logs, configuration snapshots, CSVs, JSON verdicts, pose plots and a MuJoCo render replayed from measured joint/base state are saved under ignored `tuning_results/h2/`.
 The corresponding container files are `/tmp/h2_*.{log,yaml,csv,json}`.

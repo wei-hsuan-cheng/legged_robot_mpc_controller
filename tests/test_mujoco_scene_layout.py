@@ -34,18 +34,19 @@ except ImportError:
 
 class SceneLayoutTest(unittest.TestCase):
     def test_launch_description_paths(self):
-        launch = ast.parse((ROOT / "launch" / "g1.launch.py").read_text())
-        checked = 0
-        for node in ast.walk(launch):
-            if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name):
-                continue
-            if node.func.id != "PathJoinSubstitution" or not isinstance(node.args[0], ast.List):
-                continue
-            parts = [elem.value for elem in node.args[0].elts if isinstance(elem, ast.Constant)]
-            if parts and (parts[0] == "description" or parts[:2] == ["config", "terrains"]):
-                self.assertTrue(ROOT.joinpath(*parts).exists(), parts)
-                checked += 1
-        self.assertEqual(checked, 5)
+        for robot in ("g1", "h2"):
+            launch = ast.parse((ROOT / "launch" / f"{robot}.launch.py").read_text())
+            checked = 0
+            for node in ast.walk(launch):
+                if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name):
+                    continue
+                if node.func.id != "PathJoinSubstitution" or not isinstance(node.args[0], ast.List):
+                    continue
+                parts = [elem.value for elem in node.args[0].elts if isinstance(elem, ast.Constant)]
+                if parts and (parts[0] == "description" or parts[:2] == ["config", "terrains"]):
+                    self.assertTrue(ROOT.joinpath(*parts).exists(), (robot, parts))
+                    checked += 1
+            self.assertEqual(checked, 7, robot)
 
     def test_include_and_asset_paths(self):
         for path in (ROOT / "description").rglob("*.xml"):

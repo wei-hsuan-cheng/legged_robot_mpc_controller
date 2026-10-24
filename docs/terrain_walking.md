@@ -252,9 +252,11 @@ z_g,\,
 \right).
 $$
 
-See [`GroundTruthTerrainModel::heightAt()`](../src/core/humanoid_common_mpc/src/reference_manager/TerrainFootholdPlanner.cpp#L37-L46). The staircase geometry and planner parameters are configured in [`terrain_walking.yaml`](../config/g1/terrain/terrain_walking/terrain_walking.yaml#L19-L47) and parsed in [`config_builder_utils.cpp`](../src/common/config_builder_utils.cpp#L89-L125).
+See [`GroundTruthTerrainModel::heightAt()`](../src/core/humanoid_common_mpc/src/reference_manager/TerrainFootholdPlanner.cpp#L37-L46).
+The staircase geometry and planner parameters live in shared [`config/terrains/`](../config/terrains/README.md), with [`terrain_walking/g1.yaml`](../config/terrains/terrain_walking/g1.yaml#L20-L49) and [`terrain_walking/h2.yaml`](../config/terrains/terrain_walking/h2.yaml#L21-L50) preserving each robot's height, stance width and foot margin.
+The files are parsed by [`loadTerrainFootholdPlannerSettings()`](../src/common/config_builder_utils.cpp#L120-L149).
 
-The planner is currently attached by the centroidal controller during configuration: [`humanoid_centroidal_mpc_controller.cpp`](../src/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller.cpp#L175-L187).
+The planner is attached during configuration by the [centroidal controller](../src/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller.cpp#L259-L271) or the [WB-ID controller](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L172-L176).
 
 ## Online Foothold Planning
 
@@ -630,7 +632,8 @@ subject to the centroidal dynamics and the mode-dependent contact constraints ab
 
 ## Configuration and Test
 
-The default launch file provides the stair-climbing and terrain-walking files via [`g1.launch.py`](../launch/g1.launch.py#L68-L78) and its [launch arguments](../launch/g1.launch.py#L145-L146).
+The default launch file provides the shared stair-climbing and terrain-walking variants via [`g1.launch.py`](../launch/g1.launch.py#L68-L76) and its [launch arguments](../launch/g1.launch.py#L143-L144).
+[`h2.launch.py`](../launch/h2.launch.py#L52-L60) selects the H2 variants from the same `config/terrains/` directory.
 The current default controller file is [`ros2_controllers.yaml`](../config/g1/ros2_controllers.yaml#L605-L606), where the centroidal controller receives these paths under `ocs2.gait`.
 Simulator staircase geometry lives in [`description/mujoco/terrains/`](../description/mujoco/terrains/), and RViz geometry lives in [`description/urdf/terrains/`](../description/urdf/terrains/), with both xacros reading the shared [`config/terrains/stairs_params.yaml`](../config/terrains/stairs_params.yaml#L18).
 Robot models live under each format's `robots/g1/` directory, with shared meshes in [`description/meshes/robots/g1/`](../description/meshes/robots/g1/), as shown in the [description layout](../description/README.md).

@@ -4,7 +4,7 @@
 # Perception-free Phase-1 terrain locomotion: the robot follows plain velocity
 # commands while a TerrainFootholdPlanner selects footholds online over the
 # ground-truth terrain below. Unlike the fixed-sequence stair climbing there is
-# only ONE config file (no sos/st variants); terrain_walk uses its own gait
+# one config per robot (no sos/st variants); terrain_walk uses its own gait
 # (the "terrain_walk" template in ocs2.gait.templates of config/h2/ros2_controllers.yaml)
 # and picks footholds online,
 # so the fixed-sequence climb-gait variants do not apply here.
@@ -15,7 +15,7 @@
 #
 # Select via the launch argument:
 #   ros2 launch legged_robot_mpc_controller h2.launch.py \
-#     terrainWalkingFile:=<pkg_share>/config/h2/terrain/terrain_walking/terrain_walking.yaml ...
+#     terrainWalkingFile:=<pkg_share>/config/terrains/terrain_walking/h2.yaml ...
 # -----------------------------------------------------------------------------
 
 terrain_walk:

@@ -1,6 +1,29 @@
 # WB-ID MPC Walking Robustness Handoff
 
 
+## Shared Terrain Paths and H2 YAML Formatting (2026-10-24)
+
+Terrain planner files moved out of `config/g1/terrain/` and `config/h2/terrain/` into shared `config/terrains/stair_climbing/{g1,h2}.yaml` and `config/terrains/terrain_walking/{g1,h2}.yaml`.
+Both launch files select their corresponding variant automatically; existing `stairClimbingFile` and `terrainWalkingFile` override arguments and the C++ YAML loaders are unchanged.
+Variants remain necessary because five robot-dependent height/foot-spacing/margin settings differ; the migration does not replace H2's 1.03 m terrain-height ceiling with G1's 0.80 m value.
+See [Shared Terrain Configuration](config/terrains/README.md) for the layout, preserved differences and external-path migration.
+
+H2's controller YAML now follows G1's blank lines, grouped joint-name lists, wrapped numerical arrays, inline gait entries and explanatory comments, with the two head joints grouped separately before the arms.
+Robot-specific comments and the commented torque-limit example were adapted to H2 rather than copying G1 values into its documentation.
+A parsed comparison against commit `5badc22` confirmed exact equality of all values in both controller YAML files and all four moved terrain configurations; no controller block or tuning value was added or removed.
+Only launch paths, schema/header descriptions, documentation, formatting and regression tests changed; no OCP, estimator, target generation, runtime C++ behavior or generated-model signature changed.
+
+The two-job Jazzy Release symlink-install build passed in 2 min 22 s; log `/tmp/shared_terrain_build.log` in Docker `ros_jazzy` on VM `10.211.55.17`.
+Twenty-one model/scene/shared-terrain checks, 23 WB-ID contract checks, nine torso-cost checks and the standalone parameter contract passed locally.
+The new shared-terrain tests verify both launch defaults, absence of the former YAML locations, robot-specific dimensions and consistency with `stairs_params.yaml`.
+After rebuilding, both WB-ID controllers passed isolated 31 s flat-ground forward trials at 0.15 m/s with the saved YAMLs and no parameter overrides, using estimator feedback, headless MuJoCo, no RViz and `baseCommandGui:=false`.
+Each trial held the full command for 15 s, ramped in/out for 3 s each and returned to stance for 6 s after the initial 4 s settle interval.
+G1 travelled 2.248 m against 2.700 m requested, with maximum roll/pitch 0.00931/0.03167 rad and heading error 0.03096 rad; its minimum z 0.6387 m includes the initial rise from the crouched posture, with final z 0.7504 m.
+H2 travelled 2.932 m against 2.700 m requested, with maximum roll/pitch 0.03422/0.02118 rad, heading error 0.20716 rad, minimum z 0.9685 m and final z 1.0022 m.
+Both returned `SUCCESS` and stopped upright without a fall; the tests validate bring-up, path loading and ordinary `base_twist` walking after migration, not stair-climbing or mapped-terrain performance.
+Container artifacts are `/tmp/shared_terrain_{g1,h2}_walk.{log,yaml,csv,json}` and `/tmp/shared_terrain_build.log`, copied locally to ignored `tuning_results/shared_terrain/`.
+
+
 ## H2 WB-ID Integration (2026-10-24)
 
 Current branch is `feat/h2`, created from `feat/wb_id_mpc` at `f56ae9a`; the older sections below describe G1 history unless explicitly stated otherwise.

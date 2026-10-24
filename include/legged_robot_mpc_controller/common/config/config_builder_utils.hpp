@@ -17,7 +17,7 @@ namespace legged_robot_mpc_controller::common
 {
 
 /// Loads the semantic stair climbing parameters (staircase ground truth, gait
-/// timing, foothold generation, base reference), see config/g1/stair_climbing.yaml.
+/// timing, foothold generation, base reference), see config/terrains/stair_climbing/.
 ocs2::humanoid::StairClimbingConfig loadStairClimbingConfig(const std::string& stairClimbingFile);
 
 /// Loads the ground-truth terrain geometry for terrain-aware walking from the

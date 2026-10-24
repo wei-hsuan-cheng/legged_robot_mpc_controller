@@ -1,8 +1,8 @@
 # -----------------------------------------------------------------------------
 # Fixed-sequence stair climbing, supporting both
+# G1 planner settings; the shared terrain directory also contains the H2 variant.
 # 1. Step-Over-Step gait (SOS) (one-tread-one-leg)
 # 2. Step-To gait (ST) (both feet per tread)
-# H2 geometry defaults only; stair-climbing performance has not been validated.
 # -----------------------------------------------------------------------------
 stair_climbing:
   stairs:                       # world-frame staircase geometry (0th step frame)
@@ -22,12 +22,14 @@ stair_climbing:
     both_feet_per_tread: false    # false: step-over-step (one-tread-one-leg) climb gait | true: step-to (both feet per tread) climb gait
 
   footholds:
-    lateral_offset: 0.14      # |y| of each foot from the staircase centerline [m]
+    lateral_offset: 0.115     # |y| of each foot from the staircase centerline [m]
     tread_inset: 0.025          # foothold x offset from the tread center [m]
     approach_stride: 0.25     # flat-ground stride toward the stairs [m]
     approach_standoff: 0.15   # feet stop this far before the first riser [m]
     tracking_weight: 250.0    # swing-foot xy position tracking weight
 
   base:
-    # Leave extension margin below H2's 1.02 m nominal standing pelvis height.
-    height_above_support: 0.90
+    # More crouched than the step-to gait: with the feet on ADJACENT treads the
+    # rear-leg extension is height_above_support + riser/2, and the larger swing
+    # articulation needs extra margin below the ~0.79 m standing height.
+    height_above_support: 0.70

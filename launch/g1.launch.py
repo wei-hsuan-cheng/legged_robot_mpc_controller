@@ -66,15 +66,13 @@ def generate_launch_description():
         ])
     
     stair_climbing_file_default = PathJoinSubstitution([
-        mpc_share_dir, "config", "g1",
-        "terrain", "stair_climbing",
-        "stair_climbing.yaml"
+        mpc_share_dir, "config", "terrains", "stair_climbing",
+        "g1.yaml"
         ])
 
     terrain_walking_file_default = PathJoinSubstitution([
-        mpc_share_dir, "config", "g1",
-        "terrain", "terrain_walking",
-        "terrain_walking.yaml"
+        mpc_share_dir, "config", "terrains", "terrain_walking",
+        "g1.yaml"
         ])
 
     ros2_control_xacro = PathJoinSubstitution([mpc_share_dir, "description", "urdf", "robots", "g1", "g1.ros2_control.xacro"])

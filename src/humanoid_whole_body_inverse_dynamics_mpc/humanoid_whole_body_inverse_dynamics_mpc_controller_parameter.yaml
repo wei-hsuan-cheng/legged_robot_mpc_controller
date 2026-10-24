@@ -362,9 +362,9 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
       phaseTransitionStanceTime: {type: double, default_value: 0.0, description: "Minimum stance time inserted at
           phase transitions [s]"}
       stairClimbingFile: {type: string, default_value: "", description: "YAML file with the fixed-sequence stair
-          climbing parameters, see config/g1/terrain/stair_climbing/. Empty disables the stair_climb target mode."}
+          climbing parameters, see config/terrains/stair_climbing/. Empty disables the stair_climb target mode."}
       terrainWalkingFile: {type: string, default_value: "", description: "YAML file with the online terrain-aware
-          walking parameters (terrain geometry + planner settings), see config/g1/terrain/terrain_walking/terrain_walking.yaml.
+          walking parameters (terrain geometry + planner settings), see config/terrains/terrain_walking/.
           Empty disables the terrain_walk target mode."}
       initialModeSequence: {type: string_array, default_value: ["STANCE", "STANCE"], description: "Initial mode
           schedule mode sequence"}

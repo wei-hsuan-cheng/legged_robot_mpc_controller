@@ -20,7 +20,7 @@ Links use repository-relative paths with line anchors, which may shift as the so
 WB-ID has its own generated parameter schema rather than loading the centroidal controller schema.
 The builder maps solver settings at [line 88](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L88), gait settings at [line 124](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L124) and costs at [line 172](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L172).
 The interface validates the Translation + SphericalZYX dimensions at [WbIdMpcInterface.cpp:46](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L46).
-The launch file selects the robot URDF at [line 56](../launch/g1.launch.py#L56), the separate RViz environment at [line 60](../launch/g1.launch.py#L60), and the top-level MuJoCo scene at [line 178](../launch/g1.launch.py#L178).
+The launch file selects the robot URDF at [line 56](../launch/g1.launch.py#L56), the separate RViz environment at [line 60](../launch/g1.launch.py#L60), and the top-level MuJoCo scene at [line 176](../launch/g1.launch.py#L176).
 Scene names passed through `mujocoModelFile` are unchanged by the description-directory reorganization.
 
 

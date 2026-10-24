@@ -112,8 +112,8 @@ mpcFreq:=100                             # integer
 mrtFreq:=1000                            # integer
 libFolder:=auto_generated/g1             # CppAD codegen output (wb_id_mpc_g1/, centroidal_mpc_g1/ inside)
 mujocoModelFile:=scene.xml               # swap scene: boxes / stairs / slope in description/mujoco
-stairClimbingFile:=stair_climbing.yaml
-terrainWalkingFile:terrain_walking.yaml
+stairClimbingFile:=<pkg_share>/config/terrains/stair_climbing/g1.yaml
+terrainWalkingFile:=<pkg_share>/config/terrains/terrain_walking/g1.yaml
 ```
 
 
@@ -135,6 +135,7 @@ ros2 launch legged_robot_mpc_controller h2.launch.py \
 The default H2 floating-base feedback is `humanoid_linear_kf`, as in the current G1 WB-ID setup.
 H2's nominal pelvis height is 1.02 m, not G1's height; generated libraries are stored separately under `auto_generated/h2/wb_id_mpc_h2/`.
 Use `scene_h2.xml` or `scene_h2_ramp.xml` for the shared staircase or ramp environment, but these scenes do not imply that H2 terrain walking has been validated.
+Both launches select their own planner variant from shared [`config/terrains/`](./config/terrains/README.md); H2 uses `h2.yaml`, while G1 uses `g1.yaml`.
 
 
 ### Scripted trajectory tests (figure-eight)
