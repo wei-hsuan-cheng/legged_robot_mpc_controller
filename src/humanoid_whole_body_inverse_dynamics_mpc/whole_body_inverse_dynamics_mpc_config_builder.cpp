@@ -164,7 +164,8 @@ ocs2::humanoid::WbIdMpcInterface::Config buildWholeBodyInverseDynamicsMpcConfig(
   }
   config.torqueLimitBarrierConfig.mu = p.constraints.jointTorqueLimits.mu;
   config.torqueLimitBarrierConfig.delta = p.constraints.jointTorqueLimits.delta;
-  config.jointVelocityLimitScale = p.constraints.jointVelocityLimits.scale;
+  config.torqueScaling = p.constraints.jointTorqueLimits.torqueScaling;
+  config.velocityScaling = p.constraints.jointVelocityLimits.velocityScaling;
   config.jointVelocityLimitBarrierConfig.mu = p.constraints.jointVelocityLimits.mu;
   config.jointVelocityLimitBarrierConfig.delta = p.constraints.jointVelocityLimits.delta;
 
@@ -201,6 +202,15 @@ ocs2::humanoid::WbIdMpcInterface::Config buildWholeBodyInverseDynamicsMpcConfig(
      perJoint(p.costs.r.jointTorques, numJoints, 0.1, "costs.r.jointTorques")}, p.costs.rScaling);
 
   // --- constraints ---
+  config.activateInverseDynamics = p.constraints.inverseDynamics.activate;
+  config.activateFootConstraint = p.constraints.footConstraint.activate;
+  config.activateZeroWrench = p.constraints.zeroWrench.activate;
+  config.activateFrictionCone = p.constraints.frictionCone.activate;
+  config.activateContactMomentXY = p.constraints.contactMomentXY.activate;
+  config.activateJointPositionLimits = p.constraints.jointPositionLimits.activate;
+  config.activateJointVelocityLimits = p.constraints.jointVelocityLimits.activate;
+  config.activateJointTorqueLimits = p.constraints.jointTorqueLimits.activate;
+  config.activateFootCollision = p.constraints.footCollision.activate;
   costs.footCollisionConfig.leftAnkleFrame = p.constraints.footCollision.leftAnkleFrame;
   costs.footCollisionConfig.rightAnkleFrame = p.constraints.footCollision.rightAnkleFrame;
   costs.footCollisionConfig.footCollisionSphereRadius = p.constraints.footCollision.footCollisionSphereRadius;
@@ -210,8 +220,8 @@ ocs2::humanoid::WbIdMpcInterface::Config buildWholeBodyInverseDynamicsMpcConfig(
   costs.footCollisionBarrierConfig.mu = p.constraints.footCollision.mu;
   costs.footCollisionBarrierConfig.delta = p.constraints.footCollision.delta;
 
-  costs.jointLimitsBarrierConfig.mu = p.constraints.jointLimits.mu;
-  costs.jointLimitsBarrierConfig.delta = p.constraints.jointLimits.delta;
+  costs.jointLimitsBarrierConfig.mu = p.constraints.jointPositionLimits.mu;
+  costs.jointLimitsBarrierConfig.delta = p.constraints.jointPositionLimits.delta;
 
   costs.contactMomentBarrierConfig.mu = p.constraints.contactMomentXY.mu;
   costs.contactMomentBarrierConfig.delta = p.constraints.contactMomentXY.delta;

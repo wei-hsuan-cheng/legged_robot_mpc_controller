@@ -57,6 +57,10 @@ WbIdMpcInterface::WbIdMpcInterface(Config config, bool setupOCP)
   }
 
   // Like position/velocity bounds, default torque bounds come from the reduced URDF model.
+  if (!std::isfinite(config_.torqueScaling) || config_.torqueScaling <= 0.0 || config_.torqueScaling > 1.0 ||
+      !std::isfinite(config_.velocityScaling) || config_.velocityScaling <= 0.0 || config_.velocityScaling > 1.0) {
+    throw std::invalid_argument("[WbIdMpcInterface] torqueScaling and velocityScaling must satisfy 0 < scaling <= 1");
+  }
   const auto nj = static_cast<Eigen::Index>(modelSettings_.mpc_joint_dim);
   if (config_.torqueLimits.size() == 0) {
     config_.torqueLimits = model.effortLimit.tail(nj);
@@ -64,6 +68,7 @@ WbIdMpcInterface::WbIdMpcInterface(Config config, bool setupOCP)
   if (config_.torqueLimits.size() != nj) {
     throw std::invalid_argument("[WbIdMpcInterface] torque limits need one entry per MPC joint");
   }
+  config_.torqueLimits *= config_.torqueScaling;
   for (Eigen::Index i = 0; i < nj; ++i) {
     if (!std::isfinite(config_.torqueLimits(i)) || config_.torqueLimits(i) <= 0.0) {
       throw std::invalid_argument("[WbIdMpcInterface] torque limit for '" + modelSettings_.mpcModelJointNames[i] +
@@ -136,12 +141,16 @@ void WbIdMpcInterface::setupOptimalControlProblem() {
   }
 
   // State soft constraints.
-  problemPtr_->stateSoftConstraintPtr->add("jointLimits", factory.getJointLimitsConstraint());
-  problemPtr_->stateSoftConstraintPtr->add("FootCollisionSoftConstraint", factory.getFootCollisionConstraint());
-  if (config_.jointVelocityLimitScale > 0.0) {
+  if (config_.activateJointPositionLimits) {
+    problemPtr_->stateSoftConstraintPtr->add("jointPositionLimits", factory.getJointLimitsConstraint());
+  }
+  if (config_.activateFootCollision) {
+    problemPtr_->stateSoftConstraintPtr->add("FootCollisionSoftConstraint", factory.getFootCollisionConstraint());
+  }
+  if (config_.activateJointVelocityLimits) {
     // The URDF velocity limits of the MPC joints, in pinocchio's joint order (= the MPC's).
     const auto nj = static_cast<Eigen::Index>(mpcRobotModelPtr_->getJointDim());
-    const vector_t velocityLimits = config_.jointVelocityLimitScale * pinocchioInterfacePtr_->getModel().velocityLimit.tail(nj);
+    const vector_t velocityLimits = config_.velocityScaling * pinocchioInterfacePtr_->getModel().velocityLimit.tail(nj);
     problemPtr_->stateSoftConstraintPtr->add(
         "jointVelocityLimits",
         std::make_unique<StateSoftConstraint>(std::make_unique<WbIdJointVelocityLimitConstraint>(*mpcRobotModelPtr_, velocityLimits),
@@ -151,13 +160,15 @@ void WbIdMpcInterface::setupOptimalControlProblem() {
   // The inverse dynamics: base rows everywhere, joint rows and torque limits in the window.
   torqueWindowPtr_ = std::make_shared<WbIdTorqueWindow>(config_.torqueWindowDuration);
   torqueWindowModulePtr_ = std::make_shared<WbIdTorqueWindowSynchronizedModule>(torqueWindowPtr_);
-  problemPtr_->equalityConstraintPtr->add(
-      "rneaBaseDynamics", std::make_unique<WbIdRneaConstraintCppAd>(WbIdRneaConstraintCppAd::Rows::Base, *pinocchioInterfacePtr_,
-                                                                    *mpcRobotModelADPtr_, modelSettings_));
-  problemPtr_->equalityConstraintPtr->add(
-      "rneaJointTorques", std::make_unique<WbIdRneaConstraintCppAd>(WbIdRneaConstraintCppAd::Rows::Joint, *pinocchioInterfacePtr_,
-                                                                    *mpcRobotModelADPtr_, modelSettings_, torqueWindowPtr_));
-  if (config_.torqueLimits.size() > 0) {
+  if (config_.activateInverseDynamics) {
+    problemPtr_->equalityConstraintPtr->add(
+        "rneaBaseDynamics", std::make_unique<WbIdRneaConstraintCppAd>(WbIdRneaConstraintCppAd::Rows::Base, *pinocchioInterfacePtr_,
+                                                                      *mpcRobotModelADPtr_, modelSettings_));
+    problemPtr_->equalityConstraintPtr->add(
+        "rneaJointTorques", std::make_unique<WbIdRneaConstraintCppAd>(WbIdRneaConstraintCppAd::Rows::Joint, *pinocchioInterfacePtr_,
+                                                                      *mpcRobotModelADPtr_, modelSettings_, torqueWindowPtr_));
+  }
+  if (config_.activateJointTorqueLimits) {
     problemPtr_->softConstraintPtr->add(
         "jointTorqueLimits",
         std::make_unique<StateInputSoftConstraint>(
@@ -169,20 +180,28 @@ void WbIdMpcInterface::setupOptimalControlProblem() {
   for (size_t i = 0; i < N_CONTACTS; i++) {
     const std::string& footName = modelSettings_.contactNames[i];
 
-    problemPtr_->softConstraintPtr->add(footName + "_frictionForceCone", factory.getFrictionForceConeConstraint(i));
-    problemPtr_->softConstraintPtr->add(footName + "_contactMomentXY",
-                                        factory.getContactMomentXYConstraint(i, footName + "_contact_moment_XY_constraint"));
-    problemPtr_->equalityConstraintPtr->add(footName + "_zeroWrench", factory.getZeroWrenchConstraint(i));
-    problemPtr_->equalityConstraintPtr->add(
-        footName + "_stanceAcceleration",
-        std::make_unique<WbIdFootAccelerationConstraintCppAd>(WbIdFootAccelerationConstraintCppAd::Type::Stance, *referenceManagerPtr_,
-                                                              *pinocchioInterfacePtr_, *mpcRobotModelADPtr_, i,
-                                                              config_.footAccelerationGains, modelSettings_));
-    problemPtr_->equalityConstraintPtr->add(
-        footName + "_swingVerticalAcceleration",
-        std::make_unique<WbIdFootAccelerationConstraintCppAd>(WbIdFootAccelerationConstraintCppAd::Type::SwingVertical,
-                                                              *referenceManagerPtr_, *pinocchioInterfacePtr_, *mpcRobotModelADPtr_, i,
-                                                              config_.footAccelerationGains, modelSettings_));
+    if (config_.activateFrictionCone) {
+      problemPtr_->softConstraintPtr->add(footName + "_frictionForceCone", factory.getFrictionForceConeConstraint(i));
+    }
+    if (config_.activateContactMomentXY) {
+      problemPtr_->softConstraintPtr->add(footName + "_contactMomentXY",
+                                          factory.getContactMomentXYConstraint(i, footName + "_contact_moment_XY_constraint"));
+    }
+    if (config_.activateZeroWrench) {
+      problemPtr_->equalityConstraintPtr->add(footName + "_zeroWrench", factory.getZeroWrenchConstraint(i));
+    }
+    if (config_.activateFootConstraint) {
+      problemPtr_->equalityConstraintPtr->add(
+          footName + "_stanceAcceleration",
+          std::make_unique<WbIdFootAccelerationConstraintCppAd>(WbIdFootAccelerationConstraintCppAd::Type::Stance, *referenceManagerPtr_,
+                                                                *pinocchioInterfacePtr_, *mpcRobotModelADPtr_, i,
+                                                                config_.footAccelerationGains, modelSettings_));
+      problemPtr_->equalityConstraintPtr->add(
+          footName + "_swingVerticalAcceleration",
+          std::make_unique<WbIdFootAccelerationConstraintCppAd>(WbIdFootAccelerationConstraintCppAd::Type::SwingVertical,
+                                                                *referenceManagerPtr_, *pinocchioInterfacePtr_, *mpcRobotModelADPtr_, i,
+                                                                config_.footAccelerationGains, modelSettings_));
+    }
 
     // The shared foot cost is model agnostic (q, v through the robot model).
     if (config_.activateTaskSpaceFootCost) {

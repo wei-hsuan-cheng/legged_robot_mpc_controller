@@ -108,9 +108,16 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
 
     const auto joint_dim = static_cast<Eigen::Index>(control_model_->getJointDim());
     torque_limit_ = mpc_interface_->getTorqueLimits();
+    if (!parameters_.ocs2.constraints.inverseDynamics.activate || !parameters_.ocs2.constraints.footConstraint.activate ||
+        !parameters_.ocs2.constraints.zeroWrench.activate) {
+      RCLCPP_WARN(get_node()->get_logger(),
+        "%s physical dynamics/contact equalities are disabled: diagnostic ablation only, not a physically consistent locomotion model",
+        kTag);
+    }
     RCLCPP_INFO(
       get_node()->get_logger(), "%s feedforward: %s | torque clamp: %s", kTag,
-      feedforward_ == Feedforward::PolicyTorque ? "MPC policy torque" : "inverse dynamics at the measured state",
+      feedforward_ == Feedforward::PolicyTorque && parameters_.ocs2.constraints.inverseDynamics.activate ?
+        "MPC policy torque" : "inverse dynamics at the measured state",
       parameters_.ocs2.constraints.jointTorqueLimits.limits.empty() ?
         "URDF effort limits" : "ocs2.constraints.jointTorqueLimits.limits override");
 
@@ -1366,7 +1373,7 @@ HumanoidWholeBodyInverseDynamicsMpcController::compute_mpc_joint_action(const oc
       q, v, a.tail(static_cast<Eigen::Index>(control_model_->getJointDim())), foot_wrenches, *control_pinocchio_);
   };
 
-  if (feedforward_ == Feedforward::PolicyTorque) {
+  if (feedforward_ == Feedforward::PolicyTorque && parameters_.ocs2.constraints.inverseDynamics.activate) {
     // The MPC's own torque. It is a physical torque only inside the torque window,
     // where the joint rows of the inverse dynamics hold; past it (a solve slower than
     // the window) tau is an unconstrained input, so take the plan's inverse dynamics
@@ -1387,6 +1394,7 @@ HumanoidWholeBodyInverseDynamicsMpcController::compute_mpc_joint_action(const oc
         control_model_->getGeneralizedCoordinates(policy_state), control_model_->getGeneralizedVelocities(policy_state));
     }
   } else {
+    // Also avoid executing free policy-torque variables when the RNEA equalities are disabled.
     // At the MEASURED configuration and velocity, like the centroidal inner loop.
     command.feedforward = plan_inverse_dynamics(
       control_model_->getGeneralizedCoordinates(observation.state), control_model_->getGeneralizedVelocities(observation.state));

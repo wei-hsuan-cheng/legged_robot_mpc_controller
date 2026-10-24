@@ -234,6 +234,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
             quadratic cost (pre-scaling)"}
     constraints:
       footConstraint:
+        activate: {type: bool, default_value: true, description: "Enable stance and swing foot acceleration equalities; disable only for diagnostic ablation"}
         positionErrorGain_z: {type: double, default_value: 0.5, description: "Stance foot vertical position error
             feedback gain"}
         orientationErrorGain: {type: double, default_value: 20.0, description: "Stance foot orientation error feedback
@@ -251,22 +252,27 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         angularAccelerationErrorGain: {type: double, default_value: 0.0, description: "Stance foot angular acceleration
             error feedback gain"}
       inverseDynamics:
+        activate: {type: bool, default_value: true, description: "Enable floating-base and joint RNEA equalities; disabling removes physical consistency and uses RNEA feedforward instead of policy torque"}
         torqueConstraintNodes: {type: int, default_value: 3, description: "Nodes from the start of the horizon carrying
             the joint-torque rows and torque limits; <= 0 for all"}
       frictionCone:
+        activate: {type: bool, default_value: true, description: "Enable contact friction-cone soft penalties"}
         frictionCoefficient: {type: double, default_value: 0.4, description: "Contact friction coefficient",
             validation: {gt: [0.0]}}
         mu: {type: double, default_value: 0.2, description: "Relaxed barrier mu of the friction cone soft constraint"}
         delta: {type: double, default_value: 5.0, description: "Relaxed barrier delta of the friction cone soft
             constraint"}
       contactMomentXY:
+        activate: {type: bool, default_value: true, description: "Enable contact center-of-pressure soft penalties"}
         mu: {type: double, default_value: 0.6, description: "Relaxed barrier mu of the contact moment XY soft constraint"}
         delta: {type: double, default_value: 0.03, description: "Relaxed barrier delta of the contact moment XY
             soft constraint"}
-      jointLimits:
+      jointPositionLimits:
+        activate: {type: bool, default_value: true, description: "Enable joint position soft penalties using URDF lower and upper bounds"}
         mu: {type: double, default_value: 1200.0, description: "Barrier mu of the joint limits soft constraint"}
         delta: {type: double, default_value: 0.1, description: "Barrier delta of the joint limits soft constraint"}
       footCollision:
+        activate: {type: bool, default_value: true, description: "Enable foot/knee separation soft penalties outside double support"}
         leftAnkleFrame: {type: string, default_value: "left_ankle_roll_joint", description: "Left ankle frame of
             the foot collision constraint"}
         rightAnkleFrame: {type: string, default_value: "right_ankle_roll_joint", description: "Right ankle frame
@@ -282,6 +288,9 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         mu: {type: double, default_value: 30000.0, description: "Barrier mu of the collision soft constraint"}
         delta: {type: double, default_value: 0.05, description: "Barrier delta of the collision soft constraint"}
       jointTorqueLimits:
+        activate: {type: bool, default_value: true, description: "Enable OCP torque-limit soft penalties inside the torque window; does not disable runtime feedforward clipping"}
+        torqueScaling: {type: double, default_value: 1.0, description: "Fraction of URDF or override torque limits used by both the OCP penalty and runtime feedforward clipping",
+            validation: {gt: [0.0], lt_eq: [1.0]}}
         limits: {type: double_array, default_value: [], description: "Symmetric torque bounds [Nm] in robot.jointNames
             order, shared by the OCP soft penalty inside the torque window and runtime feedforward clipping.
             Omit this parameter to use URDF joint effort limits; a full array overrides them.
@@ -290,11 +299,14 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         mu: {type: double, default_value: 0.1, description: "Relaxed log barrier strength of the torque limits"}
         delta: {type: double, default_value: 5.0, description: "Relaxed log barrier delta of the torque limits [Nm]"}
       jointVelocityLimits:
-        scale: {type: double, default_value: 1.0, description: "Fraction of the URDF joint velocity limits enforced
-            (soft); <= 0 disables"}
+        activate: {type: bool, default_value: true, description: "Enable joint velocity soft penalties using scaled URDF velocity bounds"}
+        velocityScaling: {type: double, default_value: 1.0, description: "Fraction of URDF joint velocity limits used by the OCP soft penalty; use activate to disable",
+            validation: {gt: [0.0], lt_eq: [1.0]}}
         mu: {type: double, default_value: 0.1, description: "Relaxed log barrier mu of the joint velocity limits"}
         delta: {type: double, default_value: 1.0, description: "Relaxed log barrier delta of the joint velocity
             limits [rad/s]"}
+      zeroWrench:
+        activate: {type: bool, default_value: true, description: "Enable zero contact-wrench equalities for swing feet; disable only for diagnostic ablation"}
     reference:
       groundHeight:
         useEstimate: {type: bool, default_value: false, description: "Use stance-foot FK height for the ordinary

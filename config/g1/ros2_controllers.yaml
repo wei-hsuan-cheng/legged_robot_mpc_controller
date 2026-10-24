@@ -964,9 +964,12 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
 
       constraints:
         inverseDynamics:
+          # Keep physical equalities enabled for locomotion; disabling is diagnostic-only.
+          activate: true
           torqueConstraintNodes: 3
 
         footConstraint:
+          activate: true
           # Slower position/tilt correction avoids fighting a shallow incline.
           # These are acceleration equalities, not soft-cost weights.
           positionErrorGain_z: 50.0
@@ -978,25 +981,38 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           linearAccelerationErrorGain_xy: 1.0
           angularAccelerationErrorGain: 1.0
         
+        zeroWrench:
+          activate: true
+
         frictionCone:
+          activate: true
           frictionCoefficient: 0.4
           mu: 0.2
           delta: 5.0
 
         contactMomentXY:
+          activate: true
           mu: 0.6
           delta: 0.03
 
-        jointLimits:
+        jointPositionLimits:
+          activate: true
+          # Lower/upper joint position bounds come from the URDF.
           mu: 1200.0
           delta: 0.1
 
         jointVelocityLimits:
-          scale: 1.0
+          activate: true
+          # Symmetric bounds are velocityScaling * URDF joint velocity limits; 0 < scaling <= 1.
+          velocityScaling: 1.0
           mu: 0.1
           delta: 1.0
 
         jointTorqueLimits:
+          # Controls only the OCP penalty; runtime feedforward clipping remains enabled.
+          activate: true
+          # Scales URDF or override bounds for both the OCP penalty and feedforward clipping; 0 < scaling <= 1.
+          torqueScaling: 1.0
           # Omit limits to use URDF joint <limit effort="..."> values for OCP bounds and feedforward clipping.
           # To override, uncomment a full positive array in robot.jointNames order [Nm].
           # Do not set limits: []; Jazzy treats an explicit empty YAML array as an unset override.
@@ -1010,6 +1026,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           delta: 5.0
 
         footCollision:
+          activate: true
           leftAnkleFrame: left_ankle_roll_joint
           rightAnkleFrame: right_ankle_roll_joint
           footCollisionSphereRadius: 0.065

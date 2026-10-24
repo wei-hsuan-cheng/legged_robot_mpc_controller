@@ -1,5 +1,19 @@
 # WB-ID MPC Walking Robustness Handoff
 
+## WB-ID Constraint Activation and Bound Scaling (2026-10-24)
+
+Every WB-ID `ocs2.constraints` group now has `activate: true`, including an explicit `zeroWrench` block for the existing swing-wrench equality; none of the original eight groups was an unused shell.
+The switches gate OCP term construction/registration during configuration; changing them requires a restart or reconfiguration, and disabling dynamics/contact equalities is diagnostic-only with a startup warning.
+`jointLimits` is renamed to `jointPositionLimits`; its existing shared factory already reads URDF lower/upper position bounds and remains unchanged for centroidal.
+Velocity limits retain their URDF source, with `jointVelocityLimits.scale` renamed to `velocityScaling`; `jointTorqueLimits.torqueScaling` scales URDF or override torque bounds before sharing them with the OCP and runtime clamp.
+Both scalings default to 1.0 and must be finite with `0 < scaling <= 1`; use activation flags rather than zero scaling to disable OCP terms.
+Disabling the OCP torque penalty does not disable feedforward clipping, and disabling inverse dynamics selects measured-state RNEA instead of executing unconstrained policy torque inputs; this does not restore physical feasibility to an ablated plan.
+All prior numerical settings and the centroidal YAML were compared against HEAD and preserved after normalizing the renamed paths and new default flags/scaling.
+The parameter contract, 23 static wiring checks and nine torso-cost checks passed; the activation tests cover all 512 switch combinations statically, not their runtime feasibility.
+The two-job Jazzy Release rebuild passed in 1 min 35 s (`/tmp/wbid_constraint_activation_build_20261024.log`), and the flat-scene headless smoke test returned `MPC_RUNNING` after 11.37 s before immediately shutting down its launch group.
+The startup log and JSON verdict are `/tmp/wbid_constraint_activation_startup.log` and `.json`; the run used 100 Hz MPC, 1000 Hz MRT, the current estimator defaults, no command GUI and no RViz, with no walking command or post-takeover robustness trial.
+
+
 ## WB-ID Shared Torque Limits (2026-10-24)
 
 `control.torqueLimit` moved to optional `ocs2.constraints.jointTorqueLimits.limits`, alongside the unchanged `mu: 0.1` and `delta: 5.0`.

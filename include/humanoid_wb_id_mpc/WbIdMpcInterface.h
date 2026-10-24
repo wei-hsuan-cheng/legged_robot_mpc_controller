@@ -88,16 +88,27 @@ class WbIdMpcInterface final : public RobotInterface {
     //! Acceleration-level stance/swing foot constraint gains.
     WbIdFootAccelerationConstraintCppAd::Gains footAccelerationGains;
 
+    bool activateInverseDynamics = true;
+    bool activateFootConstraint = true;
+    bool activateZeroWrench = true;
+    bool activateFrictionCone = true;
+    bool activateContactMomentXY = true;
+    bool activateJointPositionLimits = true;
+    bool activateJointVelocityLimits = true;
+    bool activateJointTorqueLimits = true;
+    bool activateFootCollision = true;
+
     //! Time span from the start of the horizon in which the joint-torque rows of the
     //! inverse dynamics and the torque limits apply; < 0 for the whole horizon.
     scalar_t torqueWindowDuration = -1.0;
     //! Optional |tau| override in MPC joint order; empty uses the URDF effort limits.
     //! Shared by the OCP torque-window penalty and runtime feedforward clipping.
     vector_t torqueLimits;
+    scalar_t torqueScaling = 1.0;
     RelaxedBarrierPenalty::Config torqueLimitBarrierConfig{0.1, 5.0};
 
-    //! |qd_j| <= scale * the URDF velocity limit on every node; <= 0 disables.
-    scalar_t jointVelocityLimitScale = 1.0;
+    //! |qd_j| <= velocityScaling * the URDF velocity limit on every node.
+    scalar_t velocityScaling = 1.0;
     RelaxedBarrierPenalty::Config jointVelocityLimitBarrierConfig{0.1, 1.0};
 
     SwitchedModelReferenceManager::CaptureFootPlacementSettings captureFootPlacement;

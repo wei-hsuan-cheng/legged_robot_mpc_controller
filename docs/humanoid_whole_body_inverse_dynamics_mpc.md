@@ -130,7 +130,7 @@ r(q,v,a,W)=\operatorname{RNEA}(q,v,a)-\sum_cJ_c(q)^{\mathsf T}W_c
 =M(q)a+b(q,v)-\sum_cJ_c(q)^{\mathsf T}W_c.
 $$
 
-The base selector $S_b$ extracts the six unactuated rows, which are constrained throughout the horizon:
+With `ocs2.constraints.inverseDynamics.activate: true`, the base selector $S_b$ extracts the six unactuated rows, which are constrained throughout the horizon:
 
 $$
 S_br=0.
@@ -377,7 +377,17 @@ $$
 Position limits come from the robot model, velocity bounds are scaled URDF limits, and torque bounds default to the URDF joint effort limits loaded by Pinocchio.
 Omitting `ocs2.constraints.jointTorqueLimits.limits` uses those defaults; a full positive, finite array in `robot.jointNames` order overrides them for both the OCP penalty and feedforward clipping.
 The generated parameter schema supplies the typed empty-vector default; do not explicitly write `limits: []` in the runtime YAML because Jazzy treats it as an unset override and rejects controller initialization.
-Torque penalties only act within the torque window, and a nonpositive velocity-limit scale disables that term.
+Torque penalties only act within the torque window when `jointTorqueLimits.activate` is enabled; `jointVelocityLimits.activate` controls the velocity penalty.
+The bound scalings are `jointVelocityLimits.velocityScaling` and `jointTorqueLimits.torqueScaling`, both validated within $(0,1]$:
+
+$$
+\bar v_j=s_v v_{j,\mathrm{URDF}},\qquad
+\bar\tau_j=s_\tau\tau_{j,\mathrm{source}},\qquad
+0<s_v,s_\tau\le1.
+$$
+
+Here $\tau_{j,\mathrm{source}}$ is the URDF effort limit or the optional override array before scaling; the same scaled torque bounds feed the OCP penalty and runtime feedforward clamp.
+For example, a scaling of 0.8 uses 80 percent of the source bound, not 80 percent of the cost weight; use `activate: false`, not a zero scaling, to disable an OCP term.
 The foot/knee collision term has 16 frame-point separation margins of the form $\|p_i(q)-p_j(q)\|-(r_i+r_j)$.
 It is disabled in double support to avoid fighting stance constraints and is not a general mesh-based whole-body collision checker.
 
@@ -407,6 +417,27 @@ Both penalties remain finite when violated, so returned trajectories can violate
 For `jointTorqueLimits`, `mu` scales the penalty and `delta` sets its transition margin in Nm; these are relaxed log-barrier parameters, not radial-basis-function parameters.
 With `delta: 5.0`, quadratic relaxation begins when the remaining torque margin is at most 5 Nm; this is not a permitted 5 Nm overrun or a hard feasibility guarantee.
 The runtime feedforward torque clamp is a separate control operation.
+
+
+### 5.7 Configure-time constraint activation
+
+Every WB-ID constraint group has `activate: true` by default; none of the listed groups is a placeholder.
+These switches control construction and registration, following the configure-time optional-cost pattern; restart or reconfigure the controller to apply them.
+
+| Group under `ocs2.constraints` | Implemented OCP term | Additional activation scope |
+| --- | --- | --- |
+| `inverseDynamics` | Hard floating-base and joint RNEA equalities | Base rows over the horizon; joint rows inside the torque window |
+| `footConstraint` | Hard stance and swing acceleration equalities | Contact schedule selects the rows |
+| `zeroWrench` | Hard zero contact wrench | Swing feet only |
+| `frictionCone` | Soft friction-force cone | Stance feet only |
+| `contactMomentXY` | Soft CoP rectangle margins | Stance feet only |
+| `jointPositionLimits` | Soft URDF lower/upper position bounds | Whole horizon; formerly named `jointLimits` |
+| `jointVelocityLimits` | Soft scaled URDF velocity bounds | Whole horizon |
+| `jointTorqueLimits` | Soft scaled URDF or override torque bounds | Torque window only; does not disable feedforward clipping |
+| `footCollision` | Soft foot/knee separation margins | Disabled during double support |
+
+Disabling dynamics or contact equalities is a diagnostic ablation, not a physically consistent locomotion model, and produces a startup warning.
+With inverse dynamics disabled, runtime uses measured-state RNEA rather than executing unconstrained policy torque inputs; that fallback does not restore physical feasibility to the optimized trajectory.
 
 
 ## 6. Commands, Gait and Swing References
@@ -517,7 +548,7 @@ $$
 
 The fallback computes base acceleration from the unactuated equations before computing joint inverse dynamics.
 `control.feedforward: inverse_dynamics` instead uses measured $q,v$ with planned joint accelerations and wrenches.
-Feedforward is clamped to the resolved URDF or override torque limits before sending joint position, velocity and effort commands to the hardware; this clamp does not use `mu` or `delta`.
+Feedforward is clamped to the resolved URDF or override torque limits multiplied by `torqueScaling` before sending joint position, velocity and effort commands to the hardware; this clamp does not use `mu`, `delta` or the OCP `activate` flag.
 The omitted override selects URDF effort limits rather than disabling either use; invalid resolved limits fail configuration.
 The `effort_pd` servo evaluates:
 

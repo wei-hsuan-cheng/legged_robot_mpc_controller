@@ -19,6 +19,7 @@ WB_ID_LAYOUT_MIGRATIONS = (
     ("constraints.contact", "model.contactGeometry"),
     ("sqp", "solver.sqp"),
     ("rollout", "solver.rollout"),
+    ("constraints.jointLimits", "constraints.jointPositionLimits"),
 )
 
 
@@ -94,7 +95,7 @@ def main():
         "linearVelocityErrorGain_xy", "angularVelocityErrorGain",
         "linearAccelerationErrorGain_z", "linearAccelerationErrorGain_xy", "angularAccelerationErrorGain",
     }
-    assert set(foot) == set(foot_schema) == foot_gains
+    assert set(foot) == set(foot_schema) == foot_gains | {"activate"}
     assert all(value >= 0 for value in foot.values())
     for name in ("linearAccelerationErrorGain_z", "linearAccelerationErrorGain_xy", "angularAccelerationErrorGain"):
         assert foot[name] > 0, f"constraints.footConstraint.{name} must retain input dependence"
