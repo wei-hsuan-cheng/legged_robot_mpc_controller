@@ -70,6 +70,8 @@ class FootCollisionConstraint final : public StateConstraintCppAd {
     std::string leftKneeFrame;
     std::string rightKneeFrame;
     scalar_t kneeCollisionSphereRadius;
+    // Zero preserves the original sphere-only constraint and double-support gating.
+    scalar_t minimumLateralSeparation = 0.0;
   };
 
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -90,8 +92,13 @@ class FootCollisionConstraint final : public StateConstraintCppAd {
   size_t getNumConstraints(scalar_t time) const override { return numConstraints_; };
 
   vector_t getParameters(scalar_t time, const PreComputation& preComputation) const override {
-    vector_t parameters(2);
-    parameters << cfg_.footCollisionSphereRadius, cfg_.kneeCollisionSphereRadius;
+    vector_t parameters(cfg_.minimumLateralSeparation > 0.0 ? 4 : 2);
+    parameters.head<2>() << cfg_.footCollisionSphereRadius, cfg_.kneeCollisionSphereRadius;
+    if (cfg_.minimumLateralSeparation > 0.0) {
+      const auto contacts = referenceManagerPtr_->getContactFlags(time);
+      parameters[2] = cfg_.minimumLateralSeparation;
+      parameters[3] = contacts[0] && contacts[1] ? 0.0 : 1.0;
+    }
     return parameters;
   };
 
@@ -116,7 +123,7 @@ class FootCollisionConstraint final : public StateConstraintCppAd {
   const MpcRobotModelBase<ad_scalar_t>* const mpcRobotModelPtr_;
   Config cfg_;
 
-  const size_t numConstraints_ = 16;
+  size_t numConstraints_ = 16;
   bool isActive_ = true;
 };
 

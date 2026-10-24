@@ -55,7 +55,11 @@ FootCollisionConstraint::FootCollisionConstraint(const SwitchedModelReferenceMan
       pinocchioInterfaceCppAd_(pinocchioInterface.toCppAd()),
       mpcRobotModelPtr_(&mpcRobotModel),
       cfg_(std::move(config)) {
-  initialize(mpcRobotModelPtr_->getStateDim(), 2, costName, modelSettings.modelFolderCppAd, modelSettings.recompileLibrariesCppAd,
+  const bool lateralSeparation = cfg_.minimumLateralSeparation > 0.0;
+  numConstraints_ = lateralSeparation ? 17 : 16;
+  // The optional row/parameters need a separate cache from the original 16-row model.
+  if (lateralSeparation) costName += "_lateral_v1";
+  initialize(mpcRobotModelPtr_->getStateDim(), lateralSeparation ? 4 : 2, costName, modelSettings.modelFolderCppAd, modelSettings.recompileLibrariesCppAd,
              modelSettings.verboseCppAd);
 }
 
@@ -69,13 +73,15 @@ FootCollisionConstraint::FootCollisionConstraint(const FootCollisionConstraint& 
       pinocchioInterfaceCppAd_(other.pinocchioInterfaceCppAd_),
       mpcRobotModelPtr_(other.mpcRobotModelPtr_),
       cfg_(other.cfg_),
-      numConstraints_(other.numConstraints_) {}
+      numConstraints_(other.numConstraints_),
+      isActive_(other.isActive_) {}
 
 /******************************************************************************************************/
 /******************************************************************************************************/
 /******************************************************************************************************/
 bool FootCollisionConstraint::isActive(scalar_t time) const {
   if (!isActive_) return false;
+  if (cfg_.minimumLateralSeparation > 0.0) return true;
 
   // Inactivate the constraint if both feet are in contact. Prevents it from fighting against the stance foot constraints.
   auto contactFlags = referenceManagerPtr_->getContactFlags(time);
@@ -136,6 +142,15 @@ ad_vector_t FootCollisionConstraint::constraintFunction(ad_scalar_t time, const 
   constraintValues[13] = ((pos_f_r - pos_ankle_l).norm() - minDistFoot);
   constraintValues[14] = ((pos_f_r_p1 - pos_ankle_l).norm() - minDistFoot);
   constraintValues[15] = ((pos_f_r_p2 - pos_ankle_l).norm() - minDistFoot);
+
+  if (cfg_.minimumLateralSeparation > 0.0) {
+    // Keep sphere penalties off in double support, but preserve left/right ordering.
+    constraintValues.head(16) =
+        (parameters[3] * constraintValues.head(16).array() + (1.0 - parameters[3])).matrix();
+    const ad_scalar_t yaw = mpcRobotModelPtr_->getBasePose(state)[3];
+    const ad_vector3_t separation = pos_f_l - pos_f_r;
+    constraintValues[16] = -sin(yaw) * separation[0] + cos(yaw) * separation[1] - parameters[2];
+  }
 
   return constraintValues;
 }

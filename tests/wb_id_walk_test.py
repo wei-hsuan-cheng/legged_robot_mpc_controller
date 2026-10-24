@@ -20,6 +20,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy
 from nav_msgs.msg import Odometry
+from sensor_msgs.msg import JointState
 from ocs2_msgs.msg import WalkingVelocityCommand
 import yaml
 
@@ -36,7 +37,7 @@ def attitude(q):
 
 
 class Probe(Node):
-    def __init__(self, writer):
+    def __init__(self, writer, record_joints=False):
         super().__init__("wb_id_walk_probe")
         self.gt = None
         self.last_wall = time.monotonic()
@@ -44,9 +45,24 @@ class Probe(Node):
         self.writer = writer
         self.samples = []
         self.walk_samples = []
+        self.joints = None
+        self.estimate = None
+        self.replay = []
         qos = QoSProfile(depth=50, reliability=ReliabilityPolicy.BEST_EFFORT)
         self.publisher = self.create_publisher(WalkingVelocityCommand, "/humanoid/walking_velocity_command", qos)
         self.create_subscription(Odometry, "/mujoco/ground_truth/odom", self.observe, qos)
+        if record_joints:
+            self.create_subscription(JointState, "/joint_states", self.observe_joints, qos)
+            self.create_subscription(Odometry, "/humanoid/state_estimate/odom", self.observe_estimate, qos)
+
+    def observe_estimate(self, msg):
+        q = msg.pose.pose.orientation
+        v, w = msg.twist.twist.linear, msg.twist.twist.angular
+        self.estimate = dict(time=msg.header.stamp.sec + 1e-9*msg.header.stamp.nanosec,
+                             rpy=attitude(q), linear=[v.x, v.y, v.z], angular=[w.x, w.y, w.z])
+
+    def observe_joints(self, msg):
+        self.joints = (list(msg.name), list(msg.position), list(msg.velocity), list(msg.effort))
 
     def observe(self, msg):
         self.last_wall = time.monotonic()
@@ -55,6 +71,12 @@ class Probe(Node):
         stamp = msg.header.stamp.sec + 1e-9 * msg.header.stamp.nanosec
         self.gt = (stamp, p.x, p.y, p.z, roll, pitch, yaw, v.x, v.y, v.z, msg.twist.twist.angular.z)
         self.writer.writerow((self.phase, *self.gt))
+        if self.joints is not None:
+            q = msg.pose.pose.orientation
+            self.replay.append(dict(phase=self.phase, time=stamp, position=[p.x, p.y, p.z],
+                                    quaternion_wxyz=[q.w, q.x, q.y, q.z], names=self.joints[0],
+                                    q=self.joints[1], v=self.joints[2], effort=self.joints[3],
+                                    estimate=self.estimate))
         if self.phase != "startup":
             self.samples.append(self.gt)
         if self.phase == "walk":
@@ -84,6 +106,7 @@ def main():
     parser.add_argument("--scene", default="scene_flat.xml")
     parser.add_argument("--minimum-height", type=float, default=0.38)
     parser.add_argument("--startup-timeout", type=float, default=600.0)
+    parser.add_argument("--record-joints", action="store_true", help="Save latest joint sample with each base pose for collision analysis and render replay")
     parser.add_argument("--max-yaw-error", type=float, default=0.5, help="Maximum uncommanded heading change [rad]")
     parser.add_argument("--swing-duration", type=float, help="Override slow_walk single support [s] in the temporary YAML")
     parser.add_argument("--double-support", type=float, default=0.15)
@@ -147,7 +170,7 @@ def main():
         with log_path.open("w") as log, Path(str(prefix) + ".csv").open("w") as csv_file:
             writer = csv.writer(csv_file)
             writer.writerow(["phase", "time", "x", "y", "z", "roll", "pitch", "yaw", "vx_body", "vy_body", "vz_body", "wz_body"])
-            probe = Probe(writer)
+            probe = Probe(writer, args.record_joints)
             process = subprocess.Popen(launch_cmd, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
             deadline = time.monotonic() + args.startup_timeout
             start = None
@@ -244,6 +267,8 @@ def main():
                     result.update(walk_pose_mean_vx_world=(last[1] - first[1]) / duration,
                                   walk_pose_mean_vy_world=(last[2] - first[2]) / duration)
     finally:
+        if probe is not None and probe.replay:
+            Path(str(prefix) + "_replay.json").write_text(json.dumps(probe.replay))
         if process is not None and process.poll() is None:
             os.killpg(process.pid, signal.SIGINT)
             try:

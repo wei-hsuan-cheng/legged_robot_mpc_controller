@@ -272,7 +272,9 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         mu: {type: double, default_value: 1200.0, description: "Barrier mu of the joint limits soft constraint"}
         delta: {type: double, default_value: 0.1, description: "Barrier delta of the joint limits soft constraint"}
       legSelfCollision:
-        activate: {type: bool, default_value: true, description: "Enable foot/knee separation soft penalties outside double support"}
+        activate: {type: bool, default_value: true, description: "Enable foot/knee sphere penalties outside double support and optional lateral separation in all modes"}
+        minimumLateralSeparation: {type: double, default_value: 0.0, description: "Minimum signed left-minus-right foot-center separation along pelvis-heading lateral axis [m]; zero disables this extra soft penalty",
+            validation: {gt_eq: [0.0]}}
         leftAnkleFrame: {type: string, default_value: "left_ankle_roll_joint", description: "Left ankle frame of
             the foot collision constraint"}
         rightAnkleFrame: {type: string, default_value: "right_ankle_roll_joint", description: "Right ankle frame

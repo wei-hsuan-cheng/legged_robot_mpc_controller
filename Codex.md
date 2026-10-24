@@ -1,6 +1,69 @@
 # WB-ID MPC Walking Robustness Handoff
 
 
+## H2 Faster Walking and Foot Crossing (2026-10-24, Latest)
+
+Branch is now `tune/h2`, based on user commits `20e6217`/`11b3950` after shared launch commit `23f3c68`.
+This checkpoint supersedes the conservative H2 command-range statements in the historical sections below.
+The user's priority is balance, recovery to stance and foot clearance, not precise yaw tracking.
+Read [H2 checkpoint](docs/h2_wb_id_mpc.md#faster-walking-and-anti-crossing-checkpoint-2026-10-24) for the complete trial table and [collision math](docs/humanoid_whole_body_inverse_dynamics_mpc.md#55-joint-and-collision-margins) for the added row.
+
+At entry, the user had already set both H2 sphere radii to 0.10 m, reduced collision `mu` to 10 and `delta` to 0.00001, restored maxima `[1.0,0.5,0.4,0.7854]`, and commented out stairs in H2 `scene.xml`.
+The scene edit is the user's existing change and was not changed by this work; all current tests explicitly select `scene_flat.xml`.
+No G1 YAML, robot physical model, PD gain, estimator tuning, Q/Qf/R weight, launch structure or terrain planner change is retained in this checkpoint.
+
+Saved H2 changes in `config/h2/ros2_controllers.yaml` are collision `mu=3000`, `delta=0.03`, the user's 0.10 m sphere radii, `minimumLateralSeparation=0.10`, `walk` times `[0.0,0.3,0.4,0.7,0.8]`, selected ladder `[stance,slow_walk,walk]`, and gait switch delay fraction 0.3 instead of 0.7.
+The shorter single support and retained double support were crucial: stronger collision penalties alone still fell, a 0.40 s single-support walk passed 0.4/0.6 m/s but fell at 1.0 m/s, and 0.30 s single support passed 1.0 m/s.
+Do not claim the no-double-support and flight templates left in the template catalog have been validated; they are no longer selected by the saved ladder.
+Do not reduce the user-requested maxima to hide failure; they are normalizers, not physical feasibility guarantees.
+
+The existing `FootCollisionConstraint` now optionally adds a signed left-minus-right foot-center margin along pelvis-heading lateral, so lifting or advancing a foot does not hide crossing.
+It is a soft piecewise-polynomial penalty sharing `legSelfCollision.mu/delta`, not an RBF radial-basis penalty, hard geometric barrier, fixed pelvis midline or full-body mesh collision checker.
+It stays active in double support while the original 16 3D distance rows remain masked off there.
+The extra row is enabled only for positive `minimumLateralSeparation`, defaults to zero, and uses a separate `_lateral_v1` AD cache with 17 rows/four parameters versus the original 16 rows/two parameters.
+Setting the value to zero restores the original collision formulation/gating with otherwise identical settings, but does not undo the separate H2 gait/penalty tuning or promise bit-identical multithreaded solver output.
+The parent `legSelfCollision.activate` still disables the whole group; restart/reconfigure for either change.
+G1 and centroidal configurations retain zero/default behavior; the clone now also copies the existing `isActive_` flag correctly.
+
+The following first-checkpoint comparisons used the original 0.7 gait switch delay; abrupt-transition follow-ups motivated the final 0.3 value.
+Measured baseline vx=0.4 fell at 9.45 s after takeover, with signed foot width -2.16 cm, inter-leg overlaps before the fall and minimum base z0.463 m.
+Saved-settings vx=1.0 completed 36 s and stopped upright: 23.34 m versus 23.0 m requested, minimum foot width 14.28 cm, minimum base z0.901 m and maximum roll/pitch 1.19/4.50 degrees.
+Saved vy=+0.5/-0.5 each completed 36 s and stopped upright, with minimum signed widths 11.52/10.49 cm and no sampled inter-leg overlaps.
+The positive lateral trial remains `NO_TRACKING` under the test's strict heading criterion (0.608 rad maximum yaw drift), not `FALL`; the negative lateral trial passed the complete tracking verdict.
+Saved yaw=+0.7854 completed 28 s and stopped upright, minimum width 10.94 cm, turning 11.04 rad versus 11.78 requested and translation drift below 7.5 cm.
+A step-to-vx1.0 test with no publisher ramp completed 40 s including a 30 s hold and step-to-stop, travelling 30.40 m versus 30.0 m requested with minimum width 14.26 cm and no sampled inter-leg overlaps.
+Configured command slew limits remain active even when the publisher ramp is zero.
+
+An abrupt vy=+0.5 publisher step with 0.7 gait delay fell at 6.02 s without crossing (minimum width 13.71 cm) or sampled inter-leg overlap.
+Failure render/curves show deep knee collapse, base z0.579 m, lateral speed overshoot near 0.8 m/s, both ankle-roll actuators hitting 19 Nm, left knee hitting 360 Nm and large nonlinear equality residuals; this is a different mechanism from the original crossover trip.
+Slowing ay from 0.5 to 0.15 m/s2 made both lateral step trials survive but was explicitly rejected by the user.
+Keep `velocityCommandRateLimits=[0.5,0.5,0.5,2.0]`; the user wants the solver/contact schedule to handle command changes without hiding them with additional slowing.
+With only gait delay fraction changed to 0.3, both +/-0.5 lateral step commands completed 30 s and stopped upright; positive minimum width was 11.69 cm and base z0.893 m, negative base z0.951 m.
+The positive earlier-switch test remains `NO_TRACKING` only because heading error reached 0.513 rad, while the negative trial passed the full verdict.
+Knee saturation was absent in the successful positive comparison, but ankle-roll saturation still occurs occasionally; do not claim actuator limits or nonlinear equalities are now guaranteed satisfied.
+Final no-override step-command verification with the saved 0.3 gait delay completed vx+1.0 for 40 s (30 s hold), vy+0.5 twice and vy-0.5 for 30 s each (20 s holds), and yaw+0.7854 for 22 s (12 s hold), all ending upright.
+Final forward travel was 30.52 m against 30.0 requested, minimum width 14.84 cm; lateral minimum widths were 11.69/11.85 cm for positive runs and 11.59 cm for negative.
+The positive repeat still returns `NO_TRACKING` due to 0.726 rad heading error, not falling; balance was not traded for heading accuracy.
+Final turning achieved 8.94 rad against 9.42 requested with less than 6.8 cm translation drift.
+Final turn minimum foot width was 10.38 cm; no crossing or sampled inter-leg overlap was found in any final forward, lateral or turn step test.
+These publisher step tests preserve the original internal slew limits and do not claim unrestricted instantaneous actuator response.
+All owned simulation/test processes were stopped at handoff; Docker `ros_jazzy` remains running and ready for manual testing.
+
+The Jazzy two-job Release rebuild passed in 3 min 12 s; log `/tmp/h2_cross_build.log` in Docker `ros_jazzy` on VM `10.211.55.17`.
+All trials used requested MPC90/MRT1000, `state_estimator`/`humanoid_linear_kf`, `base_twist`, flat ground, no GUI and no RViz.
+The log shows actual MPC commonly around 80-84 Hz, zero solver exceptions in the saved forward trial and some torque-window fallback ticks; solver constraints are not certified feasible just because the robot stayed upright.
+The five new reference-math/wiring tests are included in 37 passing focused WB-ID checks; four native ROS launch tests and 25 model/layout/launch discovery checks also passed (the four ROS tests skip locally and pass in Docker).
+An overly broad local `wb_id_*test.py` discovery also imported the ROS integration executable and failed only because local macOS has no `rclpy`; use named contract tests locally or the sourced Jazzy environment for integration scripts.
+
+`tests/wb_id_walk_test.py --record-joints` records latest-sample-paired joint/base poses and estimator orientation/twist snapshots to `PREFIX_replay.json`.
+`tests/tuning/analyze_leg_clearance.py PREFIX --render` reconstructs H2 FK, signed width, point distances, replay geometric contacts, pose-derived velocity curves, knee/ankle/hip support-effort curves and measured-pose PNGs.
+Use pose-derived speed for interpretation; the GT twist-axis convention was not revalidated during this session.
+Replayed contacts are geometric overlap checks, not measured forces, and sample-based absence is not a continuous-time collision guarantee.
+Artifacts are in Docker `/tmp/h2_cross_*` and locally under ignored `tuning_results/h2_crossing/`.
+The older low-speed ramp trial `/tmp/h2_ramp_baseline.json` completed 45 s at vx0.15 on the 3-degree ramp and stopped upright, but the current faster-walking changes have not been revalidated on ramps.
+Mixed-axis full-speed commands, external push recovery, complete height sweeps, InEKF feedback and real hardware remain unvalidated; avoid claiming equivalence to G1 across all operating conditions.
+
+
 ## Robot-Agnostic Launch and Robot-Local Scenes (2026-10-24)
 
 The current entry point is `robot.launch.py robotName:=g1|h2`; the former `g1.launch.py` and `h2.launch.py` files have been removed.

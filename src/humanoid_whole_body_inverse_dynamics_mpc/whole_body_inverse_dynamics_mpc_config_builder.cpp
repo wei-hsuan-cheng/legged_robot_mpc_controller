@@ -217,6 +217,7 @@ ocs2::humanoid::WbIdMpcInterface::Config buildWholeBodyInverseDynamicsMpcConfig(
   costs.footCollisionConfig.leftKneeFrame = p.constraints.legSelfCollision.leftKneeFrame;
   costs.footCollisionConfig.rightKneeFrame = p.constraints.legSelfCollision.rightKneeFrame;
   costs.footCollisionConfig.kneeCollisionSphereRadius = p.constraints.legSelfCollision.kneeCollisionSphereRadius;
+  costs.footCollisionConfig.minimumLateralSeparation = p.constraints.legSelfCollision.minimumLateralSeparation;
   costs.footCollisionBarrierConfig.mu = p.constraints.legSelfCollision.mu;
   costs.footCollisionBarrierConfig.delta = p.constraints.legSelfCollision.delta;
 

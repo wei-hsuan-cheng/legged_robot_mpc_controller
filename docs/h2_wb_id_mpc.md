@@ -1,8 +1,93 @@
 # H2 Whole-Body Inverse Dynamics MPC
 
-This is the H2 checkpoint on `feat/h2`, branched from `feat/wb_id_mpc` at `f56ae9a`.
+The initial H2 integration was on `feat/h2`, branched from `feat/wb_id_mpc` at `f56ae9a`; the faster-walking checkpoint below is on `tune/h2`.
 It reuses the existing WB-ID controller, reference generation, costs, constraints, estimators and bring-up sequence without changing the C++ architecture or G1 configuration.
 The H2 controller YAML contains no centroidal MPC block.
+
+
+## Faster Walking and Anti-Crossing Checkpoint (2026-10-24)
+
+Balance, foot clearance and returning to stance take priority over heading accuracy in this checkpoint.
+The user restored command normalization maxima to vx=1.0 m/s, vy=0.5 m/s, height delta=0.4 m and yaw=0.7854 rad/s before these trials; those maxima are retained, not reduced to hide a failure.
+These are command scales rather than validated bounds on every combination of commands or terrain.
+
+| Setting | Observed baseline | Saved value | Reason |
+| --- | --- | --- | --- |
+| Foot/knee sphere radii | User had already increased both to 0.10 m | 0.10 m each | Retain the user's larger collision envelopes |
+| Collision polynomial penalty | `mu=10`, `delta=0.00001` | `mu=3000`, `delta=0.03` | The baseline had negligible pre-contact buffer and weak violation cost |
+| `walk` template | 0.60 s single support, 0.10 s double support | 0.30 s single support, 0.10 s double support | Avoid long single-support excursions at faster speed |
+| Selected gait ladder | Included no-double-support and flight templates | `[stance, slow_walk, walk]` | Keep tested double-support walking over the command range |
+| Gait switch delay fraction | 0.7 | 0.3 | Let the contact schedule react earlier to step commands without slowing the upper-level command |
+| `minimumLateralSeparation` | No signed ordering check | 0.10 m | Discourage a swing foot passing across the other foot even when the 3D distances remain sufficient |
+| PD, state/input weights, estimator and command slew limits | Existing H2 values | Unchanged | Isolate the contact-clearance/gait fix; increased yaw-rate weighting did not improve the lateral trial |
+
+The optional lateral margin is a row of the existing collision soft penalty, not a new foothold planner, fixed body-midline restriction or actuator clamp.
+It uses the pelvis-heading lateral projection of left-minus-right foot-center position and is invariant to common horizontal translations and yaw rotations of robot and odometry frame.
+Its polynomial penalty begins below `minimumLateralSeparation + delta`, which is 0.13 m for this configuration, and can still be violated because it is soft.
+The row remains active in double support while the original 16 distance rows remain gated off there.
+Set `minimumLateralSeparation: 0.0` to restore the original collision formulation; G1 defaults to zero and its YAML is unchanged.
+Set the parent `activate: false` to remove all leg collision soft penalties, then restart the controller.
+The enabled variant uses a separate `_lateral_v1` generated-library cache, avoiding reuse of the incompatible 16-row model.
+
+Trials used `robot.launch.py robotName:=h2 mujocoModelFile:=scene_flat.xml`, `base_twist`, `state_estimator` with `humanoid_linear_kf`, requested MPC90/MRT1000, and no GUI or RViz.
+The scene was genuinely flat, with no terrain map or foothold plan driving these steps.
+Measured base/joint pose replays were used to inspect renders, signed foot width, 3D foot-point clearance, base height and pose-derived velocity curves.
+The first comparison table below used the original 0.7 gait switch delay fraction; the subsequent abrupt-transition tests motivated the final 0.3 value.
+
+| Trial | Duration after takeover | Result | Minimum signed foot width | Sampled opposite-leg overlaps |
+| --- | --- | --- | --- | --- |
+| Baseline vx=0.40 m/s | 9.45 s | Fell after crossing | -2.16 cm | Present before falling |
+| Stronger penalty only, vx=0.40 m/s | 8.92 s | Fell; penalty alone was insufficient | Negative | Present |
+| Moderate penalty and 0.40 s single support, vx=0.40 m/s | 36 s | Walked and stopped upright | 16.5 cm at 20 Hz replay sampling | None sampled |
+| Same 0.40 s gait, vx=0.60 m/s | 36 s | Walked and stopped upright | 13.6 cm at 20 Hz replay sampling | None sampled |
+| Same 0.40 s gait, vx=1.00 m/s | 17.70 s | Fell; rejected at this speed | Negative near failure | Present near failure |
+| Short gait and lateral margin, vx=1.00 m/s | 36 s | Walked and stopped upright | 14.28 cm | None sampled |
+| Short gait and lateral margin, vy=+0.50 m/s | 36 s | Walked and stopped upright; heading drift remains | 11.52 cm | None sampled |
+| Short gait and lateral margin, vy=-0.50 m/s | 36 s | Walked and stopped upright | 10.49 cm | None sampled |
+| Short gait and lateral margin, yaw=+0.7854 rad/s | 28 s | Turned and stopped upright | 10.94 cm | None sampled |
+
+The saved vx=1.0 trial travelled 23.34 m against 23.0 m requested, with minimum base z0.901 m and maximum roll/pitch 1.19/4.50 degrees.
+The saved lateral trials travelled +10.34/-10.95 m in the initial lateral direction against +/-11.5 m requested, but the positive trial accumulated 0.608 rad heading error and is correctly labeled `NO_TRACKING` by the stricter heading-sensitive test verdict.
+That verdict is not a fall: both lateral runs completed the full command and final stance interval.
+Before the signed margin, the faster-gait lateral trial also stayed upright but still had crossover steps; this is why the new row was added rather than claiming the sphere distances already prevented crossing.
+Yaw-rate Q/Qf weight 100 instead of 30 did not improve lateral heading behavior and was rejected; no heading-accuracy change is retained.
+
+An abrupt publisher step to vy=+0.5 with the original 0.7 gait delay still fell after 6.02 s, despite minimum signed foot width 13.71 cm and no sampled inter-leg overlap.
+The failure render shows a deep knee collapse, not a crossover trip: the base drops to 0.579 m while maximum roll remains 0.101 rad, both ankle-roll actuators reach their 19 Nm bounds, and the left knee reaches its 360 Nm bound as knee flexion grows above two radians.
+The lateral speed curve overshoots toward 0.8 m/s before collapse; solver logs also show large nonlinear equality residuals rather than a solver exception.
+These observations are consistent with a poorly supported transition and actuator saturation, but do not isolate one unique root cause of every lateral failure.
+
+Reducing lateral command slew to 0.15 m/s2 made both directions complete step-command trials, but that change was rejected because the user requested retaining the original 0.5 m/s2 rate.
+The saved `velocityCommandRateLimits` remains `[0.5,0.5,0.5,2.0]`.
+Instead, `switchDelayHorizonFraction=0.3` completed the same positive and negative lateral step commands without changing Q/Qf/R, PD or command slew.
+The positive trial completed 30 s with minimum foot width 11.69 cm, minimum base z0.893 m, no sampled overlap and no sampled knee torque within 98 percent of its actuator bound.
+The negative trial completed 30 s, travelled -9.45 m against -10.0 m requested and had minimum base z0.951 m.
+Both stopped upright; the positive test still returns `NO_TRACKING` for a 0.513 rad heading error, which is separate from the balance result.
+The successful earlier-switch trial still reaches ankle-roll saturation occasionally, so this is improved transition behavior rather than proof of generous actuator margin.
+The contact schedule is still supplied externally to the OCP; the solver optimizes motion under that schedule rather than freely choosing touchdown/liftoff times.
+
+Final no-override checks used the saved 0.3 switch delay and original command slew limits, with no publisher ramp:
+
+| Step command | Hold / total duration | Balance and stopping result | Additional measurements |
+| --- | --- | --- | --- |
+| vx=+1.0 m/s | 30 / 40 s | Upright through command and stop | 30.52 m versus 30.0 m requested; minimum foot width 14.84 cm; no sampled inter-leg overlap |
+| vy=+0.5 m/s, first comparison | 20 / 30 s | Upright through command and stop | Minimum foot width 11.69 cm; heading-sensitive verdict `NO_TRACKING` |
+| vy=+0.5 m/s, repeat | 20 / 30 s | Upright through command and stop | Minimum foot width 11.85 cm; no sampled inter-leg overlap; heading-sensitive verdict `NO_TRACKING` |
+| vy=-0.5 m/s | 20 / 30 s | Upright through command and stop | Minimum foot width 11.59 cm; no sampled inter-leg overlap; full test verdict `SUCCESS` |
+| yaw=+0.7854 rad/s | 12 / 22 s | Upright through command and stop | Minimum foot width 10.38 cm; no sampled inter-leg overlap; full test verdict `SUCCESS` |
+
+The positive lateral repeat accumulated 0.726 rad heading error, but did not cross its feet or fall; yaw accuracy was explicitly deprioritized for this tuning pass.
+The zero publisher ramp does not bypass the original internal slew limits; it tests abrupt upper-level command changes with the configured controller response intact.
+The final yaw step turned 8.94 rad against 9.42 rad requested, with translation drift below 6.8 cm.
+
+Raw artifacts are in Docker `/tmp/h2_cross_*.{log,yaml,csv,json}` and locally under ignored `tuning_results/h2_crossing/`.
+`tests/wb_id_walk_test.py --record-joints` adds measured-pose replay JSON and optional estimator orientation/twist snapshots; joint and base messages are latest-sample paired rather than hardware synchronized.
+`tests/tuning/analyze_leg_clearance.py PREFIX --render` generates clearance CSV/JSON, joint-effort summaries, foot/velocity/support plots and measured-pose screenshots at the narrowest stance and near the end of the run.
+Current analyses use all available odometry samples, normally 100 Hz; the two explicitly marked intermediate comparisons used an earlier 20 Hz analysis stride.
+Replay overlaps are geometric intersections in the local MuJoCo model, not logged collision forces, and absence of sampled overlap does not prove continuous-time clearance.
+The two-job Jazzy Release rebuild passed in 3 min 12 s, including compilation of the schema and collision change.
+The five new reference-math/wiring tests are included in 37 passing focused WB-ID checks, and four native ROS launch tests passed separately; the mathematical reference tests do not themselves execute the compiled AD function.
+These trials do not establish push recovery, mixed-axis full-speed robustness, full height-range feasibility, rough-terrain capability, real-hardware performance or absence of every possible self-collision.
 
 
 ## Model and Integration

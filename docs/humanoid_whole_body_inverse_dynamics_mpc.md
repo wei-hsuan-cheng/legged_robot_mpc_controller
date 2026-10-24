@@ -389,7 +389,22 @@ $$
 Here $\tau_{j,\mathrm{source}}$ is the URDF effort limit or the optional override array before scaling; the same scaled torque bounds feed the OCP penalty and runtime feedforward clamp.
 For example, a scaling of 0.8 uses 80 percent of the source bound, not 80 percent of the cost weight; use `activate: false`, not a zero scaling, to disable an OCP term.
 The foot/knee collision term has 16 frame-point separation margins of the form $\|p_i(q)-p_j(q)\|-(r_i+r_j)$.
-It is disabled in double support to avoid fighting stance constraints and is not a general mesh-based whole-body collision checker.
+Those sphere margins are disabled in double support to avoid fighting stance constraints and are not a general mesh-based whole-body collision checker.
+The optional `legSelfCollision.minimumLateralSeparation` adds a signed foot-center margin when its value $d_{\min}$ is positive:
+
+$$
+e_y(\psi)=\begin{bmatrix}-\sin\psi&\cos\psi&0\end{bmatrix}^{\mathsf T},\qquad
+h_{\mathrm{lat}}(q)=e_y(\psi)^{\mathsf T}\left(p_L(q)-p_R(q)\right)-d_{\min}.
+$$
+
+Here $\psi$ is pelvis yaw, so this margin is unchanged by a common horizontal translation or yaw rotation of the robot and its odometry frame.
+Unlike a 3D sphere distance, lifting a foot or moving it forward does not hide a reversal of left/right lateral ordering.
+This extra soft penalty remains active in double support; the original sphere penalties remain gated off there.
+Its default value is zero, preserving the original G1 behavior; H2 explicitly opts in with 0.10 m.
+It is a preference against crossover steps, not a hard collision-avoidance or balance guarantee.
+Set this value to zero to disable only the extra row, or set `legSelfCollision.activate: false` to disable the whole group, then restart the controller.
+With $d_{\min}=0.10$ m and polynomial transition margin $\delta=0.03$ m, the extra penalty starts below 0.13 m signed separation.
+It compares the feet to each other, not to a fixed pelvis midline; both feet can move to one side of the pelvis during recovery.
 
 ### 5.6 Soft penalties
 
@@ -435,7 +450,7 @@ These switches control construction and registration, following the configure-ti
 | `jointPositionLimits` | Soft URDF lower/upper position bounds | Whole horizon; formerly named `jointLimits` |
 | `jointVelocityLimits` | Soft scaled URDF velocity bounds | Whole horizon |
 | `jointTorqueLimits` | Soft scaled URDF or override torque bounds | Torque window only; does not disable feedforward clipping |
-| `legSelfCollision` | Soft foot/knee separation margins | Disabled during double support |
+| `legSelfCollision` | Soft foot/knee sphere distances and optional signed lateral separation | Sphere distances off in double support; optional lateral margin in all modes |
 
 Disabling dynamics or contact equalities is a diagnostic ablation, not a physically consistent locomotion model, and produces a startup warning.
 With inverse dynamics disabled, runtime uses measured-state RNEA rather than executing unconstrained policy torque inputs; that fallback does not restore physical feasibility to the optimized trajectory.

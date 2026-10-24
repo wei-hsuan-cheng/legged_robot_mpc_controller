@@ -79,10 +79,12 @@ The shared [ZeroWrenchConstraint.cpp](../src/core/humanoid_common_mpc/src/constr
 | Joint positions | [JointLimitsSoftConstraint.cpp](../src/core/humanoid_common_mpc/src/constraint/JointLimitsSoftConstraint.cpp) | [Factory:158](../src/core/humanoid_common_mpc/src/HumanoidCostConstraintFactory.cpp#L158) |
 | Joint velocities | [WbIdJointVelocityLimitConstraint.cpp](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdJointVelocityLimitConstraint.cpp) | [WbIdMpcInterface.cpp:150](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L150) |
 | Joint torques | [WbIdJointTorqueLimitConstraint.cpp](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdJointTorqueLimitConstraint.cpp) | [Interface:171](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L171) |
-| Foot/knee distances | [FootCollisionConstraint.cpp:89](../src/core/humanoid_common_mpc/src/constraint/FootCollisionConstraint.cpp#L89) | [Factory:142](../src/core/humanoid_common_mpc/src/HumanoidCostConstraintFactory.cpp#L142) |
+| Foot/knee distances | [FootCollisionConstraint.cpp:95](../src/core/humanoid_common_mpc/src/constraint/FootCollisionConstraint.cpp#L95) | [Factory:142](../src/core/humanoid_common_mpc/src/HumanoidCostConstraintFactory.cpp#L142) |
 
 The fixed surface-normal setter validates and applies its normal at [FrictionForceConeConstraint.cpp:66](../src/core/humanoid_common_mpc/src/constraint/FrictionForceConeConstraint.cpp#L66), while [worldToTerrain():73](../src/core/humanoid_common_mpc/src/constraint/FrictionForceConeConstraint.cpp#L73) selects planned contact normals only in explicit `terrain_walk` mode; ordinary `base_twist` retains the default world-up normal.
-Collision penalty deactivation during double support is at [FootCollisionConstraint.cpp:77](../src/core/humanoid_common_mpc/src/constraint/FootCollisionConstraint.cpp#L77).
+Sphere penalty deactivation during double support is in [FootCollisionConstraint.cpp](../src/core/humanoid_common_mpc/src/constraint/FootCollisionConstraint.cpp#L84).
+The optional signed lateral margin is evaluated in the same [constraint function](../src/core/humanoid_common_mpc/src/constraint/FootCollisionConstraint.cpp#L146); its double-support mask and parameter vector are built in [FootCollisionConstraint.h](../include/humanoid_common_mpc/constraint/FootCollisionConstraint.h#L100).
+With positive `minimumLateralSeparation`, the constraint has 17 rows and uses a separate `_lateral_v1` AD cache; zero retains the original 16-row cache and gating.
 The factory selects `PieceWisePolynomialBarrierPenalty` for positions/collision and `RelaxedBarrierPenalty` for friction/CoP.
 The WB-ID interface selects relaxed-log penalties for velocity/torque limits.
 Both penalty classes come from the linked `ocs2_core` dependency, with their exact scalar equations reproduced in the formulation document.
@@ -321,7 +323,8 @@ Run `python3 tests/wb_id_startup_smoke_test.py` from a sourced ROS workspace to 
 
 All nine WB-ID constraint groups now declare `activate` with a default of true; `swingFootZeroWrench` exposes the existing swing-wrench equality separately from stance/swing acceleration equalities.
 `footMotionEquality` names the existing stance/swing acceleration equalities, while `legSelfCollision` names the selected foot/ankle/knee separation checks rather than full-body collision avoidance.
-Only WB-ID parameter groups and their private activation fields were renamed; the shared `ZeroWrenchConstraint`, `FootCollisionConstraint`, `ModelSettings::footConstraintConfig` and OCP term/cache names remain unchanged.
+Only WB-ID parameter groups and their private activation fields were renamed; the shared `ZeroWrenchConstraint`, `FootCollisionConstraint` and `ModelSettings::footConstraintConfig` class/field names remain unchanged.
+The later optional lateral-separation extension uses a distinct AD cache name when enabled.
 The following links point to the current WB-ID YAML and construction guards, rather than similarly named centroidal settings:
 
 | Constraint group | Current parameters | OCP registration |
@@ -336,7 +339,7 @@ The following links point to the current WB-ID YAML and construction guards, rat
 | `jointTorqueLimits` | [YAML:1012](../config/g1/ros2_controllers.yaml#L1012) | [Soft torque bounds:171](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L171) |
 | `legSelfCollision` | [YAML:1026](../config/g1/ros2_controllers.yaml#L1026) | [Soft leg separation:147](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L147) |
 
-The generated schema declares the renamed groups at [footMotionEquality:236](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller_parameter.yaml#L236), [swingFootZeroWrench:308](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller_parameter.yaml#L308) and [legSelfCollision:274](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller_parameter.yaml#L274), and the [builder:205](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L205) maps all nine activation flags.
+The generated schema declares the renamed groups at [footMotionEquality:236](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller_parameter.yaml#L236), [swingFootZeroWrench:310](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller_parameter.yaml#L310) and [legSelfCollision:274](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller_parameter.yaml#L274), and the [builder:205](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L205) maps all nine activation flags.
 The builder maps each switch to a same-purpose `WbIdMpcInterface::Config` field, and the interface skips construction and registration when disabled; the shared factory and centroidal schema retain their existing interfaces.
 `jointPositionLimits` calls the existing factory, which reads `lowerPositionLimit` and `upperPositionLimit` from the reduced URDF model; velocity bounds use `velocityScaling * model.velocityLimit`, and torque bounds use `torqueScaling * resolvedSourceLimits`.
 Both scalings default to 1.0 and are validated as finite values in `(0, 1]` by the interface; generated parameters additionally enforce `gt: [0.0]` and `lt_eq: [1.0]`.
