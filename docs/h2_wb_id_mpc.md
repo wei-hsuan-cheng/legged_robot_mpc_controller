@@ -5,6 +5,35 @@ It reuses the existing WB-ID controller, reference generation, costs, constraint
 The H2 controller YAML contains no centroidal MPC block.
 
 
+## Changes in Plain Words
+
+The tested controller/tuning checkpoint is commit `f80044c` on `tune/h2`.
+The starting values below describe the working configuration at the beginning of testing, including the user's uncommitted edits, rather than only the previous Git commit.
+
+| Part | What changed or was retained | Intuitive effect |
+| --- | --- | --- |
+| [Foot/knee clearance envelopes](../config/h2/ros2_controllers.yaml#L526) | Kept the user's 0.10 m sphere radii | Treat the feet and knees as needing more space around each other; these larger envelopes were already present before my tests |
+| Collision penalty | `mu: 10 -> 3000`, `delta: 0.00001 -> 0.03` | Start discouraging close approaches before contact, and make squeezing the legs together more costly; this alone did not prevent every fall |
+| [Anti-crossing code](../src/core/humanoid_common_mpc/src/constraint/FootCollisionConstraint.cpp#L146) | Added optional `minimumLateralSeparation: 0.10` | Prefer the left foot to remain left of the right foot, even when one foot is lifted; lateral crossover disappeared in the final sampled trials |
+| [Double-support handling](../include/humanoid_common_mpc/constraint/FootCollisionConstraint.h#L94) | Keep the new ordering penalty active while both feet support the robot; leave the old sphere checks off in that phase | Keep an anti-crossing preference through landing and stopping without turning on every old proximity penalty against planted feet |
+| [Faster walking rhythm](../config/h2/ros2_controllers.yaml#L609) | Single support `0.60 -> 0.30 s`; double support stays `0.10 s` | Take quicker steps instead of spending too long balancing on one leg; the shorter rhythm completed 1.0 m/s walking where the longer trial fell |
+| [Gait selection](../config/h2/ros2_controllers.yaml#L654) | Use only `[stance, slow_walk, walk]` | Keep both-feet-on-ground intervals instead of escalating into unvalidated no-double-support or flight gaits |
+| [Reaction to command changes](../config/h2/ros2_controllers.yaml#L652) | Gait switch delay fraction `0.7 -> 0.3` | Schedule the walking transition sooner when the command changes; abrupt lateral starts completed instead of collapsing in the tested comparison |
+| [Generated-library safety](../src/core/humanoid_common_mpc/src/constraint/FootCollisionConstraint.cpp#L58) | Use a separate `_lateral_v1` AD cache for the extra penalty row | Avoid loading an old generated function with the wrong number of outputs; this is a correctness measure, not a faster-walking gain |
+| [Constraint copying](../src/core/humanoid_common_mpc/src/constraint/FootCollisionConstraint.cpp#L70) | Preserve the active flag when cloning the constraint | A disabled constraint stays disabled in its solver copies; this was not established as the cause of the original fall |
+| [State recording](../tests/wb_id_walk_test.py) | Added optional joint/base replay and estimator snapshots | Let us inspect what the robot actually did, instead of judging only a final success/failure message; it does not change the control law |
+| [Plots, replay images and tests](../tests/tuning/analyze_leg_clearance.py) | Added foot-width, overlap, speed, knee-motion and effort analysis plus regression checks | Distinguish a collision trip from a loss-of-support collapse, and check that the new margin stays independent of absolute odometry position/heading |
+
+The final combination completed step-to-vx1.0 walking for 40 s, step-to-vy+/-0.5 walking for 30 s per trial and step-to-yaw0.7854 turning for 22 s, all including a stop back to stance.
+No foot crossing or sampled inter-leg overlap was found in those final trials; positive lateral heading drift remains.
+These are measured results of the combination, not proof that each individual setting alone guarantees balance.
+
+The requested command maxima and original lateral slew of 0.5 m/s2 were kept; PD gains, Q/Qf/R weights, estimator settings and robot physical models were not changed in the retained tuning.
+The tested 0.15 m/s2 lateral slew and increased yaw-rate cost were rejected and are not in the saved settings.
+G1 remains on the original collision formulation because the new margin defaults to zero.
+The anti-crossing penalty is soft, not a hard collision shield or a guarantee of push recovery.
+
+
 ## Faster Walking and Anti-Crossing Checkpoint (2026-10-24)
 
 Balance, foot clearance and returning to stance take priority over heading accuracy in this checkpoint.

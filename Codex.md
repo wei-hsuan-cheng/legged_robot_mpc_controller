@@ -3,6 +3,11 @@
 
 ## H2 Faster Walking and Foot Crossing (2026-10-24, Latest)
 
+The tested implementation and tuning were committed and pushed as `f80044c` on `tune/h2`.
+For a simple part-by-part explanation, read [Changes in Plain Words](docs/h2_wb_id_mpc.md#changes-in-plain-words), including diagnostic-only changes and rejected tuning trials.
+In short: give the legs room, discourage crossover, take quicker supported steps and switch gaits sooner when commands change.
+The original command speed limits and 0.5 m/s2 lateral slew remain unchanged; no retained change to PD, Q/Qf/R, estimator tuning or physical models was needed in this pass.
+
 Branch is now `tune/h2`, based on user commits `20e6217`/`11b3950` after shared launch commit `23f3c68`.
 This checkpoint supersedes the conservative H2 command-range statements in the historical sections below.
 The user's priority is balance, recovery to stance and foot clearance, not precise yaw tracking.
