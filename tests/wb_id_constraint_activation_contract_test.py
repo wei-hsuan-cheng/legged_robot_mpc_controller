@@ -13,14 +13,14 @@ from wb_id_parameter_contract_test import NAME, check_keys
 
 FLAGS = {
     "inverseDynamics": ("activateInverseDynamics", ("rneaBaseDynamics", "rneaJointTorques")),
-    "footConstraint": ("activateFootConstraint", ("_stanceAcceleration", "_swingVerticalAcceleration")),
-    "zeroWrench": ("activateZeroWrench", ("_zeroWrench",)),
+    "footMotionEquality": ("activateFootMotionEquality", ("_stanceAcceleration", "_swingVerticalAcceleration")),
+    "swingFootZeroWrench": ("activateSwingFootZeroWrench", ("_zeroWrench",)),
     "frictionCone": ("activateFrictionCone", ("_frictionForceCone",)),
     "contactMomentXY": ("activateContactMomentXY", ("_contactMomentXY",)),
     "jointPositionLimits": ("activateJointPositionLimits", ("jointPositionLimits",)),
     "jointVelocityLimits": ("activateJointVelocityLimits", ("jointVelocityLimits",)),
     "jointTorqueLimits": ("activateJointTorqueLimits", ("jointTorqueLimits",)),
-    "footCollision": ("activateFootCollision", ("FootCollisionSoftConstraint",)),
+    "legSelfCollision": ("activateLegSelfCollision", ("FootCollisionSoftConstraint",)),
 }
 
 

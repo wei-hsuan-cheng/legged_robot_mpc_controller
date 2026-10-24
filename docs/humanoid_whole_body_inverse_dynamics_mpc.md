@@ -329,7 +329,7 @@ k_{a,R}\dot\omega_c+k_{d,R}\omega_c+k_{p,R}d_{\mathrm{plane}}(R_c,n_c(t))&=0.
 $$
 
 Current acceleration gains are 1, velocity gains are 50, vertical position gain is 50 and orientation gain is 100.
-These gains are configured under `ocs2.constraints.footConstraint` in the WB-ID controller, not under `ocs2.model` or `ocs2.costs`.
+These gains are configured under `ocs2.constraints.footMotionEquality` in the WB-ID controller, not under `ocs2.model` or `ocs2.costs`.
 The stance and swing rows are registered in the OCP equality collection; the separate `ocs2.costs.taskSpaceFootCost` is a soft objective and can trade tracking error against other costs.
 Finite SQP iterations, model mismatch and actuator limitations can still produce constraint residuals and physical tracking error; an OCP equality is not a guarantee of perfect real contact.
 At nominal 0.02 s spacing, $k_d=50=1/\Delta t$; under a constant-acceleration approximation, $a+v/\Delta t=0$ damps velocity to zero at the next node.
@@ -422,19 +422,20 @@ The runtime feedforward torque clamp is a separate control operation.
 ### 5.7 Configure-time constraint activation
 
 Every WB-ID constraint group has `activate: true` by default; none of the listed groups is a placeholder.
+`footMotionEquality` contains hard equalities only, not inequality constraints or soft penalties; the position, orientation and velocity gains are feedback terms within those acceleration equations.
 These switches control construction and registration, following the configure-time optional-cost pattern; restart or reconfigure the controller to apply them.
 
 | Group under `ocs2.constraints` | Implemented OCP term | Additional activation scope |
 | --- | --- | --- |
 | `inverseDynamics` | Hard floating-base and joint RNEA equalities | Base rows over the horizon; joint rows inside the torque window |
-| `footConstraint` | Hard stance and swing acceleration equalities | Contact schedule selects the rows |
-| `zeroWrench` | Hard zero contact wrench | Swing feet only |
+| `footMotionEquality` | Hard stance and swing acceleration equalities | Contact schedule selects the rows |
+| `swingFootZeroWrench` | Hard zero contact wrench | Swing feet only |
 | `frictionCone` | Soft friction-force cone | Stance feet only |
 | `contactMomentXY` | Soft CoP rectangle margins | Stance feet only |
 | `jointPositionLimits` | Soft URDF lower/upper position bounds | Whole horizon; formerly named `jointLimits` |
 | `jointVelocityLimits` | Soft scaled URDF velocity bounds | Whole horizon |
 | `jointTorqueLimits` | Soft scaled URDF or override torque bounds | Torque window only; does not disable feedforward clipping |
-| `footCollision` | Soft foot/knee separation margins | Disabled during double support |
+| `legSelfCollision` | Soft foot/knee separation margins | Disabled during double support |
 
 Disabling dynamics or contact equalities is a diagnostic ablation, not a physically consistent locomotion model, and produces a startup warning.
 With inverse dynamics disabled, runtime uses measured-state RNEA rather than executing unconstrained policy torque inputs; that fallback does not restore physical feasibility to the optimized trajectory.
@@ -628,7 +629,7 @@ The order below prioritizes contact mismatch and preserving a stable baseline be
 
 | Priority | Setting retained | Effect and tuning logic | Evidence and tradeoff |
 | --- | --- | --- | --- |
-| 1 | `footConstraint.positionErrorGain_z: 250 -> 50`, `orientationErrorGain: 1000 -> 100`; velocity gains 50 and acceleration gains 1 unchanged. | Reduce aggressive correction toward the assumed flat height and horizontal sole while retaining velocity damping and acceleration-level contact equations. | The pair was directly compared and improved ramp ascent/stopping; individual contributions were not isolated, and lower gains can permit larger tracking errors. |
+| 1 | `footMotionEquality.positionErrorGain_z: 250 -> 50`, `orientationErrorGain: 1000 -> 100`; velocity gains 50 and acceleration gains 1 unchanged. | Reduce aggressive correction toward the assumed flat height and horizontal sole while retaining velocity damping and acceleration-level contact equations. | The pair was directly compared and improved ramp ascent/stopping; individual contributions were not isolated, and lower gains can permit larger tracking errors. |
 | 2 | Q/Qf base z weight `100 -> 50`, vz weight `10 -> 5`; pitch/roll pose weights remain 100. | Allow more vertical motion rather than demanding the same height and zero vertical speed at all costs; retain attitude preference. | Background setting; weights have different units, so numerical values alone do not define strict task priorities, and too little height regulation can allow crouching or sag. |
 | 3 | Foot horizontal-velocity cost weights `10 -> 5`. | Reduce the extra task-space penalty that can resist motion needed under contact mismatch. | Background setting; hard stance no-slip stabilization remains, so this does not make slip desirable or remove the contact assumption. |
 | 4 | Swing height `0.08 -> 0.10 m`. | Provide additional nominal clearance without requiring knowledge of the upcoming terrain. | Background setting; actual clearance depends on swing-duration scaling, tracking and reachability, and larger arcs can increase acceleration, torque and impact demands. |

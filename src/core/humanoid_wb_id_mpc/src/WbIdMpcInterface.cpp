@@ -144,7 +144,7 @@ void WbIdMpcInterface::setupOptimalControlProblem() {
   if (config_.activateJointPositionLimits) {
     problemPtr_->stateSoftConstraintPtr->add("jointPositionLimits", factory.getJointLimitsConstraint());
   }
-  if (config_.activateFootCollision) {
+  if (config_.activateLegSelfCollision) {
     problemPtr_->stateSoftConstraintPtr->add("FootCollisionSoftConstraint", factory.getFootCollisionConstraint());
   }
   if (config_.activateJointVelocityLimits) {
@@ -187,10 +187,10 @@ void WbIdMpcInterface::setupOptimalControlProblem() {
       problemPtr_->softConstraintPtr->add(footName + "_contactMomentXY",
                                           factory.getContactMomentXYConstraint(i, footName + "_contact_moment_XY_constraint"));
     }
-    if (config_.activateZeroWrench) {
+    if (config_.activateSwingFootZeroWrench) {
       problemPtr_->equalityConstraintPtr->add(footName + "_zeroWrench", factory.getZeroWrenchConstraint(i));
     }
-    if (config_.activateFootConstraint) {
+    if (config_.activateFootMotionEquality) {
       problemPtr_->equalityConstraintPtr->add(
           footName + "_stanceAcceleration",
           std::make_unique<WbIdFootAccelerationConstraintCppAd>(WbIdFootAccelerationConstraintCppAd::Type::Stance, *referenceManagerPtr_,

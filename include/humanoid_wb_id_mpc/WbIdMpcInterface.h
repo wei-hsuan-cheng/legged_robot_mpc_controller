@@ -89,14 +89,14 @@ class WbIdMpcInterface final : public RobotInterface {
     WbIdFootAccelerationConstraintCppAd::Gains footAccelerationGains;
 
     bool activateInverseDynamics = true;
-    bool activateFootConstraint = true;
-    bool activateZeroWrench = true;
+    bool activateFootMotionEquality = true;
+    bool activateSwingFootZeroWrench = true;
     bool activateFrictionCone = true;
     bool activateContactMomentXY = true;
     bool activateJointPositionLimits = true;
     bool activateJointVelocityLimits = true;
     bool activateJointTorqueLimits = true;
-    bool activateFootCollision = true;
+    bool activateLegSelfCollision = true;
 
     //! Time span from the start of the horizon in which the joint-torque rows of the
     //! inverse dynamics and the torque limits apply; < 0 for the whole horizon.

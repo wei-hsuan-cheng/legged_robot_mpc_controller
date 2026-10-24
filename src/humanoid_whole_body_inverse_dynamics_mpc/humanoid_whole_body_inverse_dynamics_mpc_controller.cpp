@@ -108,8 +108,8 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
 
     const auto joint_dim = static_cast<Eigen::Index>(control_model_->getJointDim());
     torque_limit_ = mpc_interface_->getTorqueLimits();
-    if (!parameters_.ocs2.constraints.inverseDynamics.activate || !parameters_.ocs2.constraints.footConstraint.activate ||
-        !parameters_.ocs2.constraints.zeroWrench.activate) {
+    if (!parameters_.ocs2.constraints.inverseDynamics.activate || !parameters_.ocs2.constraints.footMotionEquality.activate ||
+        !parameters_.ocs2.constraints.swingFootZeroWrench.activate) {
       RCLCPP_WARN(get_node()->get_logger(),
         "%s physical dynamics/contact equalities are disabled: diagnostic ablation only, not a physically consistent locomotion model",
         kTag);

@@ -67,14 +67,14 @@ ocs2::humanoid::WbIdMpcInterface::Config buildWholeBodyInverseDynamicsMpcConfig(
   model.j_r_elbow_y_name = p.reference.armSwing.jointNames[3];
 
   auto& foot = model.footConstraintConfig;
-  foot.positionErrorGain_z = p.constraints.footConstraint.positionErrorGain_z;
-  foot.orientationErrorGain = p.constraints.footConstraint.orientationErrorGain;
-  foot.linearVelocityErrorGain_z = p.constraints.footConstraint.linearVelocityErrorGain_z;
-  foot.linearVelocityErrorGain_xy = p.constraints.footConstraint.linearVelocityErrorGain_xy;
-  foot.angularVelocityErrorGain = p.constraints.footConstraint.angularVelocityErrorGain;
-  foot.linearAccelerationErrorGain_z = p.constraints.footConstraint.linearAccelerationErrorGain_z;
-  foot.linearAccelerationErrorGain_xy = p.constraints.footConstraint.linearAccelerationErrorGain_xy;
-  foot.angularAccelerationErrorGain = p.constraints.footConstraint.angularAccelerationErrorGain;
+  foot.positionErrorGain_z = p.constraints.footMotionEquality.positionErrorGain_z;
+  foot.orientationErrorGain = p.constraints.footMotionEquality.orientationErrorGain;
+  foot.linearVelocityErrorGain_z = p.constraints.footMotionEquality.linearVelocityErrorGain_z;
+  foot.linearVelocityErrorGain_xy = p.constraints.footMotionEquality.linearVelocityErrorGain_xy;
+  foot.angularVelocityErrorGain = p.constraints.footMotionEquality.angularVelocityErrorGain;
+  foot.linearAccelerationErrorGain_z = p.constraints.footMotionEquality.linearAccelerationErrorGain_z;
+  foot.linearAccelerationErrorGain_xy = p.constraints.footMotionEquality.linearAccelerationErrorGain_xy;
+  foot.angularAccelerationErrorGain = p.constraints.footMotionEquality.angularAccelerationErrorGain;
 
   model.contactFrameTranslation =
     vector3_t(p.model.contactGeometry.frameTranslation[0], p.model.contactGeometry.frameTranslation[1],
@@ -203,22 +203,22 @@ ocs2::humanoid::WbIdMpcInterface::Config buildWholeBodyInverseDynamicsMpcConfig(
 
   // --- constraints ---
   config.activateInverseDynamics = p.constraints.inverseDynamics.activate;
-  config.activateFootConstraint = p.constraints.footConstraint.activate;
-  config.activateZeroWrench = p.constraints.zeroWrench.activate;
+  config.activateFootMotionEquality = p.constraints.footMotionEquality.activate;
+  config.activateSwingFootZeroWrench = p.constraints.swingFootZeroWrench.activate;
   config.activateFrictionCone = p.constraints.frictionCone.activate;
   config.activateContactMomentXY = p.constraints.contactMomentXY.activate;
   config.activateJointPositionLimits = p.constraints.jointPositionLimits.activate;
   config.activateJointVelocityLimits = p.constraints.jointVelocityLimits.activate;
   config.activateJointTorqueLimits = p.constraints.jointTorqueLimits.activate;
-  config.activateFootCollision = p.constraints.footCollision.activate;
-  costs.footCollisionConfig.leftAnkleFrame = p.constraints.footCollision.leftAnkleFrame;
-  costs.footCollisionConfig.rightAnkleFrame = p.constraints.footCollision.rightAnkleFrame;
-  costs.footCollisionConfig.footCollisionSphereRadius = p.constraints.footCollision.footCollisionSphereRadius;
-  costs.footCollisionConfig.leftKneeFrame = p.constraints.footCollision.leftKneeFrame;
-  costs.footCollisionConfig.rightKneeFrame = p.constraints.footCollision.rightKneeFrame;
-  costs.footCollisionConfig.kneeCollisionSphereRadius = p.constraints.footCollision.kneeCollisionSphereRadius;
-  costs.footCollisionBarrierConfig.mu = p.constraints.footCollision.mu;
-  costs.footCollisionBarrierConfig.delta = p.constraints.footCollision.delta;
+  config.activateLegSelfCollision = p.constraints.legSelfCollision.activate;
+  costs.footCollisionConfig.leftAnkleFrame = p.constraints.legSelfCollision.leftAnkleFrame;
+  costs.footCollisionConfig.rightAnkleFrame = p.constraints.legSelfCollision.rightAnkleFrame;
+  costs.footCollisionConfig.footCollisionSphereRadius = p.constraints.legSelfCollision.footCollisionSphereRadius;
+  costs.footCollisionConfig.leftKneeFrame = p.constraints.legSelfCollision.leftKneeFrame;
+  costs.footCollisionConfig.rightKneeFrame = p.constraints.legSelfCollision.rightKneeFrame;
+  costs.footCollisionConfig.kneeCollisionSphereRadius = p.constraints.legSelfCollision.kneeCollisionSphereRadius;
+  costs.footCollisionBarrierConfig.mu = p.constraints.legSelfCollision.mu;
+  costs.footCollisionBarrierConfig.delta = p.constraints.legSelfCollision.delta;
 
   costs.jointLimitsBarrierConfig.mu = p.constraints.jointPositionLimits.mu;
   costs.jointLimitsBarrierConfig.delta = p.constraints.jointPositionLimits.delta;

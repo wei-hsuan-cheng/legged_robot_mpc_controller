@@ -968,20 +968,21 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           activate: true
           torqueConstraintNodes: 3
 
-        footConstraint:
+        footMotionEquality:
           activate: true
-          # Slower position/tilt correction avoids fighting a shallow incline.
-          # These are acceleration equalities, not soft-cost weights.
-          positionErrorGain_z: 50.0
-          orientationErrorGain: 100.0
-          linearVelocityErrorGain_z: 50.0
-          linearVelocityErrorGain_xy: 50.0
-          angularVelocityErrorGain: 50.0
-          linearAccelerationErrorGain_z: 1.0
-          linearAccelerationErrorGain_xy: 1.0
-          angularAccelerationErrorGain: 1.0
+          # Hard equalities, not cost weights or inequalities.
+          # Stance: keep the foot still and correct height/tilt.
+          # Swing: follow the vertical foot path.
+          positionErrorGain_z: 50.0              # Height correction; lower gains give slower correction.
+          orientationErrorGain: 100.0            # Tilt correction; lower gains avoid fighting shallow inclines.
+          linearVelocityErrorGain_z: 50.0        # Vertical speed damping.
+          linearVelocityErrorGain_xy: 50.0       # Horizontal speed damping in stance.
+          angularVelocityErrorGain: 50.0         # Rotation damping in stance.
+          linearAccelerationErrorGain_z: 1.0     # Vertical acceleration multiplier; keep positive.
+          linearAccelerationErrorGain_xy: 1.0    # Horizontal acceleration multiplier in stance; keep positive.
+          angularAccelerationErrorGain: 1.0      # Rotation acceleration multiplier in stance; keep positive.
         
-        zeroWrench:
+        swingFootZeroWrench:
           activate: true
 
         frictionCone:
@@ -1009,14 +1010,11 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           delta: 1.0
 
         jointTorqueLimits:
-          # Controls only the OCP penalty; runtime feedforward clipping remains enabled.
           activate: true
           # Scales URDF or override bounds for both the OCP penalty and feedforward clipping; 0 < scaling <= 1.
           torqueScaling: 1.0
           # Omit limits to use URDF joint <limit effort="..."> values for OCP bounds and feedforward clipping.
           # To override, uncomment a full positive array in robot.jointNames order [Nm].
-          # Do not set limits: []; Jazzy treats an explicit empty YAML array as an unset override.
-          # This does not clamp the final effort_pd feedback-plus-feedforward torque.
           # limits: [88.0, 139.0, 88.0, 139.0, 50.0, 50.0,
           #          88.0, 139.0, 88.0, 139.0, 50.0, 50.0,
           #          88.0, 50.0, 50.0,
@@ -1025,7 +1023,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           mu: 0.1
           delta: 5.0
 
-        footCollision:
+        legSelfCollision:
           activate: true
           leftAnkleFrame: left_ankle_roll_joint
           rightAnkleFrame: right_ankle_roll_joint

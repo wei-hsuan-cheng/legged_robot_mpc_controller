@@ -20,6 +20,9 @@ WB_ID_LAYOUT_MIGRATIONS = (
     ("sqp", "solver.sqp"),
     ("rollout", "solver.rollout"),
     ("constraints.jointLimits", "constraints.jointPositionLimits"),
+    ("constraints.footConstraint", "constraints.footMotionEquality"),
+    ("constraints.zeroWrench", "constraints.swingFootZeroWrench"),
+    ("constraints.footCollision", "constraints.legSelfCollision"),
 )
 
 
@@ -88,8 +91,8 @@ def main():
     # WB-ID foot stabilization belongs to constraints, not rigid-body model settings.
     assert "footConstraint" not in params["ocs2"]["model"]
     assert "footConstraint" not in schema["ocs2"]["model"]
-    foot = params["ocs2"]["constraints"]["footConstraint"]
-    foot_schema = schema["ocs2"]["constraints"]["footConstraint"]
+    foot = params["ocs2"]["constraints"]["footMotionEquality"]
+    foot_schema = schema["ocs2"]["constraints"]["footMotionEquality"]
     foot_gains = {
         "positionErrorGain_z", "orientationErrorGain", "linearVelocityErrorGain_z",
         "linearVelocityErrorGain_xy", "angularVelocityErrorGain",
@@ -98,7 +101,7 @@ def main():
     assert set(foot) == set(foot_schema) == foot_gains | {"activate"}
     assert all(value >= 0 for value in foot.values())
     for name in ("linearAccelerationErrorGain_z", "linearAccelerationErrorGain_xy", "angularAccelerationErrorGain"):
-        assert foot[name] > 0, f"constraints.footConstraint.{name} must retain input dependence"
+        assert foot[name] > 0, f"constraints.footMotionEquality.{name} must retain input dependence"
     assert "useInertiaWeightedAngularMomentum" not in params["ocs2"]["reference"]
     for gain in ("kp", "kd"):
         values = params["control"]["jointEffortPd"][gain]
@@ -123,7 +126,7 @@ def main():
     assert "humanoid_centroidal_mpc_controller::" not in builder
     assert "p.model.footConstraint" not in builder
     for name in foot_gains:
-        assert f"p.constraints.footConstraint.{name}" in builder
+        assert f"p.constraints.footMotionEquality.{name}" in builder
     for previous, current in WB_ID_LAYOUT_MIGRATIONS:
         for tree in (params["ocs2"], schema["ocs2"]):
             at_path(tree, current)

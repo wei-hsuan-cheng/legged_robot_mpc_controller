@@ -1,8 +1,20 @@
 # WB-ID MPC Walking Robustness Handoff
 
+## WB-ID Constraint Naming Cleanup (2026-10-24)
+
+The current WB-ID parameter groups are `ocs2.constraints.footMotionEquality`, `swingFootZeroWrench` and `legSelfCollision`, replacing `footConstraint`, `zeroWrench` and `footCollision` respectively.
+Generated schema, builder, controller warnings and WB-ID activation fields use the new names; external overrides must migrate, and the controller needs a rebuild before loading the renamed YAML.
+This is a naming-only change: all gains, activation defaults, bound scalings, OCP equations, term names and CppAD cache identities remain unchanged, as do the centroidal configuration and shared constraint classes.
+`legSelfCollision` checks selected opposing foot/ankle/knee separations and is inactive in double support; it does not check arm/torso/thigh collisions or provide full-body collision geometry.
+The renamed code rebuilt successfully with two jobs in Jazzy Release mode in 1 min 56 s; build log: `/tmp/wbid_constraint_names_build_20261024.log`.
+The flat-scene headless smoke test returned `MPC_RUNNING` after 11.69 s, then immediately stopped the launch group; log and JSON verdict: `/tmp/wbid_constraint_names_startup.log` and `.json`.
+The run used 100 Hz MPC, 1000 Hz MRT, the default estimator, `rviz:=false` and `baseCommandGui:=false`; it did not test walking or disabled-constraint configurations.
+The parameter contract, 23 static wiring checks and nine torso-cost checks passed; 164 source-line links in the two WB-ID guides were checked for file existence, anchor bounds and numeric-label consistency, with stale registration/YAML links and the friction-normal setter description corrected.
+
+
 ## WB-ID Constraint Activation and Bound Scaling (2026-10-24)
 
-Every WB-ID `ocs2.constraints` group now has `activate: true`, including an explicit `zeroWrench` block for the existing swing-wrench equality; none of the original eight groups was an unused shell.
+Every WB-ID `ocs2.constraints` group now has `activate: true`, including an explicit `swingFootZeroWrench` block for the existing swing-wrench equality; none of the original eight groups was an unused shell.
 The switches gate OCP term construction/registration during configuration; changing them requires a restart or reconfiguration, and disabling dynamics/contact equalities is diagnostic-only with a startup warning.
 `jointLimits` is renamed to `jointPositionLimits`; its existing shared factory already reads URDF lower/upper position bounds and remains unchanged for centroidal.
 Velocity limits retain their URDF source, with `jointVelocityLimits.scale` renamed to `velocityScaling`; `jointTorqueLimits.torqueScaling` scales URDF or override torque bounds before sharing them with the OCP and runtime clamp.
@@ -51,7 +63,7 @@ No simulation was started for this structural cleanup, so these checks do not ad
 
 ## WB-ID Foot-Constraint Parameter Migration (2026-10-24)
 
-The WB-ID YAML and generated parameter schema now place the eight foot-stabilization gains at `ocs2.constraints.footConstraint`, replacing `ocs2.model.footConstraint`.
+The WB-ID YAML and generated parameter schema now place the eight foot-stabilization gains at `ocs2.constraints.footMotionEquality`, replacing `ocs2.model.footConstraint`.
 The builder reads the new path and still fills the same internal `ModelSettings::footConstraintConfig` and `footAccelerationGains` fields; all configured gains and schema defaults are preserved.
 External WB-ID parameter files must migrate the block, and the controller needs a rebuild for the new generated parameter structs before running the new YAML.
 The centroidal controller and schema retain their existing layout, and no launch, OCP equation, CppAD model signature or other parameter ownership changed in this migration.
@@ -103,7 +115,7 @@ ocs2:
     groundHeight:
       useEstimate: false  # unchanged
   constraints:
-    footConstraint:
+    footMotionEquality:
       positionErrorGain_z: 50.0     # previously 250
       orientationErrorGain: 100.0  # previously 1000
 ```

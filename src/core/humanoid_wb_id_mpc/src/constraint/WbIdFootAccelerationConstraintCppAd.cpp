@@ -36,12 +36,12 @@ WbIdFootAccelerationConstraintCppAd::WbIdFootAccelerationConstraintCppAd(Type ty
   if (type_ == Type::Stance &&
       (gains_.linearAccelerationXY == 0.0 || gains_.linearAccelerationZ == 0.0 || gains_.angularAcceleration == 0.0)) {
     throw std::invalid_argument(
-        "[WbIdFootAccelerationConstraintCppAd] stance acceleration gains must be non-zero (footConstraint.*AccelerationErrorGain*)");
+        "[WbIdFootAccelerationConstraintCppAd] stance acceleration gains must be non-zero (footMotionEquality.*AccelerationErrorGain*)");
   }
   if (type_ == Type::SwingVertical && gains_.linearAccelerationZ == 0.0) {
     throw std::invalid_argument(
         "[WbIdFootAccelerationConstraintCppAd] swing vertical acceleration gain must be non-zero "
-        "(footConstraint.linearAccelerationErrorGain_z)");
+        "(footMotionEquality.linearAccelerationErrorGain_z)");
   }
   const std::string modelName = footName + (type_ == Type::Stance ? "_wb_id_stance_acceleration_v2" : "_wb_id_swing_vertical_acceleration_v2");
   initialize(mpcRobotModelAD.getStateDim(), mpcRobotModelAD.getInputDim(), kNumParameters, modelName, modelSettings.modelFolderCppAd,
