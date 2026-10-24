@@ -538,10 +538,10 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         targetDisplacementVelocity: 0.5
         targetRotationVelocity: 0.5
         # Conservative H2 GUI/topic normalization maxima, not OCP velocity bounds.
-        maxDisplacementVelocityX: 0.15
-        maxDisplacementVelocityY: 0.08
+        maxDisplacementVelocityX: 1.0
+        maxDisplacementVelocityY: 0.5
         maxDeltaPelvisHeight: 0.4
-        maxRotationVelocity: 0.15
+        maxRotationVelocity: 0.7854
         defaultBaseHeight: 1.02
         basePosePositionTolerance: 0.02
         basePoseOrientationTolerance: 0.03
