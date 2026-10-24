@@ -3,7 +3,7 @@
 [`ros2_control`](https://control.ros.org/rolling/index.html) implementation for legged robot MPC using [`ocs2_ros2`](https://github.com/wei-hsuan-cheng/ocs2_ros2.git) and [`pinocchio`](https://github.com/stack-of-tasks/pinocchio.git).  Tested in [`ros2 jazzy`](https://docs.ros.org/en/jazzy/index.html) and [`mujoco`](https://mujoco.readthedocs.io/en/stable/overview.html) simulation environment.
 
 
-## Interactive Velocity and Base Height Control via GUI & Joystick
+## Interactive Velocity and Base Height Control
 
 <table align="center">
   <tr>
