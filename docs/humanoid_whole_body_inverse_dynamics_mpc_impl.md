@@ -172,6 +172,29 @@ The WB-ID builder explicitly disables capture placement at [line 257](../src/hum
 Shared stair/terrain setup is connected at [controller line 169](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L169), which should not be interpreted as validated WB-ID terrain performance.
 
 
+### 5.3 Horizontal swing and foothold selection
+
+The equations and prescribed-versus-optimized distinction are in [formulation Section 6.5](./humanoid_whole_body_inverse_dynamics_mpc.md#65-horizontal-swing-motion-and-foothold-selection).
+In ordinary `base_twist`, there is no independent foot-XY or touchdown-position optimization variable: positions are obtained by forward kinematics of the optimized whole-body state.
+
+| Behavior | Current implementation |
+| --- | --- |
+| Whole-body configuration is an optimized state | [WbIdMpcRobotModel.h:37](../include/humanoid_wb_id_mpc/common/WbIdMpcRobotModel.h#L37) defines the state/input dimensions; [line 65](../include/humanoid_wb_id_mpc/common/WbIdMpcRobotModel.h#L65) extracts generalized coordinates; [WbIdDynamics.cpp:18](../src/core/humanoid_wb_id_mpc/src/dynamics/WbIdDynamics.cpp#L18) integrates velocity/acceleration |
+| No capture-point foothold heuristic in WB-ID | [Builder:257](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L257) explicitly sets `captureFootPlacement.enabled=false` |
+| Ordinary walking generates height references only | [Reference manager:315](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L315) selects the normal ground-height/swing-planner path; [SwingTrajectoryPlanner.cpp:130](../src/core/humanoid_common_mpc/src/swing_foot_planner/SwingTrajectoryPlanner.cpp#L130) builds the vertical spline |
+| Swing equality leaves XY motion free of a prescribed path | [WbIdFootAccelerationConstraintCppAd.cpp:107](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdFootAccelerationConstraintCppAd.cpp#L107) returns only the vertical acceleration/velocity/position residual during swing |
+| Stance stabilizes XY velocity, not XY position | [Constraint:115](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdFootAccelerationConstraintCppAd.cpp#L115) uses horizontal acceleration plus velocity, without an XY position-reference term |
+| Foot task-space quantities come from optimized kinematics | [Foot cost:105](../src/core/humanoid_centroidal_mpc/src/cost/CentroidalMpcEndEffectorFootCost.cpp#L105) extracts the model's generalized coordinates/velocities and evaluates foot FK and twist; this shared class is [registered by WB-ID](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L206) despite its centroidal-prefixed name |
+| Zero position reference is harmless only with zero position weights | [Foot cost:136](../src/core/humanoid_centroidal_mpc/src/cost/CentroidalMpcEndEffectorFootCost.cpp#L136) initializes the default position reference to zero; current [G1 weights](../config/g1/ros2_controllers.yaml#L398) and [H2 weights](../config/h2/ros2_controllers.yaml#L416) set all three position weights to zero |
+| Horizontal foot speed is regularized, not prescribed | [Foot residual:116](../src/core/humanoid_centroidal_mpc/src/cost/CentroidalMpcEndEffectorFootCost.cpp#L116) multiplies the linear-velocity error by the impact-proximity factor; [reference:156](../src/core/humanoid_centroidal_mpc/src/cost/CentroidalMpcEndEffectorFootCost.cpp#L156) sets desired linear velocity to zero; [weight mapping:58](../src/core/humanoid_common_mpc/src/cost/EndEffectorKinematicCostHelpers.cpp#L58) identifies the position/orientation/linear/angular blocks |
+| Other objectives select among possible placements | [OCP cost registration:115](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L115) adds base, joint and state/input objectives; [H2 posture weights](../config/h2/ros2_controllers.yaml#L354) include the tuned hip-pitch preference |
+| Anti-crossing is a soft preference, not a foothold generator | [FootCollisionConstraint.cpp:146](../src/core/humanoid_common_mpc/src/constraint/FootCollisionConstraint.cpp#L146) adds the heading-relative lateral margin; [H2 settings](../config/h2/ros2_controllers.yaml#L527) enable it |
+| Explicit terrain/stair modes can add XY guidance | [Reference selection:471](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L471) selects available foothold references; [foot cost:145](../src/core/humanoid_centroidal_mpc/src/cost/CentroidalMpcEndEffectorFootCost.cpp#L145) replaces the reference and horizontal position weights when one is supplied |
+
+The scheduled contact flags select stance/swing equalities at [constraint line 61](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdFootAccelerationConstraintCppAd.cpp#L61), rather than allowing the solver to choose touchdown timing or detect terrain contact through complementarity.
+The planned touchdown XY location is therefore an optimized kinematic outcome at a prescribed event time, not proof of the actual contact location or safety on unknown terrain.
+
+
 ## 6. Arm Command Support
 
 The WB-ID controller passes tracked arm names and two empty frame-pair lists to `subscribeMpcTargets` at [controller line 186](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L186).

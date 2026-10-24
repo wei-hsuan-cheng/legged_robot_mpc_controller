@@ -544,6 +544,63 @@ These mapped-terrain extensions are inactive in ordinary `base_twist` and did no
 The [Terrain Trial Checkpoint](./wb_id_terrain_checkpoint.md) is an archived proposal, not the current launch workflow.
 
 
+### 6.5 Horizontal swing motion and foothold selection
+
+In ordinary WB-ID `base_twist` walking, both the horizontal swing trajectory and the planned touchdown XY position emerge from optimization.
+There is no separately prescribed XY swing spline, Raibert/capture-point foothold, or independent touchdown-position decision variable in this path.
+The WB-ID builder explicitly disables the shared capture-point placement heuristic.
+The optimized whole-body configuration determines each foot's position through forward kinematics:
+
+$$
+p_c^W(t)=f_c(q(t)),\qquad
+P_{xy}=\begin{bmatrix}1&0&0\\0&1&0\end{bmatrix},\qquad
+p_{c,xy}^{\mathrm{TD},*}=P_{xy}f_c\!\left(q^*(t_{c,\mathrm{TD}})\right).
+$$
+
+Here $t_{c,\mathrm{TD}}$ is the scheduled touchdown time, not an optimized event time.
+The optimizer chooses configurations, velocities, accelerations, contact wrenches and torques over the horizon; foot XY motion is an implicit consequence of those variables and the robot's kinematics.
+The swing equality in Section 5.3 controls only Z against the supplied spline and does not prescribe X/Y position, velocity or acceleration.
+
+| Component | Prescribed or optimized | Effect on foot placement |
+| --- | --- | --- |
+| Contact schedule and gait period | Prescribed for each solve | Determine which foot supports the robot and when it is scheduled to land |
+| Vertical swing reference | Generated from configured heights, velocities and phase times | Guides clearance and landing height through the vertical acceleration equality |
+| Horizontal swing path | Optimized implicitly through $q(t)$ | Moves the foot as needed to satisfy the dynamics and reduce the combined objective |
+| Planned touchdown XY | Forward kinematics of the optimized state at scheduled touchdown | Becomes the starting horizontal location of the following stance, without an XY reset to a predefined point |
+| Base motion and joint posture costs | References and weights are configured; motion is optimized | Encourage commanded body motion and preferred leg configurations, indirectly shaping step length, width and stagger |
+| Dynamics, contact conditions and soft joint/collision margins | Define physical equations and penalized restrictions | Couple foot motion to support forces, available joint motion and inter-leg clearance |
+
+The current G1/H2 WB-ID foot task-space cost has zero XYZ position weights, so its default zero position reference does not pull the feet toward the world origin.
+It has horizontal velocity weights $w_x=w_y=5$ and zero reference foot velocity, giving this horizontal contribution when the cost is enabled:
+
+$$
+\ell_{c,xy}=\frac12s_c(t)^2
+\left(w_x\dot p_{c,x}^{\,2}+w_y\dot p_{c,y}^{\,2}\right).
+$$
+
+The factor $s_c(t)$ is the swing planner's impact-proximity factor, configured to be smaller around mid-swing and stronger around lift-off/touchdown.
+This regularizes foot speed rather than tracking a commanded XY path, and the optimizer can accept that cost to achieve body motion and feasible support.
+Joint acceleration/torque costs, posture costs, torso stabilization and leg collision penalties also influence the result.
+For example, increasing H2's hip-pitch posture weights changed its front/back foot stagger without adding an explicit side-by-side foothold target.
+Likewise, `minimumLateralSeparation` supplies a soft preference against crossover, not a complete foothold plan or an exact step width.
+
+After the scheduled touchdown, the horizontal stance rows impose:
+
+$$
+k_{a,xy}\ddot p_{c,xy}+k_{d,xy}\dot p_{c,xy}=0.
+$$
+
+They damp horizontal velocity but do not anchor the foot to a specified XY position.
+Even with an exactly satisfied continuous-time equality, a nonzero initial stance velocity decays rather than disappearing instantaneously; finite solver accuracy, discretization, model error and actuator tracking can add further drift.
+The executed physical touchdown may differ from the scheduled prediction, especially on unknown terrain.
+
+The separate stair/terrain branches can supply planned XY swing references and replace the horizontal position weights with a nonzero foothold-tracking weight.
+Those references are a soft bias on the optimized whole-body motion, not the ordinary `base_twist` behavior described above.
+Do not simply enable horizontal foot position weights without supplying an appropriate reference: the fallback position reference is zero.
+Optimized foothold freedom does not itself establish safe landing regions on unknown terrain, global optimality, or guaranteed recovery.
+See [horizontal swing and foothold implementation](./humanoid_whole_body_inverse_dynamics_mpc_impl.md#53-horizontal-swing-and-foothold-selection) for the code paths.
+
+
 ## 7. Policy Execution and Inner Servo
 
 The offset is configured at `ocs2.solver.rollout.policyTimeOffset`; it shifts policy evaluation rather than the ODE integration timestep.
