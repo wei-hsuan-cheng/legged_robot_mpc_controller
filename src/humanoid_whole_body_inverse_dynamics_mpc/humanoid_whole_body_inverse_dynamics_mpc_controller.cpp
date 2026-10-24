@@ -165,10 +165,9 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
       motion_manager->setStairClimbingConfig(common::loadStairClimbingConfig(parameters_.ocs2.gait.stairClimbingFile));
     }
     if (!parameters_.ocs2.gait.terrainWalkingFile.empty()) {
-      const auto terrain_geometry = common::loadTerrainStairsGeometry(parameters_.ocs2.gait.terrainWalkingFile);
       mpc_interface_->getSwitchedModelReferenceManagerPtr()->setTerrainFootholdPlanner(
         std::make_shared<ocs2::humanoid::TerrainFootholdPlanner>(
-          ocs2::humanoid::buildTerrainModelFromStairs(terrain_geometry),
+          common::loadTerrainModel(parameters_.ocs2.gait.terrainWalkingFile),
           common::loadTerrainFootholdPlannerSettings(parameters_.ocs2.gait.terrainWalkingFile)));
     }
     motion_manager_ = std::move(motion_manager);

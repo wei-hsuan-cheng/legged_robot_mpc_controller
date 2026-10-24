@@ -304,6 +304,9 @@ class SwitchedModelReferenceManager : public ReferenceManager {
   }
   void setTerrainWalkActive(bool active) { terrainWalkActive_.setBuffer(active); }
   bool isTerrainWalkActive() const { return terrainWalkActive_.get() && terrainFootholdPlannerPtr_ != nullptr; }
+  vector3_t getContactNormal(size_t foot, scalar_t time) const {
+    return isTerrainWalkActive() ? terrainFootholdPlannerPtr_->getContactNormal(foot, time) : vector3_t(0.0, 0.0, 1.0);
+  }
 
   /**
    * Unified swing-foot foothold reference used by the task-space foot cost:

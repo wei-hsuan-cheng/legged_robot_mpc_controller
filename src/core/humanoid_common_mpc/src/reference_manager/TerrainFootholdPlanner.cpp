@@ -39,10 +39,25 @@ scalar_t GroundTruthTerrainModel::heightAt(const vector2_t& positionWorld) const
   for (const auto& region : regions) {
     const vector2_t local = toLocal(positionWorld, region.center, region.yaw);
     if (std::abs(local(0)) <= region.halfLengthX + EPS && std::abs(local(1)) <= region.halfLengthY + EPS) {
-      height = std::max(height, region.height);
+      height = std::max(height, region.heightAt(positionWorld));
     }
   }
   return height;
+}
+
+vector3_t GroundTruthTerrainModel::normalAt(const vector2_t& positionWorld) const {
+  scalar_t height = groundHeight;
+  vector3_t normal(0.0, 0.0, 1.0);
+  for (const auto& region : regions) {
+    const vector2_t local = toLocal(positionWorld, region.center, region.yaw);
+    const scalar_t candidate = region.heightAt(positionWorld);
+    if (std::abs(local(0)) <= region.halfLengthX + EPS && std::abs(local(1)) <= region.halfLengthY + EPS &&
+        candidate > height + EPS) {
+      height = candidate;
+      normal = region.normal;
+    }
+  }
+  return normal;
 }
 
 /******************************************************************************************************/
@@ -84,7 +99,8 @@ GroundTruthTerrainModel buildTerrainModelFromStairs(const StairClimbingConfig& s
 
 /******************************************************************************************************/
 
-vector3_t TerrainFootholdPlanner::projectFoothold(const vector2_t& nominalXY, scalar_t previousFootholdHeight) const {
+vector3_t TerrainFootholdPlanner::projectFoothold(const vector2_t& nominalXY, const vector3_t& previousFoothold) const {
+  const scalar_t previousFootholdHeight = previousFoothold(2);
   scalar_t bestScore = std::numeric_limits<scalar_t>::max();
   vector2_t bestXY = nominalXY;
   scalar_t bestHeight = terrainModel_.heightAt(nominalXY);
@@ -97,6 +113,10 @@ vector3_t TerrainFootholdPlanner::projectFoothold(const vector2_t& nominalXY, sc
   const auto considerCandidate = [&](const vector2_t& candidateXY, scalar_t candidateHeight, scalar_t bonus) {
     if (std::abs(candidateHeight - previousFootholdHeight) > settings_.maxStepHeight) {
       return;  // unreachable in one step
+    }
+    if ((!terrainModel_.stairGeometry && (candidateXY - previousFoothold.head<2>()).norm() > settings_.maxStepReach) ||
+        terrainModel_.heightAt(candidateXY) > candidateHeight + 1e-4) {
+      return;  // unreachable or occluded by a higher collision surface
     }
     const scalar_t score = (candidateXY - nominalXY).norm() - bonus;
     if (score < bestScore) {
@@ -117,7 +137,7 @@ vector3_t TerrainFootholdPlanner::projectFoothold(const vector2_t& nominalXY, sc
     insideFootprint = std::abs(local(0)) <= terrainModel_.footprintHalfLengthX &&
                       std::abs(local(1)) <= terrainModel_.footprintHalfLengthY;
   }
-  if (!insideFootprint) {
+  if (!insideFootprint && terrainModel_.heightAt(nominalXY) <= terrainModel_.groundHeight + EPS) {
     considerCandidate(nominalXY, terrainModel_.groundHeight, 0.0);
   }
 
@@ -139,14 +159,15 @@ vector3_t TerrainFootholdPlanner::projectFoothold(const vector2_t& nominalXY, sc
     const vector2_t clampedLocal(std::clamp(local(0), -usableX, usableX), std::clamp(local(1), -usableY, usableY));
     // Only steps ABOVE the previous foothold get the step-up bonus (do not bias
     // toward stepping down off the staircase).
-    const scalar_t bonus = (region.height > previousFootholdHeight + 1e-3) ? stepUpBonus : 0.0;
-    considerCandidate(toWorld(clampedLocal, region.center, region.yaw), region.height, bonus);
+    const vector2_t candidate = toWorld(clampedLocal, region.center, region.yaw);
+    const scalar_t height = region.heightAt(candidate);
+    const scalar_t bonus = terrainModel_.stairGeometry && height > previousFootholdHeight + 1e-3 ? stepUpBonus : 0.0;
+    considerCandidate(candidate, height, bonus);
   }
 
-  // Fallback: no reachable candidate (e.g. every option exceeds max_step_height)
-  // -> step in place at the nominal, at whatever terrain is directly below it.
+  // No reachable candidate: retain the previous support instead of bypassing limits.
   if (!haveCandidate) {
-    return vector3_t(nominalXY(0), nominalXY(1), terrainModel_.heightAt(nominalXY));
+    return previousFoothold;  // do not bypass reach/height limits with an unsafe fallback
   }
   return vector3_t(bestXY(0), bestXY(1), bestHeight);
 }
@@ -254,7 +275,7 @@ void TerrainFootholdPlanner::update(const ModeSchedule& modeSchedule,
       // Lateral alignment to the staircase centerline (ground truth): near/on the
       // stairs, anchor the stance laterally to the terrain axis instead of the
       // (veer-prone) base, so the biped keeps a symmetric stance while climbing.
-      if (terrainModel_.footprintHalfLengthX > 0.0) {
+      if (terrainModel_.stairGeometry && terrainModel_.footprintHalfLengthX > 0.0) {
         vector2_t local = toLocal(nominalXY, terrainModel_.footprintCenter, terrainModel_.footprintYaw);
         constexpr scalar_t approachDist = 0.5;
         if (local(0) > -terrainModel_.footprintHalfLengthX - approachDist) {  // approaching or on the stairs
@@ -263,7 +284,7 @@ void TerrainFootholdPlanner::update(const ModeSchedule& modeSchedule,
         }
       }
 
-      vector3_t foothold = projectFoothold(nominalXY, previousFoothold(2));
+      vector3_t foothold = projectFoothold(nominalXY, previousFoothold);
 
       // Step-up handling. A foot can only land on a tread it can reach in one
       // swing; the swing HEIGHT is tied to the touchdown height, so an
@@ -274,7 +295,7 @@ void TerrainFootholdPlanner::update(const ModeSchedule& modeSchedule,
       // riser (z=0, foot lands correctly on the ground), and climb once close.
       // Forward progress toward the riser is provided by the reach-scaled
       // foothold-tracking weight (weak while far), so the base does not stall.
-      if (foothold(2) > previousFoothold(2) + 1e-3) {
+      if (terrainModel_.stairGeometry && foothold(2) > previousFoothold(2) + 1e-3) {
         constexpr scalar_t maxStepReach = 0.22;  // must exceed 2*foot_margin_x to bridge a riser
         vector3_t nearEdge = foothold;
         for (const auto& region : terrainModel_.regions) {
@@ -369,6 +390,16 @@ vector3_t TerrainFootholdPlanner::getPlannedFootPosition(size_t foot, scalar_t t
 /******************************************************************************************************/
 
 bool TerrainFootholdPlanner::isNearStairs(const vector2_t& positionWorld) const {
+  if (!terrainModel_.stairGeometry) {
+    for (const auto& region : terrainModel_.regions) {
+      const vector2_t local = toLocal(positionWorld, region.center, region.yaw);
+      if (std::abs(local(0)) <= region.halfLengthX + settings_.engageDistance &&
+          std::abs(local(1)) <= region.halfLengthY + settings_.engageDistance) {
+        return true;
+      }
+    }
+    return false;
+  }
   if (terrainModel_.footprintHalfLengthX <= 0.0) {
     return false;
   }
@@ -378,6 +409,49 @@ bool TerrainFootholdPlanner::isNearStairs(const vector2_t& positionWorld) const 
   const vector2_t local(c * d(0) + s * d(1), -s * d(0) + c * d(1));
   return std::abs(local(0)) <= terrainModel_.footprintHalfLengthX + settings_.engageDistance &&
          std::abs(local(1)) <= terrainModel_.footprintHalfLengthY + settings_.engageDistance;
+}
+
+vector3_t TerrainFootholdPlanner::getAnticipatedFootPosition(size_t foot, scalar_t time) const {
+  vector3_t position = initialFootPosition_[foot];
+  for (const auto& step : footsteps_[foot]) {
+    if (time >= step.touchDownTime) {
+      position = step.touchDownPosition;
+    } else if (time >= step.liftOffTime) {
+      const scalar_t s = std::clamp((time - step.liftOffTime) / std::max(step.touchDownTime - step.liftOffTime, EPS), 0.0, 1.0);
+      position = step.liftOffPosition + s * s * (3.0 - 2.0 * s) * (step.touchDownPosition - step.liftOffPosition);
+      break;
+    } else {
+      break;
+    }
+  }
+  return position;
+}
+
+vector3_t TerrainFootholdPlanner::getAnticipatedSupportVelocity(scalar_t time) const {
+  vector3_t velocity = vector3_t::Zero();
+  for (size_t foot = 0; foot < footsteps_.size(); ++foot) {
+    for (const auto& step : footsteps_[foot]) {
+      if (time >= step.liftOffTime && time < step.touchDownTime) {
+        const scalar_t duration = std::max(step.touchDownTime - step.liftOffTime, EPS);
+        const scalar_t s = std::clamp((time - step.liftOffTime) / duration, 0.0, 1.0);
+        velocity += 0.5 * 6.0 * s * (1.0 - s) / duration * (step.touchDownPosition - step.liftOffPosition);
+        break;
+      }
+    }
+  }
+  return velocity;
+}
+
+vector3_t TerrainFootholdPlanner::getContactNormal(size_t foot, scalar_t time) const {
+  for (const auto& step : footsteps_[foot]) {
+    if (time >= step.liftOffTime && time < step.touchDownTime) {
+      const scalar_t s = std::clamp((time - step.liftOffTime) / std::max(step.touchDownTime - step.liftOffTime, EPS), 0.0, 1.0);
+      const scalar_t blend = s * s * (3.0 - 2.0 * s);
+      return ((1.0 - blend) * terrainModel_.normalAt(step.liftOffPosition.head<2>()) +
+              blend * terrainModel_.normalAt(step.touchDownPosition.head<2>())).normalized();
+    }
+  }
+  return terrainModel_.normalAt(getPlannedFootPosition(foot, time).head<2>());
 }
 
 /******************************************************************************************************/

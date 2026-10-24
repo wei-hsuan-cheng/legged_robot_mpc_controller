@@ -134,7 +134,8 @@ class FrictionForceConeConstraint final : public StateInputConstraint {
 
   FrictionForceConeConstraint(const FrictionForceConeConstraint& other);
   vector_t coneConstraint(const vector3_t& localForces) const;
-  LocalForceDerivatives computeLocalForceDerivatives(const vector3_t& forcesInBodyFrame) const;
+  LocalForceDerivatives computeLocalForceDerivatives(const matrix3_t& worldToTerrain) const;
+  matrix3_t worldToTerrain(scalar_t time) const;
   ConeLocalDerivatives computeConeLocalDerivatives(const vector3_t& localForces) const;
   ConeDerivatives computeConeConstraintDerivatives(const ConeLocalDerivatives& coneLocalDerivatives,
                                                    const LocalForceDerivatives& localForceDerivatives) const;

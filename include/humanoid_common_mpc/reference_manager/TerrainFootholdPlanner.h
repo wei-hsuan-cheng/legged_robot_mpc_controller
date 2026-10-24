@@ -36,21 +36,26 @@ treads are horizontal and a humanoid keeps its torso upright.
 
 namespace ocs2::humanoid {
 
-/// One horizontal rectangular planar region (a stair tread), in world frame.
+/// Rectangular footprint of an upward-facing plane, in world frame.
 struct PlanarRegion {
   vector2_t center{vector2_t::Zero()};  ///< world xy of the rectangle center
   scalar_t yaw{0.0};                    ///< rotation of the rectangle about +z
   scalar_t halfLengthX{0.15};           ///< half size along the local x (depth/2)
   scalar_t halfLengthY{0.60};           ///< half size along the local y (width/2)
   scalar_t height{0.0};                 ///< world z of the surface
+  vector3_t normal{0.0, 0.0, 1.0};       ///< plane normal; height is measured at center
+
+  scalar_t heightAt(const vector2_t& xy) const {
+    return height - normal.head<2>().dot(xy - center) / normal(2);
+  }
 };
 
-/// Piecewise-horizontal ground-truth terrain: a flat ground plane plus elevated
-/// rectangular regions. The ground is assumed unavailable inside the footprint
-/// of the elevated structure (feet cannot stand under the stairs).
+/// Piecewise-planar known terrain: a flat background plus upward-facing regions.
+/// Queries select the highest surface, including the background floor under buried tiles.
 struct GroundTruthTerrainModel {
   scalar_t groundHeight{0.0};
   std::vector<PlanarRegion> regions;
+  bool stairGeometry{true};  ///< enable staircase-specific approach/centerline heuristics
   // Footprint of the elevated structure on the ground plane (world frame,
   // same yaw convention as the regions); ground candidates are pushed out of it.
   vector2_t footprintCenter{vector2_t::Zero()};
@@ -60,6 +65,7 @@ struct GroundTruthTerrainModel {
 
   /// Surface height at a world xy position (highest region containing it, else ground).
   scalar_t heightAt(const vector2_t& positionWorld) const;
+  vector3_t normalAt(const vector2_t& positionWorld) const;
 };
 
 /// Builds the terrain model from the staircase ground truth in StairClimbingConfig.
@@ -78,6 +84,7 @@ struct TerrainFootholdPlannerSettings {
   scalar_t footholdTrackingWeight{250.0};    ///< task-space foot cost xy weight during swing
   scalar_t swingReferenceArrivalFraction{0.75};  ///< xy reference reaches the foothold at this swing fraction
   scalar_t footholdCommitLeadTime{0.10};  ///< latch a touchdown this long before lift-off and keep it through swing [s]
+  scalar_t maxStepReach{0.22};  ///< maximum horizontal reach for generic terrain candidates [m]
 };
 
 class TerrainFootholdPlanner {
@@ -117,6 +124,9 @@ class TerrainFootholdPlanner {
 
   /// Planned stance position of a foot at a given time (changes at touch-downs).
   vector3_t getPlannedFootPosition(size_t foot, scalar_t time) const;
+  vector3_t getContactNormal(size_t foot, scalar_t time) const;
+  vector3_t getAnticipatedFootPosition(size_t foot, scalar_t time) const;
+  vector3_t getAnticipatedSupportVelocity(scalar_t time) const;
 
   /// Planned support midpoint (mean of the feet positions) at a given time.
   vector3_t getSupportMidpoint(scalar_t time) const {
@@ -142,7 +152,7 @@ class TerrainFootholdPlanner {
 
  private:
   /// Projects a nominal foothold onto the best terrain candidate (region or ground).
-  vector3_t projectFoothold(const vector2_t& nominalXY, scalar_t previousFootholdHeight) const;
+  vector3_t projectFoothold(const vector2_t& nominalXY, const vector3_t& previousFoothold) const;
 
   GroundTruthTerrainModel terrainModel_;
   TerrainFootholdPlannerSettings settings_;

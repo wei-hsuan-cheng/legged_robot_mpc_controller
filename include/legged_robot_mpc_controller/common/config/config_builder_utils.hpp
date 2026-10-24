@@ -24,6 +24,7 @@ ocs2::humanoid::StairClimbingConfig loadStairClimbingConfig(const std::string& s
 /// `terrain_walk.stairs` section (used to build the terrain model). Only the
 /// geometry fields of StairClimbingConfig are populated.
 ocs2::humanoid::StairClimbingConfig loadTerrainStairsGeometry(const std::string& terrainWalkingFile);
+ocs2::humanoid::GroundTruthTerrainModel loadTerrainModel(const std::string& terrainWalkingFile);
 
 /// Loads the online terrain-walk planner settings from the `terrain_walk`
 /// section (defaults when absent).

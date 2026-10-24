@@ -252,6 +252,21 @@ void SwitchedModelReferenceManager::modifyReferences(scalar_t initTime,
     auto& planner = *terrainFootholdPlannerPtr_;
     planner.update(modeSchedule, targetTrajectories, computeFeetPositions(initState), initState, initTime, *mpcRobotModelPtr_);
 
+    // Resolve the changing support height throughout the horizon, not only at the
+    // command trajectory's three knots. Position and vertical velocity share the same smooth support path.
+    const TargetTrajectories originalTargets = targetTrajectories;
+    targetTrajectories.timeTrajectory.clear();
+    targetTrajectories.stateTrajectory.clear();
+    targetTrajectories.inputTrajectory.clear();
+    for (scalar_t time = initTime; time < finalTime - 1e-6; time += 0.05) {
+      targetTrajectories.timeTrajectory.push_back(time);
+      targetTrajectories.stateTrajectory.push_back(originalTargets.getDesiredState(time));
+      targetTrajectories.inputTrajectory.push_back(originalTargets.getDesiredInput(time));
+    }
+    targetTrajectories.timeTrajectory.push_back(finalTime);
+    targetTrajectories.stateTrajectory.push_back(originalTargets.getDesiredState(finalTime));
+    targetTrajectories.inputTrajectory.push_back(originalTargets.getDesiredInput(finalTime));
+
     // Keep the velocity-command trajectory on the flat approach. Near the
     // terrain, constrain its lead over the planned support and adapt its height
     // using committed swing footholds. This preserves persistent forward intent
@@ -266,25 +281,8 @@ void SwitchedModelReferenceManager::modifyReferences(scalar_t initTime,
         continue;
       }
 
-      const auto anticipatedFoot = [&](size_t foot, scalar_t time) -> vector3_t {
-        vector3_t position = planner.getPlannedFootPosition(foot, time);
-        for (const auto& footstep : planner.getFootsteps()[foot]) {
-          if (time >= footstep.touchDownTime) {
-            position = footstep.touchDownPosition;
-          } else if (time >= footstep.liftOffTime) {
-            const scalar_t duration = std::max(footstep.touchDownTime - footstep.liftOffTime, 1e-6);
-            const scalar_t progress = std::clamp((time - footstep.liftOffTime) / duration, 0.0, 1.0);
-            position = footstep.liftOffPosition + progress * (footstep.touchDownPosition - footstep.liftOffPosition);
-            break;
-          } else {
-            break;
-          }
-        }
-        return position;
-      };
-
       const vector3_t supportMidpoint =
-          0.5 * (anticipatedFoot(0, knotTime) + anticipatedFoot(1, knotTime));
+          0.5 * (planner.getAnticipatedFootPosition(0, knotTime) + planner.getAnticipatedFootPosition(1, knotTime));
       const scalar_t yaw = basePose(3);
       const Eigen::Vector2d forwardDirection(std::cos(yaw), std::sin(yaw));
       const Eigen::Vector2d lateralDirection(-std::sin(yaw), std::cos(yaw));
@@ -304,6 +302,7 @@ void SwitchedModelReferenceManager::modifyReferences(scalar_t initTime,
           std::clamp(lateralLead, -maxLead, maxLead) * lateralDirection;
       basePose(2) =
           supportMidpoint(2) + std::min(basePose(2), planner.getMaxBaseHeightAboveSupport());
+      targetState(velStart + 2) = planner.getAnticipatedSupportVelocity(knotTime)(2);
       basePose(4) = 0.0;
       basePose(5) = 0.0;
       mpcRobotModelPtr_->setBasePose(targetState, basePose);

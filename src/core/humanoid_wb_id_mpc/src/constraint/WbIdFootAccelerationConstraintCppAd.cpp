@@ -43,7 +43,7 @@ WbIdFootAccelerationConstraintCppAd::WbIdFootAccelerationConstraintCppAd(Type ty
         "[WbIdFootAccelerationConstraintCppAd] swing vertical acceleration gain must be non-zero "
         "(footConstraint.linearAccelerationErrorGain_z)");
   }
-  const std::string modelName = footName + (type_ == Type::Stance ? "_wb_id_stance_acceleration" : "_wb_id_swing_vertical_acceleration");
+  const std::string modelName = footName + (type_ == Type::Stance ? "_wb_id_stance_acceleration_v2" : "_wb_id_swing_vertical_acceleration_v2");
   initialize(mpcRobotModelAD.getStateDim(), mpcRobotModelAD.getInputDim(), kNumParameters, modelName, modelSettings.modelFolderCppAd,
              modelSettings.recompileLibrariesCppAd, modelSettings.verboseCppAd);
 }
@@ -71,7 +71,8 @@ vector_t WbIdFootAccelerationConstraintCppAd::getParameters(scalar_t time, const
       swing.getZaccelerationConstraint(contactIndex_, time),        //
       gains_.positionZ, gains_.orientation,                         //
       gains_.linearVelocityXY, gains_.linearVelocityZ, gains_.angularVelocity,  //
-      gains_.linearAccelerationXY, gains_.linearAccelerationZ, gains_.angularAcceleration;
+      gains_.linearAccelerationXY, gains_.linearAccelerationZ, gains_.angularAcceleration,
+      referenceManagerPtr_->getContactNormal(contactIndex_, time);
   return parameters;
 }
 
@@ -110,7 +111,7 @@ ad_vector_t WbIdFootAccelerationConstraintCppAd::constraintFunction(ad_scalar_t 
   }
 
   const ad_vector3_t tilt =
-      rotationMatrixDistanceToPlane<ad_scalar_t>(placement.rotation(), ad_vector3_t(ad_scalar_t(0.0), ad_scalar_t(0.0), ad_scalar_t(1.0)));
+      rotationMatrixDistanceToPlane<ad_scalar_t>(placement.rotation(), ad_vector3_t(p.segment<3>(11)));
   ad_vector_t g(6);
   g(0) = kaXY * acceleration.linear()(0) + kdXY * twist.linear()(0);
   g(1) = kaXY * acceleration.linear()(1) + kdXY * twist.linear()(1);

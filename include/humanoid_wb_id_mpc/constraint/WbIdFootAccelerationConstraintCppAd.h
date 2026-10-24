@@ -66,7 +66,7 @@ class WbIdFootAccelerationConstraintCppAd final : public StateInputConstraintCpp
   size_t getNumConstraints(scalar_t /*time*/) const override { return type_ == Type::Stance ? 6 : 1; }
   vector_t getParameters(scalar_t time, const PreComputation& preComputation) const override;
 
-  static constexpr size_t kNumParameters = 11;
+  static constexpr size_t kNumParameters = 14;
 
  private:
   WbIdFootAccelerationConstraintCppAd(const WbIdFootAccelerationConstraintCppAd& rhs);

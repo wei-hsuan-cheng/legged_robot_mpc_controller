@@ -38,7 +38,7 @@ terrain_walk:
   max_step_height: 0.18           # reject candidate regions further than this in z from the previous foothold [m]
   capture_point_feedback_gain: 0.27   # sqrt(h/g) velocity feedback on the first upcoming step
   max_capture_point_offset: 0.10  # clamp on the capture-point foothold offset [m]
-  max_base_height_above_support: 0.70  # cap of the commanded pelvis height above the mean support [m]
+  max_base_height_above_support: 0.80  # does not force the default 0.795 m stance to crouch on entry [m]
   engage_distance: 0.30           # begin terrain adaptation before the first riser [m]
   max_base_lead: 0.30             # clamp of the base reference lead over the planned support midpoint [m]
   tracking_weight: 250.0          # swing-foot xy position tracking weight at full commit (scaled DOWN
@@ -46,3 +46,4 @@ terrain_walk:
   swing_reference_arrival_fraction: 0.75  # xy reference reaches the foothold before touch-down then holds,
                                   # front-loading the foot motion so execution reaches the tread
   foothold_commit_lead_time: 0.10  # latch the touchdown shortly before lift-off and keep it through swing [s]
+  max_step_reach: 0.22            # maximum horizontal step reach for scene-derived terrain [m]

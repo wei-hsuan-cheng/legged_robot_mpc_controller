@@ -4,7 +4,8 @@
 #
 # usage: run_case.sh <tag> <controllers.yaml | default> [vx_mps]
 #   env: HEIGHT (commanded pelvis height, default 0.795), LAUNCH_ARGS (extra g1.launch.py args), OUT (results root, default
-#        <repo>/tuning_results), RVIZ=true SHOTS=1 (RViz screenshots during the walk)
+#        <repo>/tuning_results), RVIZ=true SHOTS=1 (RViz screenshots during the walk),
+#        HOLD_SECONDS (constant-command duration, default 20)
 # writes: $OUT/<tag>/{sim.log, data.npz, metrics.json, diag.json, *.png, config.yaml, summary.txt}
 # The streams are recorded by ros2 bag (a Python subscriber in this container drops most of the
 # 1 kHz data), converted to data.npz, and the bag is deleted.
@@ -19,11 +20,11 @@ OUT=${OUT:-$REPO/tuning_results}; D=$OUT/$TAG; mkdir -p "$D"; rm -rf "${D:?}"/*
 [ "$CFG" = default ] && CFG=$REPO/config/g1/ros2_controllers.yaml
 cp "$CFG" "$D/config.yaml"
 pkill -9 -x mujoco_ros2_con 2>/dev/null; pkill -9 -x rviz2 2>/dev/null; sleep 2
-setsid nohup timeout 170 bash -c "cd $WS && $SRC && ros2 launch legged_robot_mpc_controller g1.launch.py \
+setsid nohup timeout 240 bash -c "cd $WS && $SRC && ros2 launch legged_robot_mpc_controller g1.launch.py \
   mpcControllerName:=humanoid_whole_body_inverse_dynamics_mpc_controller mujocoModelFile:=scene_flat.xml \
   rviz:=${RVIZ:-false} ${RVIZCFG:+rvizconfig:=$RVIZCFG} mujoco_headless:=true baseCommandGui:=false controllersFile:=$D/config.yaml ${LAUNCH_ARGS:-}" > "$D/sim.log" 2>&1 < /dev/null &
 w=0
-until grep -qE -- "-> locomotion|bring-up FAULT|on_configure failed|init failed" "$D/sim.log" 2>/dev/null; do
+until grep -qE -- "-> locomotion|first MPC advance:|bring-up FAULT|on_configure failed|init failed" "$D/sim.log" 2>/dev/null; do
   sleep 1; w=$((w+1)); [ $w -gt 120 ] && { echo "RUN: no locomotion after 120 s" | tee -a "$D/summary.txt"; break; }
 done
 sleep 2

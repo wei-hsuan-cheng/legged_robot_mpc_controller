@@ -1,5 +1,123 @@
 # WB-ID MPC Walking Robustness Handoff
 
+## Launch Scope Correction (2026-10-24)
+
+The user wants unknown-terrain accommodation in ordinary locomotion through C++/parameter changes, not a simulator-geometry pipeline or the dormant `terrain_walk`/`stair_climb` modes.
+`launch/g1.launch.py` was restored exactly to HEAD (`3ffceca`), removing the `terrainFromScene` argument, XML-to-YAML hook and temporary-file lifecycle changes.
+Omit `terrainFromScene` from future launch commands; the prior successful trials passed it as false, so the removed hook was already inactive in those tests.
+The tested `positionErrorGain_z: 50.0` and `orientationErrorGain: 100.0` remain unchanged.
+The standalone `launch/terrain_scene_model.py` exporter and mapped-terrain C++ extensions from the earlier checkpoint are still present but unused by normal `base_twist`; they are not required for the measured improvement.
+The explicit `TerrainFootholdPlanner` itself already existed in HEAD; the earlier changes extended its geometry, normals, reach checks and reference generation, rather than introducing the planner for normal locomotion.
+The archived terrain-checkpoint document is not a current launch instruction.
+Only launch/documentation changed in this scope correction; Python syntax and exact launch equality to HEAD were checked, but the full simulation suite was not rerun.
+
+### Change Inventory Relative to HEAD
+
+- Normal WB-ID parameter changes: Q/Qf base z weight 100 to 50 and vz weight 10 to 5; foot xy velocity weights 10 to 5; torso free-tilt corridor 5 to 10 degrees; extra leg-load cost disabled; swing clearance 0.08 to 0.10 m; foot stabilization gains 250 to 50 vertically and 1000 to 100 for orientation.
+- The final two foot-stabilization gains were isolated in the ramp A/B tests; the other parameter changes were already present in both baseline and candidate, so those tests do not establish their individual effects.
+- Mapped-planner extensions: inclined-region height/normal queries, scene-style region YAML loading, reach/height/occlusion candidate checks and retaining the previous foothold when no candidate is valid.
+- Mapped-reference extensions: smooth anticipated support transfer, matching base vertical velocity and denser horizon reference samples.
+- Contact wiring: mapped normals feed the foot cost, stance tilt equality and friction cone with rotated analytic derivatives; stance/swing AD models use 14 parameters and distinct `_v2` cache names.
+- Those mapped-planner/reference changes only provide their terrain capability when `terrain_walk` is active; ordinary `base_twist` still uses a world-up normal and its existing ground-height fallback.
+- Offline tooling: scene-geometry exporter and geometry/reference regression tests; tuning harness duration/readiness improvements; full-run tracking plots and recorded-state MuJoCo replay images.
+- No new perception, terrain-state estimator, unknown-surface normal estimator or contact-triggered touchdown adaptation was implemented, and no new inverse-dynamics model was introduced.
+- The explicit foothold planner predates these changes; the launch hook was added for simulation-known geometry and has now been removed because it does not meet the user's unknown-terrain goal.
+
+## Ordinary Base-Twist Ramp Tuning (2026-10-24)
+
+This is the latest task: the user is NOT using `terrain_walk` or `stair_climb` and requested ordinary `base_twist` walking on the ramp included in `description/mujoco/scene.xml`.
+Do not assume the older mapped-terrain checkpoint below solves this path.
+No legacy-mode implementation was changed in this tuning pass, and all trials explicitly use `terrainFromScene:=false`.
+The scene remains the user's 3-degree ramp, beginning near x=1.5 m and ending near x=5.49 m with an abrupt drop to the floor.
+
+Only two WB-ID controller parameters changed from the user's current configuration:
+
+```yaml
+ocs2:
+  model:
+    useTerrainHeightEstimate: false  # unchanged
+    footConstraint:
+      positionErrorGain_z: 50.0     # previously 250
+      orientationErrorGain: 100.0  # previously 1000
+```
+
+All acceleration gains remain 1 and velocity gains remain 50.
+These are stabilization gains inside hard acceleration equalities, not soft costs or relaxed contact constraints.
+The original orientation term demanded rapid correction toward a world-horizontal foot even on the incline; lowering it reduces that conflict while retaining angular damping.
+The vertical term likewise corrects height error more slowly instead of fighting the contact surface as aggressively.
+Q/Qf/R, servo gains, foot task-space weights, estimator parameters and gait timing were not changed in this pass.
+
+Trials use Parallels container `ros_jazzy`, MPC requested at 100 Hz, MRT 1000 Hz, command GUI disabled, default `base_twist`, `humanoid_linear_kf` with `floatingBaseSource:=state_estimator` unless explicitly marked otherwise.
+The command schedule is 4 s stand, 3 s ramp to vx=0.3 m/s, 20 s hold, 3 s ramp down and 5 s stop; the published command is normalized using the configured velocity scale.
+The probe schedule is wall-clock based; recorded simulator timestamps are used for plots and velocity metrics.
+
+| Case in `tuning_results/` | Change | Outcome |
+| --- | --- | --- |
+| `ramp_baseline` | Original gains, RViz and visible MuJoCo | Fell 27.4 s after command onset, max x=3.71 m, mean walking vx=0.145 m/s. |
+| `ramp_baseline_headless` | Original gains, both visualizers off | Fell again 27.4 s after command onset, mean vx=0.158 m/s. |
+| `ramp_gt_feedback` | Reduced gains, height adaptation on, simulator feedback for isolation only | No fall, stopped at x=5.00 m, mean vx=0.219 m/s. |
+| `ramp_est_feedback` | Reduced gains, height adaptation on, estimator feedback | No fall, stopped at x=5.26 m, mean vx=0.226 m/s. |
+| `ramp_est_gains_only` | Reduced gains only, height adaptation off, estimator feedback | No fall, stopped at x=5.25 m, mean vx=0.226 m/s; max absolute roll/pitch over the recording 0.87/1.43 degrees. |
+
+The first trials above used the previously installed binaries.
+The two-job Jazzy Release symlink-install build of the current tree then passed in 5 min 24 s, with existing compiler/deprecation warnings only; its container log is `/tmp/wbid_base_twist_ramp_build_20261024.log`.
+The rebuilt process loaded the current `_v2` stance/swing AD libraries, so the final comparison is not based on stale installed constraints.
+
+| Post-build case | Command | Result |
+| --- | --- | --- |
+| `ramp_rebuilt_baseline` | vx=0.3 m/s, original gains, headless | Fell 27.9 s after command onset, max x=3.91 m, walking vx=0.158 m/s. |
+| `ramp_final_headless` | vx=0.3 m/s, reduced gains | No fall, final x=6.25 m, walking vx=0.244 m/s. |
+| `ramp_final_slow` | vx=0.2 m/s, reduced gains, 25 s hold | No fall, stopped on the ramp at x=4.17 m, walking vx=0.149 m/s. |
+| `ramp_final_rviz` | vx=0.3 m/s, reduced gains, RViz enabled and MuJoCo headless | No fall, stopped on the ramp at x=5.21 m, walking vx=0.226 m/s. |
+
+Parsed trial YAML comparison confirmed exactly two changed controller values between the rebuilt baseline and final tests: the vertical position and orientation stabilization gains.
+No final test uses simulator-state feedback for control; that was only the explicitly named earlier isolation run.
+The headless final run went past the far edge and landed without falling, but its full-run plot shows a roughly 1.1 m/s forward speed spike and a sharp height drop there.
+Do not interpret survival of that event as validated controlled descent; the slower run and RViz repeat provide cleaner on-ramp stopping evidence.
+Walking-window statistics deliberately exclude most of that edge event, so always inspect the full-run `ramp.png` as well as `metrics.json`.
+Total equality SSE changes scale when stabilization gains change; smaller SSE alone is not proof of improved physical feasibility.
+The parameter contract, nine torso-cost checks, six cost-activation checks, six startup checks, Python compilation and shell syntax validation also passed.
+All test-owned simulation/recording processes were stopped after the trials.
+
+The headless baseline confirms that graphical overhead alone does not explain the failure.
+The gain-only ablation shows that enabling FK height adaptation is not needed for this improvement.
+This is improved shallow-ramp ascent and stopping, NOT a general controlled-descent or arbitrary uneven-terrain result.
+Tracking is still below the 0.3 m/s command, and high-frequency leg torque content did not improve; prioritize not falling before increasing tracking stiffness.
+
+The existing linear KF still observes every contact height as zero, so its absolute base height misses the ramp rise by approximately 0.1 m on average during these trials and nearly 0.2 m at the end.
+Do not present successful walking as accurate terrain-height estimation.
+Simply enabling `useTerrainHeightEstimate` cannot recover terrain height already removed by this estimator assumption.
+Separately, the ordinary ground-height adapter only adds the difference from its previous support-height estimate, while the command generator supplies fresh trajectories each solve; accumulated-offset bookkeeping remains a follow-up if this option is enabled with a terrain-capable estimator.
+It was deliberately left disabled rather than adding unrelated reference-manager or estimator changes without validation.
+
+Tools: `tests/tuning/run_case.sh` now recognizes first-policy startup for simulator-feedback isolation runs and permits longer runs; `HOLD_SECONDS` configures the probe hold duration.
+`tests/tuning/plot_ramp.py <case> [--render]` writes full-run `ramp.png`, `ramp_metrics.json` and optional `replay0.png` through `replay4.png`.
+Replay images reconstruct recorded physical base pose plus joint encoders in MuJoCo; they are not live screenshots or estimated robot poses.
+`replay4.png` is the last recorded state, including the fallen baseline.
+Existing `SHOTS=1` live X11 screenshots were also captured in the baseline but overlap with desktop windows, so use the replay images for an unobstructed inspection.
+The default RViz environment still depicts an independent staircase rather than the selected MuJoCo ramp; this is a visualization mismatch, not the simulated collision terrain, and is another reason to use the recorded-state MuJoCo renders for judging physical contact.
+Result folders are git-ignored, remain on the shared filesystem, and contain exact trial configs, logs, arrays and plots.
+
+## Terrain Reference Checkpoint (2026-10-24, Jazzy build passed; terrain trial pending)
+
+See [wb_id_terrain_checkpoint.md](docs/wb_id_terrain_checkpoint.md) for the launch/mode commands, tuning table and supported geometry.
+WB-ID MuJoCo launch now defaults `terrainFromScene:=true`: static box-top regions and the background floor are exported from the selected scene to a temporary terrain YAML, without modifying the user's `scene.xml` edits.
+`terrain_walk` must still be selected explicitly; geometry export does not change the default `base_twist` mode.
+The planner handles inclined planar heights/normals, scene-derived candidate reach bounds and the background floor under below-floor tiles; legacy staircase heuristics remain isolated to the old stair model.
+Terrain normals now feed the shared foot cost, WB-ID stance tilt and the friction cone, including its analytic derivatives.
+The WB-ID stance/swing AD models use 14 parameters and `_v2` cache names, avoiding stale 11-parameter libraries.
+The terrain base-height path uses smooth anticipated support transfer with matching analytic vertical velocity, sampled every 0.05 s.
+Initial WB-ID tuning: Q/Qf height 50 and vz 5; foot tilt 300 and xy velocity 5; extra leg-load cost disabled; torso free lean 10 degrees; swing clearance 0.10 m; planner height cap 0.80 m to avoid an entry crouch at the default 0.795 m command.
+Existing `useTerrainHeightEstimate: false` and `maxTerrainHeightStep: 0.002` remain unchanged; these control only the ordinary FK-ground-height fallback, not explicit mapped terrain.
+Seven geometry/reference checks passed before the user's final build-only instruction, including ramp agreement with MuJoCo compilation and ray casts, all 440 tile tops, empty flat-scene geometry, smooth support derivatives and normal/cache wiring.
+The WB-ID parameter contract and nine torso reference-math/wiring checks also passed.
+No walking experiment was run for this checkpoint, and no simulation is to be launched: the user explicitly requested build only and will test themselves.
+The current linear KF's contact-height observations remain zero, so first isolate terrain control with `floatingBaseSource:=ground_truth_state`; validating a non-flat estimator-height path is still required afterward.
+This is a simulation-known-geometry checkpoint, not perception, drift-corrected map registration, general mesh/heightfield support or a terrain stability guarantee.
+Build log in `ros_jazzy`: `/tmp/wbid_terrain_checkpoint_build_20261024.log`.
+The two-job symlink-install Release build completed successfully in 5 min 52 s with `BUILD_TESTING=OFF`; only existing compiler/deprecation warnings were reported.
+No simulator or MPC process was started after this build, as requested.
+
 ## Gravity-Relative Torso Stabilization (2026-10-24, build and startup verified)
 
 Added `WbIdTorsoTiltCost`, registered as the running OCP cost `torsoTiltCost` when `ocs2.costs.torsoTiltCost.activate` is true.

@@ -29,6 +29,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ******************************************************************************/
 
 #include "humanoid_common_mpc/constraint/FrictionForceConeConstraint.h"
+#include <Eigen/Geometry>
+#include <stdexcept>
 
 namespace ocs2::humanoid {
 
@@ -54,14 +56,26 @@ FrictionForceConeConstraint::FrictionForceConeConstraint(const FrictionForceCone
       referenceManagerPtr_(rhs.referenceManagerPtr_),
       config_(rhs.config_),
       mpcRobotModelPtr_(rhs.mpcRobotModelPtr_),
-      contactPointIndex_(rhs.contactPointIndex_) {}
+      contactPointIndex_(rhs.contactPointIndex_),
+      t_R_w(rhs.t_R_w),
+      isActive_(rhs.isActive_) {}
 
 /******************************************************************************************************/
 /******************************************************************************************************/
 /******************************************************************************************************/
 void FrictionForceConeConstraint::setSurfaceNormalInWorld(const vector3_t& surfaceNormalInWorld) {
-  t_R_w.setIdentity();
-  throw std::runtime_error("[FrictionForceConeConstraint] setSurfaceNormalInWorld() is not implemented!");
+  if (!surfaceNormalInWorld.allFinite() || surfaceNormalInWorld.norm() < 1e-9) {
+    throw std::invalid_argument("[FrictionForceConeConstraint] invalid surface normal");
+  }
+  t_R_w = Eigen::Quaternion<scalar_t>::FromTwoVectors(vector3_t::UnitZ(), surfaceNormalInWorld.normalized()).toRotationMatrix().transpose();
+}
+
+matrix3_t FrictionForceConeConstraint::worldToTerrain(scalar_t time) const {
+  if (!referenceManagerPtr_->isTerrainWalkActive()) {
+    return t_R_w;
+  }
+  const vector3_t normal = referenceManagerPtr_->getContactNormal(contactPointIndex_, time);
+  return Eigen::Quaternion<scalar_t>::FromTwoVectors(vector3_t::UnitZ(), normal).toRotationMatrix().transpose();
 }
 
 /******************************************************************************************************/
@@ -80,7 +94,7 @@ vector_t FrictionForceConeConstraint::getValue(scalar_t time,
                                                const vector_t& input,
                                                const PreComputation& preComp) const {
   const auto forcesInWorldFrame = mpcRobotModelPtr_->getContactForce(input, contactPointIndex_);
-  const vector3_t localForce = t_R_w * forcesInWorldFrame;
+  const vector3_t localForce = worldToTerrain(time) * forcesInWorldFrame;
   return coneConstraint(localForce);
 }
 
@@ -92,9 +106,10 @@ VectorFunctionLinearApproximation FrictionForceConeConstraint::getLinearApproxim
                                                                                       const vector_t& input,
                                                                                       const PreComputation& preComp) const {
   const vector3_t forcesInWorldFrame = mpcRobotModelPtr_->getContactForce(input, contactPointIndex_);
-  const vector3_t localForce = t_R_w * forcesInWorldFrame;
+  const matrix3_t rotation = worldToTerrain(time);
+  const vector3_t localForce = rotation * forcesInWorldFrame;
 
-  const auto localForceDerivatives = computeLocalForceDerivatives(forcesInWorldFrame);
+  const auto localForceDerivatives = computeLocalForceDerivatives(rotation);
   const auto coneLocalDerivatives = computeConeLocalDerivatives(localForce);
   const auto coneDerivatives = computeConeConstraintDerivatives(coneLocalDerivatives, localForceDerivatives);
 
@@ -113,9 +128,10 @@ VectorFunctionQuadraticApproximation FrictionForceConeConstraint::getQuadraticAp
                                                                                             const vector_t& input,
                                                                                             const PreComputation& preComp) const {
   const vector3_t forcesInWorldFrame = mpcRobotModelPtr_->getContactForce(input, contactPointIndex_);
-  const vector3_t localForce = t_R_w * forcesInWorldFrame;
+  const matrix3_t rotation = worldToTerrain(time);
+  const vector3_t localForce = rotation * forcesInWorldFrame;
 
-  const auto localForceDerivatives = computeLocalForceDerivatives(forcesInWorldFrame);
+  const auto localForceDerivatives = computeLocalForceDerivatives(rotation);
   const auto coneLocalDerivatives = computeConeLocalDerivatives(localForce);
   const auto coneDerivatives = computeConeConstraintDerivatives(coneLocalDerivatives, localForceDerivatives);
 
@@ -133,9 +149,9 @@ VectorFunctionQuadraticApproximation FrictionForceConeConstraint::getQuadraticAp
 /******************************************************************************************************/
 /******************************************************************************************************/
 FrictionForceConeConstraint::LocalForceDerivatives FrictionForceConeConstraint::computeLocalForceDerivatives(
-    const vector3_t& forcesInWorldFrame) const {
+    const matrix3_t& worldToTerrain) const {
   LocalForceDerivatives localForceDerivatives{};
-  localForceDerivatives.dF_du = t_R_w;
+  localForceDerivatives.dF_du = worldToTerrain;
   return localForceDerivatives;
 }
 

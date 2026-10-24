@@ -291,7 +291,7 @@ $$
 +\frac12w_\omega\|\omega_\perp\|^2.
 $$
 
-The initial G1 settings are $\theta_{\mathrm{free}}=5^\circ$, $w_\theta=10$ and $w_\omega=5$; these are starting values, not simulator-validated gains.
+The current terrain-trial G1 settings are $\theta_{\mathrm{free}}=10^\circ$, $w_\theta=10$ and $w_\omega=5$; these are starting values, not simulator-validated terrain gains.
 The angular-velocity penalty remains active inside the free tilt corridor, while position and spin about gravity are unpenalized.
 The term reads no desired pose/twist and is invariant to world translation and a common rotation of the state about gravity.
 Its scalar isotropic weights and the corridor are independent of `qScaling` and `rScaling`, and all settings are applied at controller configuration.
@@ -324,7 +324,7 @@ $$
 k_{a,xy}a_{c,x}+k_{d,xy}v_{c,x}&=0,\\
 k_{a,xy}a_{c,y}+k_{d,xy}v_{c,y}&=0,\\
 k_{a,z}a_{c,z}+k_{d,z}v_{c,z}+k_{p,z}(z_c-z_{c,d})&=0,\\
-k_{a,R}\dot\omega_c+k_{d,R}\omega_c+k_{p,R}d_{\mathrm{plane}}(R_c,e_z)&=0.
+k_{a,R}\dot\omega_c+k_{d,R}\omega_c+k_{p,R}d_{\mathrm{plane}}(R_c,n_c(t))&=0.
 \end{aligned}
 $$
 
@@ -332,6 +332,7 @@ Current acceleration gains are 1, velocity gains are 50, vertical position gain 
 At nominal 0.02 s spacing, $k_d=50=1/\Delta t$; under a constant-acceleration approximation, $a+v/\Delta t=0$ damps velocity to zero at the next node.
 This is not an exact nonlinear discrete no-slip equation because the Jacobian and its derivatives change over the interval.
 There is no explicit stance horizontal-position anchor in these rows.
+In `terrain_walk`, $n_c(t)$ comes from the planned contact's terrain surface; ordinary walking and the fixed stair plan retain $n_c=e_z$.
 
 ### 5.3 Swing vertical equality
 
@@ -348,9 +349,9 @@ $$
 h_{\mathrm{fric}}=\mu_f(f_z+f_{\mathrm{grip}})-\sqrt{f_x^2+f_y^2+\epsilon}\ge0.
 $$
 
-The foot setup uses zero gripper-force offset and the world vertical cone normal.
+The foot setup uses zero gripper-force offset; the force components in this equation are expressed in the planned terrain frame during `terrain_walk`, and in the world frame otherwise.
 The factory retains the class's smoothing constant $\epsilon=25\ \mathrm{N}^2$, so the smoothed margin is more restrictive near zero force than an unsmoothed cone.
-The surface-normal setter in this class is unimplemented, so an arbitrary terrain-normal cone is not supplied here.
+The terrain rotation is used in the value, Jacobian and Hessian, and the fixed-normal setter is also implemented.
 The current friction coefficient $\mu_f=0.4$ is distinct from the soft penalty strength also called `mu`.
 For CoP, forces and moments are rotated into the foot frame and the margins are:
 
@@ -480,10 +481,12 @@ $$
 \qquad z_{\mathrm{apex}}=\max(z_l,z_d)+\lambda h_{\mathrm{swing}}.
 $$
 
-Current configured swing height is 0.08 m.
+Current configured swing height is 0.10 m for the initial terrain checkpoint.
 The spline supplies $z_d$, $\dot z_d$ and $\ddot z_d$ to the swing equality and impact-proximity factors to the costs.
 Shared stair-plan and terrain-foothold hooks are connected when config files are supplied, but that wiring does not establish validated WB-ID stair walking.
-The contact-plane and friction-normal assumptions still limit general terrain use.
+WB-ID simulation can export static box tops from the selected MuJoCo scene, using the same normals in foot tracking, stance tilt and friction.
+The terrain branch samples a smooth anticipated support-height trajectory every 0.05 s and supplies its analytic vertical velocity, rather than retaining a zero vertical-velocity target uphill.
+See [Terrain Trial Checkpoint](./wb_id_terrain_checkpoint.md) for launch/mode commands, the tuning changes, supported geometry and estimator limitations.
 
 
 ## 7. Policy Execution and Inner Servo

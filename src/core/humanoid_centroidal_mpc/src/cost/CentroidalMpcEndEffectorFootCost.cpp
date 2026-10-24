@@ -152,7 +152,7 @@ vector_t CentroidalMpcEndEffectorFootCost::getParameters(scalar_t time,
 
   vector_t parameters(25);
   parameters.head(3) = positionReference;               // Reference position
-  parameters.segment(3, 3) = vector3_t(0.0, 0.0, 1.0);  // Ground plane normal
+  parameters.segment(3, 3) = referenceManagerPtr_->getContactNormal(contactIndex_, time);
   parameters.segment(6, 3) = vector3_t(0.0, 0.0, 0.0);  // Reference linear velocity
   parameters.segment(9, 3) = vector3_t(0.0, 0.0, 0.0);  // Reference angular velocity
   parameters.segment(12, 12) = sqrtWeights;             // EndEffectorKinematicsWeights vector element
