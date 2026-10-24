@@ -53,7 +53,7 @@ class H2ModelTest(unittest.TestCase):
         for name in ('head_pitch_joint', 'head_yaw_joint'):
             self.assertIn(name, PARAMS['robot']['jointNames'])
 
-    def test_g1_cost_weights_are_copied_by_name(self):
+    def test_g1_cost_weights_are_copied_except_tuned_hip_pitch(self):
         g1 = yaml.safe_load((ROOT / 'config/g1/ros2_controllers.yaml').read_text())[NAME]['ros__parameters']
         for section, field in [('ocs2.costs.q', 'jointPositions'), ('ocs2.costs.q', 'jointVelocities'),
                                ('ocs2.costs.qFinal', 'jointPositions'), ('ocs2.costs.qFinal', 'jointVelocities'),
@@ -64,7 +64,10 @@ class H2ModelTest(unittest.TestCase):
             old = dict(zip(g1['robot']['jointNames'], old[field]))
             new = dict(zip(PARAMS['robot']['jointNames'], new[field]))
             for name in old.keys() & new.keys():
-                self.assertEqual(old[name], new[name], (section, field, name))
+                if field == 'jointPositions' and name in ('left_hip_pitch_joint', 'right_hip_pitch_joint'):
+                    self.assertEqual(new[name], 3.0)
+                else:
+                    self.assertEqual(old[name], new[name], (section, field, name))
 
     def test_meshes_and_actuator_limits_exist(self):
         prefix = 'package://legged_robot_mpc_controller/'
@@ -119,6 +122,38 @@ class H2ModelTest(unittest.TestCase):
             self.assertEqual(float(hardware[name].attrib['effort_limit']), effort)
             np.testing.assert_allclose(np.fromstring(motors[name].attrib['ctrlrange'], sep=' '),
                                        [-effort, effort])
+
+    @unittest.skipIf(mujoco is None, 'mujoco is not installed')
+    def test_foot_sphere_samples_cover_collision_extremes(self):
+        model = mujoco.MjModel.from_xml_path(str(ROOT / 'description/mujoco/robots/h2/scene_flat.xml'))
+        geometry = PARAMS['ocs2']['model']['contactGeometry']
+        center = np.array(geometry['frameTranslation'])
+        rectangle = geometry['rectangle']
+        centers = np.array([center, center + [0.6 * rectangle[0], 0, 0],
+                            center + [0.6 * rectangle[1], 0, 0]])
+        radius = PARAMS['ocs2']['constraints']['legSelfCollision']['footCollisionSphereRadius']
+        for side in ('left', 'right'):
+            body = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, side + '_ankle_pitch_link')
+            checked = 0
+            for geom in range(model.ngeom):
+                if model.geom_bodyid[geom] != body or not (model.geom_contype[geom] or model.geom_conaffinity[geom]):
+                    continue
+                kind = model.geom_type[geom]
+                pos, size = model.geom_pos[geom], model.geom_size[geom]
+                if kind == mujoco.mjtGeom.mjGEOM_SPHERE:
+                    self.assertLessEqual(np.linalg.norm(centers - pos, axis=1).min() + size[0], radius)
+                elif kind == mujoco.mjtGeom.mjGEOM_BOX:
+                    rotation = np.empty(9)
+                    mujoco.mju_quat2Mat(rotation, model.geom_quat[geom])
+                    for x in (-1, 1):
+                        for y in (-1, 1):
+                            for z in (-1, 1):
+                                point = pos + rotation.reshape(3, 3) @ (size * [x, y, z])
+                                self.assertLessEqual(np.linalg.norm(centers - point, axis=1).min(), radius)
+                else:
+                    self.fail('Update the primitive coverage check for this foot geometry')
+                checked += 1
+            self.assertGreater(checked, 0)
 
     @unittest.skipIf(mujoco is None, 'mujoco is not installed')
     def test_mass_and_nominal_contact_geometry(self):

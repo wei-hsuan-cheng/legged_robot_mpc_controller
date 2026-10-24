@@ -355,9 +355,10 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           basePose: [0.0, 0.0, 50.0, 0.0, 100.0, 100.0]
           # Stronger vx/vy tracking than G1; the other four weights are unchanged.
           baseVelocity: [60.0, 300.0, 5.0, 30.0, 30.0, 30.0]
+          # Hip-pitch posture regularization discourages a persistent front/back stance.
           jointPositions:
-            [0.05, 0.2, 15.0, 0.1, 0.1, 0.1,
-             0.05, 0.2, 15.0, 0.1, 0.1, 0.1,
+            [3.0, 0.2, 15.0, 0.1, 0.1, 0.1,
+             3.0, 0.2, 15.0, 0.1, 0.1, 0.1,
              2.0, 2.0, 2.0,
              2.0, 2.0,
              5.0, 5.0, 2.0, 4.0,
@@ -374,8 +375,8 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           basePose: [0.0, 0.0, 50.0, 0.0, 100.0, 100.0]
           baseVelocity: [60.0, 300.0, 5.0, 30.0, 30.0, 30.0]
           jointPositions:
-            [0.05, 0.1, 30.0, 0.1, 0.1, 0.1,
-             0.05, 0.1, 30.0, 0.1, 0.1, 0.1,
+            [3.0, 0.1, 30.0, 0.1, 0.1, 0.1,
+             3.0, 0.1, 30.0, 0.1, 0.1, 0.1,
              2.0, 2.0, 2.0,
              2.0, 2.0,
              5.0, 5.0, 2.0, 4.0,
@@ -530,13 +531,14 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           minimumLateralSeparation: 0.10
           leftAnkleFrame: left_ankle_pitch_joint
           rightAnkleFrame: right_ankle_pitch_joint
-          footCollisionSphereRadius: 0.1
+          # Sampled foot collision extremes need about 0.069 m; retain additional padding.
+          footCollisionSphereRadius: 0.085
           leftKneeFrame: left_knee_joint
           rightKneeFrame: right_knee_joint
           kneeCollisionSphereRadius: 0.1
-          # Soft distance penalty: discourage approach within 3 cm of the sphere boundary.
-          mu: 3000.0
-          delta: 0.03
+          # A smaller pre-contact buffer avoids encouraging a tandem stance when turning.
+          mu: 1000.0
+          delta: 0.02
 
       reference:
         targetDisplacementVelocity: 0.5
