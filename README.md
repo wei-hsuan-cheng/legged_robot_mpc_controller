@@ -5,9 +5,20 @@
 
 ## Interactive Velocity and Base Height Control via GUI & Joystick
 
-<p align="center">
-  <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/g1.gif?raw=true" width="400" />
-</p>
+<table align="center">
+  <tr>
+    <td align="center" width="50%">
+      <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/g1.gif?raw=true" width="400" alt="Unitree G1 velocity and base-height control" />
+    </td>
+    <td align="center" width="50%">
+      <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/h2_mpc_future_robot_visualization.gif?raw=true" width="400" alt="Unitree H2 MPC future robot visualization" />
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><b>Unitree G1</b><br />Velocity and base-height control</td>
+    <td align="center"><b>Unitree H2</b><br />Visualization of MPC future robot trajectory</td>
+  </tr>
+</table>
 
 
 ## MPC Formulations
