@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Replay measured base/joint poses to inspect H2 foot crossing offline.
+"""Replay measured base/joint poses to inspect foot crossing and stance shape.
 
 Joint and odometry messages are latest-sample paired, not hardware synchronized.
 Replay contacts indicate geometric overlap, not measured contact forces.
 """
 
 import argparse
+import csv
 import json
 from pathlib import Path
 
@@ -14,9 +15,10 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import mujoco
 import numpy as np
+import yaml
 
 
-def analyze(prefix, scene, render):
+def analyze(prefix, scene, render, robot_name="h2"):
     samples = json.loads(Path(str(prefix) + "_replay.json").read_text())
     samples = [s for s in samples if s["phase"] != "startup"]
     if not samples:
@@ -24,8 +26,17 @@ def analyze(prefix, scene, render):
     model = mujoco.MjModel.from_xml_path(str(scene))
     data = mujoco.MjData(model)
     joints = {model.joint(i).name: model.jnt_qposadr[i] for i in range(model.njnt)}
-    feet = [model.body(side + "_ankle_pitch_link").id for side in ("left", "right")]
-    offset = np.array([[.035, 0, -.058], [.098, 0, -.058], [-.028, 0, -.058]])
+    root = Path(__file__).resolve().parents[2]
+    config_path = Path(str(prefix) + ".yaml")
+    if not config_path.exists():
+        config_path = root / "config" / robot_name / "ros2_controllers.yaml"
+    config = yaml.safe_load(config_path.read_text())["humanoid_whole_body_inverse_dynamics_mpc_controller"]["ros__parameters"]
+    settings = config["ocs2"]["model"]
+    feet = [model.jnt_bodyid[model.joint(name).id] for name in settings["contactParentJointNames"]]
+    geometry = settings["contactGeometry"]
+    offset = np.tile(geometry["frameTranslation"], (3, 1)).astype(float)
+    offset[1, 0] += .6 * geometry["rectangle"][0]
+    offset[2, 0] += .6 * geometry["rectangle"][1]
     rows = []
 
     def pose(sample):
@@ -42,7 +53,9 @@ def analyze(prefix, scene, render):
         w, x, y, z = sample["quaternion_wxyz"]
         yaw = np.arctan2(2 * (w*z+x*y), 1-2*(y*y+z*z))
         lateral = np.array([-np.sin(yaw), np.cos(yaw), 0])
+        forward = np.array([np.cos(yaw), np.sin(yaw), 0])
         width = (points[0][0] - points[1][0]) @ lateral
+        stagger = (points[0][0] - points[1][0]) @ forward
         clearance = np.linalg.norm(points[0][:, None] - points[1][None, :], axis=2).min()
         overlap = 0
         for contact in data.contact:
@@ -51,19 +64,26 @@ def analyze(prefix, scene, render):
             overlap += set(legs) == {"left", "right"} and contact.dist < 0
         rows.append([sample["time"]-samples[0]["time"], width, clearance, overlap,
                      sample["position"][2], points[0][0, 2], points[1][0, 2],
-                     *sample["position"][:2], yaw])
+                     *sample["position"][:2], yaw, stagger])
     values = np.array(rows)
     np.savetxt(str(prefix) + "_clearance.csv", values, delimiter=",",
-               header="time,signed_width,point_distance,opposite_leg_overlaps,base_z,left_sole_z,right_sole_z,base_x,base_y,yaw", comments="")
+               header="time,signed_width,point_distance,opposite_leg_overlaps,base_z,left_sole_z,right_sole_z,base_x,base_y,yaw,fore_aft_stagger", comments="")
     summary = dict(min_signed_width=float(values[:, 1].min()),
                    min_point_distance=float(values[:, 2].min()),
                    crossing_samples=int(np.sum(values[:, 1] < 0)),
                    opposite_leg_overlap_samples=int(np.sum(values[:, 3] > 0)),
                    samples=len(samples))
+    walking = np.array([s["phase"] == "walk" for s in samples])
+    if walking.any():
+        summary.update(walk_mean_abs_stagger=float(np.abs(values[walking, 10]).mean()),
+                       walk_p95_abs_stagger=float(np.quantile(np.abs(values[walking, 10]), .95)),
+                       walk_mean_signed_width=float(values[walking, 1].mean()))
+    summary["final_abs_stagger"] = float(abs(values[-1, 10]))
     Path(str(prefix) + "_clearance.json").write_text(json.dumps(summary, indent=2) + "\n")
     fig, axes = plt.subplots(4, 1, figsize=(10, 10), sharex=True)
     axes[0].plot(values[:, 0], values[:, 1], label="Signed left-right width")
     axes[0].plot(values[:, 0], values[:, 2], label="Minimum 3D foot-point distance")
+    axes[0].plot(values[:, 0], values[:, 10], label="Signed fore-aft stagger")
     axes[0].axhline(0, color="black", lw=.6)
     axes[0].set_ylabel("Distance [m]")
     axes[0].legend()
@@ -83,6 +103,35 @@ def analyze(prefix, scene, render):
     fig.tight_layout()
     fig.savefig(str(prefix) + "_clearance.png", dpi=150)
     plt.close(fig)
+    wrench_path = Path(str(prefix) + "_wrenches.csv")
+    if wrench_path.exists():
+        with wrench_path.open() as file:
+            feedback = list(csv.DictReader(file))
+        if feedback:
+            force_times = np.array([float(row["time"]) - samples[0]["time"] for row in feedback])
+            force = np.array([[float(row[key]) for key in ("fx_body", "fy_body", "fz_body")] for row in feedback])
+            torque = np.array([[float(row[key]) for key in ("mx_body", "my_body", "mz_body")] for row in feedback])
+            quaternion = np.array([s["quaternion_wxyz"] for s in samples])
+            w, x, y, z = quaternion.T
+            roll = np.arctan2(2*(w*x + y*z), 1 - 2*(x*x + y*y))
+            pitch = np.arcsin(np.clip(2*(w*y - z*x), -1, 1))
+            fig, axes = plt.subplots(4, 1, figsize=(10, 10), sharex=True)
+            axes[0].step(force_times, np.linalg.norm(force, axis=1), where="post", label="Applied force norm [N]")
+            axes[0].step(force_times, np.linalg.norm(torque, axis=1), where="post", label="Applied torque norm [Nm]")
+            axes[1].plot(values[:, 0], np.rad2deg(roll), label="Roll")
+            axes[1].plot(values[:, 0], np.rad2deg(pitch), label="Pitch")
+            axes[1].set_ylabel("Base tilt [deg]")
+            axes[2].plot(values[:, 0], values[:, 4], label="Base z")
+            axes[2].set_ylabel("Height [m]")
+            axes[3].plot(values[:, 0], velocity[:, 0], label="World vx")
+            axes[3].plot(values[:, 0], velocity[:, 1], label="World vy")
+            axes[3].set_ylabel("Pose-derived speed [m/s]")
+            axes[3].set_xlabel("Time after takeover [s]")
+            for axis in axes:
+                axis.legend()
+            fig.tight_layout()
+            fig.savefig(str(prefix) + "_push.png", dpi=150)
+            plt.close(fig)
     joint_names = samples[0]["names"]
     if all(len(s["effort"]) == len(joint_names) for s in samples):
         positions = np.array([s["q"] for s in samples])
@@ -96,7 +145,7 @@ def analyze(prefix, scene, render):
                 index = joint_names.index(name)
                 joint_id = model.joint(name).id
                 actuator = np.flatnonzero(model.actuator_trnid[:, 0] == joint_id)[0]
-                limit = float(np.abs(model.actuator_ctrlrange[actuator]).max())
+                limit = float(np.abs(model.jnt_actfrcrange[joint_id]).max()) if model.jnt_actfrclimited[joint_id] else float(np.abs(model.actuator_ctrlrange[actuator]).max())
                 torque = efforts[:, index]
                 effort_summary[name] = dict(max_abs_effort=float(np.abs(torque).max()), limit=limit,
                                            moving_fraction_near_limit=float(np.mean(np.abs(torque[moving]) >= .98*limit)))
@@ -139,9 +188,10 @@ def analyze(prefix, scene, render):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("prefixes", nargs="+", type=Path)
-    parser.add_argument("--scene", type=Path, default=Path(__file__).resolve().parents[2] /
-                        "description/mujoco/robots/h2/scene_flat.xml")
+    parser.add_argument("--robot-name", choices=["g1", "h2"], default="h2")
+    parser.add_argument("--scene", type=Path)
     parser.add_argument("--render", action="store_true")
     args = parser.parse_args()
+    args.scene = args.scene or Path(__file__).resolve().parents[2] / "description/mujoco/robots" / args.robot_name / "scene_flat.xml"
     for prefix in args.prefixes:
-        analyze(prefix, args.scene, args.render)
+        analyze(prefix, args.scene, args.render, args.robot_name)

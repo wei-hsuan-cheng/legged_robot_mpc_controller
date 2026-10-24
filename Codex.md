@@ -1,7 +1,56 @@
 # WB-ID MPC Walking Robustness Handoff
 
 
-## H2 Faster Walking and Foot Crossing (2026-10-24, Latest)
+## H2 Natural Stance and First Push Test (2026-10-24, Latest)
+
+The current follow-up is on `tune/h2`, after commits `f80044c` and `2da0ac1`; walking parameters and geometry checks are committed as `e1919de`, with push-test tools and documentation in the accompanying commit.
+Read [current tuning and first push result](docs/h2_wb_id_mpc.md#more-natural-foot-placement-2026-10-24-current) before the historical sections below.
+The user's priorities are robustness, no leg crossing, less tandem foot placement while turning/lateral walking, and recovery rather than exact heading/speed tracking.
+They explicitly accept about 0.45 m/s achieved from a 0.5 m/s lateral command and require retaining the original lateral slew of 0.5 m/s2.
+They requested one first push test only, with no push-based tuning.
+
+Saved H2-only parameter changes from `f80044c`: left/right hip-pitch joint-position Q/Qf `0.05 -> 3.0`, foot sphere radius `0.10 -> 0.085 m`, collision polynomial `mu 3000 -> 1000`, `delta 0.03 -> 0.02 m`.
+Keep knee radius 0.10 m, minimumLateralSeparation 0.10 m, command maxima `[1.0,0.5,0.4,0.7854]`, original command slew, gait timing and earlier switching from the committed checkpoint.
+These are soft posture/collision preferences, not PD gain changes or an explicit side-by-side foothold target.
+No controller C++ architecture, G1 YAML, physical model, estimator tuning or terrain planner changed in this follow-up.
+The user's unrelated `description/mujoco/robots/g1/scene.xml` edit (ramp and uneven terrain) was not used in these tests, modified by this work or included in these commits.
+
+Geometry audit: three sole-center/fore/aft collision proxies need about 0.0692 m radius to cover the sampled H2 collision-sphere extents/box corners; 0.085 m leaves about 1.6 cm padding, comparable to G1's approximately 1.7 cm sampled padding with its unchanged 0.065 m radius.
+Near-knee mesh samples reached approximately 0.090 m horizontal radius, so the H2 knee proxy stays 0.10 m.
+These checks are not complete mesh-enclosure or continuous-time collision guarantees.
+`tests/test_h2_model.py` checks sampled active foot primitives and permits only the intended hip-pitch deviations from copied G1 joint cost weights.
+
+Final saved-value-equivalent flat step tests: vx+1.0 for 40 s, vy+/-0.5 for 30 s each, yaw+/-0.7854 for 22 s each; all stopped upright with no crossing or sampled opposite-leg overlap.
+Forward travel was 29.91 m versus 30.0 requested, pose-derived world vx0.951 m/s.
+Lateral world vy was +0.443/-0.449 m/s; mean fore/aft stagger fell from 27.90 cm in the earlier positive lateral baseline to 10.57 cm, and negative lateral mean was 9.02 cm.
+Turning mean stagger fell from 28.55 cm to 3.73 cm positive and 3.54 cm negative; final positive turning stagger was 1.09 cm.
+Stagger is the absolute left/right sole-center difference along pelvis-heading forward, not distance travelled per step.
+The smaller 0.075 m foot radius with hip-pitch weights 3.0 was also viable, but saved 0.085 m has greater geometry padding.
+Reject radius0.085/mu6000/delta0.02: it stayed upright but caused 31.06 cm turning stagger.
+G1 comparison vy0.2 looked natural (1.32 cm stagger) but achieved only 0.062 m/s, so do not claim matched-speed equivalence.
+
+The first and only push experiment used the saved source YAML with no overrides: H2 vy+0.5, two world-frame pelvis +/-80 N lateral forces for 0.15 s, starting at 10.00/14.15 s after takeover.
+Applied feedback confirmed both pulses (16/14 samples, 0.15/0.13 s measured span), and confirmed zero force at the end.
+It completed 30 s, continued walking and stopped upright: peak roll/pitch1.44/1.01 degrees, minimum z0.942 m, pose-derived world vy0.448 m/s, minimum signed width16.27 cm, no crossing or sampled inter-leg overlap.
+Final z1.008 m and roll/pitch0.141/-0.046 degrees; no push-driven tuning was made afterward.
+This is one moderate walking-push result, not a push-force limit or proof of stance recovery stepping.
+
+New installed command: `ros2 run legged_robot_mpc_controller push_recovery_test.py`, optional `--sequence /path/to/pushes.yaml --delay 3`, `--dry-run`.
+Default list `config/tests/push_recovery.yaml` specifies link/frame/force/torque/duration/wait_after; applied at body CoM through the existing custom MuJoCo wrench topic, simulation-time based, best effort, zeros on completion/exit.
+`tests/wb_id_walk_test.py --wrench-sequence ... --wrench-delay 10` uses the same scheduler and saves applied body-frame feedback in `_wrenches.csv`; magnitude/timing checks reject an unverified push.
+`tests/tuning/analyze_leg_clearance.py` now supports `--robot-name g1|h2`, reads each test's YAML snapshot, measures heading-relative fore/aft stagger, fixes G1 actuator-bound lookup and adds `_push.png` when wrench feedback exists.
+Plots/replays use latest-sample-paired base/joint states; geometric replay contacts are not measured contact forces.
+Use pose-derived speeds; GT twist convention was not revalidated here.
+
+Rebuild/install passed in 3.81 s total, log Docker `/tmp/h2_natural_build.log`; installed script dry run passed.
+All 37 focused WB-ID tests and the parameter contract passed; model/layout discovery ran 31 tests with four native ROS skips locally, including five new wrench sequence checks.
+All walking/push tests were flat, headless, no RViz/GUI, requested MPC90/MRT1000, base_twist, state_estimator/humanoid_linear_kf (not InEKF).
+Artifacts: Docker `/tmp/h2_natural_*`, local ignored `tuning_results/h2_crossing/`; main selected prefixes `h2_natural_foot085_mu1k_{vx100,vy050,vyn050,yaw079,yawn079}` and `h2_natural_push_first`.
+No mixed-axis full-speed, backwards full-speed, rough-terrain revalidation, stronger push sweep, InEKF feedback or hardware validation was done in this follow-up.
+All owned simulation and auto-test processes were stopped after verification; Docker `ros_jazzy` remains available for manual testing.
+
+
+## H2 Faster Walking and Foot Crossing (2026-10-24, Historical)
 
 The tested implementation and tuning were committed and pushed as `f80044c` on `tune/h2`.
 For a simple part-by-part explanation, read [Changes in Plain Words](docs/h2_wb_id_mpc.md#changes-in-plain-words), including diagnostic-only changes and rejected tuning trials.

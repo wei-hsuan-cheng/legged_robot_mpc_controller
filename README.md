@@ -102,12 +102,6 @@ ros2 launch legged_robot_mpc_controller robot.launch.py \
 # mpcControllerName:=humanoid_whole_body_inverse_dynamics_mpc_controller | humanoid_centroidal_mpc_controller
 ```
 
-Use `robotName:=h2` for H2; all other launch argument names are identical.
-The robot selects its controller YAML, URDF, initial pose, terrain-planner variant and separate CppAD cache automatically.
-The nominal pelvis height comes from the selected controller's `ocs2.reference.defaultBaseHeight` in YAML and is passed to the GUI; optional `refBaseHeight:=<height_m>` overrides both without editing the source file.
-Scene names are shared: `scene.xml`, `scene_flat.xml` and `scene_ramp.xml` resolve inside `description/mujoco/robots/<robotName>/`.
-For obstacle-free trials use `mujocoModelFile:=scene_flat.xml environmentDescription:=""`.
-
 The first launch of each controller generates and compiles its CppAD libraries (several minutes); later launches load them from the cache.
 
 
@@ -149,6 +143,23 @@ cd <workspace_dir>
 source install/setup.bash
 ros2 run legged_robot_mpc_controller figure_eight_command.py
 ```
+
+
+### Push recovery test (MuJoCo only)
+
+Start the robot first, wait for MPC takeover, then run this in another terminal.
+It applies two opposite lateral pushes to `pelvis`: 80 N for 0.15 s each, with 4 s between them.
+Timing uses simulation time, not wall time.
+This is a test input, not a guaranteed recoverable push for every robot.
+
+```bash
+source install/setup.bash
+ros2 run legged_robot_mpc_controller push_recovery_test.py
+```
+
+Edit [config/tests/push_recovery.yaml](config/tests/push_recovery.yaml) to change the applied push sequence.
+Each entry specifies a MuJoCo `link`, `frame` (`world` or `body`), `force` [N], `torque` [Nm], `duration` [s] and `wait_after` [s].
+
 
 ### Base targets
 

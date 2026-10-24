@@ -1,0 +1,15 @@
+# Forces [N] and torques [Nm] act at the named MuJoCo body's center of mass.
+# Timing uses simulation seconds. Edit this list for your robot and test.
+- link: pelvis
+  frame: world
+  force: [0.0, 40.0, 0.0]
+  torque: [0.0, 0.0, 0.0]
+  duration: 0.2
+  wait_after: 2.0
+
+- link: pelvis
+  frame: world
+  force: [0.0, -40.0, 0.0]
+  torque: [0.0, 0.0, 0.0]
+  duration: 0.2
+  wait_after: 2.0

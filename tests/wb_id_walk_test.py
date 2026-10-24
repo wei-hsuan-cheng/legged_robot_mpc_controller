@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 import signal
 import subprocess
+import sys
 import time
 
 import rclpy
@@ -23,6 +24,10 @@ from nav_msgs.msg import Odometry
 from sensor_msgs.msg import JointState
 from ocs2_msgs.msg import WalkingVelocityCommand
 import yaml
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "launch"))
+from push_recovery_test import FEEDBACK_TOPIC, WrenchPublisher, WrenchSequence
+from geometry_msgs.msg import WrenchStamped
 
 
 CONTROLLER = "humanoid_whole_body_inverse_dynamics_mpc_controller"
@@ -48,12 +53,19 @@ class Probe(Node):
         self.joints = None
         self.estimate = None
         self.replay = []
+        self.wrenches = []
         qos = QoSProfile(depth=50, reliability=ReliabilityPolicy.BEST_EFFORT)
         self.publisher = self.create_publisher(WalkingVelocityCommand, "/humanoid/walking_velocity_command", qos)
         self.create_subscription(Odometry, "/mujoco/ground_truth/odom", self.observe, qos)
+        self.create_subscription(WrenchStamped, FEEDBACK_TOPIC, self.observe_wrench, qos)
         if record_joints:
             self.create_subscription(JointState, "/joint_states", self.observe_joints, qos)
             self.create_subscription(Odometry, "/humanoid/state_estimate/odom", self.observe_estimate, qos)
+
+    def observe_wrench(self, msg):
+        f, t = msg.wrench.force, msg.wrench.torque
+        self.wrenches.append((msg.header.stamp.sec + 1e-9 * msg.header.stamp.nanosec,
+                              msg.header.frame_id, f.x, f.y, f.z, t.x, t.y, t.z))
 
     def observe_estimate(self, msg):
         q = msg.pose.pose.orientation
@@ -107,6 +119,8 @@ def main():
     parser.add_argument("--minimum-height", type=float, default=0.38)
     parser.add_argument("--startup-timeout", type=float, default=600.0)
     parser.add_argument("--record-joints", action="store_true", help="Save latest joint sample with each base pose for collision analysis and render replay")
+    parser.add_argument("--wrench-sequence", type=Path, help="Optional MuJoCo wrench sequence YAML")
+    parser.add_argument("--wrench-delay", type=float, default=8.0, help="First pulse after MPC takeover [simulation s]")
     parser.add_argument("--max-yaw-error", type=float, default=0.5, help="Maximum uncommanded heading change [rad]")
     parser.add_argument("--swing-duration", type=float, help="Override slow_walk single support [s] in the temporary YAML")
     parser.add_argument("--double-support", type=float, default=0.15)
@@ -116,6 +130,12 @@ def main():
     parser.add_argument("--config", type=Path, help="Controller YAML (default: config/<robot-name>/ros2_controllers.yaml)")
     parser.add_argument("--set", action="append", default=[], metavar="KEY=JSON", help="Override a dotted controller parameter in a temporary YAML")
     args = parser.parse_args()
+    sequence = WrenchSequence.load(args.wrench_sequence) if args.wrench_sequence else None
+    if args.wrench_delay < 0 or not math.isfinite(args.wrench_delay):
+        parser.error("wrench delay must be finite and nonnegative")
+    total_duration = args.settle + 2 * args.ramp + args.hold + args.rest
+    if sequence and args.wrench_delay + sequence.duration > total_duration:
+        parser.error("wrench sequence and recovery pause must fit inside the walking test")
     args.config = args.config or Path(__file__).resolve().parents[1] / "config" / args.robot_name / "ros2_controllers.yaml"
     height_override = args.height
     if args.hold <= 0 or args.ramp < 0 or args.speed == 0:
@@ -162,8 +182,12 @@ def main():
     verdict = "TIMEOUT"
     result = vars(args).copy()
     result["config"] = str(args.config)
+    result["wrench_sequence"] = str(args.wrench_sequence) if args.wrench_sequence else None
+    if sequence:
+        result["wrench_events"] = sequence.events
     process = None
     probe = None
+    sender = None
     rclpy.init()
     log_path = Path(str(prefix) + ".log")
     try:
@@ -171,6 +195,7 @@ def main():
             writer = csv.writer(csv_file)
             writer.writerow(["phase", "time", "x", "y", "z", "roll", "pitch", "yaw", "vx_body", "vy_body", "vz_body", "wz_body"])
             probe = Probe(writer, args.record_joints)
+            sender = WrenchPublisher(probe, sequence) if sequence else None
             process = subprocess.Popen(launch_cmd, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
             deadline = time.monotonic() + args.startup_timeout
             start = None
@@ -203,6 +228,8 @@ def main():
                     start = probe.gt[0]
                     deadline = time.monotonic() + 6 * (args.settle + 2 * args.ramp + args.hold + args.rest) + 60
                 elapsed = probe.gt[0] - start
+                if sender:
+                    sender.send(elapsed - args.wrench_delay)
                 if elapsed < args.settle:
                     phase, fraction = "settle", 0.0
                 elif elapsed < args.settle + args.ramp:
@@ -255,6 +282,31 @@ def main():
                 result.update(min_z=min(s[3] for s in probe.samples),
                               max_roll=max(abs(s[4]) for s in probe.samples),
                               max_pitch=max(abs(s[5]) for s in probe.samples), final_state=probe.gt)
+            if sequence and start is not None:
+                verified = []
+                for event in sequence.events:
+                    begin = start + args.wrench_delay + event["start"]
+                    end = start + args.wrench_delay + event["end"]
+                    force_norm = math.sqrt(sum(x*x for x in event["force"]))
+                    torque_norm = math.sqrt(sum(x*x for x in event["torque"]))
+                    # Feedback is body-frame; magnitudes are invariant to rotation.
+                    matches = [row for row in probe.wrenches if row[1] == event["link"]
+                               and begin - 0.05 <= row[0] <= end + 0.1
+                               and abs(math.sqrt(sum(x*x for x in row[2:5])) - force_norm) < 0.01
+                               and abs(math.sqrt(sum(x*x for x in row[5:8])) - torque_norm) < 0.01]
+                    verified.append(dict(link=event["link"], samples=len(matches),
+                                         measured_span=matches[-1][0] - matches[0][0] if matches else 0.0))
+                result["wrench_feedback"] = verified
+                result["push_verified"] = all(
+                    check["samples"] >= 2 and check["measured_span"] >= 0.7 * event["duration"]
+                    for check, event in zip(verified, sequence.events))
+                recovery = [s for s in probe.samples if s[0] > start + args.wrench_delay + sequence.duration - 1.0]
+                if recovery:
+                    result["push_final_recovery"] = dict(min_z=min(s[3] for s in recovery),
+                                                         max_roll=max(abs(s[4]) for s in recovery),
+                                                         max_pitch=max(abs(s[5]) for s in recovery))
+                if not result["push_verified"] and verdict == "SUCCESS":
+                    verdict = "WRENCH_NOT_VERIFIED"
             if probe.walk_samples:
                 count = len(probe.walk_samples)
                 result.update(walk_mean_vx=sum(s[7] for s in probe.walk_samples) / count,
@@ -267,6 +319,15 @@ def main():
                     result.update(walk_pose_mean_vx_world=(last[1] - first[1]) / duration,
                                   walk_pose_mean_vy_world=(last[2] - first[2]) / duration)
     finally:
+        if sender is not None:
+            for _ in range(5):
+                sender.stop()
+                rclpy.spin_once(probe, timeout_sec=0.01)
+        if probe is not None and sequence:
+            with Path(str(prefix) + "_wrenches.csv").open("w") as file:
+                writer = csv.writer(file)
+                writer.writerow(["time", "link", "fx_body", "fy_body", "fz_body", "mx_body", "my_body", "mz_body"])
+                writer.writerows(probe.wrenches)
         if probe is not None and probe.replay:
             Path(str(prefix) + "_replay.json").write_text(json.dumps(probe.replay))
         if process is not None and process.poll() is None:

@@ -5,9 +5,92 @@ It reuses the existing WB-ID controller, reference generation, costs, constraint
 The H2 controller YAML contains no centroidal MPC block.
 
 
+## More Natural Foot Placement (2026-10-24, Current)
+
+This follow-up supersedes the 0.10 m foot radius and collision penalty values in the historical checkpoint below.
+The user accepts modest velocity error and prioritizes balance, recovery, no crossing, and less front/back foot placement during lateral walking and turning.
+No new controller C++ structure or foothold planner was added in this follow-up.
+
+| Part | Saved change from `f80044c` | Simple reason |
+| --- | --- | --- |
+| [Hip-pitch posture cost](../config/h2/ros2_controllers.yaml#L359) | Left/right hip-pitch Q and Qf: `0.05 -> 3.0` | Discourage staying with one leg forward and the other backward; this is a soft posture preference, not higher actuator PD stiffness |
+| [Foot sphere radius](../config/h2/ros2_controllers.yaml#L535) | `0.10 -> 0.085 m` | Remove unnecessary clearance that can encourage the feet to pass front/back rather than side-by-side |
+| [Collision polynomial penalty](../config/h2/ros2_controllers.yaml#L540) | `mu: 3000 -> 1000`, `delta: 0.03 -> 0.02 m` | Retain a pre-contact penalty without making a tandem stance unnecessarily attractive; a stronger tested penalty gave worse turning posture |
+| [Knee radius and left/right ordering](../config/h2/ros2_controllers.yaml#L531) | Keep `0.10 m` knee radius and `0.10 m` minimum lateral separation | Keep the existing knee envelope and anti-crossing preference |
+| Commands, gaits, PD and estimator | Unchanged from `f80044c` | Do not hide failures by reducing command maxima or the original `0.5 m/s2` lateral slew |
+| [Replay analysis](../tests/tuning/analyze_leg_clearance.py) | Add pelvis-heading fore/aft foot separation; support G1 comparison | Measure whether the gait actually becomes less staggered rather than only checking for a fall |
+
+The three foot-proxy centers are at the sole center and at 60 percent of the rectangle's forward/backward bounds.
+For the active H2 MuJoCo foot primitives, sampled small-sphere extents and box corners need about 0.0692 m nearest-proxy radius; 0.085 m retains about 1.6 cm padding at the worst sampled extreme.
+G1's corresponding sampled padding is about 1.7 cm with its unchanged 0.065 m radius.
+The H2 knee-area mesh audit found about 0.090 m maximum horizontal radius among vertices near the knee, so its 0.10 m knee radius was retained.
+These are local proxy/primitive checks, not proof that the complete moving leg meshes are enclosed or that soft collision penalties cannot be violated.
+The geometry regression checks sampled primitive extremes, not continuous-time mesh clearance.
+
+Stagger means the absolute difference between left/right sole-center positions projected onto the pelvis-heading forward direction.
+It is not distance travelled per step; some fore/aft separation is normal during forward walking.
+The mean is taken over the commanded walking/turning hold, including swings and double support.
+
+| Flat-ground step command | Hold / total after takeover | Measured result with saved values |
+| --- | --- | --- |
+| vx `+1.0 m/s` | 30 / 40 s | Upright and stopped; 29.91 m versus 30.0 m requested; pose-derived world vx `0.951 m/s` |
+| vy `+0.5 m/s` | 20 / 30 s | Upright and stopped; pose-derived world vy `0.443 m/s`; mean stagger `10.57 cm`, versus `27.90 cm` in the earlier positive lateral baseline |
+| vy `-0.5 m/s` | 20 / 30 s | Upright and stopped; pose-derived world vy `-0.449 m/s`; mean stagger `9.02 cm` |
+| yaw `+0.7854 rad/s` | 12 / 22 s | Upright and stopped; rotation `8.75 rad` versus `9.42 rad` requested; mean stagger `3.73 cm`, versus `28.55 cm` in the earlier turning baseline |
+| yaw `-0.7854 rad/s` | 12 / 22 s | Upright and stopped; rotation `-8.76 rad`; mean stagger `3.54 cm` |
+
+No crossing or sampled opposite-leg overlap was found in these five trials.
+Minimum signed widths were 10.78 cm forward, 14.24/15.82 cm lateral and 16.58/16.52 cm turning; the soft ordering margin is still not a hard bound.
+Minimum base heights were 0.916 m forward, 0.959/0.965 m lateral and 0.988/0.976 m turning.
+The final positive lateral stance had about 2.52 cm stagger and the final positive turning stance about 1.09 cm.
+The lateral curves still show periodic sway and wide stepping; this is an improvement, not identical G1 behavior or perfectly side-by-side feet at every instant.
+
+The G1 comparison at vy `0.2 m/s` had mean stagger 1.32 cm, but achieved only about `0.062 m/s` pose-derived lateral speed and returned `NO_TRACKING`.
+It therefore provides a visual reference, not a matched-speed proof that H2 should have identical foot motion.
+A 0.075 m H2 foot radius with hip-pitch weights 3.0 also worked, with 7.32 cm lateral and 3.79 cm turning mean stagger, but retains less padding around sampled foot extremes.
+A 0.085 m radius with `mu=6000, delta=0.02` stayed upright yet produced 31.06 cm turning stagger; that combination was rejected despite its `SUCCESS` balance/tracking verdict.
+The saved lower penalty was selected using walking/turning and geometry evidence, before the push test.
+
+All trials used `scene_flat.xml`, `base_twist`, `state_estimator` with `humanoid_linear_kf`, requested MPC90/MRT1000, `baseCommandGui:=false`, no RViz, and no publisher ramp.
+The original internal command slew remains active, including the requested `0.5 m/s2` lateral value.
+G1 configuration, physical models, PD gains, estimator tuning, base-state/input costs and existing gait settings were not changed in this follow-up.
+
+
+## First Push Test (Observation Only)
+
+The user requested the first result only, without push-based tuning.
+The saved walking parameters above were frozen before this trial and were not changed in response.
+
+[push_recovery_test.py](../launch/push_recovery_test.py) streams a [YAML list](../config/tests/push_recovery.yaml) of body names, frames, forces, torques, pulse durations and pauses to the existing MuJoCo external-wrench interface.
+It uses simulation time, best-effort QoS, and clears previously touched bodies between pulses and on exit.
+The walking auto-test uses the same scheduler and records simulator-applied wrench feedback in `PREFIX_wrenches.csv`, rather than accepting publication alone as proof of a push.
+Feedback vectors are body-frame even for a world-frame command, so verification compares force/torque magnitudes and sample times.
+
+| First trial | Observation |
+| --- | --- |
+| Scene and motion | H2 flat ground, vy `+0.5 m/s`, 20 s hold, 30 s total after takeover |
+| Push sequence | World-frame pelvis force `[0,+80,0] N` at 10.00 s, then `[0,-80,0] N` at 14.15 s; each requested for 0.15 s, with zero applied torque |
+| Simulator confirmation | 80 N magnitude confirmed; 16 and 14 nonzero feedback samples, spanning 0.15 and 0.13 s; zero wrench confirmed at the end |
+| Outcome | Completed both pushes, continued walking and stopped upright; full test verdict `SUCCESS` |
+| Whole-trial tilt and height | Maximum roll/pitch `1.44/1.01 degrees`; minimum base z `0.942 m` |
+| Walking speed | Pose-derived world vy `0.448 m/s` |
+| Clearance | Minimum signed width `16.27 cm`; no crossing or sampled inter-leg overlap |
+| Final stance | Base z `1.008 m`, roll `0.141 degrees`, pitch `-0.046 degrees`; pose-derived speed settles near zero |
+
+Plots show bounded gait oscillations during and after both pulses, followed by a settled stop; this is one moderate walking-push observation, not a measured recovery envelope.
+Larger forces, stance-only pushes, torso pushes, torque pulses, multiple simultaneous forces, mixed-axis commands, current tuning on rough terrain, InEKF feedback and real hardware remain unvalidated.
+The controller still follows the commanded contact schedule; this test does not establish autonomous recovery stepping while a zero walking command holds the stance gait.
+
+Build/install passed in Docker `ros_jazzy` with two jobs, and the installed `ros2 run` entry passed its dry run.
+The 37 focused WB-ID checks and parameter contract passed; discovery ran 31 tests with four native ROS tests skipped locally.
+Five new sequence checks cover pulse boundaries, pauses, repeated simulation time, input validation and zeroing on link changes/stop.
+Artifacts are in Docker `/tmp/h2_natural_*` and locally under ignored `tuning_results/h2_crossing/`; use `_push.png`, `_clearance.png`, `_support.png` and measured-pose renders for review.
+No additional push trials or push-driven parameter adjustments were performed.
+
+
 ## Changes in Plain Words
 
-The tested controller/tuning checkpoint is commit `f80044c` on `tune/h2`.
+This historical controller/tuning checkpoint is commit `f80044c` on `tune/h2`; the current follow-up above changes the foot radius, collision penalty and hip-pitch posture weights.
 The starting values below describe the working configuration at the beginning of testing, including the user's uncommitted edits, rather than only the previous Git commit.
 
 | Part | What changed or was retained | Intuitive effect |
