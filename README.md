@@ -116,6 +116,27 @@ stairClimbingFile:=stair_climbing.yaml
 terrainWalkingFile:terrain_walking.yaml
 ```
 
+
+### Unitree H2 (WB-ID Only)
+
+H2 has its own [launch file](./launch/h2.launch.py), [controller parameters](./config/h2/ros2_controllers.yaml) and [official-model provenance](./description/urdf/robots/h2/MODEL_SOURCE.md).
+Its controller YAML contains no centroidal MPC configuration; the existing WB-ID controller optimizes 25 joints, including both head joints, while the six wrist joints are held at zero.
+The head uses the existing Cartesian frame-tracking cost, and torso stabilization uses `torsoTiltCost` rather than another torso frame tracker.
+See [H2 Integration and Validation](./docs/h2_wb_id_mpc.md) for the model corrections, tuning evidence and tested operating range.
+
+```bash
+ros2 launch legged_robot_mpc_controller h2.launch.py \
+  mujocoModelFile:=scene_h2_flat.xml \
+  environmentDescription:="" \
+  mpcFreq:=100 mrtFreq:=1000 \
+  rviz:=true mujoco_headless:=false baseCommandGui:=true
+```
+
+The default H2 floating-base feedback is `humanoid_linear_kf`, as in the current G1 WB-ID setup.
+H2's nominal pelvis height is 1.02 m, not G1's height; generated libraries are stored separately under `auto_generated/h2/wb_id_mpc_h2/`.
+Use `scene_h2.xml` or `scene_h2_ramp.xml` for the shared staircase or ramp environment, but these scenes do not imply that H2 terrain walking has been validated.
+
+
 ### Scripted trajectory tests (figure-eight)
 
 `launch/figure_eight_command.py` walks a closed figure-eight (Gerono lemniscate) at **constant speed** with a **sinusoidal pelvis height**, publishing the same `WalkingVelocityCommand` topic the GUI uses. Make sure first launch robot with `baseCommandGui:=false`.

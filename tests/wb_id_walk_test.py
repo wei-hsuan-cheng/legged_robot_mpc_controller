@@ -79,6 +79,10 @@ def main():
     parser.add_argument("--rest", type=float, default=5.0)
     parser.add_argument("--height", type=float, default=0.6)
     parser.add_argument("--mpc-rate", type=int, default=100)
+    parser.add_argument("--launch-file", default="g1.launch.py")
+    parser.add_argument("--scene", default="scene_flat.xml")
+    parser.add_argument("--minimum-height", type=float, default=0.38)
+    parser.add_argument("--startup-timeout", type=float, default=600.0)
     parser.add_argument("--max-yaw-error", type=float, default=0.5, help="Maximum uncommanded heading change [rad]")
     parser.add_argument("--swing-duration", type=float, help="Override slow_walk single support [s] in the temporary YAML")
     parser.add_argument("--double-support", type=float, default=0.15)
@@ -117,8 +121,8 @@ def main():
         parser.error("speed exceeds the configured command limit")
     normalized_speed = args.speed / scale
     launch_cmd = [
-        "ros2", "launch", "legged_robot_mpc_controller", "g1.launch.py",
-        f"mpcControllerName:={CONTROLLER}", "mujocoModelFile:=scene_flat.xml",
+        "ros2", "launch", "legged_robot_mpc_controller", args.launch_file,
+        f"mpcControllerName:={CONTROLLER}", f"mujocoModelFile:={args.scene}",
         "rviz:=false", "mujoco_headless:=true", "baseCommandGui:=false",
         f"floatingBaseSource:={args.source}",
         f"floatingBaseEstimator:={args.estimator if args.source == 'state_estimator' else 'none'}",
@@ -138,7 +142,7 @@ def main():
             writer.writerow(["phase", "time", "x", "y", "z", "roll", "pitch", "yaw", "vx_body", "vy_body", "vz_body", "wz_body"])
             probe = Probe(writer)
             process = subprocess.Popen(launch_cmd, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
-            deadline = time.monotonic() + 600
+            deadline = time.monotonic() + args.startup_timeout
             start = None
             movement_start = None
             last_phase = None
@@ -149,13 +153,20 @@ def main():
                 if process.poll() is not None:
                     verdict = "LAUNCH_EXITED"
                     break
+                if start is None:
+                    startup_log = log_path.read_text(errors="replace")
+                    if any(marker in startup_log for marker in ("while initializing controller", "Failed to configure",
+                           "bring-up FAULT", "Failed to parse global arguments", "Caught exception in launch", "init failed:")):
+                        verdict = "STARTUP_ERROR"
+                        break
                 if probe.gt is None:
                     continue
                 if time.monotonic() - probe.last_wall > 10:
                     verdict = "STALE_ODOM"
                     break
                 if start is None:
-                    ready = args.source == "ground_truth_state" or "-> locomotion" in log_path.read_text(errors="replace")
+                    startup_log = log_path.read_text(errors="replace")
+                    ready = "-> locomotion" in startup_log
                     if not ready:
                         probe.command(0.0, 0.0, args.height)
                         continue
@@ -185,7 +196,7 @@ def main():
                 if elapsed >= next_report:
                     print(f"t={elapsed:.1f} xyz=({x:.3f},{y:.3f},{z:.3f}) rpy=({roll:.3f},{pitch:.3f},{yaw:.3f})", flush=True)
                     next_report = elapsed + 5
-                bad = z < 0.38 or abs(roll) > 0.8 or abs(pitch) > 0.8
+                bad = z < args.minimum_height or abs(roll) > 0.8 or abs(pitch) > 0.8
                 bad_since = (bad_since if bad_since is not None else elapsed) if bad else None
                 if bad_since is not None and elapsed - bad_since > 0.15:
                     verdict = "FALL"
@@ -220,6 +231,11 @@ def main():
                               walk_mean_vy=sum(s[8] for s in probe.walk_samples) / count,
                               walk_mean_wz=sum(s[10] for s in probe.walk_samples) / count,
                               walk_mean_z=sum(s[3] for s in probe.walk_samples) / count)
+                first, last = probe.walk_samples[0], probe.walk_samples[-1]
+                duration = last[0] - first[0]
+                if duration > 0:
+                    result.update(walk_pose_mean_vx_world=(last[1] - first[1]) / duration,
+                                  walk_pose_mean_vy_world=(last[2] - first[2]) / duration)
     finally:
         if process is not None and process.poll() is None:
             os.killpg(process.pid, signal.SIGINT)

@@ -1,5 +1,53 @@
 # WB-ID MPC Walking Robustness Handoff
 
+
+## H2 WB-ID Integration (2026-10-24)
+
+Current branch is `feat/h2`, created from `feat/wb_id_mpc` at `f56ae9a`; the older sections below describe G1 history unless explicitly stated otherwise.
+H2 now has `launch/h2.launch.py`, `config/h2/`, `description/{meshes,urdf,mujoco}/robots/h2/` and the `scene_h2*.xml` entry points, without changing runtime C++, the G1 launch/config/models or the WB-ID architecture.
+The H2 YAML has WB-ID only, with both existing estimators available and `humanoid_linear_kf` selected by default; no centroidal controller block was added.
+See [H2 Integration and Validation](docs/h2_wb_id_mpc.md) for the complete tuning table, results and commands, and [MODEL_SOURCE.md](description/urdf/robots/h2/MODEL_SOURCE.md) for official Unitree source revisions and integration changes.
+
+The official H2 model has 31 physical joints, with six wrists locked in the MPC model and held by the existing servo path, leaving 25 active joints, 62 states and 68 inputs.
+Both head joints remain active and use the existing generic Cartesian cost on `head_yaw_link`, with orientation/angular-velocity weights only; torso stabilization remains `torsoTiltCost`, not another generic torso frame cost.
+H2 ankle order is roll then pitch, its contact parent is ankle pitch, and its head joints occur before the arms in Pinocchio order; all robot-dependent arrays were mapped by joint name.
+The ankle-pitch frames were translated along their own pitch axes with opposite inertial/geometry translations so both feet use one symmetric contact offset without changing physical geometry or axes.
+Contact translation is `[0.035,0,-0.058]`, rectangle `[0.105,-0.105,0.03,-0.03]`, and nominal sole centers are y=+/-0.14 m.
+
+Do not undo the explicit MJCF pelvis inertia correction: Unitree's MJCF omitted it and inferred 4.248 kg, while its URDF specifies 8.5477 kg; the integrated total mass matches at 75.58746 kg.
+Do not replace distal wrist-yaw MJCF inertias with URDF wrist-only inertias, because the former already include the fixed hands.
+The pelvis IMU site and URDF IMU frame are matched at `[-0.055,0,-0.0589]`.
+G1's raw crouch angles are invalid for H2's different hip axes; retained spawn and standing postures were solved with level soles and support midpoint aligned with the model CoM in x.
+Spawn height is 0.882 m and standing reference is 1.02 m; the support midpoint x is approximately 0.04961 m in the crouch and 0.01771 m in standing.
+
+The original G1 PD gains failed during H2 stand-up even after posture balancing, while higher gains alone did not fix the initially unbalanced settling posture.
+Retained PD is kp600 for all active joints, kd40 except knees kd20; Q/Qf base velocity is `[60,300,5,30,30,30]`; per-foot contact Mz weight is 100 instead of 5 with the inherited `rScaling=0.001`.
+The Mz change prevented the observed +0.20 m/s forward fall, but it is a soft regularizer rather than a new torsional-friction constraint.
+Raising yaw-rate Q/Qf weight from 30 to 300 caused an earlier fall and was rejected.
+Stance exits at commanded linear speed 0.03 m/s and slow_walk exits at 0.02 m/s, because the inherited 0.10 threshold kept a 0.08 lateral command in stance.
+Command normalization maxima are conservatively 0.15 m/s forward, 0.08 m/s lateral and 0.15 rad/s yaw; normal GUI/topic commands are still normalized, not SI-valued messages.
+
+Measured flat-ground runs completed and stopped upright with estimator feedback: vx+0.15 for 41 s, vx-0.10 for 36 s, vy+/-0.08 for 36 s, and yaw+/-0.15 for 31 s.
+The +0.15 forward run travelled 4.428 m against 4.200 m requested, with maximum roll/pitch 0.0546/0.0218 rad, minimum z 0.955 m and maximum heading error 0.158 rad.
+Lateral travel was +1.435 m and -1.375 m against +/-1.840 m requested, so lateral tracking remains imperfect even though the robot stayed upright.
+One +0.20 m/s run also completed 36 s with stronger Mz regularization, but had 0.359 rad heading error; the saved command maximum intentionally remains lower.
+The final two-job Jazzy Release symlink-install build passed in 3.92 s; log `/tmp/h2_final_build.log` inside Docker `ros_jazzy` on VM `10.211.55.17`.
+The subsequent saved-configuration negative-yaw test passed without overrides, turning -2.153 rad against -2.700 requested with maximum translation drift 0.159 m, then stopped upright.
+Seven H2 model/xacro/array/order/limit tests, 11 scene-layout tests, 23 WB-ID contract tests, nine torso-cost tests and the standalone parameter contract passed locally.
+No tests establish arbitrary-duration stability, simultaneous command robustness, high-speed walking, terrain capability, InEKF feedback quality or real-hardware readiness.
+
+Trials used `mujocoModelFile:=scene_h2_flat.xml`, 100 Hz requested MPC, 1000 Hz MRT, `baseCommandGui:=false`, `rviz:=false` and headless MuJoCo.
+Typical MPC timing was 82-86 Hz with approximately 12 ms advances, with occasional longer spikes; do not claim the VM achieved a sustained 100 Hz.
+H2 CppAD libraries live in the separate workspace-relative `auto_generated/h2/wb_id_mpc_h2/` cache; the first launch compiled them, while subsequent runs reused them.
+The test harness now accepts robot-specific launch/scene/height settings, waits for actual locomotion takeover and detects initialization errors before waiting for odometry.
+All raw trial files are in container `/tmp/h2_*` and copied locally to ignored `tuning_results/h2/`, including plots and a rendered replay from measured joint/base state.
+
+Important diagnostics caveat: the existing simulator odometry publisher asks `mj_objectVelocity` for local `mjOBJ_BODY` velocity, which is in the body's inertial axes rather than the pelvis link axes.
+H2 has a strongly rotated pelvis inertia frame, so reported GT vy/yaw-rate values can look nearly zero despite real lateral/turning displacement.
+This was reproduced locally with a known `[1,2,3]` world velocity; no external simulator code was changed in this task.
+Use recorded pose displacement/unwrapped orientation for validation; the harness now also reports position-derived world velocities.
+The default H2 estimator-control loop does not consume that published GT odometry topic.
+
 ## WB-ID Constraint Naming Cleanup (2026-10-24)
 
 The current WB-ID parameter groups are `ocs2.constraints.footMotionEquality`, `swingFootZeroWrench` and `legSelfCollision`, replacing `footConstraint`, `zeroWrench` and `footCollision` respectively.

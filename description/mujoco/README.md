@@ -6,19 +6,25 @@ Each `scene*.xml` is a small composition of one robot, one background and option
 description/
   meshes/
     robots/g1/
+    robots/h2/
   mujoco/
     scene.xml
     scene_flat.xml
     scene_ramp.xml
+    scene_h2.xml
+    scene_h2_flat.xml
+    scene_h2_ramp.xml
     mujoco_scene_creator.py
     common/backgrounds/
     common/materials/
     robots/g1/
+    robots/h2/
     terrains/
     objects/
     textures/
   urdf/
     robots/g1/
+    robots/h2/
     terrains/stairs.urdf.xacro
 config/
   terrains/stairs_params.yaml
@@ -31,6 +37,7 @@ The RViz staircase belongs to `description/urdf/terrains/`, and its format-neutr
 | Module | Contents |
 | --- | --- |
 | `robots/g1/g1_29dof.xml` | Robot bodies, joints, actuators and sensors; meshes live in `../meshes/robots/g1/` |
+| `robots/h2/h2_31dof.xml` | Official Unitree H2 with matching URDF pelvis inertia and sole frames; meshes live in `../meshes/robots/h2/` |
 | `common/backgrounds/background_day.xml` | Original daytime sky, lighting, camera and physical floor |
 | `common/backgrounds/background_night.xml` | Studio lighting, camera, satin floor and robot finish |
 | `common/materials/terrain_materials.xml` | Shared matte material using `textures/studio_terrain.png` |
@@ -67,6 +74,8 @@ Terrain dimensions, contact properties, inertias and actuator settings are indep
 
 Entry points are `scene.xml` (night/configured terrain), `scene_flat.xml` (day/flat) and `scene_ramp.xml` (night/ramp).
 Choose one through `g1.launch.py mujocoModelFile:=scene.xml`.
+H2 uses the same background and terrain modules through `h2.launch.py mujocoModelFile:=scene_h2_flat.xml`, `scene_h2.xml` or `scene_h2_ramp.xml`.
+Use an H2 scene with the H2 launch; selecting a G1 robot scene does not change the controller's robot model automatically.
 Switch day/night by changing the scene's background include; separate scene files for each appearance are unnecessary.
 
 From the package root, the generator can compose scenes and regenerate night appearance assets:

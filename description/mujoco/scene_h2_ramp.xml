@@ -1,0 +1,7 @@
+<mujoco model="h2_scene_ramp">
+  <!-- Select one background, one robot, and any terrain/object modules. -->
+  <include file="robots/h2/h2_31dof.xml" />
+  <include file="common/backgrounds/background_night.xml" />
+  <include file="terrains/ramp.xml" />
+  <option timestep="0.0001" />
+</mujoco>

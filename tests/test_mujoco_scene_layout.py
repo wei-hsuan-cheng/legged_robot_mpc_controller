@@ -95,7 +95,7 @@ class SceneLayoutTest(unittest.TestCase):
             with self.subTest(scene=path.name):
                 model = mujoco.MjModel.from_xml_path(str(path))
                 self.assertEqual(model.opt.timestep, 0.0001)
-                self.assertEqual(model.nu, 29)
+                self.assertEqual(model.nu, 31 if path.stem.startswith("scene_h2") else 29)
         for background in ("day", "night"):
             for terrain in ["none", *creator.TERRAIN_FILES]:
                 with self.subTest(background=background, terrain=terrain):
