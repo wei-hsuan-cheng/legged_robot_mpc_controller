@@ -1,5 +1,12 @@
 # WB-ID MPC Walking Robustness Handoff
 
+## Blind-Walking Tuning Guide
+
+[Formulation and Signal Flow, Section 9](docs/humanoid_whole_body_inverse_dynamics_mpc.md#9-blind-walking-robustness-and-tuning) records the ranked tuning table, measured ramp outcomes, correction-gain equations, experimental procedure and limitations.
+[Implementation Guide, Section 9](docs/humanoid_whole_body_inverse_dynamics_mpc_impl.md#9-blind-walking-tuning-and-validation) supplies current parameter/code line references.
+Only the paired foot-stabilization gain reduction was isolated in A/B trials; other retained settings have engineering rationale but no independent ramp ablation.
+Do not promote the shallow-ramp results to a formal stability guarantee or a validated arbitrary uneven-terrain capability.
+
 ## Launch Scope Correction (2026-10-24)
 
 The user wants unknown-terrain accommodation in ordinary locomotion through C++/parameter changes, not a simulator-geometry pipeline or the dormant `terrain_walk`/`stair_climb` modes.

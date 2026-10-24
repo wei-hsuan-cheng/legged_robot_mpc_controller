@@ -229,3 +229,32 @@ These are static regression checks, not a substitute for repeated startup tests 
 
 Read these from the `humanoid_whole_body_inverse_dynamics_mpc_controller` YAML block rather than the similarly named centroidal settings.
 The startup regression checks above are static and do not constitute runtime validation.
+
+
+## 9. Blind Walking Tuning and Validation
+
+The measured results, tuning table and limitations are in [Formulation and Signal Flow, Section 9](./humanoid_whole_body_inverse_dynamics_mpc.md#9-blind-walking-robustness-and-tuning).
+The references below map that table to the current implementation; only the paired contact-gain reduction was isolated in the ramp comparison.
+
+| Responsibility | Implementation or current parameters |
+| --- | --- |
+| Stance height/tilt correction gains | [ros2_controllers.yaml:830](../config/g1/ros2_controllers.yaml#L830), [stance equations:114](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdFootAccelerationConstraintCppAd.cpp#L114) |
+| Shared gain in swing vertical correction | [WbIdFootAccelerationConstraintCppAd.cpp:106](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdFootAccelerationConstraintCppAd.cpp#L106) |
+| Running/terminal base z and vz weights | [Q:887](../config/g1/ros2_controllers.yaml#L887), [Qf:903](../config/g1/ros2_controllers.yaml#L903) |
+| Foot task-space cost | [weights:939](../config/g1/ros2_controllers.yaml#L939) |
+| Swing clearance | [swingHeight:1061](../config/g1/ros2_controllers.yaml#L1061) |
+| Torso free lean and angular damping | [torsoTiltCost:958](../config/g1/ros2_controllers.yaml#L958) |
+| Extra leg-load cost activation | [legTorqueCost:966](../config/g1/ros2_controllers.yaml#L966) |
+| Joint PD and feedforward | [control:756](../config/g1/ros2_controllers.yaml#L756) |
+| Command slew limits and filtering | [limits:1038](../config/g1/ros2_controllers.yaml#L1038), [WalkingVelocityTarget.cpp:90](../src/core/humanoid_common_mpc/src/target/WalkingVelocityTarget.cpp#L90) |
+| Planar-relative base tracking | [BaseMotionTrackingCost.cpp:51](../src/core/humanoid_common_mpc/src/cost/BaseMotionTrackingCost.cpp#L51) |
+| Mapped terrain planner inactive outside its explicit mode | [mode gate:189](../src/core/humanoid_common_mpc/src/reference_manager/ProceduralMpcMotionManager.cpp#L189), [world-up fallback:307](../include/humanoid_common_mpc/reference_manager/SwitchedModelReferenceManager.h#L307) |
+| Current flat support-height assumption | [option:827](../config/g1/ros2_controllers.yaml#L827), [reference fallback:126](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L126) |
+| Linear KF flat contact-height observation | [zero heights:159](../src/humanoid_state_estimation/linear_kf_floating_base_estimator.cpp#L159), [measurement:303](../src/humanoid_state_estimation/linear_kf_floating_base_estimator.cpp#L303) |
+| Scheduled estimator contacts | [contact source:168](../config/g1/ros2_controllers.yaml#L168) |
+| Automatic recording and scoring | [run_case.sh:35](../tests/tuning/run_case.sh#L35), [command schedule:76](../tests/tuning/tune_probe.py#L76) |
+| Whole-run comparison and recorded-state images | [plot_ramp.py:17](../tests/tuning/plot_ramp.py#L17), [replay:69](../tests/tuning/plot_ramp.py#L69) |
+
+Trial folders such as `tuning_results/ramp_rebuilt_baseline`, `ramp_final_headless`, `ramp_final_slow` and `ramp_final_rviz` contain exact configs, logs, arrays and plots on the development machine.
+They are git-ignored and are not bundled with this document; [Codex.md](../Codex.md) preserves the trial identifiers and numerical summary.
+Replay images reconstruct recorded physical poses and encoders rather than showing a live viewer or an estimated terrain map.

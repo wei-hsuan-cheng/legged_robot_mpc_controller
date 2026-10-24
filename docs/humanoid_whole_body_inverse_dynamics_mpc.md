@@ -291,7 +291,7 @@ $$
 +\frac12w_\omega\|\omega_\perp\|^2.
 $$
 
-The current terrain-trial G1 settings are $\theta_{\mathrm{free}}=10^\circ$, $w_\theta=10$ and $w_\omega=5$; these are starting values, not simulator-validated terrain gains.
+The current G1 settings are $\theta_{\mathrm{free}}=10^\circ$, $w_\theta=10$ and $w_\omega=5$; these were retained in the blind-ramp trials in Section 9, but their individual effects were not isolated.
 The angular-velocity penalty remains active inside the free tilt corridor, while position and spin about gravity are unpenalized.
 The term reads no desired pose/twist and is invariant to world translation and a common rotation of the state about gravity.
 Its scalar isotropic weights and the corridor are independent of `qScaling` and `rScaling`, and all settings are applied at controller configuration.
@@ -328,7 +328,7 @@ k_{a,R}\dot\omega_c+k_{d,R}\omega_c+k_{p,R}d_{\mathrm{plane}}(R_c,n_c(t))&=0.
 \end{aligned}
 $$
 
-Current acceleration gains are 1, velocity gains are 50, vertical position gain is 250 and orientation gain is 1000.
+Current acceleration gains are 1, velocity gains are 50, vertical position gain is 50 and orientation gain is 100.
 At nominal 0.02 s spacing, $k_d=50=1/\Delta t$; under a constant-acceleration approximation, $a+v/\Delta t=0$ damps velocity to zero at the next node.
 This is not an exact nonlinear discrete no-slip equation because the Jacobian and its derivatives change over the interval.
 There is no explicit stance horizontal-position anchor in these rows.
@@ -481,12 +481,13 @@ $$
 \qquad z_{\mathrm{apex}}=\max(z_l,z_d)+\lambda h_{\mathrm{swing}}.
 $$
 
-Current configured swing height is 0.10 m for the initial terrain checkpoint.
+Current configured swing height is 0.10 m, retained in the blind-ramp trials in Section 9.
 The spline supplies $z_d$, $\dot z_d$ and $\ddot z_d$ to the swing equality and impact-proximity factors to the costs.
 Shared stair-plan and terrain-foothold hooks are connected when config files are supplied, but that wiring does not establish validated WB-ID stair walking.
-WB-ID simulation can export static box tops from the selected MuJoCo scene, using the same normals in foot tracking, stance tilt and friction.
-The terrain branch samples a smooth anticipated support-height trajectory every 0.05 s and supplies its analytic vertical velocity, rather than retaining a zero vertical-velocity target uphill.
-See [Terrain Trial Checkpoint](./wb_id_terrain_checkpoint.md) for launch/mode commands, the tuning changes, supported geometry and estimator limitations.
+A standalone offline utility can export static box tops from MuJoCo XML, but the launch file does not invoke it or provide a `terrainFromScene` argument.
+Only the explicitly selected `terrain_walk` branch uses mapped surface normals and samples a smooth anticipated support-height trajectory every 0.05 s with matching analytic vertical velocity.
+These mapped-terrain extensions are inactive in ordinary `base_twist` and did not guide the blind-ramp trials.
+The [Terrain Trial Checkpoint](./wb_id_terrain_checkpoint.md) is an archived proposal, not the current launch workflow.
 
 
 ## 7. Policy Execution and Inner Servo
@@ -552,4 +553,86 @@ flowchart LR
 
 Estimation quality, actuator dynamics, contact mismatch and solver latency remain part of the closed-loop problem.
 Relative references reduce planar odometry gauge sensitivity but cannot make erroneous velocities or attitudes physically correct.
-This document describes implemented behaviour and configured values rather than reporting a new walking or hardware validation.
+Sections 1 through 8 describe implemented behaviour and configured values; Section 9 records limited simulation evidence, not hardware validation.
+
+
+## 9. Blind Walking: Robustness and Tuning
+
+### 9.1 Scope and evidence
+
+The objective is reactive accommodation of small, unknown terrain changes in `base_twist`, without a terrain map guiding footholds.
+The MuJoCo scene supplies the physical collision surfaces, but the explicit terrain planner is inactive and the MPC retains flat-ground support-height and world-up contact-normal references.
+The loop is joint/IMU feedback, state estimation, a new MPC observation, replanning and joint PD plus feedforward actuation.
+This can provide empirical robustness to model/contact mismatch, but it is not a formal robust-MPC guarantee or an implemented unknown-terrain estimator.
+
+The evidence below comes from the 2026-10-24 Jazzy trials on the current 3-degree ramp, using the linear KF, requested MPC/MRT rates of 100/1000 Hz and a 0.795 m height command.
+Measured MPC rates were below the requested rate, and the command schedule was wall-clock based; physical velocities were scored using recorded simulator timestamps.
+The 0.3 m/s cases used a 3 s command ramp, 20 s hold, 3 s ramp down and 5 s stop after 4 s of standing; the 0.2 m/s case used a 25 s hold.
+Only the vertical and orientation stabilization gains changed between the rebuilt baseline and final configuration; all other table settings were already present in both.
+
+| Post-build trial | Command | Outcome | Mean walking forward speed |
+| --- | --- | --- | --- |
+| Original stabilization gains, headless | 0.3 m/s | Fell during stopping, 27.9 s after command onset. | 0.158 m/s |
+| Reduced gains, headless | 0.3 m/s | No fall; crossed the far edge and recovered, but with an uncontrolled speed spike. | 0.244 m/s |
+| Reduced gains, RViz enabled and MuJoCo headless | 0.3 m/s | Climbed and stopped on the ramp near x=5.21 m without falling. | 0.226 m/s |
+| Reduced gains, slower approach | 0.2 m/s | Climbed and stopped on the ramp near x=4.17 m without falling. | 0.149 m/s |
+
+These are finite trials, not a measured success probability over randomized terrain.
+A continuous shallow ramp does not establish robustness to discrete steps, arbitrary uneven fields, large drops, slip or external pushes.
+The far-edge recovery included a roughly 1.1 m/s forward speed spike, so it is not validated controlled descent.
+
+### 9.2 Important effects and tuning logic
+
+The order below prioritizes contact mismatch and preserving a stable baseline before pursuing faster tracking.
+"Background" means a plausible engineering rationale for a setting retained in all trials, not a separately measured benefit.
+
+| Priority | Setting retained | Effect and tuning logic | Evidence and tradeoff |
+| --- | --- | --- | --- |
+| 1 | `footConstraint.positionErrorGain_z: 250 -> 50`, `orientationErrorGain: 1000 -> 100`; velocity gains 50 and acceleration gains 1 unchanged. | Reduce aggressive correction toward the assumed flat height and horizontal sole while retaining velocity damping and acceleration-level contact equations. | The pair was directly compared and improved ramp ascent/stopping; individual contributions were not isolated, and lower gains can permit larger tracking errors. |
+| 2 | Q/Qf base z weight `100 -> 50`, vz weight `10 -> 5`; pitch/roll pose weights remain 100. | Allow more vertical motion rather than demanding the same height and zero vertical speed at all costs; retain attitude preference. | Background setting; weights have different units, so numerical values alone do not define strict task priorities, and too little height regulation can allow crouching or sag. |
+| 3 | Foot horizontal-velocity cost weights `10 -> 5`. | Reduce the extra task-space penalty that can resist motion needed under contact mismatch. | Background setting; hard stance no-slip stabilization remains, so this does not make slip desirable or remove the contact assumption. |
+| 4 | Swing height `0.08 -> 0.10 m`. | Provide additional nominal clearance without requiring knowledge of the upcoming terrain. | Background setting; actual clearance depends on swing-duration scaling, tracking and reachability, and larger arcs can increase acceleration, torque and impact demands. |
+| 5 | Torso free-tilt corridor `5 -> 10 degrees`, tilt weight 10 and transverse angular-velocity weight 5. | Permit modest leaning while discouraging excessive tilt and repeated sway; avoid rigidly tracking a nominal torso pose. | Background setting; this is not a CoM stability certificate, and a wider corridor or weaker damping can allow more sway. |
+| 6 | `legTorqueCost.activate: false`; retain `r.jointTorques` and torque-limit penalties. | Avoid an additional external-load objective competing with force redistribution while diagnosing terrain mismatch. | Background setting; less regularization can increase load concentration, so monitor actuator torque, saturation and thermal implications rather than assuming lower effort. |
+| 7 | Joint servo kp 200, kd 20 except knees 10; `feedforward: policy_torque`. | Preserve the tested inner loop instead of increasing stiffness to hide a contact-model error. | Retained baseline; excessive gains can amplify impacts and model conflict, while insufficient gains can produce poor tracking or support loss. |
+| 8 | Command rate limits `[0.5, 0.5, 0.5, 2.0]` in physical units for vx, vy, height and yaw rate. | Limit reference changes so acceleration transients are not mistaken for terrain failure. | Retained baseline; the automatic trials also used command ramps, so they do not prove robustness to abrupt full-scale GUI commands. |
+| 9 | Relative base-twist tracking with no horizontal position/yaw pose penalty. | Avoid pulling the robot back toward a fixed planar odometry pose while commanding motion. | Existing design, not a new ramp tuning change; common planar gauge invariance does not remove velocity noise, attitude error or slip. |
+| 10 | Keep friction, CoP, actuator and collision settings fixed during the contact-gain comparison. | Diagnose the model/reference conflict before making feasibility penalties easier to violate. | Experimental guardrail; these inequalities are soft penalties in this implementation, so retaining them is not a guarantee of physical feasibility. |
+
+The gains in the first row enter the hard equalities, not Q/R weights.
+For unit acceleration gain and fixed current velocities, their local correction terms satisfy:
+
+$$
+a_{c,z}=-50v_{c,z}-k_{p,z}(z_c-z_{c,d}),
+\qquad
+\dot\omega_c=-50\omega_c-k_{p,R}d_{\mathrm{plane}}(R_c,e_z).
+$$
+
+Reducing the position/orientation gains reduces the correction acceleration demanded for the same mismatch; it does not turn the equality into a soft constraint, estimate a new surface or optimize contact timing.
+The same vertical position gain also appears in the swing vertical equality, so its effect is not restricted to stance.
+Accurate attitude regulation and finite acceleration terms must remain; do not zero the stance acceleration gains to obtain compliance because that makes the state-input constraint projection singular.
+The full rigid-body model couples these corrections to all joints and contact wrenches, so the equations above explain the local feedback demand rather than independently prescribing physically achievable accelerations.
+
+### 9.3 Repeatable tuning procedure
+
+1. Preserve the complete tested YAML and source revision, including servo gains, estimator settings, command height and gait timing, before changing one parameter group.
+2. Check startup and flat-ground walking first, then repeat a slow ramp approach, ascent, deceleration and stationary hold without enabling the mapped terrain modes.
+3. Start with the tested contact-gain pair; vary its two gains separately only in subsequent controlled experiments to identify their individual effects.
+4. Inspect whole-run physical speed, base attitude, support motion, measured-versus-commanded joints, feedforward/PD torque, saturation, policy validity and solver timing, including the stop transition.
+5. Only after no-fall and stopping behavior repeat consistently, adjust height, foot-motion, torso or posture costs one group at a time; increase velocity tracking weights or speed last.
+6. Extend the evaluation to both ramp directions, randomized small height variations, lateral/yaw commands, different initial gait phases, friction changes and sensor/model errors before claiming broader robustness.
+
+A lower total equality SSE is not directly comparable after changing stabilization gains because the residual itself changes scale.
+The no-fall outcome also does not imply less jitter: for example, measured walking-window leg torque content in the 4-40 Hz band was about 3.94 Nm with the original headless case and 4.66 Nm in the updated RViz case.
+Those runs differed in rendering load, so this is a warning against claiming improved smoothness, not an isolated rendering or gain effect.
+Use measured physical outcomes, contact/actuator margins and repeatability alongside solver metrics.
+
+### 9.4 Remaining limitations
+
+The linear KF still observes contact-foot height as zero, while `useTerrainHeightEstimate: false` keeps the ordinary support-height reference at zero.
+The measured physical base rises on the ramp but its estimated absolute height does not follow that rise; the mean discrepancy on the ramp was around 0.1 m in these trials.
+That assumption must not be described as terrain-height adaptation, and merely enabling the FK height option cannot restore information already removed by the estimator.
+Contact flags remain scheduled rather than discovered from early/late touchdown, and the ordinary contact normal remains world-up.
+Unknown-terrain support-height/normal estimation, touchdown-aware contact handling and realistic sensor/actuator validation remain future work.
+No launch hook, scene-derived terrain map or mapped foothold guidance is required for the reported blind-ramp improvement.
+For code/parameter links and the recording tools, see [Implementation Guide, Section 9](./humanoid_whole_body_inverse_dynamics_mpc_impl.md#9-blind-walking-tuning-and-validation).
