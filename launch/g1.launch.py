@@ -47,8 +47,8 @@ def generate_launch_description():
     # library and segfaults inside functor_generic_model.hpp with "Invalid
     # independent array size". Delete that model's folder when that happens.
     lib_folder_default = os.path.join("auto_generated", "g1")
-    centroidal_controller = "humanoid_centroidal_mpc_controller"
     whole_body_controller = "humanoid_whole_body_inverse_dynamics_mpc_controller"
+    centroidal_controller = "humanoid_centroidal_mpc_controller"
 
     # The one robot URDF, pelvis-rooted with no world link or floating joint: the MPC
     # and the estimators add the floating base themselves, and robot_state_publisher
@@ -97,11 +97,11 @@ def generate_launch_description():
         DeclareLaunchArgument("environmentDescription", default_value=environment_default),
         DeclareLaunchArgument(
             "mpcControllerName",
-            default_value=centroidal_controller,
-            choices=[centroidal_controller, whole_body_controller],
+            default_value=whole_body_controller,
+            choices=[whole_body_controller, centroidal_controller],
             description="MPC ros2 controller to load and activate: "
-                        "centroidal MPC, or "
-                        "whole-body inverse-dynamics MPC (x = [q, v], u = [W, a, tau]).",),
+                        "whole-body inverse-dynamics MPC (x = [q, v], u = [W, a, tau]), or "
+                        "centroidal MPC.",),
         DeclareLaunchArgument(
             "libFolder",
             default_value=lib_folder_default,
