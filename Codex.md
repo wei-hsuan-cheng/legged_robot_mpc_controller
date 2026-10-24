@@ -1,6 +1,32 @@
 # WB-ID MPC Walking Robustness Handoff
 
 
+## Robot-Agnostic Launch and Robot-Local Scenes (2026-10-24)
+
+The current entry point is `robot.launch.py robotName:=g1|h2`; the former `g1.launch.py` and `h2.launch.py` files have been removed.
+All 31 existing launch argument names remain available, with only `robotName` added, and the original multiline `mpcControllerName` declaration/choices style is retained.
+Robot selection resolves the controller YAML, URDF, ros2_control xacro, initial pose, terrain variants and separate `auto_generated/<robot>/` cache together.
+G1 supports WB-ID and centroidal, while H2's YAML remains WB-ID only; an unsupported controller or H2 lidar request fails early with an explicit error.
+
+Each robot now owns `description/mujoco/robots/<robot>/scene.xml`, `scene_flat.xml` and `scene_ramp.xml`, so `mujocoModelFile` uses identical names for both robots.
+Mesh compiler paths and texture directories were adjusted for the new top-level scene location; shared backgrounds, terrains, objects and textures remain in `description/mujoco/`.
+Compiled models for all six moved scenes were compared against commit `332a369`: body masses/poses/inertias, joint/actuator bounds, geometry/contact properties and qpos0 are unchanged.
+The scene generator supports `--robot-name g1|h2`, writes scenes beside the selected robot module and keeps generated textures/backgrounds in their shared directories.
+
+The controller YAML now owns numeric `ocs2.reference.defaultBaseHeight`: 0.795 m for both G1 MPC blocks and 1.02 m for H2 WB-ID.
+The existing launch parameter resolver reads that selected controller value and passes the same height to the GUI through `guiRefBaseHeight`.
+`refBaseHeight` remains an optional argument with an empty default; when specified it updates only the selected controller in the existing launch-generated temporary YAML and the GUI together, never the source YAML.
+Native ROS tests passed for both defaults, controller selection, custom YAML height, explicit overrides, untouched source files and invalid heights/controller/lidar choices.
+No OCP, reference-generation C++, estimator or tuning values changed; the explicit YAML height replaces the former launch substitution with the same effective values.
+
+The two-job Jazzy Release build passed in 3.40 s (`/tmp/robot_launch_build.log`).
+The 21 model/scene/shared-terrain checks passed locally, along with 23 WB-ID contract checks, nine torso checks and the standalone parameter contract; all four native ROS launch tests passed in the sourced container.
+Both robots completed 31 s headless flat-ground trials at vx=0.15 m/s, with no GUI, no RViz and no height override, then stopped upright without falling.
+H2 used 100 Hz requested MPC, travelled 2.893 m, had maximum roll/pitch 0.04683/0.02700 rad and minimum z0.9707 m; G1 used 90 Hz requested MPC, travelled 2.247 m and had maximum roll/pitch 0.00717/0.03255 rad.
+Raw artifacts are `/tmp/robot_launch_{g1,h2}_flat.{log,yaml,csv,json}` in Docker `ros_jazzy`; these are ordinary `base_twist` tests, not a mapped-terrain capability claim.
+The README has one shared launch example and a supported-robots table distinguishing physical actuated joint DoFs (G1 29, H2 31) from MPC-active joint DoFs (G1 23, H2 25), excluding the floating base.
+
+
 ## Shared Terrain Paths and H2 YAML Formatting (2026-10-24)
 
 Terrain planner files moved out of `config/g1/terrain/` and `config/h2/terrain/` into shared `config/terrains/stair_climbing/{g1,h2}.yaml` and `config/terrains/terrain_walking/{g1,h2}.yaml`.

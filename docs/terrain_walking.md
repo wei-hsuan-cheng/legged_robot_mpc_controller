@@ -632,8 +632,7 @@ subject to the centroidal dynamics and the mode-dependent contact constraints ab
 
 ## Configuration and Test
 
-The default launch file provides the shared stair-climbing and terrain-walking variants via [`g1.launch.py`](../launch/g1.launch.py#L68-L76) and its [launch arguments](../launch/g1.launch.py#L143-L144).
-[`h2.launch.py`](../launch/h2.launch.py#L52-L60) selects the H2 variants from the same `config/terrains/` directory.
+The common [`robot.launch.py`](../launch/robot.launch.py#L55-L63) selects the shared stair-climbing and terrain-walking variants using `robotName`, preserving the [launch override arguments](../launch/robot.launch.py#L133-L134).
 The current default controller file is [`ros2_controllers.yaml`](../config/g1/ros2_controllers.yaml#L605-L606), where the centroidal controller receives these paths under `ocs2.gait`.
 Simulator staircase geometry lives in [`description/mujoco/terrains/`](../description/mujoco/terrains/), and RViz geometry lives in [`description/urdf/terrains/`](../description/urdf/terrains/), with both xacros reading the shared [`config/terrains/stairs_params.yaml`](../config/terrains/stairs_params.yaml#L18).
 Robot models live under each format's `robots/g1/` directory, with shared meshes in [`description/meshes/robots/g1/`](../description/meshes/robots/g1/), as shown in the [description layout](../description/README.md).
@@ -642,7 +641,7 @@ Scene composition is documented in the [MuJoCo guide](../description/mujoco/READ
 Start the centroidal controller, select terrain mode, and publish a forward walking command:
 
 ```bash
-ros2 launch legged_robot_mpc_controller g1.launch.py \
+ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=g1 \
   mpcControllerName:=humanoid_centroidal_mpc_controller
 
 ros2 topic pub --once /humanoid/target_mode \

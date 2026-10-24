@@ -14,13 +14,14 @@ Links use repository-relative paths with line anchors, which may shift as the so
 | Config translation | [whole_body_inverse_dynamics_mpc_config_builder.cpp](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp) |
 | OCP assembly | [WbIdMpcInterface.cpp:106](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L106) |
 | G1 model and mesh paths | [g1_29dof.xml:16](../description/mujoco/robots/g1/g1_29dof.xml#L16), [g1_29dof.urdf:16](../description/urdf/robots/g1/g1_29dof.urdf#L16) |
-| Simulation scene composition | [scene.xml:3](../description/mujoco/scene.xml#L3), [shared module layout](../description/mujoco/README.md) |
+| Simulation scene composition | [G1 scene.xml:3](../description/mujoco/robots/g1/scene.xml#L3), [H2 scene.xml:3](../description/mujoco/robots/h2/scene.xml#L3), [shared module layout](../description/mujoco/README.md) |
 | Hardware interface description | [g1.ros2_control.xacro:17](../description/urdf/robots/g1/g1.ros2_control.xacro#L17) |
 
 WB-ID has its own generated parameter schema rather than loading the centroidal controller schema.
 The builder maps solver settings at [line 88](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L88), gait settings at [line 124](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L124) and costs at [line 172](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L172).
 The interface validates the Translation + SphericalZYX dimensions at [WbIdMpcInterface.cpp:46](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L46).
-The launch file selects the robot URDF at [line 56](../launch/g1.launch.py#L56), the separate RViz environment at [line 60](../launch/g1.launch.py#L60), and the top-level MuJoCo scene at [line 176](../launch/g1.launch.py#L176).
+The common launch selects the robot URDF at [line 43](../launch/robot.launch.py#L43), the separate RViz environment at [line 47](../launch/robot.launch.py#L47), and the robot-local MuJoCo scene at [line 165](../launch/robot.launch.py#L165).
+The selected controller YAML supplies both MPC and GUI height through [the parameter resolver](../launch/robot.launch.py#L234-L259); `refBaseHeight` remains an optional override of both.
 Scene names passed through `mujocoModelFile` are unchanged by the description-directory reorganization.
 
 

@@ -8,17 +8,11 @@ description/
     robots/g1/
     robots/h2/
   mujoco/
-    scene.xml
-    scene_flat.xml
-    scene_ramp.xml
-    scene_h2.xml
-    scene_h2_flat.xml
-    scene_h2_ramp.xml
     mujoco_scene_creator.py
     common/backgrounds/
     common/materials/
-    robots/g1/
-    robots/h2/
+    robots/g1/{g1_29dof.xml,scene.xml,scene_flat.xml,scene_ramp.xml}
+    robots/h2/{h2_31dof.xml,scene.xml,scene_flat.xml,scene_ramp.xml}
     terrains/
     objects/
     textures/
@@ -36,8 +30,8 @@ The RViz staircase belongs to `description/urdf/terrains/`, and its format-neutr
 
 | Module | Contents |
 | --- | --- |
-| `robots/g1/g1_29dof.xml` | Robot bodies, joints, actuators and sensors; meshes live in `../meshes/robots/g1/` |
-| `robots/h2/h2_31dof.xml` | Official Unitree H2 with matching URDF pelvis inertia and sole frames; meshes live in `../meshes/robots/h2/` |
+| `robots/g1/g1_29dof.xml` | Robot bodies, joints, actuators and sensors; meshes live in `description/meshes/robots/g1/` |
+| `robots/h2/h2_31dof.xml` | Official Unitree H2 with matching URDF pelvis inertia and sole frames; meshes live in `description/meshes/robots/h2/` |
 | `common/backgrounds/background_day.xml` | Original daytime sky, lighting, camera and physical floor |
 | `common/backgrounds/background_night.xml` | Studio lighting, camera, satin floor and robot finish |
 | `common/materials/terrain_materials.xml` | Shared matte material using `textures/studio_terrain.png` |
@@ -53,29 +47,28 @@ Both backgrounds include `../materials/terrain_materials.xml` once, so multiple 
 Terrain modules assign `material="studio_terrain"` to their geoms; they do not copy lighting or texture assets.
 The robot module contains no background or terrain definitions.
 
-For example, this scene combines the night background, G1, stairs and boxes:
+For example, `robots/g1/scene.xml` can combine the night background, G1, stairs and boxes:
 
 ```xml
 <mujoco model="g1_custom_scene">
-  <include file="robots/g1/g1_29dof.xml"/>
-  <include file="common/backgrounds/background_night.xml"/>
-  <include file="terrains/stairs.xml"/>
-  <include file="objects/boxes.xml"/>
+  <include file="g1_29dof.xml"/>
+  <include file="../../common/backgrounds/background_night.xml"/>
+  <include file="../../terrains/stairs.xml"/>
+  <include file="../../objects/boxes.xml"/>
   <option timestep="0.0001"/>
 </mujoco>
 ```
 
 Select exactly one background and include each terrain module at most once.
-Keep scene entry points in `description/mujoco/` because MuJoCo resolves asset files and compiler directories from the top-level scene, while nested XML includes resolve from the including file.
-The G1 module's compiler therefore uses `meshdir="../meshes/robots/g1"`, and shared texture assets use `file="textures/..."`.
+Keep scene entry points next to their robot module in `description/mujoco/robots/<robot>/` because MuJoCo resolves compiler directories from the top-level scene, while nested XML includes resolve from the including file.
+Each robot module uses `meshdir="../../../meshes/robots/<robot>"` and `texturedir="../../"`, so shared textures remain in `description/mujoco/textures/`.
 These paths also work in the installed package because CMake installs both the `description/` and `config/` trees.
 The floor's size, friction and priority are identical in both backgrounds.
 Terrain dimensions, contact properties, inertias and actuator settings are independent of the background choice.
 
 Entry points are `scene.xml` (night/configured terrain), `scene_flat.xml` (day/flat) and `scene_ramp.xml` (night/ramp).
-Choose one through `g1.launch.py mujocoModelFile:=scene.xml`.
-H2 uses the same background and terrain modules through `h2.launch.py mujocoModelFile:=scene_h2_flat.xml`, `scene_h2.xml` or `scene_h2_ramp.xml`.
-Use an H2 scene with the H2 launch; selecting a G1 robot scene does not change the controller's robot model automatically.
+Choose one through `robot.launch.py robotName:=g1 mujocoModelFile:=scene.xml`, or use `robotName:=h2` with the same scene name.
+The launch keeps the selected robot's scene, URDF and controller configuration together; an absolute scene path remains available as an explicit override.
 Switch day/night by changing the scene's background include; separate scene files for each appearance are unnecessary.
 
 From the package root, the generator can compose scenes and regenerate night appearance assets:
@@ -85,11 +78,13 @@ Use `--terrain rough` to select `terrains/uneven_terrain_10x10.xml`, `--terrain 
 ```bash
 python3 description/mujoco/mujoco_scene_creator.py
 python3 description/mujoco/mujoco_scene_creator.py --reference scene_ramp.xml
+python3 description/mujoco/mujoco_scene_creator.py --robot-name h2 --reference scene_ramp.xml
 python3 description/mujoco/mujoco_scene_creator.py --terrain stairs boxes -o scene_objects.xml
 python3 description/mujoco/mujoco_scene_creator.py --background day --terrain ramp -o scene_day_ramp.xml
 ```
 
-The default command updates `scene.xml` and the shared `common/backgrounds/background_night.xml`; every night scene immediately uses that appearance.
+The default command updates `robots/g1/scene.xml` and the shared `common/backgrounds/background_night.xml`; every night scene immediately uses that appearance.
+`--robot-name h2` selects `robots/h2/`, and relative reference/output scene paths are resolved within that robot directory.
 With `--reference`, the selected reference scene is updated unless `--output` is supplied.
 Appearance overrides such as `--reflectance 0.02` write a background named after the output scene in `common/backgrounds/`, leaving the shared night preset intact.
 Change the generator's `STYLES` and `STUDIO_LIGHTS` to tune the night appearance; edit `common/backgrounds/background_day.xml` for daytime settings and `common/materials/terrain_materials.xml` for terrain texture scale/specularity.

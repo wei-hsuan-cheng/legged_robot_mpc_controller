@@ -580,7 +580,7 @@ humanoid_centroidal_mpc_controller:
         maxDisplacementVelocityY: 1.2
         maxDeltaPelvisHeight: 0.4
         maxRotationVelocity: 1.0
-        defaultBaseHeight: $(var refBaseHeight)
+        defaultBaseHeight: 0.795
         basePosePositionTolerance: 0.02
         basePoseOrientationTolerance: 0.03
         # Arms hang at the sides. The all-zero arm posture this replaced put the
@@ -1041,7 +1041,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         maxDisplacementVelocityY: 0.5
         maxDeltaPelvisHeight: 0.4
         maxRotationVelocity: 1.5708
-        defaultBaseHeight: $(var refBaseHeight)
+        defaultBaseHeight: 0.795
         basePosePositionTolerance: 0.02
         basePoseOrientationTolerance: 0.03
         
@@ -1060,7 +1060,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
             - left_elbow_joint
             - right_elbow_joint
 
-        # Nominal crouch shared by bring-up and reference generation; default height 0.6 m.
+        # Nominal joint posture for reference generation; pelvis height is defaultBaseHeight.
         defaultJointState:
           [-0.8, 0.0, 0.0, 1.6, -0.8, 0.0,
            -0.8, 0.0, 0.0, 1.6, -0.8, 0.0,

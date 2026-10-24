@@ -14,6 +14,7 @@ import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
 SCENES = ROOT / "description" / "mujoco"
+G1_SCENES = SCENES / "robots" / "g1"
 ROBOT = ROOT / "description" / "urdf" / "robots" / "g1"
 spec = importlib.util.spec_from_file_location("mujoco_scene_creator", SCENES / "mujoco_scene_creator.py")
 creator = importlib.util.module_from_spec(spec)
@@ -34,19 +35,13 @@ except ImportError:
 
 class SceneLayoutTest(unittest.TestCase):
     def test_launch_description_paths(self):
+        launch = (ROOT / "launch/robot.launch.py").read_text()
+        ast.parse(launch)
+        self.assertIn('"robots", robot_name', launch)
         for robot in ("g1", "h2"):
-            launch = ast.parse((ROOT / "launch" / f"{robot}.launch.py").read_text())
-            checked = 0
-            for node in ast.walk(launch):
-                if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name):
-                    continue
-                if node.func.id != "PathJoinSubstitution" or not isinstance(node.args[0], ast.List):
-                    continue
-                parts = [elem.value for elem in node.args[0].elts if isinstance(elem, ast.Constant)]
-                if parts and (parts[0] == "description" or parts[:2] == ["config", "terrains"]):
-                    self.assertTrue(ROOT.joinpath(*parts).exists(), (robot, parts))
-                    checked += 1
-            self.assertEqual(checked, 7, robot)
+            self.assertTrue((SCENES / "robots" / robot / "scene.xml").is_file())
+            self.assertTrue((ROOT / "config" / robot / "ros2_controllers.yaml").is_file())
+            self.assertFalse((ROOT / "launch" / f"{robot}.launch.py").exists())
 
     def test_include_and_asset_paths(self):
         for path in (ROOT / "description").rglob("*.xml"):
@@ -56,10 +51,12 @@ class SceneLayoutTest(unittest.TestCase):
                     self.assertTrue((path.parent / include.get("file")).is_file())
                 for texture in root.findall(".//texture[@file]"):
                     self.assertTrue((SCENES / texture.get("file")).is_file())
-        robot = ET.parse(SCENES / "robots" / "g1" / "g1_29dof.xml")
-        mesh_dir = SCENES / robot.find("compiler").get("meshdir")
-        for mesh in robot.findall("./asset/mesh"):
-            self.assertTrue((mesh_dir / mesh.get("file")).is_file())
+        for name in ("g1", "h2"):
+            directory = SCENES / "robots" / name
+            robot = ET.parse(directory / ("g1_29dof.xml" if name == "g1" else "h2_31dof.xml"))
+            mesh_dir = directory / robot.find("compiler").get("meshdir")
+            for mesh in robot.findall("./asset/mesh"):
+                self.assertTrue((mesh_dir / mesh.get("file")).is_file())
 
     def test_urdf_mesh_uris(self):
         robot = ET.parse(ROBOT / "g1_29dof.urdf")
@@ -78,7 +75,7 @@ class SceneLayoutTest(unittest.TestCase):
     def test_none_removes_every_environment_module(self):
         for name, module in creator.TERRAIN_FILES.items():
             with self.subTest(terrain=name):
-                source = creator.build_scene(str(SCENES / "scene.xml"),
+                source = creator.build_scene(str(G1_SCENES / "scene.xml"),
                                              "common/backgrounds/background_night.xml", None, [name], "test")
                 with tempfile.TemporaryDirectory() as tmp:
                     reference = Path(tmp) / "scene.xml"
@@ -86,23 +83,26 @@ class SceneLayoutTest(unittest.TestCase):
                     result = creator.build_scene(str(reference), "common/backgrounds/background_day.xml",
                                                  None, ["none"], "test")
                 includes = [elem.get("file") for elem in result.findall("include")]
-                self.assertNotIn(module, includes)
-                self.assertEqual(includes, ["robots/g1/g1_29dof.xml",
-                                            "common/backgrounds/background_day.xml"])
+                self.assertNotIn(Path(module).name, [Path(p).name for p in includes])
+                self.assertEqual(includes[0], "g1_29dof.xml")
+                self.assertEqual((reference.parent / includes[1]).resolve(),
+                                 SCENES / "common/backgrounds/background_day.xml")
 
     @unittest.skipIf(mujoco is None, "mujoco Python package is not installed")
     def test_all_scenes_and_generated_terrains_compile(self):
-        for path in SCENES.glob("scene*.xml"):
+        scenes = list(SCENES.glob("robots/*/scene*.xml"))
+        self.assertEqual(len(scenes), 6)
+        for path in scenes:
             with self.subTest(scene=path.name):
                 model = mujoco.MjModel.from_xml_path(str(path))
                 self.assertEqual(model.opt.timestep, 0.0001)
-                self.assertEqual(model.nu, 31 if path.stem.startswith("scene_h2") else 29)
+                self.assertEqual(model.nu, 31 if path.parent.name == "h2" else 29)
         for background in ("day", "night"):
             for terrain in ["none", *creator.TERRAIN_FILES]:
                 with self.subTest(background=background, terrain=terrain):
-                    tree = creator.build_scene(str(SCENES / "scene.xml"),
+                    tree = creator.build_scene(str(G1_SCENES / "scene.xml"),
                                               f"common/backgrounds/background_{background}.xml", None, [terrain], "test")
-                    entry = str(SCENES / "layout_test.xml")
+                    entry = str(G1_SCENES / "layout_test.xml")
                     model = mujoco.MjModel.from_xml_path(entry, {entry: ET.tostring(tree.getroot())})
                     self.assertEqual(model.opt.timestep, 0.0001)
 
@@ -114,13 +114,15 @@ class SceneLayoutTest(unittest.TestCase):
             scenes = description / "mujoco"
             shared_background = scenes / "common" / "backgrounds" / "background_night.xml"
             before = shared_background.read_bytes()
-            subprocess.run([sys.executable, str(scenes / "mujoco_scene_creator.py"),
-                            "--scene-dir", str(scenes), "--terrain", "rough", "--reflectance", "0.02",
-                            "--output", "scene_test.xml"], check=True, capture_output=True, text=True)
-            self.assertEqual(before, shared_background.read_bytes())
-            self.assertTrue((scenes / "common" / "backgrounds" / "background_night_scene_test.xml").is_file())
-            model = mujoco.MjModel.from_xml_path(str(scenes / "scene_test.xml"))
-            self.assertEqual(model.ngeom, 512)
+            for robot in ("g1", "h2"):
+                subprocess.run([sys.executable, str(scenes / "mujoco_scene_creator.py"),
+                                "--scene-dir", str(scenes), "--robot-name", robot,
+                                "--terrain", "rough", "--reflectance", "0.02",
+                                "--output", "scene_test.xml"], check=True, capture_output=True, text=True)
+                self.assertEqual(before, shared_background.read_bytes())
+                self.assertTrue((scenes / "common" / "backgrounds" / "background_night_scene_test.xml").is_file())
+                model = mujoco.MjModel.from_xml_path(str(scenes / "robots" / robot / "scene_test.xml"))
+                self.assertEqual(model.ngeom, 512 if robot == "g1" else 506)
 
     @unittest.skipIf(xacro is None, "xacro Python package is not installed")
     def test_stairs_xacros_find_shared_parameters(self):

@@ -77,9 +77,10 @@ def main():
     parser.add_argument("--ramp", type=float, default=3.0)
     parser.add_argument("--settle", type=float, default=5.0)
     parser.add_argument("--rest", type=float, default=5.0)
-    parser.add_argument("--height", type=float, default=0.6)
+    parser.add_argument("--height", type=float, help="Override YAML nominal pelvis height [m]")
     parser.add_argument("--mpc-rate", type=int, default=100)
-    parser.add_argument("--launch-file", default="g1.launch.py")
+    parser.add_argument("--launch-file", default="robot.launch.py")
+    parser.add_argument("--robot-name", choices=["g1", "h2"], default="g1")
     parser.add_argument("--scene", default="scene_flat.xml")
     parser.add_argument("--minimum-height", type=float, default=0.38)
     parser.add_argument("--startup-timeout", type=float, default=600.0)
@@ -89,9 +90,11 @@ def main():
     parser.add_argument("--source", choices=["ground_truth_state", "state_estimator"], default="ground_truth_state")
     parser.add_argument("--estimator", default="humanoid_inekf")
     parser.add_argument("--prefix", default="/tmp/wb_id_walk")
-    parser.add_argument("--config", type=Path, default=Path(__file__).resolve().parents[1] / "config/g1/ros2_controllers.yaml")
+    parser.add_argument("--config", type=Path, help="Controller YAML (default: config/<robot-name>/ros2_controllers.yaml)")
     parser.add_argument("--set", action="append", default=[], metavar="KEY=JSON", help="Override a dotted controller parameter in a temporary YAML")
     args = parser.parse_args()
+    args.config = args.config or Path(__file__).resolve().parents[1] / "config" / args.robot_name / "ros2_controllers.yaml"
+    height_override = args.height
     if args.hold <= 0 or args.ramp < 0 or args.speed == 0:
         parser.error("hold must be positive, ramp nonnegative, and speed nonzero")
     config = yaml.safe_load(args.config.read_text())
@@ -105,6 +108,7 @@ def main():
         if parts[-1] not in parent:
             parser.error(f"Unknown parameter: {key}")
         parent[parts[-1]] = json.loads(value)
+    args.height = float(params["ocs2"]["reference"]["defaultBaseHeight"]) if args.height is None else args.height
     if args.swing_duration is not None:
         if args.swing_duration <= 0 or args.double_support <= 0:
             parser.error("swing duration and double support must be positive")
@@ -122,13 +126,16 @@ def main():
     normalized_speed = args.speed / scale
     launch_cmd = [
         "ros2", "launch", "legged_robot_mpc_controller", args.launch_file,
+        f"robotName:={args.robot_name}",
         f"mpcControllerName:={CONTROLLER}", f"mujocoModelFile:={args.scene}",
         "rviz:=false", "mujoco_headless:=true", "baseCommandGui:=false",
         f"floatingBaseSource:={args.source}",
         f"floatingBaseEstimator:={args.estimator if args.source == 'state_estimator' else 'none'}",
-        f"mpcFreq:={args.mpc_rate}", "mrtFreq:=1000", f"refBaseHeight:={args.height}",
+        f"mpcFreq:={args.mpc_rate}", "mrtFreq:=1000",
         f"controllersFile:={config_path}",
     ]
+    if height_override is not None:
+        launch_cmd.append(f"refBaseHeight:={args.height}")
     verdict = "TIMEOUT"
     result = vars(args).copy()
     result["config"] = str(args.config)

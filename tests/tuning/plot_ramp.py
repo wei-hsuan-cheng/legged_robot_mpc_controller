@@ -69,7 +69,7 @@ def main():
 def render(directory, data):
     import mujoco
     from PIL import Image
-    scene = Path(__file__).resolve().parents[2] / "description/mujoco/scene.xml"
+    scene = Path(__file__).resolve().parents[2] / "description/mujoco/robots/g1/scene.xml"
     model = mujoco.MjModel.from_xml_path(str(scene))
     state = mujoco.MjData(model)
     renderer = mujoco.Renderer(model, height=720, width=1100)

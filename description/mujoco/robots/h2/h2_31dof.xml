@@ -1,6 +1,6 @@
 <mujoco model="H2">
   <!-- Unitree official h2_mujoco.xml, with matching URDF pelvis inertia, sole-coordinate reframe and G1 contact/integration settings. See MODEL_SOURCE.md. -->
-  <compiler angle="radian" meshdir="../meshes/robots/h2" />
+  <compiler angle="radian" meshdir="../../../meshes/robots/h2" texturedir="../../" />
   <default>
     <joint damping="0.05" armature="0.01" frictionloss="0.2" />
     <geom solimp="0.999 0.95 0.005" solref="0.001 1.0" />

@@ -14,7 +14,7 @@
 # velocity on /humanoid/walking_velocity_command.
 #
 # Select via the launch argument:
-#   ros2 launch legged_robot_mpc_controller h2.launch.py \
+#   ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=h2 \
 #     terrainWalkingFile:=<pkg_share>/config/terrains/terrain_walking/h2.yaml ...
 # -----------------------------------------------------------------------------
 

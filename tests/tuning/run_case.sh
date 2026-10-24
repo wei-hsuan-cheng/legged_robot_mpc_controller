@@ -3,7 +3,7 @@
 # controllers yaml, run the stand -> walk -> stop probe, score it and plot it.
 #
 # usage: run_case.sh <tag> <controllers.yaml | default> [vx_mps]
-#   env: HEIGHT (commanded pelvis height, default 0.795), LAUNCH_ARGS (extra g1.launch.py args), OUT (results root, default
+#   env: HEIGHT (commanded pelvis height, default 0.795), LAUNCH_ARGS (extra robot.launch.py args), OUT (results root, default
 #        <repo>/tuning_results), RVIZ=true SHOTS=1 (RViz screenshots during the walk),
 #        HOLD_SECONDS (constant-command duration, default 20)
 # writes: $OUT/<tag>/{sim.log, data.npz, metrics.json, diag.json, *.png, config.yaml, summary.txt}
@@ -20,7 +20,7 @@ OUT=${OUT:-$REPO/tuning_results}; D=$OUT/$TAG; mkdir -p "$D"; rm -rf "${D:?}"/*
 [ "$CFG" = default ] && CFG=$REPO/config/g1/ros2_controllers.yaml
 cp "$CFG" "$D/config.yaml"
 pkill -9 -x mujoco_ros2_con 2>/dev/null; pkill -9 -x rviz2 2>/dev/null; sleep 2
-setsid nohup timeout 240 bash -c "cd $WS && $SRC && ros2 launch legged_robot_mpc_controller g1.launch.py \
+setsid nohup timeout 240 bash -c "cd $WS && $SRC && ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=g1 \
   mpcControllerName:=humanoid_whole_body_inverse_dynamics_mpc_controller mujocoModelFile:=scene_flat.xml \
   rviz:=${RVIZ:-false} ${RVIZCFG:+rvizconfig:=$RVIZCFG} mujoco_headless:=true baseCommandGui:=false controllersFile:=$D/config.yaml ${LAUNCH_ARGS:-}" > "$D/sim.log" 2>&1 < /dev/null &
 w=0

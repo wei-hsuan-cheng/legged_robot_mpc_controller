@@ -542,7 +542,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         maxDisplacementVelocityY: 0.08
         maxDeltaPelvisHeight: 0.4
         maxRotationVelocity: 0.15
-        defaultBaseHeight: $(var refBaseHeight)
+        defaultBaseHeight: 1.02
         basePosePositionTolerance: 0.02
         basePoseOrientationTolerance: 0.03
 

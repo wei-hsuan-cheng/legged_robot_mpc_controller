@@ -1,7 +1,8 @@
 # WB-ID Terrain Trial Checkpoint
 
 **Archived proposal, not the current launch workflow.**
-The scene-extraction hook and `terrainFromScene` argument were removed from `g1.launch.py` at the user's request; commands using that argument below describe the earlier checkpoint only.
+The scene-extraction hook and `terrainFromScene` argument were removed from the former `g1.launch.py` at the user's request; commands using that argument below describe the earlier checkpoint only.
+The current entry point is [`robot.launch.py`](../launch/robot.launch.py), which does not expose that hook.
 The standalone exporter remains unused by launch, and the mapped-planner extensions remain separate from ordinary `base_twist` walking.
 For the tested ramp gains and current status, see [Codex.md](../Codex.md).
 
@@ -45,7 +46,7 @@ For headless testing, additionally pass `rviz:=false mujoco_headless:=true`.
 ## Geometry and References
 
 [terrain_scene_model.py](../launch/terrain_scene_model.py) exports static box tops and the common horizontal floor from the selected scene to a temporary YAML file.
-[g1.launch.py](../launch/g1.launch.py) uses it for WB-ID MuJoCo launches when `terrainFromScene:=true`, retaining the planner settings from `terrainWalkingFile`.
+At this archived checkpoint the former `g1.launch.py` used it for WB-ID MuJoCo launches when `terrainFromScene:=true`, retaining the planner settings from `terrainWalkingFile`; the current launch no longer does so.
 Use `terrainFromScene:=false` to retain a manually configured terrain file or the legacy staircase geometry.
 The exporter supports the current horizontal tiles and pitch-only ramp, nested static-body transforms, quaternion/Euler poses and included compiler angle units.
 Dynamic bodies are excluded; unsupported static geometry, compound slopes with nonrectangular XY projections, tilted infinite planes and inconsistent floor levels fail explicitly.

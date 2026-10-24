@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate modular G1 MuJoCo scenes and reusable studio backgrounds.
+"""Generate modular robot MuJoCo scenes and reusable studio backgrounds.
 
 Scene entry points include a robot, one background and optional terrain modules.
 common/backgrounds/background_day.xml keeps the original daytime appearance; background_night.xml
@@ -8,10 +8,11 @@ common/materials/terrain_materials.xml once, providing textures/studio_terrain.p
 slopes and boxes. Geometry/contact definitions stay in their own modules, so terrain
 edits immediately reach every scene without copying or regenerating geometry.
 
-Usage (paths are relative to description/mujoco unless absolute):
+Usage (scene paths are relative to description/mujoco/robots/<robot-name>):
     python3 description/mujoco/mujoco_scene_creator.py
     python3 description/mujoco/mujoco_scene_creator.py --terrain none -o scene_flat.xml
     python3 description/mujoco/mujoco_scene_creator.py --reference scene_ramp.xml
+    python3 description/mujoco/mujoco_scene_creator.py --robot-name h2 --terrain none -o scene_flat.xml
     python3 description/mujoco/mujoco_scene_creator.py --background day --terrain ramp -o scene_day_ramp.xml
     python3 description/mujoco/mujoco_scene_creator.py --style studio_blue -o scene_blue.xml
     python3 description/mujoco/mujoco_scene_creator.py --preview /tmp/studio.png
@@ -19,7 +20,7 @@ Usage (paths are relative to description/mujoco unless absolute):
 The default run updates the shared common/backgrounds/background_night.xml. Appearance overrides write
 an output-specific background module. Preview rendering needs the mujoco Python
 package; XML/texture generation uses only the standard library. Select the scene
-with g1.launch.py mujocoModelFile:=scene.xml.
+with robot.launch.py robotName:=g1 mujocoModelFile:=scene.xml (or robotName:=h2).
 """
 
 import argparse
@@ -249,26 +250,28 @@ def build_background(style, style_name, texture_rel, target_body, scene_dir):
   return ET.ElementTree(root)
 
 
-def build_scene(reference_path, background, robot, terrain, command):
+def build_scene(reference_path, background, robot, terrain, command, scene_dir=DEFAULT_SCENE_DIR):
   ref = ET.parse(reference_path).getroot()
   root = ET.Element("mujoco", model=ref.get("model", "scene"))
   root.append(ET.Comment(f" Generated scene composition; options: {command} "))
   found_background = False
   found_robot = False
   terrain_files = {os.path.basename(path) for path in TERRAIN_FILES.values()}
+  reference_dir = os.path.dirname(os.path.realpath(reference_path))
+  relative = lambda path: os.path.relpath(os.path.realpath(resolve(path, scene_dir)), reference_dir)
   for elem in ref:
     elem = copy.deepcopy(elem)
     if elem.tag == "include":
       name = os.path.basename(elem.get("file", ""))
       if name.startswith("background_"):
-        elem.set("file", background)
+        elem.set("file", relative(background))
         found_background = True
       elif name in terrain_files:
         if terrain is not None:
           continue
       elif not found_robot:
         if robot is not None:
-          elem.set("file", robot)
+          elem.set("file", relative(robot))
         found_robot = True
     root.append(elem)
   if not found_background or not found_robot:
@@ -276,7 +279,7 @@ def build_scene(reference_path, background, robot, terrain, command):
   if terrain is not None:
     for t in terrain:
       if t != "none":
-        ET.SubElement(root, "include", file=TERRAIN_FILES[t])
+        ET.SubElement(root, "include", file=relative(TERRAIN_FILES[t]))
   ET.indent(root, space="  ")
   return ET.ElementTree(root)
 
@@ -321,6 +324,8 @@ def main():
   parser.add_argument("-o", "--output", default=None, help="scene file to write (default: update the reference scene)")
   parser.add_argument("--reference", default="scene.xml",
                       help="modular scene whose robot, terrain and options are copied (default: scene.xml)")
+  parser.add_argument("--robot-name", default="g1", choices=("g1", "h2"),
+                      help="robot directory containing the reference/output scene")
   parser.add_argument("--robot", default=None, help="replace the robot include (the reference's first include)")
   parser.add_argument("--terrain", nargs="+", default=None, choices=sorted(TERRAIN_FILES) + ["none"],
                       help="replace the reference's terrain includes (default: keep them)")
@@ -330,7 +335,7 @@ def main():
   parser.add_argument("--azimuth", type=float, default=None, help="viewer start azimuth [deg]; lights follow it")
   parser.add_argument("--elevation", type=float, default=None, help="viewer start elevation [deg]")
   parser.add_argument("--matte-robot", action="store_true", help="keep the robot's plain finish")
-  parser.add_argument("--scene-dir", default=DEFAULT_SCENE_DIR, help="directory for relative paths")
+  parser.add_argument("--scene-dir", default=DEFAULT_SCENE_DIR, help="shared description/mujoco directory")
   parser.add_argument("--preview", default=None, metavar="PNG", help="also render the viewer's start view")
   parser.add_argument("--preview-size", default="1200x900", metavar="WxH", help="default: the viewer window")
   parser.add_argument("--list", action="store_true", help="list the styles and exit")
@@ -355,8 +360,9 @@ def main():
     overrides["robot_specular"] = None
   style = dataclasses.replace(style, **overrides)
 
-  output = resolve(args.output or args.reference, args.scene_dir)
-  reference = resolve(args.reference, args.scene_dir)
+  robot_dir = os.path.join(args.scene_dir, "robots", args.robot_name)
+  output = resolve(args.output or args.reference, robot_dir)
+  reference = resolve(args.reference, robot_dir)
   out_dir = os.path.dirname(os.path.abspath(output))
   if out_dir != os.path.dirname(os.path.abspath(reference)):
     # Asset paths and compiler directories resolve against the top-level scene.
@@ -366,9 +372,9 @@ def main():
   texture_name = f"{args.style}_floor.png" if style.cell == STYLES[args.style].cell \
       else f"{args.style}_floor_{style.cell:g}m.png"
   texture_rel = os.path.join("textures", texture_name)
-  os.makedirs(os.path.join(out_dir, "textures"), exist_ok=True)
-  write_png(os.path.join(out_dir, texture_rel), style.texture_px, style.texture_px, floor_texture_rows(style))
-  terrain_texture = os.path.join(out_dir, "textures", "studio_terrain.png")
+  os.makedirs(os.path.join(args.scene_dir, "textures"), exist_ok=True)
+  write_png(os.path.join(args.scene_dir, texture_rel), style.texture_px, style.texture_px, floor_texture_rows(style))
+  terrain_texture = os.path.join(args.scene_dir, "textures", "studio_terrain.png")
   write_png(terrain_texture, style.texture_px, style.texture_px, terrain_texture_rows(style))
 
   # XML comments cannot contain "--", so the options are recorded as key=value.
@@ -379,17 +385,17 @@ def main():
   if args.background == "night":
     if args.style != "studio" or overrides or args.target_body != "pelvis":
       background = os.path.join("common", "backgrounds", f"background_night_{os.path.splitext(os.path.basename(output))[0]}.xml")
-    background_path = os.path.join(out_dir, background)
+    background_path = os.path.join(args.scene_dir, background)
     os.makedirs(os.path.dirname(background_path), exist_ok=True)
-    build_background(style, args.style, texture_rel, args.target_body, out_dir).write(
+    build_background(style, args.style, texture_rel, args.target_body, args.scene_dir).write(
         background_path, encoding="unicode", xml_declaration=False)
     print(f"wrote {background_path}")
-  tree = build_scene(reference, background, args.robot, args.terrain, command)
+  tree = build_scene(reference, background, args.robot, args.terrain, command, args.scene_dir)
   tree.write(output, encoding="unicode", xml_declaration=False)
   with open(output, "a") as f:
     f.write("\n")
   print(f"wrote {output}")
-  print(f"wrote {os.path.join(out_dir, texture_rel)}")
+  print(f"wrote {os.path.join(args.scene_dir, texture_rel)}")
   print(f"wrote {terrain_texture}")
 
   if args.preview:

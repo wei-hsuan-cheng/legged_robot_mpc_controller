@@ -3,7 +3,7 @@
   <!--
     Environment description: a parametric staircase (same geometry convention
     as ../../mujoco/terrains/stairs.xml.xacro, driven by the SAME params file). It is not
-    part of the robot. g1.launch.py runs it through xacro and publishes it with
+    part of the robot. robot.launch.py runs it through xacro and publishes it with
     its own robot_state_publisher in the "environment" namespace, so rviz shows
     it next to the robot.
 

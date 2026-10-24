@@ -9,7 +9,8 @@ import unittest
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
-SCENES = ROOT / "description/mujoco"
+MUJOCO = ROOT / "description/mujoco"
+SCENES = MUJOCO / "robots/g1"
 spec = importlib.util.spec_from_file_location("terrain_scene_model", ROOT / "launch/terrain_scene_model.py")
 terrain = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(terrain)
@@ -49,7 +50,7 @@ class TerrainReferenceTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             scene = Path(directory) / "scene.xml"
             scene.write_text('<mujoco><worldbody><geom type="plane" size="0 0 1"/></worldbody>'
-                             f'<include file="{SCENES / "terrains/uneven_terrain_10x10.xml"}"/></mujoco>')
+                             f'<include file="{MUJOCO / "terrains/uneven_terrain_10x10.xml"}"/></mujoco>')
             model = terrain.scene_regions(scene)
         self.assertEqual(len(model["regions"]), 440)
         self.assertEqual(surface_height(model, [0, 0]), 0)

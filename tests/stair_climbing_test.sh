@@ -65,7 +65,7 @@ fi
 if [ -n "$STAIR_CONFIG" ]; then
   EXTRA_ARGS+=("stairClimbingFile:=$STAIR_CONFIG")
 fi
-ros2 launch legged_robot_mpc_controller g1.launch.py \
+ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=g1 \
   mujoco_headless:=true baseCommandGui:=false rviz:=false \
   mpcControllerName:=humanoid_centroidal_mpc_controller "${EXTRA_ARGS[@]}" > "$LOG" 2>&1 &
 LAUNCH_PID=$!

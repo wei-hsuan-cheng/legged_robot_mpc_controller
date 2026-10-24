@@ -38,7 +38,7 @@ def main():
     args.prefix.parent.mkdir(parents=True, exist_ok=True)
     log_path = Path(str(args.prefix) + ".log")
     command = [
-        "ros2", "launch", "legged_robot_mpc_controller", "g1.launch.py",
+        "ros2", "launch", "legged_robot_mpc_controller", "robot.launch.py", "robotName:=g1",
         "mpcControllerName:=humanoid_whole_body_inverse_dynamics_mpc_controller",
         "mpcFreq:=100", "mrtFreq:=1000", "mujocoModelFile:=scene_flat.xml",
         "rviz:=false", "mujoco_headless:=true", "baseCommandGui:=false",

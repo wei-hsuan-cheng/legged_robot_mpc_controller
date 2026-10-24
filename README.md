@@ -25,6 +25,18 @@ See [WB-ID MPC Formulation and Signal Flow](./docs/humanoid_whole_body_inverse_d
 The centroidal MPC optimizes over the **whole-body kinematics** and the center of mass dynamics, with a choice to either use a single rigid body model or the full centroidal dynamics. This specific approach builds up on the centroidal model in ocs2 by generalizing costs and constraints to a 6-DoF contact among others. A conscise explanation of the ocs2 centroidal model can be found in [(RA-L2021) Sleiman et. al., A Unified MPC Framework for Whole-Body Dynamic Locomotion and Manipulation](https://arxiv.org/abs/2103.00946).
 
 
+## Supported Robots
+
+| Robot | `robotName` | Physical Actuated DoFs | MPC-Active Joint DoFs | MPC Formulations | Nominal Pelvis Height |
+| --- | --- | --- | --- | --- | --- |
+| Unitree G1 | `g1` | 29 | 23 | WB-ID, centroidal | 0.795 m |
+| Unitree H2 | `h2` | 31 | 25 | WB-ID | 1.02 m |
+
+The six wrist joints are fixed in each reduced MPC model and held by the joint servos; the floating base adds six configuration and six velocity coordinates, separate from the actuated-joint DoFs above.
+H2's two head joints remain active and use the existing orientation/angular-velocity frame cost; torso stabilization uses `torsoTiltCost`.
+See [H2 Integration and Validation](./docs/h2_wb_id_mpc.md) and [official model provenance](./description/urdf/robots/h2/MODEL_SOURCE.md) for its model corrections and tested range.
+
+
 ## Build and Install
 
 - Clone this repo
@@ -70,13 +82,14 @@ Two MPC controllers are available, selected with `mpcControllerName`. Both walk 
 
 | `mpcControllerName` | MPC | state / input |
 |---|---|---|
-| `humanoid_whole_body_inverse_dynamics_mpc_controller` | whole-body inverse dynamics + whole-body kinematics | `[q, v]` / `[W, a, tau_j]` |
-| `humanoid_centroidal_mpc_controller` (default) | centroidal dynamics + whole-body kinematics | `[h/m, q]` / `[W, qd_j]` |
+| `humanoid_whole_body_inverse_dynamics_mpc_controller` (default) | whole-body inverse dynamics + whole-body kinematics | `[q, v]` / `[W, a, tau_j]` |
+| `humanoid_centroidal_mpc_controller` (G1 only) | centroidal dynamics + whole-body kinematics | `[h/m, q]` / `[W, qd_j]` |
 
 **Launch the humanoid robot MPC**:
 ```bash
 cd <workspace_dir>
-ros2 launch legged_robot_mpc_controller g1.launch.py \
+ros2 launch legged_robot_mpc_controller robot.launch.py \
+  robotName:=g1 \
   mpcControllerName:=humanoid_whole_body_inverse_dynamics_mpc_controller \
   mpcFreq:=90 \
   mrtFreq:=1000 \
@@ -84,8 +97,13 @@ ros2 launch legged_robot_mpc_controller g1.launch.py \
   mujoco_headless:=false \
   baseCommandGui:=true
 
-# mpcControllerName:=humanoid_whole_body_inverse_dynamics_mpc_controller | humanoid_centroidal_mpc_controller
 ```
+
+Use `robotName:=h2` for H2; all other launch argument names are identical.
+The robot selects its controller YAML, URDF, initial pose, terrain-planner variant and separate CppAD cache automatically.
+The nominal pelvis height comes from the selected controller's `ocs2.reference.defaultBaseHeight` in YAML and is passed to the GUI; optional `refBaseHeight:=<height_m>` overrides both without editing the source file.
+Scene names are shared: `scene.xml`, `scene_flat.xml` and `scene_ramp.xml` resolve inside `description/mujoco/robots/<robotName>/`.
+For obstacle-free trials use `mujocoModelFile:=scene_flat.xml environmentDescription:=""`.
 
 The first launch of each controller generates and compiles its CppAD libraries (several minutes); later launches load them from the cache.
 
@@ -94,13 +112,15 @@ The first launch of each controller generates and compiles its CppAD libraries (
 
 ```bash
 baseCommandGui:=true | false
+robotName:=g1 | h2
 spawnMpcController:=true | false         # false is only for environment smoke tests; the robot will not balance
 mpcControllerName:=humanoid_whole_body_inverse_dynamics_mpc_controller | humanoid_centroidal_mpc_controller
 use_mujoco_sim:=true | false             # false: plain ros2_control_node (fake hardware)
 use_fake_hardware:=false | true          # mock_components/GenericSystem when not using MuJoCo
 ros2ControlCommandInterface:=effort | effort_pd | position
 mujocoEffortCommandMode:=actuator | qfrc_applied
-initialPoseFile:=<...>/initial_pose.yaml # initial joint state (config/g1/initial_pose.yaml)
+initialPoseFile:=<...>/initial_pose.yaml # default: config/<robotName>/initial_pose.yaml
+refBaseHeight:=<height_m>               # optional; default height is read from controller YAML
 rviz:=true | false
 mujoco_headless:=false | true
 mujoco_wait_to_start:=true | false       # paused start + /mujoco_ros2_control/start service
@@ -110,32 +130,11 @@ gt_enabled:=true | false                 # floating-base ground-truth odometry f
 gt_body_frame:=pelvis                    # MuJoCo body published as ground truth
 mpcFreq:=100                             # integer
 mrtFreq:=1000                            # integer
-libFolder:=auto_generated/g1             # CppAD codegen output (wb_id_mpc_g1/, centroidal_mpc_g1/ inside)
-mujocoModelFile:=scene.xml               # swap scene: boxes / stairs / slope in description/mujoco
+libFolder:=auto_generated/g1             # default: auto_generated/<robotName>
+mujocoModelFile:=scene.xml               # scene in description/mujoco/robots/<robotName>/
 stairClimbingFile:=<pkg_share>/config/terrains/stair_climbing/g1.yaml
 terrainWalkingFile:=<pkg_share>/config/terrains/terrain_walking/g1.yaml
 ```
-
-
-### Unitree H2 (WB-ID Only)
-
-H2 has its own [launch file](./launch/h2.launch.py), [controller parameters](./config/h2/ros2_controllers.yaml) and [official-model provenance](./description/urdf/robots/h2/MODEL_SOURCE.md).
-Its controller YAML contains no centroidal MPC configuration; the existing WB-ID controller optimizes 25 joints, including both head joints, while the six wrist joints are held at zero.
-The head uses the existing Cartesian frame-tracking cost, and torso stabilization uses `torsoTiltCost` rather than another torso frame tracker.
-See [H2 Integration and Validation](./docs/h2_wb_id_mpc.md) for the model corrections, tuning evidence and tested operating range.
-
-```bash
-ros2 launch legged_robot_mpc_controller h2.launch.py \
-  mujocoModelFile:=scene_h2_flat.xml \
-  environmentDescription:="" \
-  mpcFreq:=100 mrtFreq:=1000 \
-  rviz:=true mujoco_headless:=false baseCommandGui:=true
-```
-
-The default H2 floating-base feedback is `humanoid_linear_kf`, as in the current G1 WB-ID setup.
-H2's nominal pelvis height is 1.02 m, not G1's height; generated libraries are stored separately under `auto_generated/h2/wb_id_mpc_h2/`.
-Use `scene_h2.xml` or `scene_h2_ramp.xml` for the shared staircase or ramp environment, but these scenes do not imply that H2 terrain walking has been validated.
-Both launches select their own planner variant from shared [`config/terrains/`](./config/terrains/README.md); H2 uses `h2.yaml`, while G1 uses `g1.yaml`.
 
 
 ### Scripted trajectory tests (figure-eight)

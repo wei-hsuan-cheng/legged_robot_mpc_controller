@@ -74,7 +74,7 @@ Posture balancing and higher PD gains were both necessary in the tested bring-up
 
 ## Flat-Ground Results
 
-Trials used the Parallels VM at `10.211.55.17`, Docker `ros_jazzy`, Release build, `scene_h2_flat.xml`, estimator feedback, `base_twist`, no GUI and no RViz.
+Trials used the Parallels VM at `10.211.55.17`, Docker `ros_jazzy`, Release build, H2's flat scene (now `robots/h2/scene_flat.xml`), estimator feedback, `base_twist`, no GUI and no RViz.
 Ground-truth pose was recorded only for validation, not used as floating-base feedback in these trials.
 The requested rates were 100 Hz MPC and 1000 Hz MRT; measured solver advance times were typically around 12 ms, so the VM did not consistently achieve 100 Hz MPC.
 Each trial ramped its command over 3 s, walked, ramped back to zero and included a final stance interval.
@@ -107,8 +107,8 @@ Seven H2 model/xacro checks, 11 scene-layout checks, 23 WB-ID contract checks, n
 ## Reproduce
 
 ```bash
-ros2 launch legged_robot_mpc_controller h2.launch.py \
-  mujocoModelFile:=scene_h2_flat.xml environmentDescription:="" \
+ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=h2 \
+  mujocoModelFile:=scene_flat.xml environmentDescription:="" \
   mpcFreq:=100 mrtFreq:=1000 \
   rviz:=true mujoco_headless:=false baseCommandGui:=true
 ```
@@ -117,10 +117,10 @@ For an automated isolated forward test from the sourced workspace:
 
 ```bash
 python3 src/legged_robot_mpc_controller/tests/wb_id_walk_test.py \
-  --launch-file h2.launch.py --scene scene_h2_flat.xml \
+  --robot-name h2 --scene scene_flat.xml \
   --config src/legged_robot_mpc_controller/config/h2/ros2_controllers.yaml \
   --source state_estimator --estimator humanoid_linear_kf \
-  --height 1.02 --minimum-height 0.65 --startup-timeout 1800 \
+  --minimum-height 0.65 --startup-timeout 1800 \
   --axis vx --speed 0.15 --hold 25 --ramp 3 --settle 4 --rest 6 \
   --prefix /tmp/h2_saved_vx015
 ```

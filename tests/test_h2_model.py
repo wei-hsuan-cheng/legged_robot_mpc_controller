@@ -122,7 +122,7 @@ class H2ModelTest(unittest.TestCase):
 
     @unittest.skipIf(mujoco is None, 'mujoco is not installed')
     def test_mass_and_nominal_contact_geometry(self):
-        model = mujoco.MjModel.from_xml_path(str(ROOT / 'description/mujoco/scene_h2_flat.xml'))
+        model = mujoco.MjModel.from_xml_path(str(ROOT / 'description/mujoco/robots/h2/scene_flat.xml'))
         self.assertEqual(model.nu, 31)
         urdf_mass = sum(float(m.attrib['value']) for m in URDF.findall('.//inertial/mass'))
         self.assertAlmostEqual(float(sum(model.body_mass)), urdf_mass, places=4)

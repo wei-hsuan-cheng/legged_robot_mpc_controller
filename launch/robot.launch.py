@@ -1,20 +1,10 @@
-"""G1 humanoid in MuJoCo with an OCS2 MPC ros2 controller and a floating-base estimator.
+"""Robot-independent MuJoCo/MPC launch; select Unitree G1 or H2 with robotName.
 
-Run from the workspace root (the CppAD cache folder is relative to it):
-
-    # centroidal MPC (default)
-    ros2 launch legged_robot_mpc_controller g1.launch.py
-
-    # whole-body inverse-dynamics MPC
-    ros2 launch legged_robot_mpc_controller g1.launch.py \
-        mpcControllerName:=humanoid_whole_body_inverse_dynamics_mpc_controller
-
-Both controllers are configured in config/g1/ros2_controllers.yaml under their own
-names, and share the estimator and bring-up. Each block has its own gaits (ocs2.gait).
-Their CppAD libraries are cached in
-auto_generated/g1 (libFolder), in centroidal_mpc_g1/ and wb_id_mpc_g1/ respectively.
+Robot configuration, scenes and CppAD caches are selected together. The selected
+controller YAML owns the reference height used by both MPC and the command GUI.
 """
 
+import math
 import os
 import yaml
 from typing import List
@@ -37,23 +27,20 @@ from launch_ros.substitutions import FindPackageShare
 
 def generate_launch_description():
     mpc_share_dir = get_package_share_directory("legged_robot_mpc_controller")
+    robot_name = LaunchConfiguration("robotName")
 
     rviz_default = os.path.join(mpc_share_dir, "config", "rviz", "humanoid.rviz")
-    initial_pose_default = os.path.join(mpc_share_dir, "config", "g1", "initial_pose.yaml")
-    # CppAD cache, shared by both MPCs: each writes its own subfolder
-    # (centroidal_mpc_g1, wb_id_mpc_g1). The generated libraries are keyed by model
-    # NAME only, with nothing recording the dimensions they were built for, so a
-    # cost whose parameter count changes (as ICPCost's did, 2 -> 5) loads a stale
-    # library and segfaults inside functor_generic_model.hpp with "Invalid
-    # independent array size". Delete that model's folder when that happens.
-    lib_folder_default = os.path.join("auto_generated", "g1")
+    initial_pose_default = PathJoinSubstitution([mpc_share_dir, "config", robot_name, "initial_pose.yaml"])
+    # Never share generated libraries between models with different dimensions.
+    lib_folder_default = PathJoinSubstitution(["auto_generated", robot_name])
     whole_body_controller = "humanoid_whole_body_inverse_dynamics_mpc_controller"
     centroidal_controller = "humanoid_centroidal_mpc_controller"
 
-    # The one robot URDF, pelvis-rooted with no world link or floating joint: the MPC
-    # and the estimators add the floating base themselves, and robot_state_publisher
-    # gets it from g1.ros2_control.xacro, which includes this file.
-    urdf_default = PathJoinSubstitution([mpc_share_dir, "description", "urdf", "robots", "g1", "g1_29dof.urdf"])
+    # Official model filenames differ; all other robot-specific paths follow robotName.
+    urdf_name = PythonExpression([
+        "{'g1': 'g1_29dof.urdf', 'h2': 'h2_31dof.urdf'}['", robot_name, "']"
+    ])
+    urdf_default = PathJoinSubstitution([mpc_share_dir, "description", "urdf", "robots", robot_name, urdf_name])
 
     # The environment, rooted at world - not part of the robot. "" for none (e.g. with scene_flat.xml). 
     # Driven by the same params file as the MuJoCo stairs.
@@ -61,23 +48,30 @@ def generate_launch_description():
     stairs_params_file = PathJoinSubstitution([mpc_share_dir, "config", "terrains", "stairs_params.yaml"])
 
     controllers_file_default = PathJoinSubstitution([
-        mpc_share_dir, "config", "g1",
+        mpc_share_dir, "config", robot_name,
         "ros2_controllers.yaml"
         ])
     
     stair_climbing_file_default = PathJoinSubstitution([
         mpc_share_dir, "config", "terrains", "stair_climbing",
-        "g1.yaml"
+        [robot_name, ".yaml"]
         ])
 
     terrain_walking_file_default = PathJoinSubstitution([
         mpc_share_dir, "config", "terrains", "terrain_walking",
-        "g1.yaml"
+        [robot_name, ".yaml"]
         ])
 
-    ros2_control_xacro = PathJoinSubstitution([mpc_share_dir, "description", "urdf", "robots", "g1", "g1.ros2_control.xacro"])
+    ros2_control_xacro = PathJoinSubstitution([
+        mpc_share_dir, "description", "urdf", "robots", robot_name, [robot_name, ".ros2_control.xacro"]
+    ])
 
     declared_arguments = [
+        DeclareLaunchArgument(
+            "robotName",
+            default_value="g1",
+            choices=["g1", "h2"],
+            description="Robot model and configuration: Unitree G1 or H2.",),
         DeclareLaunchArgument("rviz", default_value="true"),
         DeclareLaunchArgument("rvizconfig", default_value=rviz_default),
         DeclareLaunchArgument("use_fake_hardware", default_value="false"),
@@ -109,7 +103,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "floatingBaseSource", default_value="state_estimator",
             choices=["ground_truth_state", "state_estimator"],
-            description="Floating-base feedback source for the centroidal MPC: "
+            description="Floating-base feedback source for the MPC: "
                         "ground_truth_state (simulator/hardware body state) | state_estimator (the "
                         "estimator named by floatingBaseEstimator)."),
         DeclareLaunchArgument(
@@ -132,13 +126,9 @@ def generate_launch_description():
         DeclareLaunchArgument("controllersFile", default_value=controllers_file_default),
         DeclareLaunchArgument(
             "refBaseHeight",
-            default_value="0.795",
-            description=(
-                "Nominal pelvis height [m]. Substituted into ocs2.reference.defaultBaseHeight "
-                "in the controllers yaml AND handed to the base-command GUI, so the slider's "
-                "centre and reset value cannot drift apart from what the MPC uses as its "
-                "reference."
-            ),
+            default_value="",
+            description="Optional nominal pelvis height override [m] for both MPC and GUI. "
+                        "Empty uses ocs2.reference.defaultBaseHeight from the selected controller YAML.",
         ),
         DeclareLaunchArgument("stairClimbingFile", default_value=stair_climbing_file_default),
         DeclareLaunchArgument("terrainWalkingFile", default_value=terrain_walking_file_default),
@@ -173,10 +163,10 @@ def generate_launch_description():
     use_fake_hardware = LaunchConfiguration("use_fake_hardware")
     use_sim_time = ParameterValue(use_mujoco_sim, value_type=bool)
     mujoco_model_path = PathJoinSubstitution(
-        [mpc_share_dir, "description", "mujoco", LaunchConfiguration("mujocoModelFile")]
+        [mpc_share_dir, "description", "mujoco", "robots", robot_name, LaunchConfiguration("mujocoModelFile")]
     )
 
-    # The robot description: g1_29dof.urdf plus its <ros2_control> block. One description
+    # The robot description: the selected URDF plus its <ros2_control> block. One description
     # for the controller manager and robot_state_publisher.
     robot_description_content = Command(
         [
@@ -245,9 +235,24 @@ def generate_launch_description():
         path = controllers_params.evaluate(context)
         with open(path) as stream:
             config = yaml.safe_load(stream)
-        reference = config[LaunchConfiguration("mpcControllerName").perform(context)]["ros__parameters"]["ocs2"]["reference"]
+        controller = LaunchConfiguration("mpcControllerName").perform(context)
+        if controller not in config:
+            raise ValueError(f"Controller '{controller}' is not configured in {LaunchConfiguration('controllersFile').perform(context)}")
+        if robot_name.perform(context) == "h2" and LaunchConfiguration("enableLidar").perform(context).lower() == "true":
+            raise ValueError("The official H2 model does not include the G1 Mid-360 lidar.")
+        reference = config[controller]["ros__parameters"]["ocs2"]["reference"]
+        height_override = LaunchConfiguration("refBaseHeight").perform(context)
+        height = float(height_override or reference["defaultBaseHeight"])
+        if not math.isfinite(height) or height <= 0.0:
+            raise ValueError("Reference base height must be finite and positive.")
+        if height_override:
+            reference["defaultBaseHeight"] = height
+            # allow_substs=True always creates a temporary copy; never rewrite the source YAML.
+            with open(path, "w") as stream:
+                yaml.safe_dump(config, stream, sort_keys=False)
         return [
             SetLaunchConfiguration("controllersParamsFile", str(path)),
+            SetLaunchConfiguration("guiRefBaseHeight", str(height)),
             SetLaunchConfiguration("guiMaxVx", str(reference["maxDisplacementVelocityX"])),
             SetLaunchConfiguration("guiMaxVy", str(reference["maxDisplacementVelocityY"])),
             SetLaunchConfiguration("guiMaxYawRate", str(reference["maxRotationVelocity"])),
@@ -264,7 +269,7 @@ def generate_launch_description():
         output="screen",
         parameters=[
             robot_description,
-            ParameterFile(LaunchConfiguration("controllersFile"), allow_substs=True),
+            LaunchConfiguration("controllersParamsFile"),
             mpc_params_file,
             {"use_sim_time": use_sim_time},
         ],
@@ -277,7 +282,7 @@ def generate_launch_description():
         output="screen",
         parameters=[
             robot_description,
-            ParameterFile(LaunchConfiguration("controllersFile"), allow_substs=True),
+            LaunchConfiguration("controllersParamsFile"),
             mpc_params_file,
             {"mujoco_model_path": mujoco_model_path},
             {"mujoco_headless": ParameterValue(LaunchConfiguration("mujoco_headless"), value_type=bool)},
@@ -395,11 +400,11 @@ def generate_launch_description():
         condition=IfCondition(LaunchConfiguration("baseCommandGui")),
         parameters=[
             {
-            "max_linear_velocity_x": ParameterValue(LaunchConfiguration("guiMaxVx"), value_type=float),
-            "max_linear_velocity_y": ParameterValue(LaunchConfiguration("guiMaxVy"), value_type=float),
-            "max_yaw_rate": ParameterValue(LaunchConfiguration("guiMaxYawRate"), value_type=float),
+                "max_linear_velocity_x": ParameterValue(LaunchConfiguration("guiMaxVx"), value_type=float),
+                "max_linear_velocity_y": ParameterValue(LaunchConfiguration("guiMaxVy"), value_type=float),
+                "max_yaw_rate": ParameterValue(LaunchConfiguration("guiMaxYawRate"), value_type=float),
                 "reference_base_height": ParameterValue(
-                    LaunchConfiguration("refBaseHeight"), value_type=float
+                    LaunchConfiguration("guiRefBaseHeight"), value_type=float
                 ),
             }
         ],

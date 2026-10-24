@@ -13,8 +13,8 @@ TERRAINS = ROOT / 'config/terrains'
 
 class SharedTerrainConfigTest(unittest.TestCase):
     def test_both_launches_select_their_shared_variants(self):
+        launch = ast.parse((ROOT / 'launch/robot.launch.py').read_text())
         for robot in ('g1', 'h2'):
-            launch = ast.parse((ROOT / 'launch' / f'{robot}.launch.py').read_text())
             defaults = {}
             for node in ast.walk(launch):
                 if not isinstance(node, ast.Assign) or not isinstance(node.value, ast.Call):
@@ -22,8 +22,9 @@ class SharedTerrainConfigTest(unittest.TestCase):
                 for target in node.targets:
                     if isinstance(target, ast.Name) and target.id in (
                             'stair_climbing_file_default', 'terrain_walking_file_default'):
-                        defaults[target.id] = [part.value for part in node.value.args[0].elts
-                                               if isinstance(part, ast.Constant)]
+                        defaults[target.id] = [part.value if isinstance(part, ast.Constant) else f'{robot}.yaml'
+                                               for part in node.value.args[0].elts
+                                               if isinstance(part, (ast.Constant, ast.List))]
             self.assertEqual(defaults, {
                 'stair_climbing_file_default': ['config', 'terrains', 'stair_climbing', f'{robot}.yaml'],
                 'terrain_walking_file_default': ['config', 'terrains', 'terrain_walking', f'{robot}.yaml'],
