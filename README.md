@@ -86,6 +86,7 @@ Two MPC controllers are available, selected with `mpcControllerName`. Both walk 
 | `humanoid_centroidal_mpc_controller` (G1 only) | centroidal dynamics + whole-body kinematics | `[h/m, q]` / `[W, qd_j]` |
 
 **Launch the humanoid robot MPC**:
+
 ```bash
 cd <workspace_dir>
 ros2 launch legged_robot_mpc_controller robot.launch.py \
@@ -97,6 +98,8 @@ ros2 launch legged_robot_mpc_controller robot.launch.py \
   mujoco_headless:=false \
   baseCommandGui:=true
 
+# robotName:=g1 | h2
+# mpcControllerName:=humanoid_whole_body_inverse_dynamics_mpc_controller | humanoid_centroidal_mpc_controller
 ```
 
 Use `robotName:=h2` for H2; all other launch argument names are identical.
