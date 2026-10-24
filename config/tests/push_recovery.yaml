@@ -1,5 +1,8 @@
 # Forces [N] and torques [Nm] act at the named MuJoCo body's center of mass.
 # Timing uses simulation seconds. Edit this list for your robot and test.
+# H2: one 50 N lateral force push per mesh-bearing body; no applied torque.
+# Head links are H2-specific; remove unavailable links when testing another robot.
+
 - link: pelvis
   frame: world
   force: [0.0, 50.0, 0.0]
@@ -7,9 +10,224 @@
   duration: 0.5
   wait_after: 2.0
 
-- link: pelvis
+# Left leg
+- link: left_hip_pitch_link
   frame: world
-  force: [0.0, 0.0, 0.0]
-  torque: [0.0, 0.0, 50.0]
+  force: [0.0, 50.0, 0.0]
+  torque: [0.0, 0.0, 0.0]
+  duration: 0.5
+  wait_after: 2.0
+
+- link: left_hip_roll_link
+  frame: world
+  force: [0.0, 50.0, 0.0]
+  torque: [0.0, 0.0, 0.0]
+  duration: 0.5
+  wait_after: 2.0
+
+- link: left_hip_yaw_link
+  frame: world
+  force: [0.0, 50.0, 0.0]
+  torque: [0.0, 0.0, 0.0]
+  duration: 0.5
+  wait_after: 2.0
+
+- link: left_knee_link
+  frame: world
+  force: [0.0, 50.0, 0.0]
+  torque: [0.0, 0.0, 0.0]
+  duration: 0.5
+  wait_after: 2.0
+
+- link: left_ankle_roll_link
+  frame: world
+  force: [0.0, 50.0, 0.0]
+  torque: [0.0, 0.0, 0.0]
+  duration: 0.5
+  wait_after: 2.0
+
+- link: left_ankle_pitch_link
+  frame: world
+  force: [0.0, 50.0, 0.0]
+  torque: [0.0, 0.0, 0.0]
+  duration: 0.5
+  wait_after: 2.0
+
+# Right leg
+- link: right_hip_pitch_link
+  frame: world
+  force: [0.0, 50.0, 0.0]
+  torque: [0.0, 0.0, 0.0]
+  duration: 0.5
+  wait_after: 2.0
+
+- link: right_hip_roll_link
+  frame: world
+  force: [0.0, 50.0, 0.0]
+  torque: [0.0, 0.0, 0.0]
+  duration: 0.5
+  wait_after: 2.0
+
+- link: right_hip_yaw_link
+  frame: world
+  force: [0.0, 50.0, 0.0]
+  torque: [0.0, 0.0, 0.0]
+  duration: 0.5
+  wait_after: 2.0
+
+- link: right_knee_link
+  frame: world
+  force: [0.0, 50.0, 0.0]
+  torque: [0.0, 0.0, 0.0]
+  duration: 0.5
+  wait_after: 2.0
+
+- link: right_ankle_roll_link
+  frame: world
+  force: [0.0, 50.0, 0.0]
+  torque: [0.0, 0.0, 0.0]
+  duration: 0.5
+  wait_after: 2.0
+
+- link: right_ankle_pitch_link
+  frame: world
+  force: [0.0, 50.0, 0.0]
+  torque: [0.0, 0.0, 0.0]
+  duration: 0.5
+  wait_after: 2.0
+
+# Waist, torso and head
+- link: waist_yaw_link
+  frame: world
+  force: [0.0, 50.0, 0.0]
+  torque: [0.0, 0.0, 0.0]
+  duration: 0.5
+  wait_after: 2.0
+
+- link: waist_roll_link
+  frame: world
+  force: [0.0, 50.0, 0.0]
+  torque: [0.0, 0.0, 0.0]
+  duration: 0.5
+  wait_after: 2.0
+
+- link: torso_link
+  frame: world
+  force: [0.0, 50.0, 0.0]
+  torque: [0.0, 0.0, 0.0]
+  duration: 0.5
+  wait_after: 2.0
+
+- link: head_pitch_link
+  frame: world
+  force: [0.0, 50.0, 0.0]
+  torque: [0.0, 0.0, 0.0]
+  duration: 0.5
+  wait_after: 2.0
+
+- link: head_yaw_link
+  frame: world
+  force: [0.0, 50.0, 0.0]
+  torque: [0.0, 0.0, 0.0]
+  duration: 0.5
+  wait_after: 2.0
+
+# Left arm
+- link: left_shoulder_pitch_link
+  frame: world
+  force: [0.0, 50.0, 0.0]
+  torque: [0.0, 0.0, 0.0]
+  duration: 0.5
+  wait_after: 2.0
+
+- link: left_shoulder_roll_link
+  frame: world
+  force: [0.0, 50.0, 0.0]
+  torque: [0.0, 0.0, 0.0]
+  duration: 0.5
+  wait_after: 2.0
+
+- link: left_shoulder_yaw_link
+  frame: world
+  force: [0.0, 50.0, 0.0]
+  torque: [0.0, 0.0, 0.0]
+  duration: 0.5
+  wait_after: 2.0
+
+- link: left_elbow_link
+  frame: world
+  force: [0.0, 50.0, 0.0]
+  torque: [0.0, 0.0, 0.0]
+  duration: 0.5
+  wait_after: 2.0
+
+- link: left_wrist_roll_link
+  frame: world
+  force: [0.0, 50.0, 0.0]
+  torque: [0.0, 0.0, 0.0]
+  duration: 0.5
+  wait_after: 2.0
+
+- link: left_wrist_pitch_link
+  frame: world
+  force: [0.0, 50.0, 0.0]
+  torque: [0.0, 0.0, 0.0]
+  duration: 0.5
+  wait_after: 2.0
+
+- link: left_wrist_yaw_link
+  frame: world
+  force: [0.0, 50.0, 0.0]
+  torque: [0.0, 0.0, 0.0]
+  duration: 0.5
+  wait_after: 2.0
+
+# Right arm
+- link: right_shoulder_pitch_link
+  frame: world
+  force: [0.0, 50.0, 0.0]
+  torque: [0.0, 0.0, 0.0]
+  duration: 0.5
+  wait_after: 2.0
+
+- link: right_shoulder_roll_link
+  frame: world
+  force: [0.0, 50.0, 0.0]
+  torque: [0.0, 0.0, 0.0]
+  duration: 0.5
+  wait_after: 2.0
+
+- link: right_shoulder_yaw_link
+  frame: world
+  force: [0.0, 50.0, 0.0]
+  torque: [0.0, 0.0, 0.0]
+  duration: 0.5
+  wait_after: 2.0
+
+- link: right_elbow_link
+  frame: world
+  force: [0.0, 50.0, 0.0]
+  torque: [0.0, 0.0, 0.0]
+  duration: 0.5
+  wait_after: 2.0
+
+- link: right_wrist_roll_link
+  frame: world
+  force: [0.0, 50.0, 0.0]
+  torque: [0.0, 0.0, 0.0]
+  duration: 0.5
+  wait_after: 2.0
+
+- link: right_wrist_pitch_link
+  frame: world
+  force: [0.0, 50.0, 0.0]
+  torque: [0.0, 0.0, 0.0]
+  duration: 0.5
+  wait_after: 2.0
+
+- link: right_wrist_yaw_link
+  frame: world
+  force: [0.0, 50.0, 0.0]
+  torque: [0.0, 0.0, 0.0]
   duration: 0.5
   wait_after: 2.0

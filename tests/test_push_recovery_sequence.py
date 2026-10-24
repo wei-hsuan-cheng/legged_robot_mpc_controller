@@ -4,6 +4,7 @@ from pathlib import Path
 import sys
 import types
 import unittest
+import xml.etree.ElementTree as ET
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "launch"))
@@ -43,9 +44,17 @@ class PushRecoverySequenceTest(unittest.TestCase):
                 push.WrenchSequence(entries)
 
     def test_example_sequence(self):
-        seq = push.WrenchSequence.load(Path(__file__).resolve().parents[1] / "config/tests/push_recovery.yaml")
-        self.assertEqual(len(seq.events), 2)
-        self.assertEqual(seq.events[0]["force"], [0, 80, 0])
+        root = Path(__file__).resolve().parents[1]
+        seq = push.WrenchSequence.load(root / "config/tests/push_recovery.yaml")
+        robot = ET.parse(root / "description/mujoco/robots/h2/h2_31dof.xml").getroot()
+        mesh_links = [body.attrib["name"] for body in robot.findall(".//worldbody//body")
+                      if any(geom.get("mesh") for geom in body.findall("geom"))]
+        force_links = [event["link"] for event in seq.events if any(event["force"])]
+        self.assertCountEqual(force_links, mesh_links)
+        self.assertEqual(len(seq.events), len(mesh_links))
+        for event in seq.events:
+            self.assertEqual(event["force"], [0.0, 50.0, 0.0])
+            self.assertEqual(event["torque"], [0.0, 0.0, 0.0])
 
     def test_zero_on_previous_link_and_stop(self):
         def vector():
