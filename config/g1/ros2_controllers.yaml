@@ -11,11 +11,11 @@ controller_manager:
     humanoid_linear_kf:
       type: legged_robot_mpc_controller/HumanoidLinearKfController
 
-    humanoid_centroidal_mpc_controller:
-      type: legged_robot_mpc_controller/HumanoidCentroidalMpcController
-
     humanoid_whole_body_inverse_dynamics_mpc_controller:
       type: legged_robot_mpc_controller/HumanoidWholeBodyInverseDynamicsMpcController
+
+    humanoid_centroidal_mpc_controller:
+      type: legged_robot_mpc_controller/HumanoidCentroidalMpcController
 
 
 # Contact-aided right-invariant EKF (Hartley et al. 2018)
@@ -186,6 +186,471 @@ humanoid_linear_kf:
     # A swing foot's noise is scaled by this, which is how the filter ignores
     # a foot that is off the ground without resizing the problem.
     swingNoiseMultiplier: 100.0
+
+
+humanoid_whole_body_inverse_dynamics_mpc_controller:
+  ros__parameters:
+    update_rate: $(var mrtFreq)
+
+    paths:
+      urdfFile: $(var urdfFile)
+      libFolder: $(var libFolder)
+
+    target:
+      walkingVelocityTopic: /humanoid/walking_velocity_command
+      basePoseTopic: /humanoid/base_pose_command
+      modeTopic: /humanoid/target_mode
+      defaultMode: base_twist
+      globalFrame: odom
+
+    robot:
+      commandInterface: effort_pd
+      stateInterfaces: [position, velocity, effort]
+      jointNames:
+        - left_hip_pitch_joint
+        - left_hip_roll_joint
+        - left_hip_yaw_joint
+        - left_knee_joint
+        - left_ankle_pitch_joint
+        - left_ankle_roll_joint
+
+        - right_hip_pitch_joint
+        - right_hip_roll_joint
+        - right_hip_yaw_joint
+        - right_knee_joint
+        - right_ankle_pitch_joint
+        - right_ankle_roll_joint
+
+        - waist_yaw_joint
+        - waist_roll_joint
+        - waist_pitch_joint
+
+        - left_shoulder_pitch_joint
+        - left_shoulder_roll_joint
+        - left_shoulder_yaw_joint
+        - left_elbow_joint
+
+        - right_shoulder_pitch_joint
+        - right_shoulder_roll_joint
+        - right_shoulder_yaw_joint
+        - right_elbow_joint
+
+    control:
+      observationVelocityFilterCutoffHz: 30.0
+      feedforward: policy_torque
+      jointEffortPd:
+        kp:
+          [200.0, 200.0, 200.0, 200.0, 200.0, 200.0,
+           200.0, 200.0, 200.0, 200.0, 200.0, 200.0,
+           200.0, 200.0, 200.0,
+           200.0, 200.0, 200.0, 200.0,
+           200.0, 200.0, 200.0, 200.0]
+        kd:
+          [20.0, 20.0, 20.0, 10.0, 20.0, 20.0,
+           20.0, 20.0, 20.0, 10.0, 20.0, 20.0,
+           20.0, 20.0, 20.0,
+           20.0, 20.0, 20.0, 20.0,
+           20.0, 20.0, 20.0, 20.0]
+
+    diagnostics:
+      statusLogPeriod: 2.0
+
+    floatingBase:
+      source: $(var floatingBaseSource)
+      estimator: $(var floatingBaseEstimator)
+      stateInterfaceName: pelvis
+      imuInterfaceName: pelvis_imu
+
+    bringUp:
+      autoStart: true
+      standUpSeconds: 3.0
+      settleSeconds: 0.5
+      settleGyroMax: 0.10
+      settleAccelTolerance: 0.5
+      settleFilterHz: 2.0
+      blendSeconds: 0.5
+      tiltLimit: 0.8
+
+    ocs2:
+      interface:
+        verbose: false
+
+      codegen:
+        verbose: true
+        recompileLibraries: false
+
+      model:
+        robotName: g1
+
+        fixedJointNames:
+          - left_wrist_roll_joint
+          - left_wrist_pitch_joint
+          - left_wrist_yaw_joint
+          - right_wrist_roll_joint
+          - right_wrist_pitch_joint
+          - right_wrist_yaw_joint
+
+        contactNames6DoF: 
+          [foot_l_contact, foot_r_contact]
+        contactParentJointNames: 
+          [left_ankle_roll_joint, right_ankle_roll_joint]
+        contactGeometry:
+          frameTranslation: [0.035, 0.0, -0.035]
+          rectangle: [0.09, -0.09, 0.03, -0.03]
+
+      solver:
+        sqp:
+          nThreads: 5
+          dt: 0.02
+          sqpIteration: 1
+          deltaTol: 0.0001
+          g_max: 0.01
+          g_min: 0.000001
+          inequalityConstraintMu: 0.1
+          inequalityConstraintDelta: 5.0
+          projectStateInputEqualityConstraints: true
+          printSolverStatistics: true
+          printSolverStatus: false
+          printLinesearch: false
+          useFeedbackPolicy: false
+          integratorType: RK4
+          threadPriority: 50
+
+        rollout:
+          policyTimeOffset: 0.000
+          AbsTolODE: 0.00005
+          RelTolODE: 0.005
+          timeStep: 0.02
+          integratorType: ODE45
+          maxNumStepsPerSecond: 10000
+          checkNumericalStability: false
+
+      mpc:
+        solverType: sqp
+        mpcDesiredFrequency: $(var mpcFreq)
+        mrtDesiredFrequency: $(var mrtFreq)
+        timeHorizon: 1.0
+        solutionTimeWindow: -1.0
+        coldStart: false
+        debugPrint: false
+
+      costs:
+        qScaling: 1.0
+        rScaling: 0.001
+        terminalCostScaling: 1.0
+        
+        # Q/Qf on x = [base pose, joint positions, base velocity, joint velocities].
+        # Base pose: [x, y, z, yaw, pitch, roll].
+        # Base velocity: [vx, vy, vz, yaw rate, pitch rate, roll rate] (Euler rates).
+        q:
+          basePose: [0.0, 0.0, 50.0, 0.0, 100.0, 100.0]
+          baseVelocity: [30.0, 15.0, 5.0, 30.0, 30.0, 30.0]
+          jointPositions:
+            [0.05, 0.2, 15.0, 0.1, 0.1, 0.1,
+             0.05, 0.2, 15.0, 0.1, 0.1, 0.1,
+             2.0, 2.0, 2.0,
+             5.0, 5.0, 2.0, 4.0,
+             5.0, 5.0, 2.0, 4.0]
+          jointVelocities:
+            [0.001, 0.001, 0.001, 0.001, 0.001, 0.001,
+             0.001, 0.001, 0.001, 0.001, 0.001, 0.001,
+             0.2, 0.2, 0.2,
+             0.06, 0.06, 0.06, 0.06,
+             0.06, 0.06, 0.06, 0.06]
+
+        qFinal:
+          basePose: [0.0, 0.0, 50.0, 0.0, 100.0, 100.0]
+          baseVelocity: [30.0, 15.0, 5.0, 30.0, 30.0, 30.0]
+          jointPositions:
+            [0.05, 0.1, 30.0, 0.1, 0.1, 0.1,
+             0.05, 0.1, 30.0, 0.1, 0.1, 0.1,
+             2.0, 2.0, 2.0,
+             5.0, 5.0, 2.0, 4.0,
+             5.0, 5.0, 2.0, 4.0]
+          jointVelocities:
+            [0.001, 0.001, 0.001, 0.001, 0.001, 0.001,
+             0.001, 0.001, 0.001, 0.001, 0.001, 0.001,
+             0.2, 0.2, 0.2,
+             0.02, 0.02, 0.02, 0.02,
+             0.02, 0.02, 0.02, 0.02]
+
+        # R on u = [wrench_left, wrench_right, base acceleration, joint acceleration, joint torque].
+        # Contact wrench order per foot: [fx, fy, fz, mx, my, mz].
+        r:
+          contactWrenches:
+            [0.003, 0.003, 0.001, 0.01, 0.01, 5.0,
+             0.003, 0.003, 0.001, 0.01, 0.01, 5.0]
+          baseAccelerations: [0.005, 0.005, 0.005, 0.005, 0.005, 0.005]
+          jointAccelerations:
+            [0.005, 0.005, 0.005, 0.005, 0.005, 0.005,
+             0.005, 0.005, 0.005, 0.005, 0.005, 0.005,
+             0.005, 0.005, 0.005,
+             0.005, 0.005, 0.005, 0.005,
+             0.005, 0.005, 0.005, 0.005]
+          jointTorques:
+            [0.0005, 0.0005, 0.0005, 0.0005, 0.0005, 0.0005,
+             0.0005, 0.0005, 0.0005, 0.0005, 0.0005, 0.0005,
+             0.005, 0.005, 0.005,
+             0.05, 0.05, 0.05, 0.05,
+             0.05, 0.05, 0.05, 0.05]
+
+        # Flat-foot/task-space adaptations beyond the papers' state/input objective.
+        taskSpaceFootCost:
+          activate: true
+          weights:
+            [0.0, 0.0, 0.0, 50.0, 50.0, 0.0,
+             5.0, 5.0, 0.0, 1.0, 1.0, 0.005]
+
+        # Cartesian pose/twist tracking costs
+        taskSpaceCosts:
+          names:
+            [torso]
+
+          torso:
+            activate: false
+            linkName: mid360_link
+            weights:
+              [0.0, 0.0, 0.0, 100.0, 100.0, 0.0,
+               0.1, 0.1, 0.005, 5.0, 5.0, 2.0]
+
+        # Torso soft stabilization, not a hard upright constraint or a CoM-position target.
+        torsoTiltCost:
+          activate: true
+          linkName: torso_link
+          freeTiltAngle: 0.17453292519943295  # 10 degrees; soft lean corridor.
+          tiltWeight: 10.0
+          angularVelocityWeight: 5.0
+
+        # Active J_leg^T W load cost; separate from r.jointTorques.
+        legTorqueCost:
+          activate: false  # Initial terrain ablation; input torque cost and actuator limits remain.
+          scaling: 0.001
+          leftActiveJointNames:
+            - left_hip_pitch_joint
+            - left_hip_roll_joint
+            - left_hip_yaw_joint
+            - left_knee_joint
+            - left_ankle_pitch_joint
+            - left_ankle_roll_joint
+          leftWeights: 
+            [2.0, 2.0, 1.0, 8.0, 0.2, 0.2]
+          rightActiveJointNames:
+            - right_hip_pitch_joint
+            - right_hip_roll_joint
+            - right_hip_yaw_joint
+            - right_knee_joint
+            - right_ankle_pitch_joint
+            - right_ankle_roll_joint
+          rightWeights: 
+            [2.0, 2.0, 1.0, 8.0, 0.2, 0.2]
+
+      constraints:
+        inverseDynamics:
+          # Keep physical equalities enabled for locomotion; disabling is diagnostic-only.
+          activate: true
+          torqueConstraintNodes: 3
+
+        footMotionEquality:
+          activate: true
+          # Hard equalities, not cost weights or inequalities.
+          # Stance: keep the foot still and correct height/tilt.
+          # Swing: follow the vertical foot path.
+          positionErrorGain_z: 50.0              # Height correction; lower gains give slower correction.
+          orientationErrorGain: 100.0            # Tilt correction; lower gains avoid fighting shallow inclines.
+          linearVelocityErrorGain_z: 50.0        # Vertical speed damping.
+          linearVelocityErrorGain_xy: 50.0       # Horizontal speed damping in stance.
+          angularVelocityErrorGain: 50.0         # Rotation damping in stance.
+          linearAccelerationErrorGain_z: 1.0     # Vertical acceleration multiplier; keep positive.
+          linearAccelerationErrorGain_xy: 1.0    # Horizontal acceleration multiplier in stance; keep positive.
+          angularAccelerationErrorGain: 1.0      # Rotation acceleration multiplier in stance; keep positive.
+        
+        swingFootZeroWrench:
+          activate: true
+
+        frictionCone:
+          activate: true
+          frictionCoefficient: 0.4
+          mu: 0.2
+          delta: 5.0
+
+        contactMomentXY:
+          activate: true
+          mu: 0.6
+          delta: 0.03
+
+        jointPositionLimits:
+          activate: true
+          # Lower/upper joint position bounds come from the URDF.
+          mu: 1200.0
+          delta: 0.1
+
+        jointVelocityLimits:
+          activate: true
+          # Symmetric bounds are velocityScaling * URDF joint velocity limits; 0 < scaling <= 1.
+          velocityScaling: 1.0
+          mu: 0.1
+          delta: 1.0
+
+        jointTorqueLimits:
+          activate: true
+          # Scales URDF or override bounds for both the OCP penalty and feedforward clipping; 0 < scaling <= 1.
+          torqueScaling: 1.0
+          # Omit limits to use URDF joint <limit effort="..."> values for OCP bounds and feedforward clipping.
+          # To override, uncomment a full positive array in robot.jointNames order [Nm].
+          # limits: [88.0, 139.0, 88.0, 139.0, 50.0, 50.0,
+          #          88.0, 139.0, 88.0, 139.0, 50.0, 50.0,
+          #          88.0, 50.0, 50.0,
+          #          25.0, 25.0, 25.0, 25.0,
+          #          25.0, 25.0, 25.0, 25.0]
+          mu: 0.1
+          delta: 5.0
+
+        legSelfCollision:
+          activate: true
+          leftAnkleFrame: left_ankle_roll_joint
+          rightAnkleFrame: right_ankle_roll_joint
+          footCollisionSphereRadius: 0.065
+          leftKneeFrame: left_knee_joint
+          rightKneeFrame: right_knee_joint
+          kneeCollisionSphereRadius: 0.07
+          mu: 30000.0
+          delta: 0.05
+
+      reference:
+        targetDisplacementVelocity: 0.5
+        targetRotationVelocity: 0.5
+        maxDisplacementVelocityX: 1.0
+        maxDisplacementVelocityY: 0.5
+        maxDeltaPelvisHeight: 0.4
+        maxRotationVelocity: 1.5708
+        defaultBaseHeight: 0.795
+        basePosePositionTolerance: 0.02
+        basePoseOrientationTolerance: 0.03
+        
+        # Slew limits on the scaled walking command: ax, ay [m/s^2], height rate [m/s], yaw acceleration [rad/s^2]
+        velocityCommandRateLimits:
+          [0.5, 0.5, 0.5, 2.0]
+        
+        groundHeight:
+          useEstimate: false
+          maxStepPerSolve: 0.002
+
+        armSwing:
+          jointNames:
+            - left_shoulder_pitch_joint
+            - right_shoulder_pitch_joint
+            - left_elbow_joint
+            - right_elbow_joint
+
+        # Nominal joint posture for reference generation; pelvis height is defaultBaseHeight.
+        defaultJointState:
+          [-0.8, 0.0, 0.0, 1.6, -0.8, 0.0,
+           -0.8, 0.0, 0.0, 1.6, -0.8, 0.0,
+            0.0, 0.0, 0.0,
+           0.20, 0.20, 0.0, 1.20,
+           0.20, -0.20, 0.0, 1.20]
+
+      gait:
+        phaseTransitionStanceTime: 0.0
+        stairClimbingFile: $(var stairClimbingFile)
+        terrainWalkingFile: $(var terrainWalkingFile)
+        initialModeSequence: [STANCE, STANCE]
+        initialEventTimes: [0.5]
+        defaultModeSequence: [STANCE]
+        defaultSwitchingTimes: [0.0, 0.5]
+
+        # Swing-foot trajectory, shared by every template.
+        swingTrajectory:
+          liftOffVelocity: 0.05
+          touchDownVelocity: -0.0
+          swingHeight: 0.10
+          touchDownHeightOffset: -0.001
+          swingTimeScale: 0.4
+          impactProximityFactorLiftOffVelocity: -0.15
+          impactProximityFactorTouchDownVelocity: 0.3
+          impactProximityFactorMidPointValue: 0.0
+
+        # Gait templates: N modes and N+1 switching times [s], repeated with period last - first.
+        # STANCE = both feet in contact, LF = left foot in contact (right swings), RF = right, FLY = none.
+        # Shorter slow_walk support phases suit the 0.6 m crouch; the other templates are not retuned
+        # (skip also corrects an inherited non-monotonic time).
+        templates:
+          names: [stance, left_leg, right_leg, trot, fast_trot, slow_trot, slower_trot, walk, fast_walk, slow_walk, very_slow_walk, run, fast_run, skip, jump, terrain_walk]
+          stance:         {modeSequence: [STANCE],                   switchingTimes: [0.0, 0.5]}
+          left_leg:       {modeSequence: [LF],                       switchingTimes: [0.0, 0.5]}
+          right_leg:      {modeSequence: [RF],                       switchingTimes: [0.0, 0.5]}
+          trot:           {modeSequence: [LF, RF],                   switchingTimes: [0.0, 0.5, 1.0]}
+          fast_trot:      {modeSequence: [LF, RF],                   switchingTimes: [0.0, 0.4, 0.8]}
+          slow_trot:      {modeSequence: [LF, RF],                   switchingTimes: [0.0, 0.55, 1.1]}
+          slower_trot:    {modeSequence: [LF, RF],                   switchingTimes: [0.0, 0.6, 1.2]}
+          walk:           {modeSequence: [LF, STANCE, RF, STANCE],   switchingTimes: [0.0, 0.6, 0.7, 1.3, 1.4]}
+          fast_walk:      {modeSequence: [LF, STANCE, RF, STANCE],   switchingTimes: [0.0, 0.3, 0.5, 0.8, 1.0]}
+          slow_walk:      {modeSequence: [LF, STANCE, RF, STANCE],   switchingTimes: [0.0, 0.4, 0.55, 0.95, 1.1]}
+          very_slow_walk: {modeSequence: [RF, STANCE, LF, STANCE],   switchingTimes: [0.0, 0.7, 1.1, 1.8, 2.2]}
+          run:            {modeSequence: [LF, FLY, RF, FLY],         switchingTimes: [0.0, 0.3, 0.4, 0.7, 0.8]}
+          fast_run:       {modeSequence: [LF, FLY, RF, FLY],         switchingTimes: [0.0, 0.3, 0.4, 0.7, 0.8]}
+          skip:           {modeSequence: [LF, FLY, LF, RF, FLY, RF], switchingTimes: [0.0, 0.25, 0.3, 0.5, 0.75, 0.8, 1.0]}
+          jump:           {modeSequence: [STANCE, FLY],              switchingTimes: [0.0, 0.3, 0.5]}
+          terrain_walk:   {modeSequence: [LF, STANCE, RF, STANCE],   switchingTimes: [0.0, 0.6, 0.7, 1.3, 1.4]}
+
+        # ---- Gait selection: which template runs, and when ------------------------------
+        # ProceduralMpcMotionManager picks a template from `ladder` once per MPC solve,
+        # from the commanded velocity (scaled to m/s, rate limited and filtered) and the
+        # measured base velocity:
+        #   - the ladder is ordered slowest -> fastest and must start with `stance`; the FSM
+        #     moves at most one rung per change;
+        #   - UP one rung when the command leaves the current rung's band upward
+        #     (|vx| or |vy| > linearVelocity max, or |yaw| > yawRate max) AND the measured
+        #     speed is near that top (|vx| or |vy| > max - margin, or |yaw rate| > yaw max - margin);
+        #   - DOWN one rung when the command is below the band's min on all axes AND the
+        #     measured speed is below min + margin on all axes;
+        #   - overlapping bands give hysteresis between neighbouring rungs.
+        # The command is in the heading frame; the measured values are the pelvis velocity
+        # in world axes and the yaw Euler rate.
+        # Units are m/s and rad/s; 10.0 stands for "no limit". A margin of 10 (stance) means
+        # the robot leaves stance on the command alone.
+        #
+        # Common things to tune:
+        #   - a rung's bands (transitions.<gait>): the speeds at which it engages and disengages;
+        #   - measuredMargin: how close the measured speed must come to a band's top before
+        #     escalating (larger = escalate on the command alone, smaller = wait for the robot);
+        #   - minDwellTime: a change only takes effect after the splice delay below (0.7 s
+        #     here), so a dwell shorter than that lets the next change be requested before
+        #     the previous one has started;
+        #   - switchDelayHorizonFraction: smaller reacts sooner, larger gives the solver more
+        #     of the horizon to prepare for the new contact pattern;
+        #   - `ladder`: any templates from templates.names, so a rung can use a different contact pattern.
+        transitions:
+          # Minimum time between two gait changes [s].
+          minDwellTime: 0.2
+          # A new gait starts at the first contact event after
+          # initTime + switchDelayHorizonFraction * horizon (0.7 of a 1.0 s horizon = 0.7 s).
+          switchDelayHorizonFraction: 0.7
+          ladder: [stance, slow_walk, walk, slower_trot, slow_trot, trot, run]
+          #             linearVelocity [m/s]          yawRate [rad/s]        measuredMargin [lin, yaw]
+          stance:       {linearVelocity: [-0.1, 0.1], yawRate: [-0.1, 0.1],  measuredMargin: [10.0, 10.0]}
+          slow_walk:    {linearVelocity: [0.05, 0.3], yawRate: [0.05, 0.2],  measuredMargin: [0.05, 0.05]}
+          walk:         {linearVelocity: [0.25, 0.5], yawRate: [0.15, 0.35], measuredMargin: [0.05, 0.05]}
+          slower_trot:  {linearVelocity: [0.45, 0.7], yawRate: [0.3, 0.55],  measuredMargin: [0.1, 0.1]}
+          slow_trot:    {linearVelocity: [0.65, 0.9], yawRate: [0.5, 0.7],   measuredMargin: [0.2, 0.2]}
+          trot:         {linearVelocity: [0.8, 1.3],  yawRate: [0.65, 10.0], measuredMargin: [0.2, 0.2]}
+          run:          {linearVelocity: [1.2, 10.0], yawRate: [0.65, 10.0], measuredMargin: [0.2, 0.2]}
+
+    visualization:
+      frameId: odom
+      update_rate: 30.0
+      trajectory:
+        activate: true
+        markerTopic: /performance_visualization/optimizedStateTrajectory
+        frame_names:
+          - pelvis
+          - mid360_link
+          - left_wrist_yaw_link
+          - right_wrist_yaw_link
+          - foot_l_contact
+          - foot_r_contact
+        lineWidth: 0.005
+        pointScale: 0.01
 
 
 humanoid_centroidal_mpc_controller:
@@ -660,471 +1125,6 @@ humanoid_centroidal_mpc_controller:
         # values are the CoM velocity in world axes, and the "measured yaw" term reads
         # state(3) = h_ang,x / m, not the yaw rate. That is kept as it was; it only matters
         # for the yaw margins.
-        # Units are m/s and rad/s; 10.0 stands for "no limit". A margin of 10 (stance) means
-        # the robot leaves stance on the command alone.
-        #
-        # Common things to tune:
-        #   - a rung's bands (transitions.<gait>): the speeds at which it engages and disengages;
-        #   - measuredMargin: how close the measured speed must come to a band's top before
-        #     escalating (larger = escalate on the command alone, smaller = wait for the robot);
-        #   - minDwellTime: a change only takes effect after the splice delay below (0.7 s
-        #     here), so a dwell shorter than that lets the next change be requested before
-        #     the previous one has started;
-        #   - switchDelayHorizonFraction: smaller reacts sooner, larger gives the solver more
-        #     of the horizon to prepare for the new contact pattern;
-        #   - `ladder`: any templates from templates.names, so a rung can use a different contact pattern.
-        transitions:
-          # Minimum time between two gait changes [s].
-          minDwellTime: 0.2
-          # A new gait starts at the first contact event after
-          # initTime + switchDelayHorizonFraction * horizon (0.7 of a 1.0 s horizon = 0.7 s).
-          switchDelayHorizonFraction: 0.7
-          ladder: [stance, slow_walk, walk, slower_trot, slow_trot, trot, run]
-          #             linearVelocity [m/s]          yawRate [rad/s]        measuredMargin [lin, yaw]
-          stance:       {linearVelocity: [-0.1, 0.1], yawRate: [-0.1, 0.1],  measuredMargin: [10.0, 10.0]}
-          slow_walk:    {linearVelocity: [0.05, 0.3], yawRate: [0.05, 0.2],  measuredMargin: [0.05, 0.05]}
-          walk:         {linearVelocity: [0.25, 0.5], yawRate: [0.15, 0.35], measuredMargin: [0.05, 0.05]}
-          slower_trot:  {linearVelocity: [0.45, 0.7], yawRate: [0.3, 0.55],  measuredMargin: [0.1, 0.1]}
-          slow_trot:    {linearVelocity: [0.65, 0.9], yawRate: [0.5, 0.7],   measuredMargin: [0.2, 0.2]}
-          trot:         {linearVelocity: [0.8, 1.3],  yawRate: [0.65, 10.0], measuredMargin: [0.2, 0.2]}
-          run:          {linearVelocity: [1.2, 10.0], yawRate: [0.65, 10.0], measuredMargin: [0.2, 0.2]}
-
-    visualization:
-      frameId: odom
-      update_rate: 30.0
-      trajectory:
-        activate: true
-        markerTopic: /performance_visualization/optimizedStateTrajectory
-        frame_names:
-          - pelvis
-          - mid360_link
-          - left_wrist_yaw_link
-          - right_wrist_yaw_link
-          - foot_l_contact
-          - foot_r_contact
-        lineWidth: 0.005
-        pointScale: 0.01
-
-
-humanoid_whole_body_inverse_dynamics_mpc_controller:
-  ros__parameters:
-    update_rate: $(var mrtFreq)
-
-    paths:
-      urdfFile: $(var urdfFile)
-      libFolder: $(var libFolder)
-
-    target:
-      walkingVelocityTopic: /humanoid/walking_velocity_command
-      basePoseTopic: /humanoid/base_pose_command
-      modeTopic: /humanoid/target_mode
-      defaultMode: base_twist
-      globalFrame: odom
-
-    robot:
-      commandInterface: effort_pd
-      stateInterfaces: [position, velocity, effort]
-      jointNames:
-        - left_hip_pitch_joint
-        - left_hip_roll_joint
-        - left_hip_yaw_joint
-        - left_knee_joint
-        - left_ankle_pitch_joint
-        - left_ankle_roll_joint
-
-        - right_hip_pitch_joint
-        - right_hip_roll_joint
-        - right_hip_yaw_joint
-        - right_knee_joint
-        - right_ankle_pitch_joint
-        - right_ankle_roll_joint
-
-        - waist_yaw_joint
-        - waist_roll_joint
-        - waist_pitch_joint
-
-        - left_shoulder_pitch_joint
-        - left_shoulder_roll_joint
-        - left_shoulder_yaw_joint
-        - left_elbow_joint
-
-        - right_shoulder_pitch_joint
-        - right_shoulder_roll_joint
-        - right_shoulder_yaw_joint
-        - right_elbow_joint
-
-    control:
-      observationVelocityFilterCutoffHz: 30.0
-      feedforward: policy_torque
-      jointEffortPd:
-        kp:
-          [200.0, 200.0, 200.0, 200.0, 200.0, 200.0,
-           200.0, 200.0, 200.0, 200.0, 200.0, 200.0,
-           200.0, 200.0, 200.0,
-           200.0, 200.0, 200.0, 200.0,
-           200.0, 200.0, 200.0, 200.0]
-        kd:
-          [20.0, 20.0, 20.0, 10.0, 20.0, 20.0,
-           20.0, 20.0, 20.0, 10.0, 20.0, 20.0,
-           20.0, 20.0, 20.0,
-           20.0, 20.0, 20.0, 20.0,
-           20.0, 20.0, 20.0, 20.0]
-
-    diagnostics:
-      statusLogPeriod: 2.0
-
-    floatingBase:
-      source: $(var floatingBaseSource)
-      estimator: $(var floatingBaseEstimator)
-      stateInterfaceName: pelvis
-      imuInterfaceName: pelvis_imu
-
-    bringUp:
-      autoStart: true
-      standUpSeconds: 3.0
-      settleSeconds: 0.5
-      settleGyroMax: 0.10
-      settleAccelTolerance: 0.5
-      settleFilterHz: 2.0
-      blendSeconds: 0.5
-      tiltLimit: 0.8
-
-    ocs2:
-      interface:
-        verbose: false
-
-      codegen:
-        verbose: true
-        recompileLibraries: false
-
-      model:
-        robotName: g1
-
-        fixedJointNames:
-          - left_wrist_roll_joint
-          - left_wrist_pitch_joint
-          - left_wrist_yaw_joint
-          - right_wrist_roll_joint
-          - right_wrist_pitch_joint
-          - right_wrist_yaw_joint
-
-        contactNames6DoF: 
-          [foot_l_contact, foot_r_contact]
-        contactParentJointNames: 
-          [left_ankle_roll_joint, right_ankle_roll_joint]
-        contactGeometry:
-          frameTranslation: [0.035, 0.0, -0.035]
-          rectangle: [0.09, -0.09, 0.03, -0.03]
-
-      solver:
-        sqp:
-          nThreads: 5
-          dt: 0.02
-          sqpIteration: 1
-          deltaTol: 0.0001
-          g_max: 0.01
-          g_min: 0.000001
-          inequalityConstraintMu: 0.1
-          inequalityConstraintDelta: 5.0
-          projectStateInputEqualityConstraints: true
-          printSolverStatistics: true
-          printSolverStatus: false
-          printLinesearch: false
-          useFeedbackPolicy: false
-          integratorType: RK4
-          threadPriority: 50
-
-        rollout:
-          policyTimeOffset: 0.000
-          AbsTolODE: 0.00005
-          RelTolODE: 0.005
-          timeStep: 0.02
-          integratorType: ODE45
-          maxNumStepsPerSecond: 10000
-          checkNumericalStability: false
-
-      mpc:
-        solverType: sqp
-        mpcDesiredFrequency: $(var mpcFreq)
-        mrtDesiredFrequency: $(var mrtFreq)
-        timeHorizon: 1.0
-        solutionTimeWindow: -1.0
-        coldStart: false
-        debugPrint: false
-
-      costs:
-        qScaling: 1.0
-        rScaling: 0.001
-        terminalCostScaling: 1.0
-        
-        # Q/Qf on x = [base pose, joint positions, base velocity, joint velocities].
-        # Base pose: [x, y, z, yaw, pitch, roll].
-        # Base velocity: [vx, vy, vz, yaw rate, pitch rate, roll rate] (Euler rates).
-        q:
-          basePose: [0.0, 0.0, 50.0, 0.0, 100.0, 100.0]
-          baseVelocity: [30.0, 15.0, 5.0, 30.0, 30.0, 30.0]
-          jointPositions:
-            [0.05, 0.2, 15.0, 0.1, 0.1, 0.1,
-             0.05, 0.2, 15.0, 0.1, 0.1, 0.1,
-             2.0, 2.0, 2.0,
-             5.0, 5.0, 2.0, 4.0,
-             5.0, 5.0, 2.0, 4.0]
-          jointVelocities:
-            [0.001, 0.001, 0.001, 0.001, 0.001, 0.001,
-             0.001, 0.001, 0.001, 0.001, 0.001, 0.001,
-             0.2, 0.2, 0.2,
-             0.06, 0.06, 0.06, 0.06,
-             0.06, 0.06, 0.06, 0.06]
-
-        qFinal:
-          basePose: [0.0, 0.0, 50.0, 0.0, 100.0, 100.0]
-          baseVelocity: [30.0, 15.0, 5.0, 30.0, 30.0, 30.0]
-          jointPositions:
-            [0.05, 0.1, 30.0, 0.1, 0.1, 0.1,
-             0.05, 0.1, 30.0, 0.1, 0.1, 0.1,
-             2.0, 2.0, 2.0,
-             5.0, 5.0, 2.0, 4.0,
-             5.0, 5.0, 2.0, 4.0]
-          jointVelocities:
-            [0.001, 0.001, 0.001, 0.001, 0.001, 0.001,
-             0.001, 0.001, 0.001, 0.001, 0.001, 0.001,
-             0.2, 0.2, 0.2,
-             0.02, 0.02, 0.02, 0.02,
-             0.02, 0.02, 0.02, 0.02]
-
-        # R on u = [wrench_left, wrench_right, base acceleration, joint acceleration, joint torque].
-        # Contact wrench order per foot: [fx, fy, fz, mx, my, mz].
-        r:
-          contactWrenches:
-            [0.003, 0.003, 0.001, 0.01, 0.01, 5.0,
-             0.003, 0.003, 0.001, 0.01, 0.01, 5.0]
-          baseAccelerations: [0.005, 0.005, 0.005, 0.005, 0.005, 0.005]
-          jointAccelerations:
-            [0.005, 0.005, 0.005, 0.005, 0.005, 0.005,
-             0.005, 0.005, 0.005, 0.005, 0.005, 0.005,
-             0.005, 0.005, 0.005,
-             0.005, 0.005, 0.005, 0.005,
-             0.005, 0.005, 0.005, 0.005]
-          jointTorques:
-            [0.0005, 0.0005, 0.0005, 0.0005, 0.0005, 0.0005,
-             0.0005, 0.0005, 0.0005, 0.0005, 0.0005, 0.0005,
-             0.005, 0.005, 0.005,
-             0.05, 0.05, 0.05, 0.05,
-             0.05, 0.05, 0.05, 0.05]
-
-        # Flat-foot/task-space adaptations beyond the papers' state/input objective.
-        taskSpaceFootCost:
-          activate: true
-          weights:
-            [0.0, 0.0, 0.0, 50.0, 50.0, 0.0,
-             5.0, 5.0, 0.0, 1.0, 1.0, 0.005]
-
-        # Cartesian pose/twist tracking costs
-        taskSpaceCosts:
-          names:
-            [torso]
-
-          torso:
-            activate: false
-            linkName: mid360_link
-            weights:
-              [0.0, 0.0, 0.0, 100.0, 100.0, 0.0,
-               0.1, 0.1, 0.005, 5.0, 5.0, 2.0]
-
-        # Torso soft stabilization, not a hard upright constraint or a CoM-position target.
-        torsoTiltCost:
-          activate: true
-          linkName: torso_link
-          freeTiltAngle: 0.17453292519943295  # 10 degrees; soft lean corridor.
-          tiltWeight: 10.0
-          angularVelocityWeight: 5.0
-
-        # Active J_leg^T W load cost; separate from r.jointTorques.
-        legTorqueCost:
-          activate: false  # Initial terrain ablation; input torque cost and actuator limits remain.
-          scaling: 0.001
-          leftActiveJointNames:
-            - left_hip_pitch_joint
-            - left_hip_roll_joint
-            - left_hip_yaw_joint
-            - left_knee_joint
-            - left_ankle_pitch_joint
-            - left_ankle_roll_joint
-          leftWeights: 
-            [2.0, 2.0, 1.0, 8.0, 0.2, 0.2]
-          rightActiveJointNames:
-            - right_hip_pitch_joint
-            - right_hip_roll_joint
-            - right_hip_yaw_joint
-            - right_knee_joint
-            - right_ankle_pitch_joint
-            - right_ankle_roll_joint
-          rightWeights: 
-            [2.0, 2.0, 1.0, 8.0, 0.2, 0.2]
-
-      constraints:
-        inverseDynamics:
-          # Keep physical equalities enabled for locomotion; disabling is diagnostic-only.
-          activate: true
-          torqueConstraintNodes: 3
-
-        footMotionEquality:
-          activate: true
-          # Hard equalities, not cost weights or inequalities.
-          # Stance: keep the foot still and correct height/tilt.
-          # Swing: follow the vertical foot path.
-          positionErrorGain_z: 50.0              # Height correction; lower gains give slower correction.
-          orientationErrorGain: 100.0            # Tilt correction; lower gains avoid fighting shallow inclines.
-          linearVelocityErrorGain_z: 50.0        # Vertical speed damping.
-          linearVelocityErrorGain_xy: 50.0       # Horizontal speed damping in stance.
-          angularVelocityErrorGain: 50.0         # Rotation damping in stance.
-          linearAccelerationErrorGain_z: 1.0     # Vertical acceleration multiplier; keep positive.
-          linearAccelerationErrorGain_xy: 1.0    # Horizontal acceleration multiplier in stance; keep positive.
-          angularAccelerationErrorGain: 1.0      # Rotation acceleration multiplier in stance; keep positive.
-        
-        swingFootZeroWrench:
-          activate: true
-
-        frictionCone:
-          activate: true
-          frictionCoefficient: 0.4
-          mu: 0.2
-          delta: 5.0
-
-        contactMomentXY:
-          activate: true
-          mu: 0.6
-          delta: 0.03
-
-        jointPositionLimits:
-          activate: true
-          # Lower/upper joint position bounds come from the URDF.
-          mu: 1200.0
-          delta: 0.1
-
-        jointVelocityLimits:
-          activate: true
-          # Symmetric bounds are velocityScaling * URDF joint velocity limits; 0 < scaling <= 1.
-          velocityScaling: 1.0
-          mu: 0.1
-          delta: 1.0
-
-        jointTorqueLimits:
-          activate: true
-          # Scales URDF or override bounds for both the OCP penalty and feedforward clipping; 0 < scaling <= 1.
-          torqueScaling: 1.0
-          # Omit limits to use URDF joint <limit effort="..."> values for OCP bounds and feedforward clipping.
-          # To override, uncomment a full positive array in robot.jointNames order [Nm].
-          # limits: [88.0, 139.0, 88.0, 139.0, 50.0, 50.0,
-          #          88.0, 139.0, 88.0, 139.0, 50.0, 50.0,
-          #          88.0, 50.0, 50.0,
-          #          25.0, 25.0, 25.0, 25.0,
-          #          25.0, 25.0, 25.0, 25.0]
-          mu: 0.1
-          delta: 5.0
-
-        legSelfCollision:
-          activate: true
-          leftAnkleFrame: left_ankle_roll_joint
-          rightAnkleFrame: right_ankle_roll_joint
-          footCollisionSphereRadius: 0.065
-          leftKneeFrame: left_knee_joint
-          rightKneeFrame: right_knee_joint
-          kneeCollisionSphereRadius: 0.07
-          mu: 30000.0
-          delta: 0.05
-
-      reference:
-        targetDisplacementVelocity: 0.5
-        targetRotationVelocity: 0.5
-        maxDisplacementVelocityX: 1.0
-        maxDisplacementVelocityY: 0.5
-        maxDeltaPelvisHeight: 0.4
-        maxRotationVelocity: 1.5708
-        defaultBaseHeight: 0.795
-        basePosePositionTolerance: 0.02
-        basePoseOrientationTolerance: 0.03
-        
-        # Slew limits on the scaled walking command: ax, ay [m/s^2], height rate [m/s], yaw acceleration [rad/s^2]
-        velocityCommandRateLimits:
-          [0.5, 0.5, 0.5, 2.0]
-        
-        groundHeight:
-          useEstimate: false
-          maxStepPerSolve: 0.002
-
-        armSwing:
-          jointNames:
-            - left_shoulder_pitch_joint
-            - right_shoulder_pitch_joint
-            - left_elbow_joint
-            - right_elbow_joint
-
-        # Nominal joint posture for reference generation; pelvis height is defaultBaseHeight.
-        defaultJointState:
-          [-0.8, 0.0, 0.0, 1.6, -0.8, 0.0,
-           -0.8, 0.0, 0.0, 1.6, -0.8, 0.0,
-            0.0, 0.0, 0.0,
-           0.20, 0.20, 0.0, 1.20,
-           0.20, -0.20, 0.0, 1.20]
-
-      gait:
-        phaseTransitionStanceTime: 0.0
-        stairClimbingFile: $(var stairClimbingFile)
-        terrainWalkingFile: $(var terrainWalkingFile)
-        initialModeSequence: [STANCE, STANCE]
-        initialEventTimes: [0.5]
-        defaultModeSequence: [STANCE]
-        defaultSwitchingTimes: [0.0, 0.5]
-
-        # Swing-foot trajectory, shared by every template.
-        swingTrajectory:
-          liftOffVelocity: 0.05
-          touchDownVelocity: -0.0
-          swingHeight: 0.10
-          touchDownHeightOffset: -0.001
-          swingTimeScale: 0.4
-          impactProximityFactorLiftOffVelocity: -0.15
-          impactProximityFactorTouchDownVelocity: 0.3
-          impactProximityFactorMidPointValue: 0.0
-
-        # Gait templates: N modes and N+1 switching times [s], repeated with period last - first.
-        # STANCE = both feet in contact, LF = left foot in contact (right swings), RF = right, FLY = none.
-        # Shorter slow_walk support phases suit the 0.6 m crouch; the other templates are not retuned
-        # (skip also corrects an inherited non-monotonic time).
-        templates:
-          names: [stance, left_leg, right_leg, trot, fast_trot, slow_trot, slower_trot, walk, fast_walk, slow_walk, very_slow_walk, run, fast_run, skip, jump, terrain_walk]
-          stance:         {modeSequence: [STANCE],                   switchingTimes: [0.0, 0.5]}
-          left_leg:       {modeSequence: [LF],                       switchingTimes: [0.0, 0.5]}
-          right_leg:      {modeSequence: [RF],                       switchingTimes: [0.0, 0.5]}
-          trot:           {modeSequence: [LF, RF],                   switchingTimes: [0.0, 0.5, 1.0]}
-          fast_trot:      {modeSequence: [LF, RF],                   switchingTimes: [0.0, 0.4, 0.8]}
-          slow_trot:      {modeSequence: [LF, RF],                   switchingTimes: [0.0, 0.55, 1.1]}
-          slower_trot:    {modeSequence: [LF, RF],                   switchingTimes: [0.0, 0.6, 1.2]}
-          walk:           {modeSequence: [LF, STANCE, RF, STANCE],   switchingTimes: [0.0, 0.6, 0.7, 1.3, 1.4]}
-          fast_walk:      {modeSequence: [LF, STANCE, RF, STANCE],   switchingTimes: [0.0, 0.3, 0.5, 0.8, 1.0]}
-          slow_walk:      {modeSequence: [LF, STANCE, RF, STANCE],   switchingTimes: [0.0, 0.4, 0.55, 0.95, 1.1]}
-          very_slow_walk: {modeSequence: [RF, STANCE, LF, STANCE],   switchingTimes: [0.0, 0.7, 1.1, 1.8, 2.2]}
-          run:            {modeSequence: [LF, FLY, RF, FLY],         switchingTimes: [0.0, 0.3, 0.4, 0.7, 0.8]}
-          fast_run:       {modeSequence: [LF, FLY, RF, FLY],         switchingTimes: [0.0, 0.3, 0.4, 0.7, 0.8]}
-          skip:           {modeSequence: [LF, FLY, LF, RF, FLY, RF], switchingTimes: [0.0, 0.25, 0.3, 0.5, 0.75, 0.8, 1.0]}
-          jump:           {modeSequence: [STANCE, FLY],              switchingTimes: [0.0, 0.3, 0.5]}
-          terrain_walk:   {modeSequence: [LF, STANCE, RF, STANCE],   switchingTimes: [0.0, 0.6, 0.7, 1.3, 1.4]}
-
-        # ---- Gait selection: which template runs, and when ------------------------------
-        # ProceduralMpcMotionManager picks a template from `ladder` once per MPC solve,
-        # from the commanded velocity (scaled to m/s, rate limited and filtered) and the
-        # measured base velocity:
-        #   - the ladder is ordered slowest -> fastest and must start with `stance`; the FSM
-        #     moves at most one rung per change;
-        #   - UP one rung when the command leaves the current rung's band upward
-        #     (|vx| or |vy| > linearVelocity max, or |yaw| > yawRate max) AND the measured
-        #     speed is near that top (|vx| or |vy| > max - margin, or |yaw rate| > yaw max - margin);
-        #   - DOWN one rung when the command is below the band's min on all axes AND the
-        #     measured speed is below min + margin on all axes;
-        #   - overlapping bands give hysteresis between neighbouring rungs.
-        # The command is in the heading frame; the measured values are the pelvis velocity
-        # in world axes and the yaw Euler rate.
         # Units are m/s and rad/s; 10.0 stands for "no limit". A margin of 10 (stance) means
         # the robot leaves stance on the command alone.
         #
