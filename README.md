@@ -148,9 +148,6 @@ ros2 run legged_robot_mpc_controller figure_eight_command.py
 ### Push recovery test (MuJoCo only)
 
 Start the robot first, wait for MPC takeover, then run this in another terminal.
-It applies two opposite lateral pushes to `pelvis`: 80 N for 0.15 s each, with 4 s between them.
-Timing uses simulation time, not wall time.
-This is a test input, not a guaranteed recoverable push for every robot.
 
 ```bash
 source install/setup.bash
