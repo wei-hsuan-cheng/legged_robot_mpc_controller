@@ -1234,6 +1234,19 @@ humanoid_centroidal_mpc_controller:
       }
     }
 
+    optimizedStateRobotModelsActivate: {
+      type: bool,
+      default_value: true,
+      description: "Enable subscriber-driven future and terminal robot mesh ghosts"
+    }
+
+    optimizedStateRobotModelsInterval: {
+      type: double,
+      default_value: 0.2,
+      description: "Nominal temporal spacing of mesh ghosts across the actual MPC policy horizon [s]",
+      validation: {gt: [0.0]}
+    }
+
     trajectory:
       activate: {
         type: bool,

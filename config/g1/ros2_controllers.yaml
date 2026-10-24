@@ -639,6 +639,8 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
     visualization:
       frameId: odom
       update_rate: 30.0
+      optimizedStateRobotModelsActivate: true
+      optimizedStateRobotModelsInterval: 0.2 # [s]
       trajectory:
         activate: true
         markerTopic: /performance_visualization/optimizedStateTrajectory
@@ -1157,6 +1159,9 @@ humanoid_centroidal_mpc_controller:
     visualization:
       frameId: odom
       update_rate: 30.0
+      optimizedStateRobotModelsActivate: true
+      # Legacy spacing [s]; the actual MPC policy/timeHorizon determines the ghost horizon.
+      optimizedStateRobotModelsInterval: 0.2
       trajectory:
         activate: true
         markerTopic: /performance_visualization/optimizedStateTrajectory

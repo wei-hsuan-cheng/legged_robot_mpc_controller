@@ -193,12 +193,19 @@ OptimizedStateTrajectoryVisualization::OptimizedStateTrajectoryVisualization(
 void OptimizedStateTrajectoryVisualization::publish(
   const ocs2::vector_array_t& stateTrajectory)
 {
+  if (!hasSubscribers()) return;
   const auto generalized_coordinates = extractGeneralizedCoordinateTrajectory(stateTrajectory);
   if (generalized_coordinates.empty()) {
     return;
   }
 
   marker_publisher_->publish(createMessage(generalized_coordinates));
+}
+
+bool OptimizedStateTrajectoryVisualization::hasSubscribers() const
+{
+  return marker_publisher_->get_subscription_count() +
+         marker_publisher_->get_intra_process_subscription_count() > 0;
 }
 
 ocs2::vector_array_t OptimizedStateTrajectoryVisualization::extractGeneralizedCoordinateTrajectory(

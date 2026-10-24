@@ -586,7 +586,9 @@ controller_interface::return_type HumanoidWholeBodyInverseDynamicsMpcController:
   if (performance_visualization_ && active_policy_ready_ &&
       (last_visualization_time_ < 0.0 || observation.time - last_visualization_time_ >= 0.1)) {
     last_visualization_time_ = observation.time;
-    performance_visualization_->update_visualization(mrt_interface_->getPolicy().stateTrajectory_);
+    const auto& policy = mrt_interface_->getPolicy();
+    performance_visualization_->update_visualization(
+      policy.timeTrajectory_, policy.stateTrajectory_, mrt_interface_->getCommand().mpcTargetTrajectories_);
   }
 
   return controller_interface::return_type::OK;

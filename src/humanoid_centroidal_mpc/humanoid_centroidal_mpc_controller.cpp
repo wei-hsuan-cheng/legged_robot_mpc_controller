@@ -798,14 +798,6 @@ controller_interface::return_type HumanoidCentroidalMpcController::update_and_wr
   // joint state from the same tick.
   record_diagnostics_state(time, observation, command);
 
-  // 10 Hz hand-off: copying the policy trajectory every RT update starves the solver.
-  if (performance_visualization_ && mpc_ready_.load(std::memory_order_acquire) &&
-      mrt_interface_->initialPolicyReceived() &&
-      (last_visualization_time_ < 0.0 || observation.time - last_visualization_time_ >= 0.1)) {
-    last_visualization_time_ = observation.time;
-    performance_visualization_->update_visualization(mrt_interface_->getPolicy().stateTrajectory_);
-  }
-
   return controller_interface::return_type::OK;
 }
 
@@ -1564,6 +1556,7 @@ void HumanoidCentroidalMpcController::solver_worker()
   std::size_t period_samples = 0;
   std::size_t advance_samples = 0;
   Clock::time_point previous_start{};
+  last_visualization_time_ = -1.0;
 
   while (!terminate_solver_thread_.load() && rclcpp::ok()) {
     const auto iteration_start = Clock::now();
@@ -1589,6 +1582,18 @@ void HumanoidCentroidalMpcController::solver_worker()
       publish_mode_schedule();
 
       policy_updated = mrt_interface_->updatePolicy();
+      if (policy_updated && performance_visualization_) {
+        // This thread owns updatePolicy(); copy a matching policy/command between solves.
+        const auto& command = mrt_interface_->getCommand();
+        const double stamp = command.mpcInitObservation_.time;
+        if (last_visualization_time_ < 0.0 || stamp < last_visualization_time_ ||
+            stamp - last_visualization_time_ >= 0.1) {
+          last_visualization_time_ = stamp;
+          const auto& policy = mrt_interface_->getPolicy();
+          performance_visualization_->update_visualization(
+            policy.timeTrajectory_, policy.stateTrajectory_, command.mpcTargetTrajectories_);
+        }
+      }
       if (!policy_updated) {
         RCLCPP_WARN_THROTTLE(
           get_node()->get_logger(),

@@ -1,6 +1,31 @@
 # WB-ID MPC Walking Robustness Handoff
 
 
+## Future Robot Mesh Ghosts (2026-10-24, Latest)
+
+G1 and H2 now have legacy-style future mesh ghosts in the existing performance visualization worker, with optional terminal-state and terminal-target MarkerArray topics.
+Only controller YAML parameters were added: `visualization.optimizedStateRobotModelsActivate=true` and `visualization.optimizedStateRobotModelsInterval=0.2`; no launch arguments or MPC tuning values changed.
+Sampling uses the actual policy time range (following `ocs2.mpc.timeHorizon`), not a second visualization horizon; as in the legacy code, round horizon/interval to the count and distribute poses equally including the endpoint.
+Future color is RGB `[0.765,0.665,0.905]`, alpha `0.22 -> 0.08`; terminal state uses `[0.180,0.220,0.300]`/`0.40`, terminal target uses the future color/`0.30`.
+The new `FutureRobotModelVisualization` handles URDF origins/scales, multiple visuals and primitives, with private Pinocchio data and `MpcRobotModelBase::getGeneralizedCoordinates` for both state layouts.
+
+The worker polls subscribers and only requests/copies snapshots when a display subscribes; it processes fresh snapshots rather than repeating FK for unchanged data.
+Ghost topics `/performance_visualization/{optimizedStateGhosts,terminalStateGhost,terminalTargetGhost}` use best-effort volatile QoS; the user's saved `humanoid.rviz` enables future ghosts by default, while terminal ghost topics can be added as optional MarkerArray displays.
+With no subscribers, no periodic state/target copies, ghost FK, interpolation or marker generation occur; one-time setup and light subscription polling remain.
+Snapshot handoff uses nonblocking `RealtimeThreadSafeBox::try_set/try_get`; copying still costs CPU and allocations, so this is not a hard real-time or zero-overhead guarantee.
+WB-ID snapshots are copied from the control-thread-owned active MRT policy; centroidal snapshots are copied between solves on its `updatePolicy()`-owning solver thread to avoid adding cross-thread policy reads.
+All FK and marker publishing run on the visualization thread, never in the solver or control callbacks.
+
+Jazzy two-job Release builds passed (initial 2 min 29 s, incremental 2 min 15 s); the final policy-owner object rebuild passed in 1 min 54 s.
+Logs are `/tmp/robot_ghosts_build.log`, `/tmp/robot_ghosts_final_build.log` and `/tmp/robot_ghosts_owner_build.log` in Docker `ros_jazzy`.
+Native headless WB-ID topic/walking checks passed: G1 horizon1.0 produced five robots x35 visual elements; H2 horizon1.4 produced seven robots x34 visual elements.
+The checks verified the expected marker counts, finite poses/normalized quaternions, mesh resource paths, colors/opacity, terminal topics, best-effort QoS and subscription-free startup; both short flat walks stopped upright.
+Native test artifacts are `/tmp/{g1,h2}_future_ghosts*`; these topic checks did not launch the RViz GUI or establish a measured visualization CPU budget.
+Five new static visualization checks and the existing 37 focused WB-ID checks passed; discovery ran 36 tests with four native ROS skips locally, and the parameter contract passed as well.
+See [implementation and thread ownership](docs/humanoid_whole_body_inverse_dynamics_mpc_impl.md#12-future-robot-mesh-ghosts) for YAML controls.
+All owned simulator and test processes were stopped; these changes are included with this handoff checkpoint.
+
+
 ## H2 Natural Stance and First Push Test (2026-10-24, Latest)
 
 The current follow-up is on `tune/h2`, after commits `f80044c` and `2da0ac1`; walking parameters and geometry checks are committed as `e1919de`, with push-test tools and documentation in the accompanying commit.

@@ -33,7 +33,12 @@ PerformanceVisualization::PerformanceVisualization(
       "[Performance Visualization] Enable optimized state trajectory visualization");
   }
 
-  if (!trajectory_visualization_) {
+  if (settings_.robot_models_active) {
+    robot_model_visualization_ = std::make_unique<FutureRobotModelVisualization>(
+      pinocchioInterface, mpcRobotModel, *node_, settings_.robot_models);
+  }
+
+  if (!trajectory_visualization_ && !robot_model_visualization_) {
     RCLCPP_INFO(node_->get_logger(), "[Performance Visualization] no visualization features active");
     return;
   }
@@ -59,9 +64,11 @@ PerformanceVisualization::~PerformanceVisualization()
 }
 
 void PerformanceVisualization::update_visualization(
-  const ocs2::vector_array_t& optimizedStateTrajectory)
+  const ocs2::scalar_array_t& times, const ocs2::vector_array_t& states,
+  const ocs2::TargetTrajectories& targets)
 {
-  if (latest_optimized_state_trajectory_.try_set(optimizedStateTrajectory)) {
+  if (!has_subscribers_.load(std::memory_order_relaxed)) return;
+  if (latest_snapshot_.try_set(Snapshot{times, states, targets})) {
     has_optimized_state_trajectory_.store(true);
   }
 }
@@ -72,11 +79,21 @@ void PerformanceVisualization::visualization_loop()
     std::this_thread::sleep_for(period_);
 
     try {
-      if (trajectory_visualization_ && has_optimized_state_trajectory_.load()) {
-        const auto optimized_state_trajectory = latest_optimized_state_trajectory_.try_get();
-        if (optimized_state_trajectory.has_value()) {
-          trajectory_visualization_->publish(*optimized_state_trajectory);
-        }
+      const bool trajectory_subscribed = trajectory_visualization_ && trajectory_visualization_->hasSubscribers();
+      const bool ghosts_subscribed = robot_model_visualization_ && robot_model_visualization_->hasSubscribers();
+      const bool subscribed = trajectory_subscribed || ghosts_subscribed;
+      has_subscribers_.store(subscribed, std::memory_order_relaxed);
+      if (!subscribed || !has_optimized_state_trajectory_.exchange(false)) continue;
+      const auto snapshot = latest_snapshot_.try_get();
+      if (!snapshot.has_value()) {
+        has_optimized_state_trajectory_.store(true);
+        continue;
+      }
+      if (trajectory_subscribed) {
+        trajectory_visualization_->publish(snapshot->states);
+      }
+      if (ghosts_subscribed) {
+        robot_model_visualization_->publish(snapshot->times, snapshot->states, snapshot->targets);
       }
     } catch (const std::exception& error) {
       RCLCPP_WARN_THROTTLE(

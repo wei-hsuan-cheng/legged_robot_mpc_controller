@@ -176,6 +176,7 @@ add_library(${PROJECT_NAME} SHARED
   src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp
   src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp
   src/visualization/optimized_state_trajectory_visualization.cpp
+  src/visualization/future_robot_model_visualization.cpp
   src/visualization/performance_visualization.cpp
 )
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_20)

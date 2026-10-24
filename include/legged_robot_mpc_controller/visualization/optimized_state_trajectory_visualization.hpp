@@ -36,6 +36,7 @@ public:
     Settings settings);
 
   void publish(const ocs2::vector_array_t& stateTrajectory);
+  bool hasSubscribers() const;
 
 private:
   using Message = visualization_msgs::msg::MarkerArray;

@@ -5,7 +5,7 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /Global Options1
-        - /RobotModel1/Description Topic1
+        - /Legged Robot1/Description Topic1
         - /TF1/Frames1
         - /Cartesian Markers1/Namespaces1
       Splitter Ratio: 0.5
@@ -54,11 +54,32 @@ Visualization Manager:
         Expand Link Details: false
         Expand Tree: false
         Link Tree Style: Links in Alphabetic Order
-        d435_link:
+        camera:
           Alpha: 1
           Show Axes: false
           Show Trail: false
-        head_link:
+        foot_l_heel_est:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        foot_l_toe_est:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        foot_r_heel_est:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        foot_r_toe_est:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        head_pitch_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        head_yaw_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
@@ -86,6 +107,11 @@ Visualization Manager:
           Show Axes: false
           Show Trail: false
           Value: true
+        left_hand_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
         left_hip_pitch_link:
           Alpha: 1
           Show Axes: false
@@ -102,11 +128,6 @@ Visualization Manager:
           Show Trail: false
           Value: true
         left_knee_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        left_rubber_hand:
           Alpha: 1
           Show Axes: false
           Show Trail: false
@@ -141,21 +162,7 @@ Visualization Manager:
           Show Axes: false
           Show Trail: false
           Value: true
-        logo_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        mid360_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
         pelvis:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        pelvis_contour_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
@@ -171,6 +178,11 @@ Visualization Manager:
           Show Trail: false
           Value: true
         right_elbow_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        right_hand_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
@@ -191,11 +203,6 @@ Visualization Manager:
           Show Trail: false
           Value: true
         right_knee_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        right_rubber_hand:
           Alpha: 1
           Show Axes: false
           Show Trail: false
@@ -230,35 +237,6 @@ Visualization Manager:
           Show Axes: false
           Show Trail: false
           Value: true
-        stairs_base:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        stairs_step_1:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        stairs_step_2:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        stairs_step_3:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        stairs_step_4:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        stairs_step_5:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
         torso_link:
           Alpha: 1
           Show Axes: false
@@ -269,30 +247,35 @@ Visualization Manager:
           Show Axes: false
           Show Trail: false
           Value: true
-        waist_support_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
         waist_yaw_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        world:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
       Mass Properties:
         Inertia: false
         Mass: false
-      Name: RobotModel
+      Name: Legged Robot
       TF Prefix: ""
       Update Interval: 0
       Value: true
       Visual Enabled: true
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: Optimized State Ghosts
+      Namespaces:
+        optimized_state_ghosts: true
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+        Value: /performance_visualization/optimizedStateGhosts
+      Value: true
     - Class: rviz_default_plugins/TF
       Enabled: false
+      Filter (blacklist): ""
+      Filter (whitelist): ""
       Frame Timeout: 15
       Frames:
         All Enabled: true
@@ -323,14 +306,14 @@ Visualization Manager:
       Namespaces:
         optimizedStateTrajectoryLine_foot_l_contact: true
         optimizedStateTrajectoryLine_foot_r_contact: true
+        optimizedStateTrajectoryLine_head_yaw_link: true
         optimizedStateTrajectoryLine_left_wrist_yaw_link: true
-        optimizedStateTrajectoryLine_mid360_link: true
         optimizedStateTrajectoryLine_pelvis: true
         optimizedStateTrajectoryLine_right_wrist_yaw_link: true
         optimizedStateTrajectorySamples_foot_l_contact: true
         optimizedStateTrajectorySamples_foot_r_contact: true
+        optimizedStateTrajectorySamples_head_yaw_link: true
         optimizedStateTrajectorySamples_left_wrist_yaw_link: true
-        optimizedStateTrajectorySamples_mid360_link: true
         optimizedStateTrajectorySamples_pelvis: true
         optimizedStateTrajectorySamples_right_wrist_yaw_link: true
       Topic:
@@ -358,6 +341,39 @@ Visualization Manager:
         Expand Link Details: false
         Expand Tree: false
         Link Tree Style: Links in Alphabetic Order
+        stairs_base:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        stairs_step_1:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        stairs_step_2:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        stairs_step_3:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        stairs_step_4:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        stairs_step_5:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        world:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
       Mass Properties:
         Inertia: false
         Mass: false
@@ -365,58 +381,6 @@ Visualization Manager:
       TF Prefix: ""
       Update Interval: 0
       Value: true
-      Visual Enabled: true
-    - Alpha: 0.4000000059604645
-      Class: rviz_default_plugins/RobotModel
-      Collision Enabled: false
-      Description File: ""
-      Description Source: Topic
-      Description Topic:
-        Depth: 5
-        Durability Policy: Transient Local
-        History Policy: Keep Last
-        Reliability Policy: Reliable
-        Value: /robot_description
-      Enabled: false
-      Links:
-        All Links Enabled: true
-        Expand Joint Details: false
-        Expand Link Details: false
-        Expand Tree: false
-        Link Tree Style: Links in Alphabetic Order
-      Mass Properties:
-        Inertia: false
-        Mass: false
-      Name: Terminal State RobotModel
-      TF Prefix: terminal_state
-      Update Interval: 0
-      Value: false
-      Visual Enabled: true
-    - Alpha: 0.30000001192092896
-      Class: rviz_default_plugins/RobotModel
-      Collision Enabled: false
-      Description File: ""
-      Description Source: Topic
-      Description Topic:
-        Depth: 5
-        Durability Policy: Transient Local
-        History Policy: Keep Last
-        Reliability Policy: Reliable
-        Value: /robot_description
-      Enabled: false
-      Links:
-        All Links Enabled: true
-        Expand Joint Details: false
-        Expand Link Details: false
-        Expand Tree: false
-        Link Tree Style: Links in Alphabetic Order
-      Mass Properties:
-        Inertia: false
-        Mass: false
-      Name: Terminal Target RobotModel
-      TF Prefix: terminal_target
-      Update Interval: 0
-      Value: false
       Visual Enabled: true
     - Class: rviz_default_plugins/MarkerArray
       Enabled: false

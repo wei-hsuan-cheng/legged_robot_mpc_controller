@@ -346,3 +346,29 @@ Both scalings default to 1.0 and are validated as finite values in `(0, 1]` by t
 The resolved scaled torque vector is shared with the existing runtime feedforward clamp, which remains independent of the OCP torque activation flag and is not a final feedback-plus-feedforward actuator clamp.
 The controller warns if dynamics/contact equalities are disabled and uses measured-state RNEA instead of free policy torque variables when inverse dynamics is disabled; these ablations are not validated locomotion modes.
 `tests/wb_id_constraint_activation_contract_test.py` checks all 512 switch combinations against the schema, guarded registrations, URDF bound readers, scaling validation and preservation of feedforward clipping; these static checks do not establish solver feasibility for disabled-constraint combinations.
+
+
+## 12. Future Robot Mesh Ghosts
+
+The visualization-only settings are declared in both controller schemas and set in the [G1 WB-ID YAML](../config/g1/ros2_controllers.yaml#L639), [G1 centroidal YAML](../config/g1/ros2_controllers.yaml#L1160) and [H2 WB-ID YAML](../config/h2/ros2_controllers.yaml#L667).
+`optimizedStateRobotModelsActivate` and `optimizedStateRobotModelsInterval` retain the legacy names and defaults `true` and `0.2 s`; there is no launch argument or separate ghost horizon.
+
+| Stage | Implementation |
+| --- | --- |
+| Consistent policy snapshot | [Controller handoff](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L590) passes policy timestamps/states and the matching MRT command targets at the existing maximum 10 Hz handoff rate |
+| Subscriber-driven copying | [Worker input](../src/visualization/performance_visualization.cpp#L66) returns before copying when no display is subscribed; the [worker](../src/visualization/performance_visualization.cpp#L76) performs FK/publishing only for subscribed displays and fresh snapshots |
+| Robot-independent visuals | [URDF extraction](../src/visualization/future_robot_model_visualization.cpp#L70) retains visual origins, mesh scales, multiple visuals and primitive geometry on BODY frames, including reduced-model fixed links |
+| Correct state layout | [State-to-pose conversion](../src/visualization/future_robot_model_visualization.cpp#L148) uses `MpcRobotModelBase::getGeneralizedCoordinates`, not the full centroidal or WB-ID state as a Pinocchio configuration |
+| Temporal resolution | [Sampling](../src/visualization/future_robot_model_visualization.cpp#L186) uses the actual policy start/end, rounds horizon/interval to the number of ghosts, then distributes samples equally over that horizon including its endpoint, as in the legacy controller |
+| Displays and QoS | [RViz](../config/rviz/humanoid.rviz#L262) enables the best-effort future ghost MarkerArray display; optional terminal state/target topics can be added as separate MarkerArray displays; no extra TF robot publishers are required |
+
+Future ghosts retain RGB `[0.765,0.665,0.905]` and alpha fading from `0.22` to `0.08` (a single ghost uses `0.22`).
+Terminal state ghosts retain RGB `[0.180,0.220,0.300]`, alpha `0.40`; terminal target ghosts use the future color and alpha `0.30`.
+Markers include a per-topic `DELETEALL` to replace prior poses, and their header uses `visualization.frameId` and the current ROS timestamp.
+Terminal targets show the target trajectories associated with that policy, not a reconstructed pose satisfying every independent task-space cost.
+The worker owns separate Pinocchio data and a cloned MPC robot model; it never reads the solver's live policy from another thread.
+With no subscribers there is still a lightweight worker polling subscription counts, plus one-time URDF visual setup, but no ghost FK, interpolation, marker generation or periodic trajectory snapshot copying.
+This changes neither the OCP nor actuator commands.
+
+`tests/test_future_robot_visualization.py` checks parameter defaults, YAML-only controls, shared worker wiring, RViz topics and best-effort settings without ROS.
+`tests/future_robot_ghosts_test.py --robot-name g1|h2 --horizon <seconds>` runs a short headless flat walk, subscribes after a subscription-free startup interval, checks the published ghost count, colors, alpha, mesh resources, poses and QoS, and lets the owned walking test stop its simulator normally.

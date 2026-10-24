@@ -421,6 +421,11 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
     frameId: {type: string, default_value: "world", description: "Visualization marker frame"}
     update_rate: {type: double, default_value: 30.0, description: "Performance visualization update rate",
         validation: {gt_eq: [0.0]}}
+    optimizedStateRobotModelsActivate: {type: bool, default_value: true,
+        description: "Enable subscriber-driven future and terminal robot mesh ghosts"}
+    optimizedStateRobotModelsInterval: {type: double, default_value: 0.2,
+        description: "Nominal temporal spacing of mesh ghosts across the actual MPC policy horizon [s]",
+        validation: {gt: [0.0]}}
     trajectory:
       activate: {type: bool, default_value: true, description: "Enable optimized trajectory visualization"}
       markerTopic: {type: string, default_value: "/performance_visualization/optimizedStateTrajectory",
