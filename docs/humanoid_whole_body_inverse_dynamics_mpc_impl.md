@@ -63,7 +63,10 @@ This matters when a published policy is older than the solver's current horizon.
 Spline position, velocity and acceleration references are obtained at [line 66](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdFootAccelerationConstraintCppAd.cpp#L66).
 The swing vertical equality is at [line 106](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdFootAccelerationConstraintCppAd.cpp#L106), and stance equalities are at [line 112](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdFootAccelerationConstraintCppAd.cpp#L112).
 The class uses frame classical acceleration in world-aligned coordinates.
-The config builder maps `ocs2.model.footConstraint` to these gains at [line 148](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L148).
+The config builder maps `ocs2.constraints.footConstraint` to these gains at [line 70](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L70).
+This WB-ID parameter path replaces `ocs2.model.footConstraint`; update external parameter files and rebuild the generated parameter library and controller before using the migrated YAML.
+Only parameter ownership changed: gain values, generated OCP equations and the internal `ModelSettings::footConstraintConfig` storage are unchanged.
+The centroidal controller retains its existing parameter path.
 The shared [ZeroWrenchConstraint.cpp](../src/core/humanoid_common_mpc/src/constraint/ZeroWrenchConstraint.cpp) supplies swing zero-wrench rows, registered at [WbIdMpcInterface.cpp:159](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L159).
 
 ### 3.4 Soft inequalities
@@ -219,7 +222,7 @@ These are static regression checks, not a substitute for repeated startup tests 
 | `ocs2.costs.taskSpaceCosts.<name>.activate`, `.linkName`, `.weights` | Enable and configure each named link cost |
 | `ocs2.costs.torsoTiltCost` | Soft gravity-relative tilt corridor and transverse angular-motion weight |
 | `ocs2.costs.legTorqueCost.activate`, `.scaling`, leg joint names and weights | Enable and configure both external-load costs |
-| `ocs2.model.footConstraint` | Acceleration-level stance/swing gains |
+| `ocs2.constraints.footConstraint` | Acceleration-level stance/swing gains |
 | `ocs2.constraints` | Friction, CoP, joint and collision soft penalties |
 | `ocs2.gait.templates`, `transitions`, `swingTrajectory` | Contact timing, transition guards and swing profiles |
 | `ocs2.reference` | Command scaling/slew, nominal posture, height and arm swing |
@@ -238,13 +241,13 @@ The references below map that table to the current implementation; only the pair
 
 | Responsibility | Implementation or current parameters |
 | --- | --- |
-| Stance height/tilt correction gains | [ros2_controllers.yaml:830](../config/g1/ros2_controllers.yaml#L830), [stance equations:114](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdFootAccelerationConstraintCppAd.cpp#L114) |
+| Stance height/tilt correction gains | [ros2_controllers.yaml:977](../config/g1/ros2_controllers.yaml#L977), [stance equations:114](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdFootAccelerationConstraintCppAd.cpp#L114) |
 | Shared gain in swing vertical correction | [WbIdFootAccelerationConstraintCppAd.cpp:106](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdFootAccelerationConstraintCppAd.cpp#L106) |
-| Running/terminal base z and vz weights | [Q:887](../config/g1/ros2_controllers.yaml#L887), [Qf:903](../config/g1/ros2_controllers.yaml#L903) |
-| Foot task-space cost | [weights:939](../config/g1/ros2_controllers.yaml#L939) |
+| Running/terminal base z and vz weights | [Q:875](../config/g1/ros2_controllers.yaml#L875), [Qf:891](../config/g1/ros2_controllers.yaml#L891) |
+| Foot task-space cost | [weights:927](../config/g1/ros2_controllers.yaml#L927) |
 | Swing clearance | [swingHeight:1061](../config/g1/ros2_controllers.yaml#L1061) |
-| Torso free lean and angular damping | [torsoTiltCost:958](../config/g1/ros2_controllers.yaml#L958) |
-| Extra leg-load cost activation | [legTorqueCost:966](../config/g1/ros2_controllers.yaml#L966) |
+| Torso free lean and angular damping | [torsoTiltCost:946](../config/g1/ros2_controllers.yaml#L946) |
+| Extra leg-load cost activation | [legTorqueCost:954](../config/g1/ros2_controllers.yaml#L954) |
 | Joint PD and feedforward | [control:756](../config/g1/ros2_controllers.yaml#L756) |
 | Command slew limits and filtering | [limits:1038](../config/g1/ros2_controllers.yaml#L1038), [WalkingVelocityTarget.cpp:90](../src/core/humanoid_common_mpc/src/target/WalkingVelocityTarget.cpp#L90) |
 | Planar-relative base tracking | [BaseMotionTrackingCost.cpp:51](../src/core/humanoid_common_mpc/src/cost/BaseMotionTrackingCost.cpp#L51) |

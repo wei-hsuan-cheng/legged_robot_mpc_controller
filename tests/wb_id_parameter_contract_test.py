@@ -66,6 +66,20 @@ def main():
         assert all(v >= 0 for values in costs[stage].values() for v in values)
     assert "captureFootPlacement" not in costs and "icpErrorWeight" not in costs
     assert "centroidalModelType" not in params["ocs2"]["model"]
+    # WB-ID foot stabilization belongs to constraints, not rigid-body model settings.
+    assert "footConstraint" not in params["ocs2"]["model"]
+    assert "footConstraint" not in schema["ocs2"]["model"]
+    foot = params["ocs2"]["constraints"]["footConstraint"]
+    foot_schema = schema["ocs2"]["constraints"]["footConstraint"]
+    foot_gains = {
+        "positionErrorGain_z", "orientationErrorGain", "linearVelocityErrorGain_z",
+        "linearVelocityErrorGain_xy", "angularVelocityErrorGain",
+        "linearAccelerationErrorGain_z", "linearAccelerationErrorGain_xy", "angularAccelerationErrorGain",
+    }
+    assert set(foot) == set(foot_schema) == foot_gains
+    assert all(value >= 0 for value in foot.values())
+    for name in ("linearAccelerationErrorGain_z", "linearAccelerationErrorGain_xy", "angularAccelerationErrorGain"):
+        assert foot[name] > 0, f"constraints.footConstraint.{name} must retain input dependence"
     assert "useInertiaWeightedAngularMomentum" not in params["ocs2"]["reference"]
     for gain in ("kp", "kd"):
         values = params["control"]["jointEffortPd"][gain]
@@ -88,6 +102,9 @@ def main():
     builder = (folder / "whole_body_inverse_dynamics_mpc_config_builder.cpp").read_text()
     assert "buildCentroidalMpcConfig" not in builder
     assert "humanoid_centroidal_mpc_controller::" not in builder
+    assert "p.model.footConstraint" not in builder
+    for name in foot_gains:
+        assert f"p.constraints.footConstraint.{name}" in builder
     # Every direct p.* access in the builder must exist in the standalone schema.
     for access in re.findall(r"\bp\.([A-Za-z_][\w.]*)", builder):
         node = schema["ocs2"]

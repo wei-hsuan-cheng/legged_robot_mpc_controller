@@ -1,5 +1,14 @@
 # WB-ID MPC Walking Robustness Handoff
 
+## WB-ID Foot-Constraint Parameter Migration (2026-10-24)
+
+The WB-ID YAML and generated parameter schema now place the eight foot-stabilization gains at `ocs2.constraints.footConstraint`, replacing `ocs2.model.footConstraint`.
+The builder reads the new path and still fills the same internal `ModelSettings::footConstraintConfig` and `footAccelerationGains` fields; all configured gains and schema defaults are preserved.
+External WB-ID parameter files must migrate the block, and the controller needs a rebuild for the new generated parameter structs before running the new YAML.
+The centroidal controller and schema retain their existing layout, and no launch, OCP equation, CppAD model signature or other parameter ownership changed in this migration.
+Foot stance/swing rows are hard OCP equalities with stabilization feedback, not soft task-space costs.
+Other parameter-layout changes remain proposals pending the user's approval.
+
 ## Blind-Walking Tuning Guide
 
 [Formulation and Signal Flow, Section 9](docs/humanoid_whole_body_inverse_dynamics_mpc.md#9-blind-walking-robustness-and-tuning) records the ranked tuning table, measured ramp outcomes, correction-gain equations, experimental procedure and limitations.
@@ -43,6 +52,7 @@ Only two WB-ID controller parameters changed from the user's current configurati
 ocs2:
   model:
     useTerrainHeightEstimate: false  # unchanged
+  constraints:
     footConstraint:
       positionErrorGain_z: 50.0     # previously 250
       orientationErrorGain: 100.0  # previously 1000

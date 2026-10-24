@@ -329,6 +329,9 @@ k_{a,R}\dot\omega_c+k_{d,R}\omega_c+k_{p,R}d_{\mathrm{plane}}(R_c,n_c(t))&=0.
 $$
 
 Current acceleration gains are 1, velocity gains are 50, vertical position gain is 50 and orientation gain is 100.
+These gains are configured under `ocs2.constraints.footConstraint` in the WB-ID controller, not under `ocs2.model` or `ocs2.costs`.
+The stance and swing rows are registered in the OCP equality collection; the separate `ocs2.costs.taskSpaceFootCost` is a soft objective and can trade tracking error against other costs.
+Finite SQP iterations, model mismatch and actuator limitations can still produce constraint residuals and physical tracking error; an OCP equality is not a guarantee of perfect real contact.
 At nominal 0.02 s spacing, $k_d=50=1/\Delta t$; under a constant-acceleration approximation, $a+v/\Delta t=0$ damps velocity to zero at the next node.
 This is not an exact nonlinear discrete no-slip equation because the Jacobian and its derivatives change over the interval.
 There is no explicit stance horizontal-position anchor in these rows.

@@ -67,14 +67,14 @@ ocs2::humanoid::WbIdMpcInterface::Config buildWholeBodyInverseDynamicsMpcConfig(
   model.j_r_elbow_y_name = p.model.armJointNames[3];
 
   auto& foot = model.footConstraintConfig;
-  foot.positionErrorGain_z = p.model.footConstraint.positionErrorGain_z;
-  foot.orientationErrorGain = p.model.footConstraint.orientationErrorGain;
-  foot.linearVelocityErrorGain_z = p.model.footConstraint.linearVelocityErrorGain_z;
-  foot.linearVelocityErrorGain_xy = p.model.footConstraint.linearVelocityErrorGain_xy;
-  foot.angularVelocityErrorGain = p.model.footConstraint.angularVelocityErrorGain;
-  foot.linearAccelerationErrorGain_z = p.model.footConstraint.linearAccelerationErrorGain_z;
-  foot.linearAccelerationErrorGain_xy = p.model.footConstraint.linearAccelerationErrorGain_xy;
-  foot.angularAccelerationErrorGain = p.model.footConstraint.angularAccelerationErrorGain;
+  foot.positionErrorGain_z = p.constraints.footConstraint.positionErrorGain_z;
+  foot.orientationErrorGain = p.constraints.footConstraint.orientationErrorGain;
+  foot.linearVelocityErrorGain_z = p.constraints.footConstraint.linearVelocityErrorGain_z;
+  foot.linearVelocityErrorGain_xy = p.constraints.footConstraint.linearVelocityErrorGain_xy;
+  foot.angularVelocityErrorGain = p.constraints.footConstraint.angularVelocityErrorGain;
+  foot.linearAccelerationErrorGain_z = p.constraints.footConstraint.linearAccelerationErrorGain_z;
+  foot.linearAccelerationErrorGain_xy = p.constraints.footConstraint.linearAccelerationErrorGain_xy;
+  foot.angularAccelerationErrorGain = p.constraints.footConstraint.angularAccelerationErrorGain;
 
   model.contactFrameTranslation =
     vector3_t(p.constraints.contact.frameTranslation[0], p.constraints.contact.frameTranslation[1],

@@ -124,23 +124,6 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           are attached to"}
       armJointNames: {type: string_array, default_value: [], description: "Arm swing reference joints in order [left_shoulder_y,
           right_shoulder_y, left_elbow_y, right_elbow_y]"}
-      footConstraint:
-        positionErrorGain_z: {type: double, default_value: 0.5, description: "Stance foot vertical position error
-            feedback gain"}
-        orientationErrorGain: {type: double, default_value: 20.0, description: "Stance foot orientation error feedback
-            gain"}
-        linearVelocityErrorGain_z: {type: double, default_value: 1.0, description: "Stance foot vertical linear
-            velocity error feedback gain"}
-        linearVelocityErrorGain_xy: {type: double, default_value: 1.0, description: "Stance foot horizontal linear
-            velocity error feedback gain"}
-        angularVelocityErrorGain: {type: double, default_value: 1.0, description: "Stance foot angular velocity
-            error feedback gain"}
-        linearAccelerationErrorGain_z: {type: double, default_value: 0.0, description: "Stance foot vertical linear
-            acceleration error feedback gain"}
-        linearAccelerationErrorGain_xy: {type: double, default_value: 0.0, description: "Stance foot horizontal
-            linear acceleration error feedback gain"}
-        angularAccelerationErrorGain: {type: double, default_value: 0.0, description: "Stance foot angular acceleration
-            error feedback gain"}
       torqueConstraintNodes: {type: int, default_value: 3, description: "Nodes from the start of the horizon carrying
           the joint-torque rows and torque limits; <= 0 for all"}
     sqp:
@@ -262,6 +245,23 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         rightWeights: {type: double_array, default_value: [], description: "Weights of the right-leg external torque
             quadratic cost (pre-scaling)"}
     constraints:
+      footConstraint:
+        positionErrorGain_z: {type: double, default_value: 0.5, description: "Stance foot vertical position error
+            feedback gain"}
+        orientationErrorGain: {type: double, default_value: 20.0, description: "Stance foot orientation error feedback
+            gain"}
+        linearVelocityErrorGain_z: {type: double, default_value: 1.0, description: "Stance foot vertical linear
+            velocity error feedback gain"}
+        linearVelocityErrorGain_xy: {type: double, default_value: 1.0, description: "Stance foot horizontal linear
+            velocity error feedback gain"}
+        angularVelocityErrorGain: {type: double, default_value: 1.0, description: "Stance foot angular velocity
+            error feedback gain"}
+        linearAccelerationErrorGain_z: {type: double, default_value: 0.0, description: "Stance foot vertical linear
+            acceleration error feedback gain"}
+        linearAccelerationErrorGain_xy: {type: double, default_value: 0.0, description: "Stance foot horizontal
+            linear acceleration error feedback gain"}
+        angularAccelerationErrorGain: {type: double, default_value: 0.0, description: "Stance foot angular acceleration
+            error feedback gain"}
       contact:
         frameTranslation: {type: double_array, default_value: [0.035, 0.0, -0.035], description: "Translation from
             the contact parent joint to the contact frame [x, y, z]", validation: {fixed_size<>: [3]}}

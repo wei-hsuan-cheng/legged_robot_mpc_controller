@@ -827,18 +827,6 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         useTerrainHeightEstimate: false
         maxTerrainHeightStep: 0.002
         
-        footConstraint:
-          # Slower position/tilt correction avoids fighting a shallow incline.
-          # These remain acceleration equalities, not soft-cost weights.
-          positionErrorGain_z: 50.0
-          orientationErrorGain: 100.0
-          linearVelocityErrorGain_z: 50.0
-          linearVelocityErrorGain_xy: 50.0
-          angularVelocityErrorGain: 50.0
-          linearAccelerationErrorGain_z: 1.0
-          linearAccelerationErrorGain_xy: 1.0
-          angularAccelerationErrorGain: 1.0
-
         torqueConstraintNodes: 3
 
       sqp:
@@ -986,6 +974,18 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
             [2.0, 2.0, 1.0, 8.0, 0.2, 0.2]
 
       constraints:
+        footConstraint:
+          # Slower position/tilt correction avoids fighting a shallow incline.
+          # These are acceleration equalities, not soft-cost weights.
+          positionErrorGain_z: 50.0
+          orientationErrorGain: 100.0
+          linearVelocityErrorGain_z: 50.0
+          linearVelocityErrorGain_xy: 50.0
+          angularVelocityErrorGain: 50.0
+          linearAccelerationErrorGain_z: 1.0
+          linearAccelerationErrorGain_xy: 1.0
+          angularAccelerationErrorGain: 1.0
+
         contact:
           frameTranslation: [0.035, 0.0, -0.035]
           rectangle: [0.09, -0.09, 0.03, -0.03]
