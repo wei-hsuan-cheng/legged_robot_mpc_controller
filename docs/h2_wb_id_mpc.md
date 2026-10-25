@@ -303,9 +303,12 @@ Seven H2 model/xacro checks, 11 scene-layout checks, 23 WB-ID contract checks, n
 
 ## Reproduce
 
+For manual flat-ground trials, keep only the robot and background includes in H2's `scene.xml`.
+The old `scene_flat.xml` filenames in historical results identify the scene used at the time; that separate file is no longer shipped.
+
 ```bash
 ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=h2 \
-  mujocoModelFile:=scene_flat.xml environmentDescription:="" \
+  mujocoModelFile:=scene.xml environmentDescription:="" \
   mpcFreq:=100 mrtFreq:=1000 \
   rviz:=true mujoco_headless:=false baseCommandGui:=true
 ```
@@ -314,7 +317,7 @@ For an automated isolated forward test from the sourced workspace:
 
 ```bash
 python3 src/legged_robot_mpc_controller/tests/wb_id_walk_test.py \
-  --robot-name h2 --scene scene_flat.xml \
+  --robot-name h2 \
   --config src/legged_robot_mpc_controller/config/h2/ros2_controllers.yaml \
   --source state_estimator --estimator humanoid_linear_kf \
   --minimum-height 0.65 --startup-timeout 1800 \

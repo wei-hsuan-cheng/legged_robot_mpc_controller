@@ -9,6 +9,7 @@ import xml.etree.ElementTree as ET
 
 import numpy as np
 import yaml
+from mujoco_scene import temporary_scene
 
 ROOT = Path(__file__).resolve().parents[1]
 MUJOCO = ROOT / "description/mujoco"
@@ -37,10 +38,12 @@ def surface_height(model, xy):
 
 class TerrainReferenceTest(unittest.TestCase):
     def test_flat_scene_has_no_phantom_staircase(self):
-        self.assertEqual(terrain.scene_regions(SCENES / "scene_flat.xml")["regions"], [])
+        with temporary_scene() as scene:
+            self.assertEqual(terrain.scene_regions(scene)["regions"], [])
 
     def test_ramp_has_matching_height_and_upward_normal(self):
-        model = terrain.scene_regions(SCENES / "scene_ramp.xml")
+        with temporary_scene(terrain="ramp") as scene:
+            model = terrain.scene_regions(scene)
         self.assertEqual(len(model["regions"]), 1)
         ramp = model["regions"][0]
         self.assertAlmostEqual(np.linalg.norm(ramp["normal"]), 1)
@@ -62,13 +65,13 @@ class TerrainReferenceTest(unittest.TestCase):
 
     @unittest.skipIf(mujoco is None, "MuJoCo Python package not installed")
     def test_exported_ramp_matches_compiled_mujoco_and_rays(self):
-        scene = SCENES / "scene_ramp.xml"
+        with temporary_scene(terrain="ramp") as scene:
+            model = mujoco.MjModel.from_xml_path(str(scene))
+            exported = terrain.scene_regions(scene)
         params = yaml.safe_load((ROOT / "config/terrains/ramp_params.yaml").read_text())["ramp"]
         incline, yaw = math.radians(params["incline_deg"]), params["base"]["yaw"]
-        model = mujoco.MjModel.from_xml_path(str(scene))
         data = mujoco.MjData(model)
         mujoco.mj_forward(model, data)
-        exported = terrain.scene_regions(scene)
         self.assertEqual(len(exported["regions"]), 1)
         np.testing.assert_allclose(exported["regions"][0]["normal"],
                                    [-math.sin(incline) * math.cos(yaw), -math.sin(incline) * math.sin(yaw), math.cos(incline)],

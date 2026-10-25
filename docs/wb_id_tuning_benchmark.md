@@ -122,7 +122,7 @@ Consequence: in the round 1–2 tables (5.1, 5.2), every 4–40 Hz "jitter" numb
 | file | does |
 |---|---|
 | `make_config.py` | writes a variant of `config/g1/ros2_controllers.yaml`: `--kp/--kd` by joint group (`hp hr hy kn ap ar wy wr wp sp sr sy el`, or `all`), `path=value` edits below the WB `ros__parameters`, `--tracking HZ` (default 500) |
-| `run_case.sh` | in the `ros_jazzy` container: launches WB-ID on `scene_flat.xml`, records a bag around the probe, converts it, plots, cleans up. Env: `HEIGHT`, `LAUNCH_ARGS` (extra launch args), `RVIZ=true SHOTS=1 RVIZCFG=...`, `OUT` |
+| `run_case.sh` | in the `ros_jazzy` container: generates an isolated flat scene, launches WB-ID, records a bag around the probe, converts it, plots, cleans up. Env: `HEIGHT`, `LAUNCH_ARGS` (extra launch args), `RVIZ=true SHOTS=1 RVIZCFG=...`, `OUT` |
 | `tune_probe.py` | drives the walk on a wall-clock schedule: 4 s stand → 3 s ramp → 20 s at `vx` → 3 s ramp down → 5 s stop. Watches for a fall and writes `meta.npz` |
 | `bag_to_npz.py` | bag + meta → `data.npz` |
 | `plot_tracking.py` | `data.npz` → `SUMMARY` / `DIAG` lines, `metrics.json`, `diag.json` and the plots; takes a case folder |

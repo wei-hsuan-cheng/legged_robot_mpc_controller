@@ -31,12 +31,15 @@ config/
 ```
 
 [`urdf/robots/g1/`](urdf/robots/g1/) contains the MPC and ros2_control descriptions, [`mujoco/robots/g1/`](mujoco/robots/g1/) contains the robot MJCF, and [`meshes/robots/g1/`](meshes/robots/g1/) contains their shared STL assets.
-Reusable MuJoCo environments live in [`mujoco/`](mujoco/README.md), with `robots/<robot>/scene*.xml` as the robot's scene entry points.
+Reusable MuJoCo environments live in [`mujoco/`](mujoco/README.md), with one `robots/<robot>/scene.xml` entry point per robot.
 H2 follows the same layout under `robots/h2/` in each format, with its pinned Unitree sources and integration changes documented in [`urdf/robots/h2/MODEL_SOURCE.md`](urdf/robots/h2/MODEL_SOURCE.md).
 The RViz staircase is [`urdf/terrains/stairs.urdf.xacro`](urdf/terrains/stairs.urdf.xacro), while the simulator staircase is [`mujoco/terrains/stairs.xml`](mujoco/terrains/stairs.xml).
 Both xacros read the same format-neutral geometry settings from [`config/terrains/stairs_params.yaml`](../config/terrains/stairs_params.yaml), so shared parameters and URDF assets do not live under MuJoCo.
 The ramp and the movable boxes follow the same pattern: [`config/terrains/ramp_params.yaml`](../config/terrains/ramp_params.yaml) drives [`mujoco/terrains/ramp.xml.xacro`](mujoco/terrains/ramp.xml.xacro) and [`urdf/terrains/ramp.urdf.xacro`](urdf/terrains/ramp.urdf.xacro), and [`config/objects/boxes_params.yaml`](../config/objects/boxes_params.yaml) drives [`mujoco/objects/boxes.xml.xacro`](mujoco/objects/boxes.xml.xacro) and [`urdf/objects/boxes.urdf.xacro`](urdf/objects/boxes.urdf.xacro); the generated `ramp.xml` and `boxes.xml` are committed like `stairs.xml`.
 The [shared terrain configuration directory](../config/terrains/README.md) also contains both robots' stair-climbing and terrain-walking planner variants; robot-specific height and foot geometry settings are preserved.
 
-`robot.launch.py robotName:=g1` or `robotName:=h2` resolves the selected robot's paths automatically, so both use `mujocoModelFile:=scene_flat.xml`.
+Box attributes are grouped under `boxes.box_1`, `boxes.box_2` and any additional entries; see [box configuration](../config/objects/README.md).
+`robot.launch.py robotName:=g1` or `robotName:=h2` resolves the selected robot's paths automatically, so both use `mujocoModelFile:=scene.xml`.
+Change that file's terrain/object includes instead of maintaining separate shipped scene variants; the launch still accepts any custom scene filename or absolute path.
+`environmentDescription` is empty by default and independently selects an optional RViz environment URDF/xacro.
 Explicit paths supplied by external launch files must use the new layout.

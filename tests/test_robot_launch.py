@@ -53,6 +53,7 @@ class RobotLaunchTest(unittest.TestCase):
                 self.assertIn(robot, Path(values[argument]).parts)
             self.assertEqual(values['libFolder'], f'auto_generated/{robot}')
             self.assertEqual(values['mujocoModelFile'], 'scene.xml')
+            self.assertEqual(values['environmentDescription'], '')
             self.assertEqual(values['refBaseHeight'], '')
             self.assertEqual(float(values['guiMaxVx']), reference['maxDisplacementVelocityX'])
 
@@ -67,6 +68,17 @@ class RobotLaunchTest(unittest.TestCase):
             self.assertEqual(float(values['guiRefBaseHeight']), .9)
             self.assertNotEqual(Path(values['controllersParamsFile']), source)
             self.assertEqual(source.read_bytes(), before)
+
+    def test_scene_and_environment_paths_remain_unrestricted(self):
+        for robot in ('g1', 'h2'):
+            context, description = self.resolve(robot, mujocoModelFile='/tmp/my_scene.xml',
+                                                environmentDescription='/tmp/my_environment.urdf')
+            self.assertEqual(context.launch_configurations['mujocoModelFile'], '/tmp/my_scene.xml')
+            self.assertEqual(context.launch_configurations['environmentDescription'], '/tmp/my_environment.urdf')
+            argument = next(action for action in description.entities
+                            if isinstance(action, DeclareLaunchArgument) and action.name == 'environmentDescription')
+            for choice in ('stairs.urdf.xacro', 'ramp.urdf.xacro', 'uneven_terrain.urdf', 'boxes.urdf.xacro'):
+                self.assertIn(choice, argument.description)
 
     def test_custom_controller_yaml_supplies_gui_height(self):
         config = yaml.safe_load((ROOT / 'config/h2/ros2_controllers.yaml').read_text())

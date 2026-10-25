@@ -11,6 +11,7 @@ from pathlib import Path
 import signal
 import subprocess
 import time
+from mujoco_scene import write_scene
 
 
 def stop_launch(process):
@@ -37,10 +38,11 @@ def main():
         parser.error("timeout must be positive")
     args.prefix.parent.mkdir(parents=True, exist_ok=True)
     log_path = Path(str(args.prefix) + ".log")
+    scene = write_scene(Path(str(args.prefix) + "_scene.xml"))
     command = [
         "ros2", "launch", "legged_robot_mpc_controller", "robot.launch.py", "robotName:=g1",
         "mpcControllerName:=humanoid_whole_body_inverse_dynamics_mpc_controller",
-        "mpcFreq:=100", "mrtFreq:=1000", "mujocoModelFile:=scene_flat.xml",
+        "mpcFreq:=100", "mrtFreq:=1000", f"mujocoModelFile:={scene}",
         "rviz:=false", "mujoco_headless:=true", "baseCommandGui:=false",
     ]
     failures = (

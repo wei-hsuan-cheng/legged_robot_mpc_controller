@@ -1,6 +1,0 @@
-<mujoco model="h2_scene_flat">
-  <!-- Select one background, one robot, and any terrain/object modules. -->
-  <include file="h2_31dof.xml" />
-  <include file="../../common/backgrounds/background_day.xml" />
-  <option timestep="0.0001" />
-</mujoco>

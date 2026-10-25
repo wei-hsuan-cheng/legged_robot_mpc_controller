@@ -86,7 +86,7 @@ def main():
         "humanoid_whole_body_inverse_dynamics_mpc_controller"]["ros__parameters"]
     count = max(1, math.floor(args.horizon / params["visualization"]["optimizedStateRobotModelsInterval"] + 0.5))
     command = [sys.executable, str(ROOT / "tests/wb_id_walk_test.py"),
-               "--robot-name", args.robot_name, "--scene", "scene_flat.xml", "--source", "state_estimator",
+               "--robot-name", args.robot_name, "--source", "state_estimator",
                "--estimator", "humanoid_linear_kf", "--axis", "vx", "--speed", "0.10",
                "--settle", "4", "--ramp", "0", "--hold", "6", "--rest", "4", "--mpc-rate", "90",
                "--set", f"ocs2.mpc.timeHorizon={args.horizon}", "--prefix", args.prefix + "_walk"]

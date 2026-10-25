@@ -14,17 +14,24 @@
 # Keep it as the single source of truth.
 # -----------------------------------------------------------------------------
 boxes:
-  # ----- number of boxes -----
-  num_boxes: 2
+  # Add/remove entries freely; no separate count or parallel lists are needed.
+  # name preserves the simulator/RViz body name; omit it to use the entry key.
+  box_1:
+    name: purple_box
+    position: [0.65, 0.0, 0.4]      # World center [x, y, z] [m].
+    yaw: 0.0                        # About world +z [rad].
+    size: [0.2, 0.4, 0.8]          # Full local edge lengths [x, y, z] [m].
+    mass: 5.0                       # [kg].
+    inertia: [1.0, 1.0, 1.0]       # Principal [Ixx, Iyy, Izz] [kg m^2].
+    color: [0.5, 0.0, 0.5, 1.0]    # RGBA.
+    friction: [1.0, 0.005, 0.0001]  # MuJoCo slide/spin/roll.
 
-  # ----- per-box lists (length must equal num_boxes) -----
-  names:     [purple_box, orange_box]
-  positions: [[0.65, 0.0, 0.4], [0.3, -0.25, 0.08]]           # world centre [x, y, z] [m]
-  yaws:      [0.0, 0.0]                                         # yaw about world +z [radians]
-  sizes:     [[0.2, 0.4, 0.8], [0.16, 0.16, 0.16]]              # full edge lengths [x, y, z] [m]
-  masses:    [5.0, 3.0]                                         # [kg]
-  inertias:  [[1.0, 1.0, 1.0], [0.5, 0.5, 0.5]]                 # principal inertia [Ixx, Iyy, Izz] [kg m^2]
-  colors:    [[0.5, 0.0, 0.5, 1.0], [1.0, 0.5, 0.0, 1.0]]       # rgba
-
-  # ----- shared physics -----
-  friction: [1.0, 0.005, 0.0001]   # MuJoCo geom friction (slide, spin, roll); MuJoCo's default
+  box_2:
+    name: orange_box
+    position: [0.3, -0.25, 0.08]
+    yaw: 0.0
+    size: [0.16, 0.16, 0.16]
+    mass: 3.0
+    inertia: [0.5, 0.5, 0.5]
+    color: [1.0, 0.5, 0.0, 1.0]
+    friction: [1.0, 0.005, 0.0001]

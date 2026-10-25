@@ -1,7 +1,7 @@
 <mujoco model="g1_scene">
   <!-- Select one background, one robot, and any terrain/object modules. -->
-  <include file="g1_29dof.xml" />
-  <include file="../../terrains/stairs.xml" />
-  <include file="../../common/backgrounds/background_night.xml" />
   <option timestep="0.0001" />
+  <include file="../../common/backgrounds/background_night.xml" />
+  <!-- <include file="../../terrains/stairs.xml" /> -->
+  <include file="g1_29dof.xml" />
 </mujoco>

@@ -12,6 +12,7 @@ import unittest
 import xml.etree.ElementTree as ET
 
 import yaml
+from mujoco_scene import temporary_scene
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -162,7 +163,8 @@ class UnevenTerrainTest(unittest.TestCase):
     def test_compiled_surface_matches_tile_tops_and_clear_floor(self):
         config = defaults()
         blocks = terrain.generate_blocks(config, terrain.generate_heights(config))
-        model = mujoco.MjModel.from_xml_path(str(ROOT / "description/mujoco/robots/g1/scene_uneven.xml"))
+        with temporary_scene(terrain="rough") as scene:
+            model = mujoco.MjModel.from_xml_path(str(scene))
         data = mujoco.MjData(model)
         mujoco.mj_forward(model, data)
         groups = np.array([1, 0, 0, 0, 0, 0], dtype=np.uint8)

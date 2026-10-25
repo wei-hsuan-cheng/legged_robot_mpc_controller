@@ -42,10 +42,9 @@ def generate_launch_description():
     ])
     urdf_default = PathJoinSubstitution([mpc_share_dir, "description", "urdf", "robots", robot_name, urdf_name])
 
-    # The environment, rooted at world - not part of the robot. "" for none (e.g. with scene_flat.xml);
-    # description/urdf/terrains/ramp.urdf.xacro or description/urdf/objects/boxes.urdf.xacro for the others.
+    # Optional RViz environment, rooted at world and separate from the MuJoCo scene.
     # Each xacro reads the same params file as its MuJoCo module; all three files are passed to whichever is selected.
-    environment_default = PathJoinSubstitution([mpc_share_dir, "description", "urdf", "terrains", "stairs.urdf.xacro"])
+    environment_default = "" # e.g., PathJoinSubstitution([mpc_share_dir, "description", "urdf", "terrains", "stairs.urdf.xacro"])
     stairs_params_file = PathJoinSubstitution([mpc_share_dir, "config", "terrains", "stairs_params.yaml"])
     ramp_params_file = PathJoinSubstitution([mpc_share_dir, "config", "terrains", "ramp_params.yaml"])
     boxes_params_file = PathJoinSubstitution([mpc_share_dir, "config", "objects", "boxes_params.yaml"])
@@ -89,7 +88,14 @@ def generate_launch_description():
         # (pelvis can have one TF parent).
         DeclareLaunchArgument("gt_body_frame", default_value="pelvis"),
         DeclareLaunchArgument("urdfFile", default_value=urdf_default),
-        DeclareLaunchArgument("environmentDescription", default_value=environment_default),
+        DeclareLaunchArgument(
+            "environmentDescription",
+            default_value=environment_default,
+            description="Optional environment URDF/xacro path for RViz; empty disables it. "
+                        "Existing choices under <package_share>/description/urdf/: "
+                        "terrains/stairs.urdf.xacro, terrains/ramp.urdf.xacro, "
+                        "terrains/uneven_terrain.urdf, or objects/boxes.urdf.xacro. "
+                        "Select the geometry matching your MuJoCo scene.",),
         DeclareLaunchArgument(
             "mpcControllerName",
             default_value=whole_body_controller,
@@ -159,7 +165,11 @@ def generate_launch_description():
             default_value="true",
             description="Launch the pelvis velocity/height command GUI.",
         ),
-        DeclareLaunchArgument("mujocoModelFile", default_value="scene.xml"),
+        DeclareLaunchArgument(
+            "mujocoModelFile",
+            default_value="scene.xml",
+            description="MuJoCo scene filename under description/mujoco/robots/<robotName>/, "
+                        "or an absolute path to any custom scene XML.",),
     ]
 
     use_mujoco_sim = LaunchConfiguration("use_mujoco_sim")

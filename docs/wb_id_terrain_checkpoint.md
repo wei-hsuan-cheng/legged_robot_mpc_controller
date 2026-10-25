@@ -3,6 +3,7 @@
 **Archived proposal, not the current launch workflow.**
 The scene-extraction hook and `terrainFromScene` argument were removed from the former `g1.launch.py` at the user's request; commands using that argument below describe the earlier checkpoint only.
 The current entry point is [`robot.launch.py`](../launch/robot.launch.py), which does not expose that hook.
+The separate scene variants named in this archived proposal are also no longer shipped; compose the selected robot's `scene.xml` instead.
 The standalone exporter remains unused by launch, and the mapped-planner extensions remain separate from ordinary `base_twist` walking.
 For the tested ramp gains and current status, see [Codex.md](../Codex.md).
 
@@ -37,7 +38,7 @@ ros2 topic pub -r 25 /humanoid/walking_velocity_command \
 
 The x/y/yaw fields are normalized commands; the current maximum x speed is 1 m/s, so x=0.10 requests 0.10 m/s.
 Stop by replacing the velocity publication with zero x/y/yaw while retaining the same commanded height.
-For the uneven field, include `terrains/uneven_terrain.xml` in your scene or select `scene_uneven.xml`; the exporter follows the actual include tree, including edits to `scene.xml`.
+For the uneven field, include `../../terrains/uneven_terrain.xml` in the selected robot's `scene.xml`; the exporter follows the actual include tree.
 No provided scene file was changed by this checkpoint.
 `terrainFromScene` supplies geometry but does not switch modes automatically; ordinary `base_twist` remains the default until `terrain_walk` is selected.
 For headless testing, additionally pass `rviz:=false mujoco_headless:=true`.

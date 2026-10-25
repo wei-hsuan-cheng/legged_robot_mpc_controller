@@ -9,6 +9,7 @@ import argparse
 import csv
 import json
 from pathlib import Path
+import sys
 
 import matplotlib
 matplotlib.use("Agg")
@@ -17,13 +18,20 @@ import mujoco
 import numpy as np
 import yaml
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from mujoco_scene import temporary_scene
+
 
 def analyze(prefix, scene, render, robot_name="h2"):
     samples = json.loads(Path(str(prefix) + "_replay.json").read_text())
     samples = [s for s in samples if s["phase"] != "startup"]
     if not samples:
         raise ValueError(f"No post-startup replay samples in {prefix}")
-    model = mujoco.MjModel.from_xml_path(str(scene))
+    if scene is None:
+        with temporary_scene(robot_name) as flat:
+            model = mujoco.MjModel.from_xml_path(str(flat))
+    else:
+        model = mujoco.MjModel.from_xml_path(str(scene))
     data = mujoco.MjData(model)
     joints = {model.joint(i).name: model.jnt_qposadr[i] for i in range(model.njnt)}
     root = Path(__file__).resolve().parents[2]
@@ -192,6 +200,5 @@ if __name__ == "__main__":
     parser.add_argument("--scene", type=Path)
     parser.add_argument("--render", action="store_true")
     args = parser.parse_args()
-    args.scene = args.scene or Path(__file__).resolve().parents[2] / "description/mujoco/robots" / args.robot_name / "scene_flat.xml"
     for prefix in args.prefixes:
         analyze(prefix, args.scene, args.render, args.robot_name)

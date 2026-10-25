@@ -63,13 +63,14 @@ The generator rejects tiles below the background floor at world Z=0, because tha
 It also rejects a height envelope too narrow for the requested minimum difference and jitter; widen the envelope or reduce jitter rather than silently violating the bounds.
 For the default seed, logical neighbor steps span about 2.30-4.67 cm with a 3.32 cm mean and 0.48 cm standard deviation; the 400 logical cells become 404 box pieces around the exact clear patch.
 
-After building and sourcing the workspace, run the existing WB-ID controller on the explicit uneven scene:
+First replace any other terrain/object includes in your robot's `scene.xml` with `<include file="../../terrains/uneven_terrain.xml" />`, keeping its robot and background includes.
+After building and sourcing the workspace, run the existing WB-ID controller:
 
 ```bash
 ros2 launch legged_robot_mpc_controller robot.launch.py \
   robotName:=g1 \
   mpcControllerName:=humanoid_whole_body_inverse_dynamics_mpc_controller \
-  mujocoModelFile:=scene_uneven.xml \
+  mujocoModelFile:=scene.xml \
   environmentDescription:="$(ros2 pkg prefix legged_robot_mpc_controller)/share/legged_robot_mpc_controller/description/urdf/terrains/uneven_terrain.urdf" \
   mpcFreq:=90 mrtFreq:=1000 rviz:=true mujoco_headless:=false baseCommandGui:=true
 ```

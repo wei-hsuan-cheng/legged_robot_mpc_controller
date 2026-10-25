@@ -17,35 +17,30 @@
 
   <xacro:property name="boxes" value="${xacro.load_yaml(boxes_params_file)['boxes']}"/>
 
-  <xacro:property name="num_boxes" value="${boxes['num_boxes']}"/>
-  <xacro:property name="names"     value="${boxes['names']}"/>
-  <xacro:property name="positions" value="${boxes['positions']}"/>
-  <xacro:property name="yaws"      value="${boxes['yaws']}"/>
-  <xacro:property name="sizes"     value="${boxes['sizes']}"/>
-  <xacro:property name="masses"    value="${boxes['masses']}"/>
-  <xacro:property name="inertias"  value="${boxes['inertias']}"/>
-  <xacro:property name="colors"    value="${boxes['colors']}"/>
-  <xacro:property name="friction"  value="${boxes['friction']}"/>
+  <xacro:property name="box_ids" value="${list(boxes.keys())}"/>
 
   <!--
     Recursively emit one free body per box.
-      i : 1-based box index
+      i : zero-based entry index; every attribute belongs to that entry
   -->
   <xacro:macro name="emit_box" params="i">
-    <xacro:if value="${i &lt;= num_boxes}">
-      <xacro:property name="p"   value="${positions[i-1]}"/>
-      <xacro:property name="s"   value="${sizes[i-1]}"/>
-      <xacro:property name="I"   value="${inertias[i-1]}"/>
-      <xacro:property name="c"   value="${colors[i-1]}"/>
-      <xacro:property name="yaw" value="${yaws[i-1]}"/>
+    <xacro:if value="${i &lt; len(box_ids)}">
+      <xacro:property name="box" value="${boxes[box_ids[i]]}"/>
+      <xacro:property name="name" value="${box.get('name', box_ids[i])}"/>
+      <xacro:property name="p"   value="${box['position']}"/>
+      <xacro:property name="s"   value="${box['size']}"/>
+      <xacro:property name="I"   value="${box['inertia']}"/>
+      <xacro:property name="c"   value="${box['color']}"/>
+      <xacro:property name="yaw" value="${box['yaw']}"/>
+      <xacro:property name="friction" value="${box['friction']}"/>
 
-      <body name="${names[i-1]}" pos="${p[0]} ${p[1]} ${p[2]}" quat="${cos(yaw / 2.0)} 0 0 ${sin(yaw / 2.0)}">
+      <body name="${name}" pos="${p[0]} ${p[1]} ${p[2]}" quat="${cos(yaw / 2.0)} 0 0 ${sin(yaw / 2.0)}">
         <freejoint/>
         <geom type="box"
               size="${s[0] / 2.0} ${s[1] / 2.0} ${s[2] / 2.0}"
               material="studio_terrain" rgba="${c[0]} ${c[1]} ${c[2]} ${c[3]}"
               friction="${friction[0]} ${friction[1]} ${friction[2]}"/>
-        <inertial pos="0 0 0" mass="${masses[i-1]}" diaginertia="${I[0]} ${I[1]} ${I[2]}"/>
+        <inertial pos="0 0 0" mass="${box['mass']}" diaginertia="${I[0]} ${I[1]} ${I[2]}"/>
       </body>
 
       <xacro:emit_box i="${i + 1}"/>
@@ -53,6 +48,6 @@
   </xacro:macro>
 
   <worldbody>
-    <xacro:emit_box i="${1}"/>
+    <xacro:emit_box i="${0}"/>
   </worldbody>
 </mujoco>

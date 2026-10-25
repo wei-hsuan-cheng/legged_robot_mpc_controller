@@ -10,9 +10,9 @@ edits immediately reach every scene without copying or regenerating geometry.
 
 Usage (scene paths are relative to description/mujoco/robots/<robot-name>):
     python3 description/mujoco/mujoco_scene_creator.py
-    python3 description/mujoco/mujoco_scene_creator.py --terrain none -o scene_flat.xml
-    python3 description/mujoco/mujoco_scene_creator.py --reference scene_ramp.xml
-    python3 description/mujoco/mujoco_scene_creator.py --robot-name h2 --terrain none -o scene_flat.xml
+    python3 description/mujoco/mujoco_scene_creator.py --terrain none
+    python3 description/mujoco/mujoco_scene_creator.py --terrain ramp
+    python3 description/mujoco/mujoco_scene_creator.py --robot-name h2 --terrain rough
     python3 description/mujoco/mujoco_scene_creator.py --background day --terrain ramp -o scene_day_ramp.xml
     python3 description/mujoco/mujoco_scene_creator.py --style studio_blue -o scene_blue.xml
     python3 description/mujoco/mujoco_scene_creator.py --preview /tmp/studio.png

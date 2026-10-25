@@ -145,7 +145,8 @@ gt_body_frame:=pelvis                    # MuJoCo body published as ground truth
 mpcFreq:=100                             # integer
 mrtFreq:=1000                            # integer
 libFolder:=auto_generated/g1             # default: auto_generated/<robotName>
-mujocoModelFile:=scene.xml               # scene in description/mujoco/robots/<robotName>/
+mujocoModelFile:=scene.xml               # robot-local filename or absolute custom scene path
+environmentDescription:=""              # optional RViz environment URDF/xacro; empty by default
 stairClimbingFile:=<pkg_share>/config/terrains/stair_climbing/g1.yaml
 terrainWalkingFile:=<pkg_share>/config/terrains/terrain_walking/g1.yaml
 ```
@@ -153,7 +154,7 @@ terrainWalkingFile:=<pkg_share>/config/terrains/terrain_walking/g1.yaml
 
 ### Uneven terrain
 
-`scene_uneven.xml` is available for both robots, with a shared configurable field center, footprint, grid, rolling profile, random seed and adjacent height-difference distribution.
+Include `../../terrains/uneven_terrain.xml` in either robot's `scene.xml` to use the shared configurable field center, footprint, grid, rolling profile, random seed and adjacent height-difference distribution.
 Edit [`uneven_terrain_params.yaml`](./config/terrains/uneven_terrain_params.yaml), then run `python3 description/mujoco/terrains/generate_uneven_terrain.py` to regenerate matching MuJoCo and RViz geometry.
 The default edge-neighbor height differences are bounded to 2-5 cm; see [parameters and launch example](./config/terrains/README.md#uneven-terrain), including the exceptions at floor/clear-patch boundaries.
 This only changes the environment and supplies no terrain map to ordinary `base_twist` control.
@@ -165,7 +166,7 @@ In `base_twist` mode, G1 and H2 use `[stance, walk, trot, run]`, with overlappin
 Running is requested at a forward command of 0.75 m/s or higher, subject to the speed, dwell and scheduling guards.
 G1's revised sequence has not been simulation-tested; the earlier running tests used `[stance, slow_walk, walk, run]`.
 H2 runs up to a 2.0 m/s command (full GUI stick) with a swing-foot target that lands each step about v·T_stance/2 ahead of the body; the result is grounded running rather than an aerial run.
-Start on `mujocoModelFile:=scene_flat.xml` and try 0.75-1.0 m/s (G1) or up to 2.0 m/s (H2); the running schedule includes intervals with both feet in swing.
+Start with only the robot and background includes in `scene.xml` for flat ground, and try 0.75-1.0 m/s (G1) or up to 2.0 m/s (H2); the running schedule includes intervals with both feet in swing.
 See [Running Checkpoint](./docs/wb_id_running.md) for timing, automated tests and the difference between scheduled and actual flight.
 Speeds above 1.0 m/s still select `run` when permitted by the command limits, but have not been validated.
 
@@ -292,7 +293,10 @@ See the [description layout](./description/README.md) and [MuJoCo scene composit
 
 There is one robot URDF, [`description/urdf/robots/g1/g1_29dof.urdf`](./description/urdf/robots/g1/g1_29dof.urdf), rooted at the pelvis with **no `world` link and no floating joint**. The MPC and the estimators add the floating base themselves (Pinocchio), MuJoCo owns its free joint in the MJCF, and the base pose reaches the TF tree from the estimator. [`g1.ros2_control.xacro`](./description/urdf/robots/g1/g1.ros2_control.xacro) includes that URDF and adds the `<ros2_control>` block; the result is the single `/robot_description`, used by the controller manager and robot_state_publisher.
 
-The environment is not part of the robot: [`stairs.urdf.xacro`](./description/urdf/terrains/stairs.urdf.xacro), rooted at `world` and driven by the same [`stairs_params.yaml`](./config/terrains/stairs_params.yaml) as the MuJoCo stairs, is published by a second robot_state_publisher as `/environment/robot_description` (the "Environment" display in rviz). Pass `environmentDescription:=""` with a scene that has no stairs, e.g. `scene_flat.xml`.
+The optional environment is not part of the robot and is disabled by default with `environmentDescription:=""`.
+For example, select `<pkg_share>/description/urdf/terrains/stairs.urdf.xacro` to publish matching stairs as `/environment/robot_description` (the "Environment" display in RViz), rooted at `world` and driven by the shared [`stairs_params.yaml`](./config/terrains/stairs_params.yaml).
+Other existing choices are `terrains/ramp.urdf.xacro`, `terrains/uneven_terrain.urdf` and `objects/boxes.urdf.xacro` under `<pkg_share>/description/urdf/`.
+This RViz choice does not change MuJoCo physics; edit each robot's single `scene.xml` or pass a custom `mujocoModelFile` independently.
 
 ```mermaid
 flowchart LR

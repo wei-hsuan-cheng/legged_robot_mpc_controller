@@ -9,6 +9,7 @@ import argparse
 import csv
 import json
 from pathlib import Path
+import sys
 
 import matplotlib
 matplotlib.use("Agg")
@@ -16,6 +17,9 @@ import matplotlib.pyplot as plt
 import mujoco
 import numpy as np
 import yaml
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from mujoco_scene import temporary_scene
 
 
 def intervals(times, mask):
@@ -49,7 +53,8 @@ def lowest_point(model, data, geom):
 
 def analyze(prefix, robot, render=False):
     root = Path(__file__).resolve().parents[2]
-    model = mujoco.MjModel.from_xml_path(str(root / "description/mujoco/robots" / robot / "scene_flat.xml"))
+    with temporary_scene(robot) as scene:
+        model = mujoco.MjModel.from_xml_path(str(scene))
     data = mujoco.MjData(model)
     config = yaml.safe_load(Path(str(prefix) + ".yaml").read_text())["humanoid_whole_body_inverse_dynamics_mpc_controller"]["ros__parameters"]
     samples = json.loads(Path(str(prefix) + "_replay.json").read_text())

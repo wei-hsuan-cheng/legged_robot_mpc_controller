@@ -33,6 +33,9 @@ except ImportError:
     xacro = None
 
 
+from mujoco_scene import temporary_scene
+
+
 class SceneLayoutTest(unittest.TestCase):
     def test_launch_description_paths(self):
         launch = (ROOT / "launch/robot.launch.py").read_text()
@@ -91,7 +94,8 @@ class SceneLayoutTest(unittest.TestCase):
     @unittest.skipIf(mujoco is None, "mujoco Python package is not installed")
     def test_all_scenes_and_generated_terrains_compile(self):
         scenes = list(SCENES.glob("robots/*/scene*.xml"))
-        self.assertEqual(len(scenes), 8)
+        self.assertEqual(len(scenes), 2)
+        self.assertTrue(all(path.name == "scene.xml" for path in scenes))
         for path in scenes:
             with self.subTest(scene=path.name):
                 model = mujoco.MjModel.from_xml_path(str(path))
@@ -122,7 +126,8 @@ class SceneLayoutTest(unittest.TestCase):
                 self.assertEqual(before, shared_background.read_bytes())
                 self.assertTrue((scenes / "common" / "backgrounds" / "background_night_scene_test.xml").is_file())
                 model = mujoco.MjModel.from_xml_path(str(scenes / "robots" / robot / "scene_test.xml"))
-                flat = mujoco.MjModel.from_xml_path(str(scenes / "robots" / robot / "scene_flat.xml"))
+                with temporary_scene(robot, package=description.parent) as scene:
+                    flat = mujoco.MjModel.from_xml_path(str(scene))
                 rough_count = len(ET.parse(scenes / "terrains/uneven_terrain.xml").findall(".//geom"))
                 self.assertEqual(model.ngeom, flat.ngeom + rough_count)
 
@@ -158,7 +163,8 @@ class SceneLayoutTest(unittest.TestCase):
         import numpy as np
         import yaml
         params = yaml.safe_load((ROOT / "config/terrains/ramp_params.yaml").read_text())["ramp"]
-        model = mujoco.MjModel.from_xml_path(str(G1_SCENES / "scene_ramp.xml"))
+        with temporary_scene(terrain="ramp") as scene:
+            model = mujoco.MjModel.from_xml_path(str(scene))
         data = mujoco.MjData(model)
         mujoco.mj_forward(model, data)
         rise = params["length"] * math.tan(math.radians(params["incline_deg"]))

@@ -125,7 +125,9 @@ class H2ModelTest(unittest.TestCase):
 
     @unittest.skipIf(mujoco is None, 'mujoco is not installed')
     def test_foot_sphere_samples_cover_collision_extremes(self):
-        model = mujoco.MjModel.from_xml_path(str(ROOT / 'description/mujoco/robots/h2/scene_flat.xml'))
+        from mujoco_scene import temporary_scene
+        with temporary_scene('h2') as scene:
+            model = mujoco.MjModel.from_xml_path(str(scene))
         geometry = PARAMS['ocs2']['model']['contactGeometry']
         center = np.array(geometry['frameTranslation'])
         rectangle = geometry['rectangle']
@@ -157,7 +159,9 @@ class H2ModelTest(unittest.TestCase):
 
     @unittest.skipIf(mujoco is None, 'mujoco is not installed')
     def test_mass_and_nominal_contact_geometry(self):
-        model = mujoco.MjModel.from_xml_path(str(ROOT / 'description/mujoco/robots/h2/scene_flat.xml'))
+        from mujoco_scene import temporary_scene
+        with temporary_scene('h2') as scene:
+            model = mujoco.MjModel.from_xml_path(str(scene))
         self.assertEqual(model.nu, 31)
         urdf_mass = sum(float(m.attrib['value']) for m in URDF.findall('.//inertial/mass'))
         self.assertAlmostEqual(float(sum(model.body_mass)), urdf_mass, places=4)

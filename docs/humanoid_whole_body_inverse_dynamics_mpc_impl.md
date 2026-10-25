@@ -374,7 +374,7 @@ The schema's typed empty-vector default is valid, but an explicit `limits: []` r
 The centroidal parameter schema, builder and YAML block, shared core model structures, and launch file retain their existing contracts.
 Update external WB-ID YAML files and dotted overrides, then rebuild the generated parameter library and controller before using these new paths; no deprecated aliases are provided.
 `tests/wb_id_parameter_contract_test.py` checks the schema/builder mapping, removal of obsolete WB-ID paths, both policy-offset readers and retention of the separate centroidal layout.
-Run `python3 tests/wb_id_startup_smoke_test.py` from a sourced ROS workspace to test real WB-ID startup on `scene_flat.xml`, with MuJoCo headless, RViz and the command GUI disabled; it terminates its own launch group immediately after the `-> locomotion` transition and saves a log and JSON verdict under `/tmp/wb_id_startup`.
+Run `python3 tests/wb_id_startup_smoke_test.py` from a sourced ROS workspace to test real WB-ID startup on an isolated generated flat scene, with MuJoCo headless, RViz and the command GUI disabled; it terminates its own launch group immediately after the `-> locomotion` transition and saves its scene, log and JSON verdict under `/tmp/wb_id_startup`.
 
 
 ## 11. Constraint Activation and Bound Scaling

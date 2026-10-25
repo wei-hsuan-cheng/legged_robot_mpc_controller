@@ -24,6 +24,7 @@ from nav_msgs.msg import Odometry
 from sensor_msgs.msg import JointState
 from ocs2_msgs.msg import WalkingVelocityCommand
 import yaml
+from mujoco_scene import write_scene
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "launch"))
 from push_recovery_test import FEEDBACK_TOPIC, WrenchPublisher, WrenchSequence
@@ -138,7 +139,7 @@ def main():
     parser.add_argument("--mpc-rate", type=int, default=100)
     parser.add_argument("--launch-file", default="robot.launch.py")
     parser.add_argument("--robot-name", choices=["g1", "h2"], default="g1")
-    parser.add_argument("--scene", default="scene_flat.xml")
+    parser.add_argument("--scene", help="Scene filename or absolute path; omitted generates an isolated flat test scene")
     parser.add_argument("--minimum-height", type=float, default=0.38)
     parser.add_argument("--startup-timeout", type=float, default=600.0)
     parser.add_argument("--record-joints", action="store_true", help="Save latest joint sample with each base pose for collision analysis and render replay")
@@ -155,6 +156,8 @@ def main():
     parser.add_argument("--config", type=Path, help="Controller YAML (default: config/<robot-name>/ros2_controllers.yaml)")
     parser.add_argument("--set", action="append", default=[], metavar="KEY=JSON", help="Override a dotted controller parameter in a temporary YAML")
     args = parser.parse_args()
+    if args.scene is None:
+        args.scene = str(write_scene(Path(args.prefix + "_scene.xml"), args.robot_name))
     sequence = WrenchSequence.load(args.wrench_sequence) if args.wrench_sequence else None
     if args.wrench_delay < 0 or not math.isfinite(args.wrench_delay):
         parser.error("wrench delay must be finite and nonnegative")

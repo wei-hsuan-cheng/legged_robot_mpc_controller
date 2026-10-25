@@ -1,5 +1,5 @@
 #!/bin/bash
-# One WB-ID tuning experiment in the ros_jazzy container: launch WB-ID on scene_flat with a
+# One WB-ID tuning experiment in the ros_jazzy container: launch WB-ID on generated flat ground with a
 # controllers yaml, run the stand -> walk -> stop probe, score it and plot it.
 #
 # usage: run_case.sh <tag> <controllers.yaml | default> [vx_mps]
@@ -19,9 +19,10 @@ TAG=$1; CFG=$2; VX=${3:-0.5}
 OUT=${OUT:-$REPO/tuning_results}; D=$OUT/$TAG; mkdir -p "$D"; rm -rf "${D:?}"/*
 [ "$CFG" = default ] && CFG=$REPO/config/g1/ros2_controllers.yaml
 cp "$CFG" "$D/config.yaml"
+python3 "$REPO/tests/mujoco_scene.py" --robot-name g1 --output "$D/scene.xml"
 pkill -9 -x mujoco_ros2_con 2>/dev/null; pkill -9 -x rviz2 2>/dev/null; sleep 2
 setsid nohup timeout 240 bash -c "cd $WS && $SRC && ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=g1 \
-  mpcControllerName:=humanoid_whole_body_inverse_dynamics_mpc_controller mujocoModelFile:=scene_flat.xml \
+  mpcControllerName:=humanoid_whole_body_inverse_dynamics_mpc_controller mujocoModelFile:=$D/scene.xml \
   rviz:=${RVIZ:-false} ${RVIZCFG:+rvizconfig:=$RVIZCFG} mujoco_headless:=true baseCommandGui:=false controllersFile:=$D/config.yaml ${LAUNCH_ARGS:-}" > "$D/sim.log" 2>&1 < /dev/null &
 w=0
 until grep -qE -- "-> locomotion|first MPC advance:|bring-up FAULT|on_configure failed|init failed" "$D/sim.log" 2>/dev/null; do

@@ -178,7 +178,7 @@ Run from the sourced ROS workspace:
 
 ```bash
 python3 src/legged_robot_mpc_controller/tests/wb_id_walk_test.py \
-  --robot-name g1 --scene scene_flat.xml \
+  --robot-name g1 \
   --source state_estimator --estimator humanoid_linear_kf \
   --axis vx --speed 1.0 --mpc-rate 90 \
   --settle 4 --ramp 3 --hold 12 --rest 6 \

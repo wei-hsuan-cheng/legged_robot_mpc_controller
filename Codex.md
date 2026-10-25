@@ -1,6 +1,27 @@
 # WB-ID MPC Walking Robustness Handoff
 
 
+## Single Scene and Per-Box Configuration (2026-10-25)
+
+Current branch is `jazzy`; no commit or push is requested for these changes.
+Each robot now ships only `description/mujoco/robots/<robot>/scene.xml`; removed the flat, ramp and uneven scene variants without changing either retained scene's contents.
+`mujocoModelFile` still accepts a robot-local filename or absolute custom XML path, with no fixed choices.
+`environmentDescription` now defaults to empty, disabling the optional RViz environment publisher; its argument description lists stairs, ramp, uneven terrain and boxes under the package's `description/urdf/` directory.
+The RViz environment is independent of the MuJoCo scene: selecting it never changes simulator physics.
+Existing automated flat/ramp/rough tests now use `tests/mujoco_scene.py` to generate fixtures outside the robot directories with absolute include and compiler asset paths.
+The walking harness generates `<prefix>_scene.xml` for flat ground when `--scene` is omitted; explicit scene overrides remain untouched, and startup/ghost/benchmark/replay tools no longer reference deleted variants.
+Previously recorded `scene_flat.xml`, `scene_ramp.xml` and `scene_uneven.xml` names in historical results below identify the old fixtures, not current shipped files.
+`config/objects/boxes_params.yaml` now contains `boxes.box_1`, `boxes.box_2` and any additional named entries rather than count plus parallel arrays.
+Each entry owns position, yaw, size, mass, inertia, color and friction; optional `name` preserves the simulator/RViz name and falls back to the entry key if omitted.
+Updated both boxes xacros and regenerated MuJoCo XML; body/geom/inertial attributes are identical to HEAD, preserving `purple_box`, `orange_box` and every physical value.
+Tests cover adding/removing entries, optional names, independent friction, empty box sets and matching MuJoCo/RViz attributes.
+Validation passed:55 local discovery tests with five ROS-only skips, five real Jazzy launch-resolution tests,23 focused WB-ID contract checks and seven standalone terrain-reference checks.
+The Jazzy launch tests verify the empty environment default, unrestricted custom scene/environment paths and the listed URDF/xacro examples; `ros2 launch ... --show-args` also passed without starting nodes.
+Native MuJoCo compiled both retained scene files and all generated test terrain fixtures, including relocated description trees; the box migration preserved every body/geom/inertial attribute compared with HEAD.
+No C++ controller code or tuning changed, and no new build or locomotion trial was run for this cleanup.
+Handoff and two commit-message snippets are updated; no commit or push was performed.
+
+
 ## Parameterized Uneven Terrain (2026-10-25, Ready For Manual Testing)
 
 Current branch is `jazzy`; do not commit or push this task.

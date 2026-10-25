@@ -18,6 +18,7 @@ import csv
 import json
 import re
 from pathlib import Path
+import sys
 
 import matplotlib
 matplotlib.use("Agg")
@@ -25,6 +26,9 @@ import matplotlib.pyplot as plt
 import mujoco
 import numpy as np
 import yaml
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from mujoco_scene import temporary_scene
 
 CONTROLLER = "humanoid_whole_body_inverse_dynamics_mpc_controller"
 CONTACT_Z = 0.004       # [m] collision low point within this of the floor counts as contact
@@ -96,7 +100,8 @@ def mpc_health(log_path):
 
 def analyze(prefix, robot, plot=True, frames=None):
     root = Path(__file__).resolve().parents[2]
-    model = mujoco.MjModel.from_xml_path(str(root / "description/mujoco/robots" / robot / "scene_flat.xml"))
+    with temporary_scene(robot) as scene:
+        model = mujoco.MjModel.from_xml_path(str(scene))
     data = mujoco.MjData(model)
     result = json.loads(Path(str(prefix) + ".json").read_text())
     config = yaml.safe_load(Path(str(prefix) + ".yaml").read_text())[CONTROLLER]["ros__parameters"]
