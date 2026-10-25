@@ -501,6 +501,7 @@ The gait ladder selects a template using command thresholds, measured-speed marg
 Returning to stance also checks measured yaw rate, rather than stopping stepping immediately when commands disappear.
 The template is inserted into the future mode schedule after the configured switching delay and repeated to fill the horizon.
 The MPC optimizes motion and wrenches for these prescribed contact times.
+The WB-ID running ladder, flight intervals and measured-versus-prescribed flight distinction are described in [Running Checkpoint](./wb_id_running.md).
 
 The current `slow_walk` template is:
 
@@ -528,14 +529,15 @@ flowchart LR
 
 ### 6.4 Swing spline and terrain hooks
 
-For an isolated swing with endpoint times $t_l,t_d$, the planner constructs cubic splines from endpoint heights/velocities and a raised midpoint:
+For a complete swing with endpoint times $t_l,t_d$, the planner constructs cubic splines from endpoint heights/velocities and a raised midpoint:
 
 $$
 \lambda=\min\left(1,\frac{t_d-t_l}{T_{\mathrm{swing,scale}}}\right),
 \qquad z_{\mathrm{apex}}=\max(z_l,z_d)+\lambda h_{\mathrm{swing}}.
 $$
 
-Current configured swing height is 0.10 m, retained in the blind-ramp trials in Section 9.
+All airborne modes of one foot share this complete spline, including flight and opposite-foot support during running.
+Current G1 swing height is 0.08 m; the earlier blind-ramp trials in Section 9 used 0.10 m.
 The spline supplies $z_d$, $\dot z_d$ and $\ddot z_d$ to the swing equality and impact-proximity factors to the costs.
 Shared stair-plan and terrain-foothold hooks are connected when config files are supplied, but that wiring does not establish validated WB-ID stair walking.
 A standalone offline utility can export static box tops from MuJoCo XML, but the launch file does not invoke it or provide a `terrainFromScene` argument.

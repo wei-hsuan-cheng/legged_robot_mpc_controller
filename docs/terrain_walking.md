@@ -561,7 +561,7 @@ z_{\mathrm{apex}}
 +s_T h_{\mathrm{swing}},
 $$
 
-where $s_T$ is the swing-duration scaling. Using the higher contact surface ensures clearance while stepping up. The spline construction is in [`SwingTrajectoryPlanner::update()`](../src/core/humanoid_common_mpc/src/swing_foot_planner/SwingTrajectoryPlanner.cpp#L99-L141).
+where $s_T$ is the swing-duration scaling. Using the higher contact surface ensures clearance while stepping up. The spline construction is in [`SwingTrajectoryPlanner::update()`](../src/core/humanoid_common_mpc/src/swing_foot_planner/SwingTrajectoryPlanner.cpp#L99-L137).
 
 ## How the MPC Follows the Gait
 
@@ -673,7 +673,7 @@ ros2 run legged_robot_mpc_controller terrain_walk_test.sh \
 | Gait schedule tiling | [`GaitSchedule.cpp`](../src/core/humanoid_common_mpc/src/gait/GaitSchedule.cpp#L51-L143) |
 | Terrain model and foothold planning | [`TerrainFootholdPlanner.cpp`](../src/core/humanoid_common_mpc/src/reference_manager/TerrainFootholdPlanner.cpp#L37-L347) |
 | Base and swing reference integration | [`SwitchedModelReferenceManager.cpp`](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L143-L295) |
-| Swing-height splines | [`SwingTrajectoryPlanner.cpp`](../src/core/humanoid_common_mpc/src/swing_foot_planner/SwingTrajectoryPlanner.cpp#L85-L191) |
+| Swing-height splines | [`SwingTrajectoryPlanner.cpp`](../src/core/humanoid_common_mpc/src/swing_foot_planner/SwingTrajectoryPlanner.cpp#L85-L153) |
 | Foot tracking cost | [`CentroidalMpcEndEffectorFootCost.cpp`](../src/core/humanoid_centroidal_mpc/src/cost/CentroidalMpcEndEffectorFootCost.cpp#L92-L160) |
 | Mode-dependent OCP constraints | [`CentroidalMpcInterface.cpp`](../src/core/humanoid_centroidal_mpc/src/CentroidalMpcInterface.cpp#L185-L212) |
 

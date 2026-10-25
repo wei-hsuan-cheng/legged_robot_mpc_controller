@@ -126,7 +126,10 @@ void ProceduralMpcMotionManager::setTargetMode(TargetMode mode) {
 bool ProceduralMpcMotionManager::transitionToFasterGait(const vector4_t& velCommandVec,
                                                         const vector6_t& baseVelocity,
                                                         const GaitModeStateConfig& cfg) {
-  bool fasterGaitRequested = (std::abs(velCommandVec(0)) > cfg.maxLinVelCmd || std::abs(velCommandVec(1)) > cfg.maxLinVelCmd ||
+  // Include the speed boundary despite roundoff in the recursive command filter.
+  constexpr scalar_t speedBoundaryTolerance = 1e-9;
+  bool fasterGaitRequested = (std::abs(velCommandVec(0)) >= cfg.maxLinVelCmd - speedBoundaryTolerance ||
+                              std::abs(velCommandVec(1)) >= cfg.maxLinVelCmd - speedBoundaryTolerance ||
                               std::abs(velCommandVec(3)) > cfg.maxAngVelCmd);
 
   bool withinMaxSpeedErrorThreshold = (std::abs(baseVelocity(0)) > cfg.maxLinVelCmd - cfg.linVelErrorThresh ||

@@ -145,6 +145,16 @@ terrainWalkingFile:=<pkg_share>/config/terrains/terrain_walking/g1.yaml
 ```
 
 
+### WB-ID running
+
+In `base_twist` mode, G1 and H2 use `[stance, walk, trot, run]`, with overlapping speed bands.
+Running is requested at a forward command of 0.75 m/s or higher, subject to the speed, dwell and scheduling guards.
+These revised transition sequences have not been simulation-tested; the earlier running tests used `[stance, slow_walk, walk, run]`.
+Start on `mujocoModelFile:=scene_flat.xml` and try 0.75-1.0 m/s; the running schedule includes intervals with both feet in swing.
+See [Running Checkpoint](./docs/wb_id_running.md) for timing, automated tests and the difference between scheduled and actual flight.
+Speeds above 1.0 m/s still select `run` when permitted by the command limits, but have not been validated.
+
+
 ### Scripted trajectory tests (figure-eight)
 
 `launch/figure_eight_command.py` walks a closed figure-eight (Gerono lemniscate) at **constant speed** with a **sinusoidal pelvis height**, publishing the same `WalkingVelocityCommand` topic the GUI uses. Make sure first launch robot with `baseCommandGui:=false`.

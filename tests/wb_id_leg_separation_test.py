@@ -45,7 +45,7 @@ class LegSeparationTest(unittest.TestCase):
         h2 = yaml.safe_load((ROOT / 'config/h2/ros2_controllers.yaml').read_text())[NAME]['ros__parameters']
         self.assertEqual(h2['ocs2']['constraints']['legSelfCollision']['minimumLateralSeparation'], .1)
         g1 = yaml.safe_load((ROOT / 'config/g1/ros2_controllers.yaml').read_text())[NAME]['ros__parameters']
-        self.assertEqual(g1['ocs2']['constraints']['legSelfCollision'].get('minimumLateralSeparation', 0), 0)
+        self.assertEqual(g1['ocs2']['constraints']['legSelfCollision']['minimumLateralSeparation'], .09)
         builder = (ROOT / 'src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp').read_text()
         self.assertIn('minimumLateralSeparation = p.constraints.legSelfCollision.minimumLateralSeparation', builder)
         source = (ROOT / 'src/core/humanoid_common_mpc/src/constraint/FootCollisionConstraint.cpp').read_text()

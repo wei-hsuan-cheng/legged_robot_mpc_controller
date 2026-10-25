@@ -1,6 +1,97 @@
 # WB-ID MPC Walking Robustness Handoff
 
 
+## G1/H2 Four-Stage Gait Ladder (2026-10-25, Untested)
+
+Both WB-ID controllers now select `[stance, walk, trot, run]`; this supersedes the six-stage selection described below.
+Both robots' linear bands are stance [-0.10,0.03], walk [0.02,0.45], trot [0.40,0.75], run [0.70,10.0] m/s, preserving adjacent overlap and run entry at 0.75 m/s.
+Walk yaw minimum is reduced from 0.15 to 0.05 rad/s to overlap stance's 0.10 rad/s upper boundary; otherwise direct stance/walk selection could chatter for small turning commands.
+Inactive slow_walk and slow_trot transition settings/templates remain available but are not selected by either ladder.
+G1's stance upper speed also changes from 0.10 to 0.03 m/s to match H2; its centroidal YAML is unchanged.
+No costs, constraints, gait timings, measured margins, core C++ or command limits changed in this follow-up.
+Configuration tests were updated for the common four-stage ladder; no build or simulation validation is claimed for this revised selection policy.
+Required OCS2 dependency fix: `a68c8a6cb` on `ocs2_ros2` branch `jazzy`, preserving warm-start samples before trajectory truncation.
+
+
+## Six-Stage Gait Ladder (2026-10-25, Untested)
+
+At the user's request, both WB-ID ladders now select `[stance, slow_walk, walk, slow_trot, trot, run]`; the unused `slower_trot` transition entry is removed but its catalog template remains available.
+Retain each robot's stance threshold and slow_walk minimum; set slow_walk maximum0.25, walk[0.20,0.45], slow_trot[0.40,0.60], trot[0.55,0.75], run[0.70,10.0] m/s.
+Adjacent speed intervals overlap for hysteresis; run entry is0.75 m/s, run exit below0.70 m/s, subject to existing measured-speed/dwell/schedule guards.
+The shared faster-gait guard now includes the linear upper boundary with1e-9 m/s tolerance so an exactly0.75 m/s command is not held below the threshold by command-filter roundoff.
+Yaw bands, measured margins, gait timings, costs, constraints, command limits and servo/estimator settings are unchanged in this follow-up; no gait-specific cost profiles have been introduced.
+G1's centroidal YAML is unchanged, but the inclusive linear-boundary comparison is in the common gait manager used by both formulations.
+This new six-stage sequence has not been built or simulation-tested; the successful running trials below used the earlier four-stage ladder and must not be attributed to this new selection policy.
+
+
+## Running With Flight (2026-10-25, Latest)
+
+Completed checkpoint: flight-phase running at forward commands 0.75-1.0 m/s, validated G1 before H2 and retained successful settings.
+All trials below use `scene_flat.xml`, WB-ID, requested MPC90/MRT1000, `state_estimator`/`humanoid_linear_kf`, headless MuJoCo, RViz off and `baseCommandGui:=false` in VM Docker `ros_jazzy`.
+Selected candidate tuning is now saved in both source YAMLs; trial-specific YAML snapshots and raw logs are in Docker `/tmp/<prefix>*`, with copies under ignored `tuning_results/wb_id_running/`.
+Saved G1 changes are swing height 0.08, supported walk0.30/0.10, run 0.25/0.08, collision lateral separation 0.09/mu 3000/delta 0.02 and earlier gait switching0.3.
+Saved H2 changes are run 0.28/0.06 and Q/Qf base z 50->300, vx 60->30, vz 5->1; retain swing height 0.10, collision parameters, servo gains and all estimator settings.
+Both now use the stance/slow_walk/walk/run ladder, forward run entry 0.70/exit 0.65 with measured-speed guards, and supported walking for pure yaw commands; their original slow_walk timing remains unchanged.
+
+| Trial | Temporary changes | Observation |
+| --- | --- | --- |
+| `g1_run_initial075` | Ladder stance/slow_walk/run, run entry above 0.65 m/s, exit below 0.60, switch delay 0.3; original run 0.30 s support/0.10 s flight | Held 0.75 command for 12 s at pose-derived vx 0.745 m/s, then fell during stopping; sampled physical flight 28 bouts, 20% of hold, longest 0.10 s; planned flight force zero. |
+| `g1_run_quick075` | Same, slow_walk shortened to 0.30 s support/0.10 s double support | Stayed upright through deceleration, then process aborted with `free(): corrupted unsorted chunks` near stance switch; not a pass. |
+| `g1_run_continuous075` | Previous quick setup plus continuous swing spline fix | Complete 28 s including stopping and 6 s rest passed; vx 0.637 m/s, max roll/pitch0.0281/0.0547 rad; physical flight 30 sampled bouts, 7.25% of hold, longest 0.05 s. |
+| `g1_run_continuous100` | Preserve original slow_walk, add quick walk rung, run entry 0.70/exit 0.65 | Fell at 10.49 s; original 0.30/0.10 running timing is not robust at 1.0 m/s. |
+| `g1_run_short100` | Run 0.25 s support/0.05 s flight, swingHeight 0.07, same four-rung ladder | Held 12 s at vx 0.874 m/s, max roll/pitch0.0231/0.0433 rad; process aborted with `malloc(): unaligned tcache chunk detected` at run-to-walk switch; not a pass. |
+| `g1_run_gdb100` | Same short-flight parameters under GDB, 6 s hold | Reproduced allocator crash at run-to-walk switch; crashing thread was in solver warm-start initialization. |
+| `g1_run_flight080100` | Post-dependency-fix, 0.25 s support/0.08 s flight, swingHeight 0.10 | Fell at 13.0 s; actual flight existed (15 bouts, longest 0.05 s), but signed-width crossed during collapse; one sampled foot self-contact near collapse. |
+| `g1_run_flight080_nodes6_100` | Same 0.25/0.08 timing, swingHeight 0.07, torqueConstraintNodes 6 | Fell at 11.45 s; extending the near-term torque constraint window alone did not help. |
+| `g1_run_sep100` | 0.25/0.08 timing, swingHeight 0.08, G1 minimumLateralSeparation0.09, collision mu 3000/delta 0.02 | Passed 28 s including stopping/rest; pose vx 0.870 m/s, max roll/pitch0.0362/0.0707 rad; 19 physical flight bouts, longest 0.02 s; no sampled self-contact/crossing, minimum signed width 0.1156 m. |
+| `g1_run_sep075` | Same candidate, command 0.75 | Passed 28 s including stopping/rest; vx 0.656 m/s, max roll/pitch0.0366/0.0455 rad; physical flight 36 bouts, longest 0.05 s, no sampled foot self-contact. |
+| `h2_run_initial100` | G1 0.25/0.08 running timing and 0.08 swing height, H2's existing collision/servo/cost values | Fell 11.25 s; forward overspeed and steadily deepening knees/base-height loss before collapse; not an estimator-only offset diagnosis. |
+| `h2_run_height300100` | H2 Q/Qf z50->300, vx 60->30, vz 5->1; same gait | Fell 13.24 s; greater height priority delayed but did not prevent the failure. |
+| `h2_run_short100` | Original H2 costs, support 0.28/flight 0.04, swingHeight 0.10 | Passed 28 s and stopped; pose vx 1.190 m/s, minz 0.762 m (deep crouch), physical flight 16 bouts/longest 20 ms, no sampled foot self-contact; not yet a sufficiently validated final tune. |
+| `h2_run_short_height300100` | Short H2 gait with the height 300/vx 30/vz 1 objective | Passed 28 s including stopping/rest; vx 1.004 m/s, minz 0.951 m, max roll/pitch0.0174/0.0329 rad; no sampled crossing/self-contact, min width 0.1434 m, but just one10 ms physical flight bout; not a satisfactory sustained-flight checkpoint. |
+| `h2_run_flight60_height300100` | Keep the improved support-height objective, lengthen H2 flight 40->60 ms with 0.28 s support | Passed 28 s and stopped; vx 1.020 m/s, max roll/pitch0.0300/0.0378 rad, minz 0.897 m; physical flight 26 bouts/longest 50 ms, zero sampled self-contact/crossing/leg overlap; saved as H2 candidate. |
+| `h2_run_saved100_long` | Saved H2 source YAML, no tuning overrides, 30 s hold | Passed 46 s including stopping/rest; world vx 1.026 m/s, minz 0.904 m, max roll/pitch0.0352/0.0355 rad; physical flight 53 bouts/longest 40 ms; no sampled foot self-contact/crossing/leg overlap, min width 0.1417 m. |
+| `g1_run_saved100_long` | Saved G1 source YAML, no tuning overrides, 30 s hold | Passed 46 s including stopping/rest; world vx 0.875 m/s, max roll/pitch0.0441/0.0650 rad, heading error 0.0881 rad; physical flight 34 bouts/longest 30 ms, no sampled self-contact/crossing/leg overlap, min width 0.1088 m. |
+| `h2_run_saved075` | Saved H2 source YAML, command 0.75, 12 s hold | Passed 28 s including stopping/rest; world vx 0.762 m/s, minz 0.939 m, max roll/pitch0.0271/0.0367 rad; flight 30 bouts/longest 30 ms, no sampled self-contact/crossing/leg overlap, min width 0.1452 m. |
+| `g1_running_walk_regression` | Saved G1 source YAML, command 0.2, 6 s hold | Passed 18 s including stop/rest; pose vx 0.180 m/s, max roll/pitch0.0067/0.0329 rad. |
+| `h2_running_walk_regression` | Saved H2 source YAML, command 0.2, 6 s hold | Passed 18 s including stop/rest; pose vx 0.227 m/s, max roll/pitch0.0150/0.0111 rad. |
+| `g1_run_synchronized100` | Saved G1 source YAML, command 1.0, 12 s hold; timestamp-paired recorder | Passed 28 s and stopped; world vx 0.868 m/s; 12 sampled flight bouts/longest 30 ms, all hold pairs within 2 ms; zero sampled self-contact/crossing/leg overlap. |
+| `h2_run_synchronized100` | Saved H2 source YAML, command 1.0, 12 s hold; timestamp-paired recorder | Passed 28 s and stopped; world vx 1.052 m/s; 22 sampled flight bouts/longest 20 ms, 99.92% of hold pairs within 2 ms; zero sampled self-contact/crossing/leg overlap. |
+
+Confirmed code defect: `SwingTrajectoryPlanner` previously changed spline shape between consecutive airborne contact modes, although their lift-off/touchdown times span one complete swing.
+It now builds the same complete lift-off/apex/touchdown spline across all those modes, using endpoint heights from the first/last swing phases; single-mode walking is unchanged.
+Stance-only schedules no longer read nonexistent event times.
+Two-job Jazzy Release build passed; standalone compiled `tests/swing_flight_test.cpp` passed, covering flight-mode continuity, ordinary walking and event-free stance.
+`tests/wb_id_walk_test.py --record-tracking` captures planned modes/wrenches/feet alongside measured-pose replay; high-rate data stays best effort, while the subscriber matches the existing reliable latched metadata publisher.
+`tests/tuning/analyze_running.py PREFIX --robot-name g1|h2` checks both feet's active collision geometry above 2 mm and absence of sampled floor contacts, and plots flight, CoM/base height and planned forces.
+Replay uses latest-sample-paired measurements: it is geometric flight evidence, not measured contact forces or a continuous-time guarantee.
+The final recorder now stores joint timestamps and repairs recent odometry/joint pairs when matching messages arrive out of order; the analyzer accepts flight only for pairs within 2 ms when timestamps exist.
+Earlier trial replay files did not store joint timestamps, so their flight counts remain weaker latest-sample-pair evidence; the final timestamp-paired repeats on both robots confirm brief airborne intervals rather than relying on old counts alone.
+`g1_run_short100` had scheduled flight but no sampled physical flight, so that shorter-flight trial is not a running success even before considering its crash.
+`g1_run_gdb100` reproduced the allocator abort at the run-to-walk switch, with the solver warm-start initialization on the crashing thread.
+The standalone `tests/running_gait_transition_test.cpp` reproduced a heap-use-after-free under AddressSanitizer in OCS2 `TrajectorySpreading::adjustTrajectory` across 200 synthetic run-to-walk splice phases.
+The dependency header `/Users/whcheng/src/mpc/ocs2_ros2/core/ocs2_oc/include/ocs2_oc/trajectory_adjustment/TrajectorySpreading.h` now snapshots source values before truncation, limits writes to the retained interval and truncates last.
+The same ASan regression passes after that change; rebuilding `ocs2_oc`, `ocs2_ddp`, `ocs2_sqp` and the controller passed in 16.3 s.
+The upstream trajectory-spreading suite also passed 19 tests, including a new200-phase flight-to-walk regression.
+This necessary dependency change is outside the legged controller Git repository and must be carried with its final checkpoint.
+Post-fix native G1/H2 run/stop trials at 0.75 and 1.0 m/s, source-value46 s endurance trials and 0.2 m/s supported-walking regressions all passed.
+Actual flight in this conservative candidate is much shorter than its prescribed 80 ms flight window; do not conflate planned contact flags with achieved airborne duration.
+H2's saved run prescribes60 ms flight; its long trial achieved a 2.33% sampled airborne fraction versus 17.57% planned flight, with zero planned force in flight.
+H2 remained balanced during 46 s but heading drift reached0.461 rad and world lateral displacement8.14 m; do not describe this as accurate straight-line heading control.
+User clarified that commands above 1.0 m/s should still select `run`, but only up to 1.0 m/s needs testing; no higher-speed stability claim is required.
+User additionally requires natural-looking running without kicking other body parts; verify physical clearance/contact and measured-pose replays, not only velocity or height.
+Long-trial logs show zero solver exceptions, typically G1 around 86-88 Hz and H2 around 83-85 Hz actual MPC, with transient lower rates and some torque-window fallbacks; requested90 Hz is not a timing guarantee.
+Nonlinear equality residuals and actuator limits are not certified feasible by these successful tests; no claims are made about rough terrain, push recovery, mixed-axis running, InEKF feedback, speeds above 1.0 or hardware.
+In the failed initial H2 run, paired 0.3 s averages at 10 s after takeover show pose-derived vx 1.52 m/s versus observed vx 1.08 m/s, while observed and physical z both approximately 0.82 m.
+This is evidence of a significant velocity-feedback discrepancy during the failing motion, not proof of the sole root cause; inspect slip/contact timing and consider an isolated ground-truth-feedback diagnostic before changing estimator core logic.
+No estimator core, estimator parameters, servo gains, launch structure, robot physical models or G1 centroidal YAML changed in this checkpoint.
+Final controller build passed in 3.33 s; logs are Docker `/tmp/wb_id_running_build.log` and `/tmp/wb_id_running_final_build.log`.
+Final verification passed 37 focused WB-ID checks,38 discovery tests (four native ROS tests skipped locally), the parameter contract, the standalone compiled swing test,200 ASan transition phases and 19 upstream trajectory-spreading tests.
+Commit snippets for both repositories are at `/Users/whcheng/src/mpc/commit_msg.md`; publication was requested after the gait-ladder edits, so consult Git history for the final controller checkpoint.
+The running/clearance plots and side/front frame sheets are in ignored `tuning_results/wb_id_running/`; see [Running Checkpoint](docs/wb_id_running.md) for the test command and limitations.
+All owned simulation, debugger and auto-test processes were stopped after verification; Docker `ros_jazzy` remains available for manual tests.
+
+
 ## Future Robot Mesh Ghosts (2026-10-24, Latest)
 
 G1 and H2 now have legacy-style future mesh ghosts in the existing performance visualization worker, with optional terminal-state and terminal-target MarkerArray topics.

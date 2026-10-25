@@ -19,7 +19,7 @@ import time
 
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import QoSProfile, ReliabilityPolicy
+from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import JointState
 from ocs2_msgs.msg import WalkingVelocityCommand
@@ -28,6 +28,7 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "launch"))
 from push_recovery_test import FEEDBACK_TOPIC, WrenchPublisher, WrenchSequence
 from geometry_msgs.msg import WrenchStamped
+from std_msgs.msg import Float64MultiArray, String
 
 
 CONTROLLER = "humanoid_whole_body_inverse_dynamics_mpc_controller"
@@ -42,7 +43,7 @@ def attitude(q):
 
 
 class Probe(Node):
-    def __init__(self, writer, record_joints=False):
+    def __init__(self, writer, record_joints=False, record_tracking=False):
         super().__init__("wb_id_walk_probe")
         self.gt = None
         self.last_wall = time.monotonic()
@@ -54,6 +55,8 @@ class Probe(Node):
         self.estimate = None
         self.replay = []
         self.wrenches = []
+        self.tracking_names = []
+        self.tracking_rows = []
         qos = QoSProfile(depth=50, reliability=ReliabilityPolicy.BEST_EFFORT)
         self.publisher = self.create_publisher(WalkingVelocityCommand, "/humanoid/walking_velocity_command", qos)
         self.create_subscription(Odometry, "/mujoco/ground_truth/odom", self.observe, qos)
@@ -61,6 +64,19 @@ class Probe(Node):
         if record_joints:
             self.create_subscription(JointState, "/joint_states", self.observe_joints, qos)
             self.create_subscription(Odometry, "/humanoid/state_estimate/odom", self.observe_estimate, qos)
+        if record_tracking:
+            # Match the existing latched metadata publisher; high-rate data stays best effort.
+            names_qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
+                                   durability=DurabilityPolicy.TRANSIENT_LOCAL)
+            self.create_subscription(String, "/" + CONTROLLER + "/tracking_names", self.observe_tracking_names, names_qos)
+            self.create_subscription(Float64MultiArray, "/" + CONTROLLER + "/tracking", self.observe_tracking, qos)
+
+    def observe_tracking_names(self, msg):
+        self.tracking_names = msg.data.split(",")
+
+    def observe_tracking(self, msg):
+        if self.tracking_names and len(msg.data) == len(self.tracking_names):
+            self.tracking_rows.append((self.phase, *msg.data))
 
     def observe_wrench(self, msg):
         f, t = msg.wrench.force, msg.wrench.torque
@@ -74,7 +90,13 @@ class Probe(Node):
                              rpy=attitude(q), linear=[v.x, v.y, v.z], angular=[w.x, w.y, w.z])
 
     def observe_joints(self, msg):
-        self.joints = (list(msg.name), list(msg.position), list(msg.velocity), list(msg.effort))
+        stamp = msg.header.stamp.sec + 1e-9 * msg.header.stamp.nanosec
+        self.joints = (list(msg.name), list(msg.position), list(msg.velocity), list(msg.effort), stamp)
+        # A matching joint message can arrive just after odometry; repair recent pairs.
+        for sample in self.replay[-5:]:
+            if abs(stamp - sample["time"]) < abs(sample["joint_time"] - sample["time"]):
+                sample.update(names=self.joints[0], q=self.joints[1], v=self.joints[2],
+                              effort=self.joints[3], joint_time=stamp)
 
     def observe(self, msg):
         self.last_wall = time.monotonic()
@@ -88,6 +110,7 @@ class Probe(Node):
             self.replay.append(dict(phase=self.phase, time=stamp, position=[p.x, p.y, p.z],
                                     quaternion_wxyz=[q.w, q.x, q.y, q.z], names=self.joints[0],
                                     q=self.joints[1], v=self.joints[2], effort=self.joints[3],
+                                    joint_time=self.joints[4],
                                     estimate=self.estimate))
         if self.phase != "startup":
             self.samples.append(self.gt)
@@ -119,6 +142,8 @@ def main():
     parser.add_argument("--minimum-height", type=float, default=0.38)
     parser.add_argument("--startup-timeout", type=float, default=600.0)
     parser.add_argument("--record-joints", action="store_true", help="Save latest joint sample with each base pose for collision analysis and render replay")
+    parser.add_argument("--record-tracking", action="store_true", help="Enable 100 Hz controller tracking and record policy modes, planned wrenches and foot motion")
+    parser.add_argument("--launch-prefix", help="Optional debugger prefix for the MuJoCo process only")
     parser.add_argument("--wrench-sequence", type=Path, help="Optional MuJoCo wrench sequence YAML")
     parser.add_argument("--wrench-delay", type=float, default=8.0, help="First pulse after MPC takeover [simulation s]")
     parser.add_argument("--max-yaw-error", type=float, default=0.5, help="Maximum uncommanded heading change [rad]")
@@ -142,6 +167,8 @@ def main():
         parser.error("hold must be positive, ramp nonnegative, and speed nonzero")
     config = yaml.safe_load(args.config.read_text())
     params = config[CONTROLLER]["ros__parameters"]
+    if args.record_tracking:
+        params["diagnostics"]["trackingRate"] = 100.0
     for entry in args.set:
         key, value = entry.split("=", 1)
         parent = params
@@ -168,7 +195,12 @@ def main():
         parser.error("speed exceeds the configured command limit")
     normalized_speed = args.speed / scale
     launch_cmd = [
-        "ros2", "launch", "legged_robot_mpc_controller", args.launch_file,
+        "ros2", "launch",
+    ]
+    if args.launch_prefix:
+        launch_cmd += ["--launch-prefix", args.launch_prefix, "--launch-prefix-filter", "mujoco_ros2_control$"]
+    launch_cmd += [
+        "legged_robot_mpc_controller", args.launch_file,
         f"robotName:={args.robot_name}",
         f"mpcControllerName:={CONTROLLER}", f"mujocoModelFile:={args.scene}",
         "rviz:=false", "mujoco_headless:=true", "baseCommandGui:=false",
@@ -194,7 +226,7 @@ def main():
         with log_path.open("w") as log, Path(str(prefix) + ".csv").open("w") as csv_file:
             writer = csv.writer(csv_file)
             writer.writerow(["phase", "time", "x", "y", "z", "roll", "pitch", "yaw", "vx_body", "vy_body", "vz_body", "wz_body"])
-            probe = Probe(writer, args.record_joints)
+            probe = Probe(writer, args.record_joints, args.record_tracking)
             sender = WrenchPublisher(probe, sequence) if sequence else None
             process = subprocess.Popen(launch_cmd, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
             deadline = time.monotonic() + args.startup_timeout
@@ -330,6 +362,11 @@ def main():
                 writer.writerows(probe.wrenches)
         if probe is not None and probe.replay:
             Path(str(prefix) + "_replay.json").write_text(json.dumps(probe.replay))
+        if probe is not None and probe.tracking_rows:
+            with Path(str(prefix) + "_tracking.csv").open("w") as file:
+                writer = csv.writer(file)
+                writer.writerow(["test_phase", *probe.tracking_names])
+                writer.writerows(probe.tracking_rows)
         if process is not None and process.poll() is None:
             os.killpg(process.pid, signal.SIGINT)
             try:

@@ -118,61 +118,23 @@ void SwingTrajectoryPlanner::update(const ModeSchedule& modeSchedule,
     for (int p = 0; p < modeSequence.size(); ++p) {
       const int swingStartIndex = startTimesIndices[j][p];
       const int swingFinalIndex = finalTimesIndices[j][p];
-      checkThatIndicesAreValid(j, p, swingStartIndex, swingFinalIndex, modeSequence);
-
-      const scalar_t swingStartTime = eventTimes[swingStartIndex];
-      const scalar_t swingFinalTime = eventTimes[swingFinalIndex];
-
       if (!eesContactFlagStocks[j][p]) {
+        checkThatIndicesAreValid(j, p, swingStartIndex, swingFinalIndex, modeSequence);
+        const scalar_t swingStartTime = eventTimes[swingStartIndex];
+        const scalar_t swingFinalTime = eventTimes[swingFinalIndex];
         const scalar_t scaling = swingTrajectoryScaling(swingStartTime, swingFinalTime, config_.swingTimeScale);  // for leg in the air
-        if (eesContactFlagStocks[j][p - 1] && eesContactFlagStocks[j][p + 1]) {  // For a swing leg, only in the air for current mode
+        // A running swing spans several contact modes; all use the same complete spline.
+        const scalar_t liftOffZ = liftOffHeightSequence[j][swingStartIndex + 1];
+        const scalar_t touchDownZ = touchDownHeightSequence[j][swingFinalIndex];
+        const CubicSpline::Node liftOffHeight{swingStartTime, liftOffZ, scaling * config_.liftOffVelocity};
+        const CubicSpline::Node touchDownHeight{swingFinalTime, touchDownZ, scaling * config_.touchDownVelocity};
+        const scalar_t midHeight = std::max(liftOffZ, touchDownZ) + scaling * config_.swingHeight;
+        feetHeightTrajectories_[j].emplace_back(liftOffHeight, midHeight, touchDownHeight);
 
-          const CubicSpline::Node liftOffHeight{swingStartTime, liftOffHeightSequence[j][p], scaling * config_.liftOffVelocity};
-          const CubicSpline::Node touchDownHeight{swingFinalTime, touchDownHeightSequence[j][p], scaling * config_.touchDownVelocity};
-          // Apex above the HIGHER of the two contact heights so the swing clears a step
-          // when climbing stairs; identical to the previous behavior on flat ground.
-          const scalar_t midHeight = std::max(liftOffHeightSequence[j][p], touchDownHeightSequence[j][p]) + scaling * config_.swingHeight;
-          feetHeightTrajectories_[j].emplace_back(liftOffHeight, midHeight, touchDownHeight);
-
-          const CubicSpline::Node impactProximityLiftOff{swingStartTime, 1.0, scaling * config_.impactProximityFactorLiftOffVelocity};
-          const CubicSpline::Node impactProximityTouchDown{swingFinalTime, 1.0, scaling * config_.impactProximityFactorTouchDownVelocity};
-
-          impactProximityTrajectories_[j].emplace_back(impactProximityLiftOff, config_.impactProximityFactorMidPointValue,
-                                                       impactProximityTouchDown);
-        } else if (eesContactFlagStocks[j][p - 1]) {  // For foot just leaving the ground and staying in the air
-          const scalar_t midHeight = liftOffHeightSequence[j][p] + config_.swingHeight;
-          const CubicSpline::Node liftOffHeight{swingStartTime, liftOffHeightSequence[j][p], config_.liftOffVelocity};
-          const CubicSpline::Node touchDownHeight{swingFinalTime, midHeight, 0.0};
-          feetHeightTrajectories_[j].emplace_back(liftOffHeight, midHeight, touchDownHeight);
-
-          const CubicSpline::Node impactProximityLiftOff{swingStartTime, 1.0, config_.impactProximityFactorLiftOffVelocity};
-          const CubicSpline::Node impactProximityTouchDown{swingFinalTime, config_.impactProximityFactorMidPointValue, 0.0};
-
-          impactProximityTrajectories_[j].emplace_back(impactProximityLiftOff, config_.impactProximityFactorMidPointValue,
-                                                       impactProximityTouchDown);
-        } else if (eesContactFlagStocks[j][p + 1]) {  // For foot that was in the air and is impacting in the next mode
-          const scalar_t midHeight = touchDownHeightSequence[j][p] + config_.swingHeight;
-          const CubicSpline::Node liftOffHeight{swingStartTime, midHeight, 0.0};
-          const CubicSpline::Node touchDownHeight{swingFinalTime, touchDownHeightSequence[j][p], config_.touchDownVelocity};
-          feetHeightTrajectories_[j].emplace_back(liftOffHeight, midHeight, touchDownHeight);
-
-          const CubicSpline::Node impactProximityLiftOff{swingStartTime, config_.impactProximityFactorMidPointValue, 0.0};
-          const CubicSpline::Node impactProximityTouchDown{swingFinalTime, 1.0, config_.impactProximityFactorTouchDownVelocity};
-
-          impactProximityTrajectories_[j].emplace_back(impactProximityLiftOff, config_.impactProximityFactorMidPointValue,
-                                                       impactProximityTouchDown);
-        } else {  // For foot in the air for last, current and next mode
-          const scalar_t midHeight = touchDownHeightSequence[j][p] + config_.swingHeight;
-          const CubicSpline::Node liftOffHeight{swingStartTime, midHeight, 0.0};
-          const CubicSpline::Node touchDownHeight{swingFinalTime, midHeight, 0.0};
-          feetHeightTrajectories_[j].emplace_back(liftOffHeight, midHeight, touchDownHeight);
-
-          const CubicSpline::Node impactProximityLiftOff{swingStartTime, config_.impactProximityFactorMidPointValue, 0.0};
-          const CubicSpline::Node impactProximityTouchDown{swingFinalTime, config_.impactProximityFactorMidPointValue, 0.0};
-
-          impactProximityTrajectories_[j].emplace_back(impactProximityLiftOff, config_.impactProximityFactorMidPointValue,
-                                                       impactProximityTouchDown);
-        }
+        const CubicSpline::Node impactProximityLiftOff{swingStartTime, 1.0, scaling * config_.impactProximityFactorLiftOffVelocity};
+        const CubicSpline::Node impactProximityTouchDown{swingFinalTime, 1.0, scaling * config_.impactProximityFactorTouchDownVelocity};
+        impactProximityTrajectories_[j].emplace_back(impactProximityLiftOff, config_.impactProximityFactorMidPointValue,
+                                                   impactProximityTouchDown);
       } else {  // for a stance leg
         // Note: setting the time here arbitrarily to 0.0 -> 1.0 makes the assert in CubicSpline fail
         const CubicSpline::Node liftOff{0.0, liftOffHeightSequence[j][p], 0.0};
