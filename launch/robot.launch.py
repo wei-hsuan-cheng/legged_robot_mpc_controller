@@ -44,7 +44,7 @@ def generate_launch_description():
 
     # Optional RViz environment, rooted at world and separate from the MuJoCo scene.
     # Each xacro reads the same params file as its MuJoCo module; all three files are passed to whichever is selected.
-    environment_default = "" # e.g., PathJoinSubstitution([mpc_share_dir, "description", "urdf", "terrains", "stairs.urdf.xacro"])
+    environment_default = PathJoinSubstitution([mpc_share_dir, "description", "urdf", "terrains", "uneven_terrain.urdf.xacro"])
     stairs_params_file = PathJoinSubstitution([mpc_share_dir, "config", "terrains", "stairs_params.yaml"])
     ramp_params_file = PathJoinSubstitution([mpc_share_dir, "config", "terrains", "ramp_params.yaml"])
     boxes_params_file = PathJoinSubstitution([mpc_share_dir, "config", "objects", "boxes_params.yaml"])
@@ -94,7 +94,7 @@ def generate_launch_description():
             description="Optional environment URDF/xacro path for RViz; empty disables it. "
                         "Existing choices under <package_share>/description/urdf/: "
                         "terrains/stairs.urdf.xacro, terrains/ramp.urdf.xacro, "
-                        "terrains/uneven_terrain.urdf, or objects/boxes.urdf.xacro. "
+                        "terrains/uneven_terrain.urdf.xacro, or objects/boxes.urdf.xacro. "
                         "Select the geometry matching your MuJoCo scene.",),
         DeclareLaunchArgument(
             "mpcControllerName",

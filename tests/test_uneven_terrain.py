@@ -113,7 +113,7 @@ class UnevenTerrainTest(unittest.TestCase):
         config = defaults()
         blocks = terrain.generate_blocks(config, terrain.generate_heights(config))
         for relative, root in (("description/mujoco/terrains/uneven_terrain.xml", terrain.build_mjcf(config, blocks)),
-                               ("description/urdf/terrains/uneven_terrain.urdf", terrain.build_urdf(config, blocks))):
+                               ("description/urdf/terrains/uneven_terrain.urdf.xacro", terrain.build_urdf(config, blocks))):
             self.assertEqual((ROOT / relative).read_text(), terrain.xml_text(root))
         self.assertFalse((SCRIPT.parent / "uneven_terrain_10x10.xml").exists())
         with tempfile.TemporaryDirectory() as tmp:

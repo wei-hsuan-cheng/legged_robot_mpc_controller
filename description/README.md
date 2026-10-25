@@ -41,5 +41,5 @@ The [shared terrain configuration directory](../config/terrains/README.md) also 
 Box attributes are grouped under `boxes.box_1`, `boxes.box_2` and any additional entries; see [box configuration](../config/objects/README.md).
 `robot.launch.py robotName:=g1` or `robotName:=h2` resolves the selected robot's paths automatically, so both use `mujocoModelFile:=scene.xml`.
 Change that file's terrain/object includes instead of maintaining separate shipped scene variants; the launch still accepts any custom scene filename or absolute path.
-`environmentDescription` is empty by default and independently selects an optional RViz environment URDF/xacro.
+`environmentDescription` independently selects an optional RViz environment URDF/xacro; its current default is `terrains/uneven_terrain.urdf.xacro`, and an empty value disables it.
 Explicit paths supplied by external launch files must use the new layout.

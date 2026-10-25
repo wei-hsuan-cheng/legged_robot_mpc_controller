@@ -1,6 +1,18 @@
 # WB-ID MPC Walking Robustness Handoff
 
 
+## Uneven RViz Filename Fix (2026-10-25)
+
+The user selected `uneven_terrain.urdf.xacro` as the launch default, but the generator previously produced `uneven_terrain.urdf`; the missing file caused the reported xacro launch exception.
+Renamed the generated RViz output to `description/urdf/terrains/uneven_terrain.urdf.xacro` and updated the generator default, launch help, tests and docs.
+Preserved the user's current uneven-terrain environment default and H2 scene include ordering/content; the earlier empty-default notes below are historical.
+The generated file is valid xacro-compatible URDF; Python still generates its geometry alongside MJCF after YAML edits, rather than loading that YAML dynamically at launch.
+Generator-only temporary-output checks passed for current and moved/rotated rectangular configurations, matching formats, height bounds, reproducibility, stale-file detection and invalid-input rejection.
+The earlier local full suite reported five subcase failures in one scene include-order assertion; do not interpret the generator checks as a full-suite pass.
+ROS-specific launch tests require the user's build/install to expose the newly named file.
+No rebuild or new simulator run was performed; the user is testing manually, and subsequently requested committing and pushing this checkpoint.
+
+
 ## Single Scene and Per-Box Configuration (2026-10-25)
 
 Current branch is `jazzy`; no commit or push is requested for these changes.
@@ -26,7 +38,7 @@ Handoff and two commit-message snippets are updated; no commit or push was perfo
 
 Current branch is `jazzy`; do not commit or push this task.
 Renamed the fixed `uneven_terrain_10x10.xml` module to `description/mujoco/terrains/uneven_terrain.xml` and updated the scene creator, exporter tests and docs.
-New shared YAML is `config/terrains/uneven_terrain_params.yaml`; run `python3 description/mujoco/terrains/generate_uneven_terrain.py` to generate that MJCF and matching `description/urdf/terrains/uneven_terrain.urdf`.
+New shared YAML is `config/terrains/uneven_terrain_params.yaml`; run `python3 description/mujoco/terrains/generate_uneven_terrain.py` to generate that MJCF and matching `description/urdf/terrains/uneven_terrain.urdf.xacro`.
 The generator's `--check` verifies current output; `--params`, `--mjcf` and `--urdf` support alternate files without editing the script.
 Added `scene_uneven.xml` for G1/H2 without changing their existing default, flat or ramp scenes, controller parameters, estimators or launch code.
 The field is simulation geometry only, not an MPC foothold map; ordinary `base_twist` remains blind to the generated heights.

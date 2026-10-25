@@ -4,6 +4,8 @@ import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
+import subprocess
+import xml.etree.ElementTree as ET
 
 import yaml
 
@@ -53,7 +55,9 @@ class RobotLaunchTest(unittest.TestCase):
                 self.assertIn(robot, Path(values[argument]).parts)
             self.assertEqual(values['libFolder'], f'auto_generated/{robot}')
             self.assertEqual(values['mujocoModelFile'], 'scene.xml')
-            self.assertEqual(values['environmentDescription'], '')
+            environment = Path(values['environmentDescription'])
+            self.assertEqual(environment.name, 'uneven_terrain.urdf.xacro')
+            self.assertTrue(environment.is_file())
             self.assertEqual(values['refBaseHeight'], '')
             self.assertEqual(float(values['guiMaxVx']), reference['maxDisplacementVelocityX'])
 
@@ -77,8 +81,20 @@ class RobotLaunchTest(unittest.TestCase):
             self.assertEqual(context.launch_configurations['environmentDescription'], '/tmp/my_environment.urdf')
             argument = next(action for action in description.entities
                             if isinstance(action, DeclareLaunchArgument) and action.name == 'environmentDescription')
-            for choice in ('stairs.urdf.xacro', 'ramp.urdf.xacro', 'uneven_terrain.urdf', 'boxes.urdf.xacro'):
+            for choice in ('stairs.urdf.xacro', 'ramp.urdf.xacro', 'uneven_terrain.urdf.xacro', 'boxes.urdf.xacro'):
                 self.assertIn(choice, argument.description)
+
+    def test_default_environment_expands_and_can_be_disabled(self):
+        for robot in ('g1', 'h2'):
+            context, description = self.resolve(robot)
+            output = subprocess.check_output(['xacro', context.launch_configurations['environmentDescription'],
+                                              'stairs_params_file:=unused', 'ramp_params_file:=unused',
+                                              'boxes_params_file:=unused'], text=True)
+            root = ET.fromstring(output)
+            self.assertEqual(root.tag, 'robot')
+            self.assertGreater(len(root.findall('./link/visual')), 0)
+            context, description = self.resolve(robot, environmentDescription='')
+            self.assertEqual(context.launch_configurations['environmentDescription'], '')
 
     def test_custom_controller_yaml_supplies_gui_height(self):
         config = yaml.safe_load((ROOT / 'config/h2/ros2_controllers.yaml').read_text())
