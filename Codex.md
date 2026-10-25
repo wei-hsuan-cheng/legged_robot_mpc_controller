@@ -1,6 +1,42 @@
 # WB-ID MPC Walking Robustness Handoff
 
 
+## Parameterized Uneven Terrain (2026-10-25, Ready For Manual Testing)
+
+Current branch is `jazzy`; do not commit or push this task.
+Renamed the fixed `uneven_terrain_10x10.xml` module to `description/mujoco/terrains/uneven_terrain.xml` and updated the scene creator, exporter tests and docs.
+New shared YAML is `config/terrains/uneven_terrain_params.yaml`; run `python3 description/mujoco/terrains/generate_uneven_terrain.py` to generate that MJCF and matching `description/urdf/terrains/uneven_terrain.urdf`.
+The generator's `--check` verifies current output; `--params`, `--mjcf` and `--urdf` support alternate files without editing the script.
+Added `scene_uneven.xml` for G1/H2 without changing their existing default, flat or ramp scenes, controller parameters, estimators or launch code.
+The field is simulation geometry only, not an MPC foothold map; ordinary `base_twist` remains blind to the generated heights.
+Default field is 10x10 m, grid20x20 (0.5 m pitch), seed7, a local 0-0.12 m tile-top envelope, triangular nominal step sampling with mode0.03 m, bounded independent jitter0.002 m and a broad sinusoidal directional tendency.
+Final logical edge-neighbor differences are checked within 0.02-0.05 m; generated values are min0.0229622, max0.0466639, mean0.0331671 and standard deviation0.00477179 m.
+Generated tile tops span0.006073-0.103840 m, avoiding the old negative tile tops that were masked by the flat floor.
+The exact0.5x0.5 m clear patch clips cells around its boundary, producing404 box pieces from400 logical cells; pieces of one cell share a height.
+Bounds apply to X/Y grid neighbors, not diagonals, same-cell clip pieces, outer-floor edges or the clear-patch boundary; floor entry steps can exceed5 cm and are a separate difficulty from neighboring tile differences.
+Parameters also expose center/yaw, rectangular size/grid, seed, profile amplitude/wavelength/strength, jitter, patch center/size, block depth, optional gaps, friction and RViz gray.
+Two bounded correlated axis walks plus per-cell jitter give structured variation; the distribution is conditioned near the envelope and is not an exact independent triangular density over all realized differences.
+MuJoCo retains the shared stair texture and old field friction [0.9,0.005,0.0001]; RViz uses the same generated box geometry with gray materials.
+Tests cover60 seed/distribution combinations, reproducibility, shape/profile changes, exact patch/footprint, XML/URDF agreement, invalid/infeasible inputs, relocatable CLI, current generated files and native MuJoCo ray heights.
+Jazzy two-job Release build passed in VM Docker `ros_jazzy` (3.30 s); log is `/tmp/uneven_terrain_build.log` in the container.
+Local discovery passed52 tests with four ROS-only skips, including nine uneven-terrain tests; seven standalone terrain-export/reference tests also passed.
+All eight G1/H2 scenes compiled with native MuJoCo; native ray tests verified tile-top heights, the clear floor opening, moved centers and yaw rotations.
+The installed-package generator `--check` passed in Docker, and its generated URDF passed the existing xacro command with the launch's three environment parameter mappings.
+Rendered both robot scenes and inspected the height map, adjacent-step histogram and measured-state replay images.
+No RViz GUI session was opened; RViz validation covered generated URDF geometry and xacro compatibility, not an interactive display test.
+Closed-loop smoke tests used WB-ID, `state_estimator`/`humanoid_linear_kf`, MPC90/MRT1000, headless MuJoCo, RViz false, `baseCommandGui:=false`, vx0.10 m/s, settle3/ramp2/hold5/ramp-out2/rest3 s and unchanged robot/controller YAMLs.
+G1 uneven trial `/tmp/uneven_terrain_g1_smoke` started MPC and walked, then fell at10.65 s after takeover during ramp-out; final base z0.274 m, max roll1.342 rad and max pitch0.940 rad.
+H2 uneven trial `/tmp/uneven_terrain_h2_smoke` completed15 s and stopped upright, but a transient base-height drop to0.473 m and max yaw error0.716 rad made the verdict `NO_TRACKING`; final z1.079 m, roll0.021 rad and pitch0.006 rad.
+H2 replay shows a deep near-fall/crouch around7.09 s followed by recovery; this is not evidence of clean or reliable rough-terrain walking.
+G1 flat comparison `/tmp/uneven_terrain_g1_flat_control` passed the same15 s command profile and stopped upright, with max yaw error0.00781 rad; unlike the uneven trial, this comparison did not enable joint/high-rate tracking recording, so timing/load was not matched exactly.
+G1/H2 uneven JSON, YAML, CSV, tracking, logs and replay data are copied to ignored `tuning_results/uneven_terrain/`; the flat comparison remains in Docker `/tmp/`.
+That local directory also contains `height_profile.png`, `g1_overview.png`, `h2_overview.png`, `g1_smoke_curves.png`, `h2_smoke_curves.png`, `g1_smoke_replay.png` and `h2_smoke_replay.png`.
+The existing headless walk harness retains the default RViz environment description, which is irrelevant with RViz off; for manual visualization use the matching generated uneven URDF shown in `config/terrains/README.md`.
+No controller tuning was performed, no terrain map was fed to MPC, and no terrain parameters were reduced to mask the failed/near-fall trials.
+Stopped further work at the user's request for manual testing; no owned simulations or builds remain running, and nothing was committed or pushed.
+Commit-message snippet is in `/Users/whcheng/src/mpc/commit_msg.md`.
+
+
 ## H2 Running to 2 m/s (2026-10-25, Latest)
 
 H2 now holds a 2.0 m/s command: 6/6 trials passed (four 12 s holds, one 30 s hold, one 12 s ramp), plus 1.5, 1.0 (x2), 0.75, 0.3, vy ±0.3 and yaw 0.5 regressions.

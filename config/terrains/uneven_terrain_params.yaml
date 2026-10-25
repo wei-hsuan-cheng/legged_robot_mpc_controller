@@ -1,0 +1,34 @@
+# Generate matching MuJoCo and RViz geometry with:
+# python3 description/mujoco/terrains/generate_uneven_terrain.py
+# Values are meters/radians unless noted. No terrain map is supplied to the MPC.
+uneven_terrain:
+  base:
+    pos: [0.0, 0.0, 0.0]       # World position of the field center.
+    yaw: 0.0                  # Rotate the grid and clear patch together.
+  size: [10.0, 10.0]          # Overall local x/y footprint [m].
+  grid: [20, 20]              # Logical cell counts along x/y; pitch = size / grid.
+  seed: 7                    # Same parameters and seed reproduce the same terrain.
+
+  height:
+    min: 0.0                 # Tile-top envelope relative to base.pos.z.
+    max: 0.12                # Prevent an unbounded random walk in height.
+    adjacent_difference:
+      min: 0.02              # Absolute difference between edge-sharing grid cells.
+      max: 0.05              # Diagonal neighbors and floor/clear-patch edges are exempt.
+      distribution: triangular  # uniform | triangular; bounds are checked after jitter.
+      mode: 0.03             # Preferred nominal step for triangular sampling.
+    jitter: 0.002            # Independent per-cell variation; included in the bounds.
+
+  profile:
+    amplitude: 0.015          # Low-frequency tendency per axis, not extra unbounded height.
+    wavelength: [4.0, 5.0]   # Broad rolling tendency along local x/y [m].
+    strength: 0.75           # [0, 1]: probability of stepping toward the rolling profile.
+
+  clear_patch:
+    center: [0.0, 0.0]       # Local x/y relative to the field center.
+    size: [0.5, 0.5]         # Exact opening exposing the background floor; [0, 0] disables.
+
+  depth: 0.25                # All blocks extend down to local z = -depth.
+  gap: 0.0                   # Horizontal gap between logical cells [m].
+  friction: [0.9, 0.005, 0.0001]  # MuJoCo slide/spin/roll; retained from the old field.
+  color_gray: 0.55           # RViz color; MuJoCo uses the stairs' studio_terrain material.

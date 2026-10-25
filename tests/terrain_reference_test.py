@@ -5,6 +5,7 @@ import math
 from pathlib import Path
 import tempfile
 import unittest
+import xml.etree.ElementTree as ET
 
 import numpy as np
 import yaml
@@ -51,9 +52,9 @@ class TerrainReferenceTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             scene = Path(directory) / "scene.xml"
             scene.write_text('<mujoco><worldbody><geom type="plane" size="0 0 1"/></worldbody>'
-                             f'<include file="{MUJOCO / "terrains/uneven_terrain_10x10.xml"}"/></mujoco>')
+                             f'<include file="{MUJOCO / "terrains/uneven_terrain.xml"}"/></mujoco>')
             model = terrain.scene_regions(scene)
-        self.assertEqual(len(model["regions"]), 440)
+        self.assertEqual(len(model["regions"]), len(ET.parse(MUJOCO / "terrains/uneven_terrain.xml").findall(".//geom")))
         self.assertEqual(surface_height(model, [0, 0]), 0)
         for region in model["regions"]:
             np.testing.assert_allclose(region["normal"], [0, 0, 1])

@@ -7,6 +7,7 @@ The existing YAML loaders and launch argument names are unchanged.
 config/terrains/
   stairs_params.yaml
   ramp_params.yaml
+  uneven_terrain_params.yaml
   stair_climbing/
     g1.yaml
     h2.yaml
@@ -17,9 +18,65 @@ config/terrains/
 
 [`stairs_params.yaml`](stairs_params.yaml) defines the staircase geometry and physical properties consumed by the MuJoCo and RViz staircase xacros.
 [`ramp_params.yaml`](ramp_params.yaml) does the same for the wedge ramp: entry-edge position, yaw, horizontal length, incline angle and width.
+[`uneven_terrain_params.yaml`](uneven_terrain_params.yaml) defines a seeded uneven field and matching MuJoCo/RViz geometry, generated with Python rather than xacro.
 The movable boxes are objects, not terrain: their parameters are in [`../objects/boxes_params.yaml`](../objects/boxes_params.yaml).
 The planner YAML files contain matching staircase geometry plus gait/reference settings; keep that geometry synchronized when editing the environment.
 Each launch automatically selects its robot's variant, and `stairClimbingFile` / `terrainWalkingFile` can still select another file explicitly.
+
+
+## Uneven Terrain
+
+Edit `uneven_terrain_params.yaml`, then run this command from the repository root:
+
+```bash
+python3 description/mujoco/terrains/generate_uneven_terrain.py
+```
+
+It writes `description/mujoco/terrains/uneven_terrain.xml` and `description/urdf/terrains/uneven_terrain.urdf` together.
+Use `--params <yaml>` for another configuration, `--mjcf <xml>` / `--urdf <urdf>` for alternate output paths, or `--check` to reject stale generated files without writing.
+Regeneration is explicit, not performed by the launch or the MPC; the checked-in XML/URDF are ready to load.
+
+| Parameter | Meaning |
+| --- | --- |
+| `base.pos`, `base.yaw` | World center and yaw of the whole field, including its clear patch |
+| `size` | Overall local X/Y dimensions in meters; defaults to 10 by 10 |
+| `grid` | Integer cell counts in X/Y; defaults to 20 by 20, giving 0.5 m pitch |
+| `height.min/max` | Bounded tile-top envelope relative to `base.pos.z`; defaults to 0-0.12 m |
+| `height.adjacent_difference.min/max` | Absolute difference between horizontal/vertical grid neighbors; defaults to 0.02-0.05 m |
+| `height.adjacent_difference.distribution` | Uniform or triangular nominal step sampling, conditioned on available height range |
+| `height.adjacent_difference.mode` | Preferred magnitude for triangular sampling; defaults to 0.03 m |
+| `height.jitter` | Independent per-cell noise, reserved inside the neighbor bounds rather than added outside them |
+| `profile.amplitude/wavelength/strength` | Broad sinusoidal tendency and the probability of stepping toward it; strength zero removes that directional bias |
+| `seed` | Reproduce a particular field, or choose another deterministic random variation |
+| `clear_patch.center/size` | Exact rectangular opening in field-local coordinates; defaults to a centered 0.5 by 0.5 m patch, or `[0, 0]` size disables it |
+| `depth`, `gap` | Block bottom at local `-depth`, and optional horizontal gap between cells |
+| `friction`, `color_gray` | Existing MuJoCo sliding/spinning/rolling friction and RViz gray; MuJoCo reuses the stair texture |
+
+The field combines two bounded, profile-biased random walks with small independent cell jitter; it is correlated rolling terrain, not independent white-noise blocks.
+Every edge-neighbor difference is checked after generation, while the height envelope prevents a long walk from accumulating arbitrarily high hills.
+Because the sampler is conditioned near the envelope and then perturbed by bounded jitter, the realized histogram is not an exact unconditioned triangular/uniform density.
+Diagonal neighbors are not constrained to the same difference range.
+The outer floor and the clear-patch boundary are also exempt: those transitions can exceed 5 cm, up to the local surface height.
+The clear patch clips intersecting cells exactly; pieces of one clipped cell retain the same height and are not new independently sampled cells.
+With nonzero `gap`, the overall dimensions describe the grid footprint and floor is exposed through the gaps.
+The generator rejects tiles below the background floor at world Z=0, because that floor would hide the intended depressions.
+It also rejects a height envelope too narrow for the requested minimum difference and jitter; widen the envelope or reduce jitter rather than silently violating the bounds.
+For the default seed, logical neighbor steps span about 2.30-4.67 cm with a 3.32 cm mean and 0.48 cm standard deviation; the 400 logical cells become 404 box pieces around the exact clear patch.
+
+After building and sourcing the workspace, run the existing WB-ID controller on the explicit uneven scene:
+
+```bash
+ros2 launch legged_robot_mpc_controller robot.launch.py \
+  robotName:=g1 \
+  mpcControllerName:=humanoid_whole_body_inverse_dynamics_mpc_controller \
+  mujocoModelFile:=scene_uneven.xml \
+  environmentDescription:="$(ros2 pkg prefix legged_robot_mpc_controller)/share/legged_robot_mpc_controller/description/urdf/terrains/uneven_terrain.urdf" \
+  mpcFreq:=90 mrtFreq:=1000 rviz:=true mujoco_headless:=false baseCommandGui:=true
+```
+
+Use `robotName:=h2` for H2; both use the same terrain module and YAML.
+This changes the simulation environment only and does not supply its heights to the MPC in ordinary `base_twist` mode.
+The larger roughness is not a claim that the current controller can walk over every block without falling.
 
 
 ## Robot-Specific Values

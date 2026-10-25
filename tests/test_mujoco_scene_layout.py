@@ -91,7 +91,7 @@ class SceneLayoutTest(unittest.TestCase):
     @unittest.skipIf(mujoco is None, "mujoco Python package is not installed")
     def test_all_scenes_and_generated_terrains_compile(self):
         scenes = list(SCENES.glob("robots/*/scene*.xml"))
-        self.assertEqual(len(scenes), 6)
+        self.assertEqual(len(scenes), 8)
         for path in scenes:
             with self.subTest(scene=path.name):
                 model = mujoco.MjModel.from_xml_path(str(path))
@@ -122,7 +122,9 @@ class SceneLayoutTest(unittest.TestCase):
                 self.assertEqual(before, shared_background.read_bytes())
                 self.assertTrue((scenes / "common" / "backgrounds" / "background_night_scene_test.xml").is_file())
                 model = mujoco.MjModel.from_xml_path(str(scenes / "robots" / robot / "scene_test.xml"))
-                self.assertEqual(model.ngeom, 512 if robot == "g1" else 506)
+                flat = mujoco.MjModel.from_xml_path(str(scenes / "robots" / robot / "scene_flat.xml"))
+                rough_count = len(ET.parse(scenes / "terrains/uneven_terrain.xml").findall(".//geom"))
+                self.assertEqual(model.ngeom, flat.ngeom + rough_count)
 
     @unittest.skipIf(xacro is None, "xacro Python package is not installed")
     def test_stairs_xacros_find_shared_parameters(self):

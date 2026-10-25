@@ -151,6 +151,14 @@ terrainWalkingFile:=<pkg_share>/config/terrains/terrain_walking/g1.yaml
 ```
 
 
+### Uneven terrain
+
+`scene_uneven.xml` is available for both robots, with a shared configurable field center, footprint, grid, rolling profile, random seed and adjacent height-difference distribution.
+Edit [`uneven_terrain_params.yaml`](./config/terrains/uneven_terrain_params.yaml), then run `python3 description/mujoco/terrains/generate_uneven_terrain.py` to regenerate matching MuJoCo and RViz geometry.
+The default edge-neighbor height differences are bounded to 2-5 cm; see [parameters and launch example](./config/terrains/README.md#uneven-terrain), including the exceptions at floor/clear-patch boundaries.
+This only changes the environment and supplies no terrain map to ordinary `base_twist` control.
+
+
 ### WB-ID running
 
 In `base_twist` mode, G1 and H2 use `[stance, walk, trot, run]`, with overlapping speed bands.
