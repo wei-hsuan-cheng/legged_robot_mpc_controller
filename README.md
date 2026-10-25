@@ -20,6 +20,12 @@
   </tr>
 </table>
 
+<p align="center">
+  <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/h2_run.gif?raw=true" width="800" alt="H2 runs, stops, stumbles, and regains balance" />
+  <br />
+  <b>Unitree H2</b><br />Runs, stops, stumbles, and regains balance
+</p>
+
 
 ## MPC Formulations
 
