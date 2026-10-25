@@ -1,0 +1,82 @@
+<?xml version="1.0"?>
+<mujoco model="ramp" xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <!--
+    Parametric ramp for MuJoCo: a solid wedge (triangular prism).
+
+    Generate the xml file using xacro with the following command:
+      xacro \
+        ./ramp.xml.xacro \
+        ramp_params_file:=../../../config/terrains/ramp_params.yaml \
+        -o ./ramp.xml
+
+    Schematic (side view, local frame of the entry edge):
+
+                                         .|
+                                    .'    |
+                               .'         |  rise = length * tan(incline)
+                          .'  incline     |
+      O=============.'====================+====> +x (ascent / yaw direction)
+      ^<============== length ============>
+      entry-edge centre  (world pos + yaw come from the params file)
+
+    MuJoCo has no wedge primitive, so the ramp is an inline convex mesh: one
+    vertex set per face so each face gets its own texture coordinates (in metres
+    along the face, like texuniform boxes). Collision uses the convex hull of the
+    vertices, which is the exact wedge.
+  -->
+  <xacro:arg name="ramp_params_file" default="../../../config/terrains/ramp_params.yaml"/>
+  <xacro:property name="ramp_params_file" value="$(arg ramp_params_file)"/>
+
+  <xacro:property name="ramp" value="${xacro.load_yaml(ramp_params_file)['ramp']}"/>
+
+  <xacro:property name="base"     value="${ramp['base']}"/>
+  <xacro:property name="L"        value="${ramp['length']}"/>
+  <xacro:property name="W"        value="${ramp['width']}"/>
+  <xacro:property name="incline"  value="${radians(ramp['incline_deg'])}"/>
+  <xacro:property name="friction" value="${ramp['friction']}"/>
+
+  <!-- Derived shape: rise at the far end, slope length along the top surface, half width. -->
+  <xacro:property name="H" value="${L * tan(incline)}"/>
+  <xacro:property name="S" value="${L / cos(incline)}"/>
+  <xacro:property name="w" value="${W / 2.0}"/>
+
+  <!-- yaw (about world +z) -> quaternion (w, x, y, z) -->
+  <xacro:property name="yaw" value="${base['yaw']}"/>
+  <xacro:property name="qw"  value="${cos(yaw / 2.0)}"/>
+  <xacro:property name="qz"  value="${sin(yaw / 2.0)}"/>
+
+  <asset>
+    <!-- Faces, wound outward: top slope (0-3), far end x=L (4-7), bottom (8-11),
+         right side y=-w (12-14), left side y=+w (15-17). -->
+    <mesh name="ramp_wedge"
+          vertex="0 ${-w} 0  ${L} ${-w} ${H}  ${L} ${w} ${H}  0 ${w} 0
+                  ${L} ${-w} 0  ${L} ${w} 0  ${L} ${w} ${H}  ${L} ${-w} ${H}
+                  0 ${-w} 0  0 ${w} 0  ${L} ${w} 0  ${L} ${-w} 0
+                  0 ${-w} 0  ${L} ${-w} 0  ${L} ${-w} ${H}
+                  0 ${w} 0  ${L} ${w} ${H}  ${L} ${w} 0"
+          texcoord="0 0  ${S} 0  ${S} ${W}  0 ${W}
+                    0 0  ${W} 0  ${W} ${H}  0 ${H}
+                    0 0  0 ${W}  ${L} ${W}  ${L} 0
+                    0 0  ${L} 0  ${L} ${H}
+                    0 0  ${L} ${H}  ${L} 0"
+          face="0 1 2  0 2 3  4 5 6  4 6 7  8 9 10  8 10 11  12 13 14  15 16 17"/>
+  </asset>
+
+  <worldbody>
+    <body name="ramp"
+          pos="${base['pos'][0]} ${base['pos'][1]} ${base['pos'][2]}"
+          quat="${qw} 0 0 ${qz}">
+      <geom name="ramp_surface"
+            type="mesh"
+            mesh="ramp_wedge"
+            material="studio_terrain" rgba="1 1 1 1"
+            priority="1"
+            friction="${friction[0]} ${friction[1]} ${friction[2]}"/>
+    </body>
+  </worldbody>
+
+  <contact>
+    <!-- The wedge's base lies on the floor; keep floor/ramp contacts out explicitly. -->
+    <exclude body1="world" body2="ramp"/>
+  </contact>
+</mujoco>

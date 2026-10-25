@@ -1,7 +1,8 @@
 """Export the current scenes' static box tops to a simulation-only MPC terrain model.
 
-Supports horizontal planes and box tops with rectangular XY projections (including
-the repository's pitch-only ramp). Dynamic bodies are not foothold surfaces.
+Supports horizontal planes, box tops with rectangular XY projections, and the upward
+faces of inline-vertex convex meshes whose XY projections are rectangles (the
+repository's wedge ramp). Dynamic bodies are not foothold surfaces.
 Unsupported static geometry fails explicitly rather than inventing flat ground.
 """
 
@@ -43,6 +44,49 @@ def _pose(node, degrees):
     return position, rotation
 
 
+def _convex_faces(points, tolerance=1e-9):
+    """Faces of the convex hull of a small point set: (outward unit normal, vertex indices)."""
+    points = np.unique(np.round(points, 12), axis=0)
+    centre = points.mean(axis=0)
+    faces = []
+    for i in range(len(points)):
+        for j in range(i + 1, len(points)):
+            for k in range(j + 1, len(points)):
+                normal = np.cross(points[j] - points[i], points[k] - points[i])
+                if np.linalg.norm(normal) < tolerance:
+                    continue
+                normal /= np.linalg.norm(normal)
+                if normal @ (points[i] - centre) < 0:
+                    normal = -normal
+                offsets = (points - points[i]) @ normal
+                if np.all(offsets <= tolerance) and not any(np.allclose(normal, f[0]) for f in faces):
+                    faces.append((normal, np.flatnonzero(np.abs(offsets) <= tolerance)))
+    return points, faces
+
+
+def _mesh_regions(name, vertices):
+    """Upward convex-mesh faces as terrain regions; each must project to an XY rectangle."""
+    points, faces = _convex_faces(vertices)
+    regions = []
+    for normal, index in faces:
+        if normal[2] < 0.2:
+            continue  # sides and bottoms are not foothold surfaces
+        corners = points[index]
+        centre = corners.mean(axis=0)
+        order = np.argsort(np.arctan2(*(corners[:, :2] - centre[:2]).T[::-1]))
+        xy = corners[order, :2]
+        edges = np.roll(xy, -1, axis=0) - xy
+        if len(xy) != 4 or any(abs(edges[i] @ edges[(i + 1) % 4]) > 1e-7 * (1 + edges[i] @ edges[i]) for i in range(4)):
+            raise ValueError("Mesh top face does not have a rectangular XY footprint: " + name)
+        regions.append({
+            "name": name, "center": centre[:2].tolist(), "height": float(centre[2]),
+            "yaw": math.atan2(edges[0][1], edges[0][0]),
+            "half_extents": [float(np.linalg.norm(edges[0]) / 2), float(np.linalg.norm(edges[1]) / 2)],
+            "normal": normal.tolist(),
+        })
+    return regions
+
+
 def scene_regions(scene_file):
     regions, floors = [], []
     root = ET.parse(scene_file).getroot()
@@ -60,8 +104,25 @@ def scene_regions(scene_file):
             for child in node:
                 read_compilers(child, directory, stack)
 
+    meshes = {}
+
+    def read_meshes(node, directory, stack):
+        if node.tag == "include":
+            path = (directory / node.attrib["file"]).resolve()
+            if path not in stack:
+                read_meshes(ET.parse(path).getroot(), path.parent, stack + [path])
+        elif node.tag == "mesh" and "name" in node.attrib:
+            vertex = np.fromstring(node.get("vertex", ""), sep=" ")
+            scale = np.fromstring(node.get("scale", "1 1 1"), sep=" ")
+            meshes[node.get("name")] = (vertex.reshape(-1, 3) * scale
+                                        if "vertex" in node.attrib and vertex.size % 3 == 0 else None)
+        else:
+            for child in node:
+                read_meshes(child, directory, stack)
+
     scene_file = Path(scene_file).resolve()
     read_compilers(root, scene_file.parent, [scene_file])
+    read_meshes(root, scene_file.parent, [scene_file])
     degrees = compiler_settings["angle"] == "degree"
     if compiler_settings["eulerseq"] != "xyz":
         raise ValueError("Terrain export requires compiler eulerseq='xyz'")
@@ -102,6 +163,11 @@ def scene_regions(scene_file):
                     "half_extents": [float(size[i] * np.linalg.norm(r[:2, i])) for i in (0, 1)],
                     "normal": normal.tolist(),
                 })
+            elif kind == "mesh":
+                vertices = meshes.get(node.get("mesh", ""))
+                if vertices is None or len(vertices) < 4:
+                    raise ValueError("Only inline-vertex convex meshes are supported: " + node.get("name", ""))
+                regions.extend(_mesh_regions(node.get("name", "mesh"), (p + vertices @ r.T)))
             else:
                 raise ValueError("Unsupported static terrain geom: " + kind + " / " + node.get("name", ""))
             return

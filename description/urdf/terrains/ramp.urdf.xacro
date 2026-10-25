@@ -1,0 +1,65 @@
+<?xml version="1.0"?>
+<robot name="ramp" xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <!--
+    Environment description: a parametric ramp (same geometry convention as
+    ../../mujoco/terrains/ramp.xml.xacro, driven by the SAME params file). It is not
+    part of the robot. robot.launch.py runs it through xacro when selected with
+    environmentDescription and publishes it with its own robot_state_publisher in
+    the "environment" namespace, so rviz shows it next to the robot.
+
+    The result is a chain of fixed joints, rooted at <parent> (default "world"):
+      <parent> -[fixed]-> ramp_base -[fixed]-> ramp_wedge
+    The "ramp_base" link is the entry-edge reference frame (world pos + yaw).
+
+    URDF has no wedge primitive, so the wedge is the unit mesh
+    description/meshes/terrains/unit_wedge.stl (x in [0, 1], y in [-0.5, 0.5],
+    top rising from z = 0 to z = 1) scaled by (length, width, rise).
+  -->
+  <xacro:arg name="ramp_params_file" default="../../../config/terrains/ramp_params.yaml"/>
+  <xacro:arg name="parent" default="world"/>
+
+  <xacro:property name="ramp_params_file" value="$(arg ramp_params_file)"/>
+  <xacro:property name="parent_link"      value="$(arg parent)"/>
+
+  <xacro:property name="ramp" value="${xacro.load_yaml(ramp_params_file)['ramp']}"/>
+
+  <xacro:property name="base"    value="${ramp['base']}"/>
+  <xacro:property name="L"       value="${ramp['length']}"/>
+  <xacro:property name="W"       value="${ramp['width']}"/>
+  <xacro:property name="H"       value="${L * tan(radians(ramp['incline_deg']))}"/>
+  <xacro:property name="gray"    value="${ramp['color_gray']}"/>
+  <xacro:property name="mesh"    value="package://legged_robot_mpc_controller/description/meshes/terrains/unit_wedge.stl"/>
+
+  <link name="${parent_link}"/>
+
+  <!-- Entry-edge reference frame: world position + yaw. -->
+  <link name="ramp_base"/>
+  <joint name="ramp_base_joint" type="fixed">
+    <parent link="${parent_link}"/>
+    <child link="ramp_base"/>
+    <origin xyz="${base['pos'][0]} ${base['pos'][1]} ${base['pos'][2]}"
+            rpy="0 0 ${base['yaw']}"/>
+  </joint>
+
+  <link name="ramp_wedge">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="${mesh}" scale="${L} ${W} ${H}"/>
+      </geometry>
+      <material name="ramp_mat">
+        <color rgba="${gray} ${gray} ${gray} 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="${mesh}" scale="${L} ${W} ${H}"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="ramp_wedge_joint" type="fixed">
+    <parent link="ramp_base"/>
+    <child link="ramp_wedge"/>
+  </joint>
+</robot>

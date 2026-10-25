@@ -1,0 +1,30 @@
+# -----------------------------------------------------------------------------
+# Semantic-level parameters for movable boxes.
+#
+# Geometry convention (see description/mujoco/objects/boxes.xml.xacro):
+#   - Each box is a free rigid body (it can be pushed, slide and topple) placed at
+#     its world centre position with a yaw about world +z.
+#   - Sizes are FULL edge lengths along the box's local x, y, z.
+#   - Mass and principal inertia are given explicitly, about the box centre.
+#
+# This single file feeds BOTH:
+#   - description/mujoco/objects/boxes.xml.xacro -> boxes.xml
+#   - description/urdf/objects/boxes.urdf.xacro  -> the RViz environment
+#     (RViz shows the SPAWN pose; the simulator moves the boxes afterwards)
+# Keep it as the single source of truth.
+# -----------------------------------------------------------------------------
+boxes:
+  # ----- number of boxes -----
+  num_boxes: 2
+
+  # ----- per-box lists (length must equal num_boxes) -----
+  names:     [purple_box, orange_box]
+  positions: [[0.65, 0.0, 0.4], [0.3, -0.25, 0.08]]           # world centre [x, y, z] [m]
+  yaws:      [0.0, 0.0]                                         # yaw about world +z [radians]
+  sizes:     [[0.2, 0.4, 0.8], [0.16, 0.16, 0.16]]              # full edge lengths [x, y, z] [m]
+  masses:    [5.0, 3.0]                                         # [kg]
+  inertias:  [[1.0, 1.0, 1.0], [0.5, 0.5, 0.5]]                 # principal inertia [Ixx, Iyy, Izz] [kg m^2]
+  colors:    [[0.5, 0.0, 0.5, 1.0], [1.0, 0.5, 0.0, 1.0]]       # rgba
+
+  # ----- shared physics -----
+  friction: [1.0, 0.005, 0.0001]   # MuJoCo geom friction (slide, spin, roll); MuJoCo's default

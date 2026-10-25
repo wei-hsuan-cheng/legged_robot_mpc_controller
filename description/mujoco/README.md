@@ -7,6 +7,7 @@ description/
   meshes/
     robots/g1/
     robots/h2/
+    terrains/unit_wedge.stl
   mujoco/
     mujoco_scene_creator.py
     common/backgrounds/
@@ -19,9 +20,11 @@ description/
   urdf/
     robots/g1/
     robots/h2/
-    terrains/stairs.urdf.xacro
+    terrains/{stairs,ramp}.urdf.xacro
+    objects/boxes.urdf.xacro
 config/
-  terrains/stairs_params.yaml
+  terrains/{stairs,ramp}_params.yaml
+  objects/boxes_params.yaml
 ```
 
 Each description format owns its robot and environment modules rather than grouping different formats inside one robot directory.
@@ -37,11 +40,12 @@ The RViz staircase belongs to `description/urdf/terrains/`, and its format-neutr
 | `common/materials/terrain_materials.xml` | Shared matte material using `textures/studio_terrain.png` |
 | `terrains/stairs.xml` | Stair geometry generated from `stairs.xml.xacro` using `../../config/terrains/stairs_params.yaml` |
 | `../urdf/terrains/stairs.urdf.xacro` | Matching RViz environment geometry using the same staircase parameters |
-| `terrains/ramp.xml` | Flush-entry 3-degree ramp and its floor contact exclusion |
+| `terrains/ramp.xml` | Solid wedge ramp (flush entry, vertical far end) generated from `ramp.xml.xacro` using `../../config/terrains/ramp_params.yaml` (position, yaw, horizontal length, incline, width) |
+| `../urdf/terrains/ramp.urdf.xacro` | Matching RViz wedge: `../meshes/terrains/unit_wedge.stl` scaled by length, width and rise from the same parameters |
 | `terrains/slope.xml` | Original separate 5-degree slope |
 | `terrains/uneven_terrain_10x10.xml` | Textured rough tiles with a clear 0.5 x 0.5 m center patch using the background floor |
-| `objects/boxes.xml` | Movable boxes with their original masses and colour tints |
-| `objects/boxes_scattered_50.xml` | Alternative box layout with additional scattered cubes |
+| `objects/boxes.xml` | Movable boxes generated from `boxes.xml.xacro` using `../../config/objects/boxes_params.yaml` (count, names, poses, sizes, masses, inertias, colours) |
+| `../urdf/objects/boxes.urdf.xacro` | Matching RViz boxes at their spawn poses from the same parameters |
 
 Both backgrounds include `../materials/terrain_materials.xml` once, so multiple terrains can coexist without duplicate material definitions.
 Terrain modules assign `material="studio_terrain"` to their geoms; they do not copy lighting or texture assets.
@@ -73,7 +77,7 @@ Switch day/night by changing the scene's background include; separate scene file
 
 From the package root, the generator can compose scenes and regenerate night appearance assets:
 
-Use `--terrain rough` to select `terrains/uneven_terrain_10x10.xml`, `--terrain scattered_boxes` for the alternative box layout, or `--terrain none` to use only the background floor.
+Use `--terrain rough` to select `terrains/uneven_terrain_10x10.xml`, `--terrain boxes` for the movable boxes, or `--terrain none` to use only the background floor.
 
 ```bash
 python3 description/mujoco/mujoco_scene_creator.py
@@ -88,7 +92,15 @@ The default command updates `robots/g1/scene.xml` and the shared `common/backgro
 With `--reference`, the selected reference scene is updated unless `--output` is supplied.
 Appearance overrides such as `--reflectance 0.02` write a background named after the output scene in `common/backgrounds/`, leaving the shared night preset intact.
 Change the generator's `STYLES` and `STUDIO_LIGHTS` to tune the night appearance; edit `common/backgrounds/background_day.xml` for daytime settings and `common/materials/terrain_materials.xml` for terrain texture scale/specularity.
-Regenerating stairs through xacro retains the material assignment, and all scenes immediately use the regenerated geometry without rerunning the scene generator.
+Regenerating stairs, the ramp or the boxes through xacro retains the material assignment, and all scenes immediately use the regenerated geometry without rerunning the scene generator.
+Each generated file's xacro header gives its command, for example:
+
+```bash
+cd description/mujoco/terrains && xacro ./ramp.xml.xacro ramp_params_file:=../../../config/terrains/ramp_params.yaml -o ./ramp.xml
+cd description/mujoco/objects && xacro ./boxes.xml.xacro boxes_params_file:=../../../config/objects/boxes_params.yaml -o ./boxes.xml
+```
+
+In RViz, select the matching environment with `environmentDescription:=<pkg_share>/description/urdf/terrains/ramp.urdf.xacro` (or `objects/boxes.urdf.xacro`); the launch passes all three parameter files, and each xacro reads its own.
 
 Validate the layout from the package root with `python3 -m unittest discover -s tests -p test_mujoco_scene_layout.py -v`.
 MuJoCo and xacro checks run when their Python packages are installed; the remaining resource-path checks need only the standard library.

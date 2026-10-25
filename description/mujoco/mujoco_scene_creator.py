@@ -40,7 +40,6 @@ DEFAULT_SCENE_DIR = SCRIPT_DIR
 TERRAIN_FILES = {
     "stairs": "terrains/stairs.xml",
     "boxes": "objects/boxes.xml",
-    "scattered_boxes": "objects/boxes_scattered_50.xml",
     "slope": "terrains/slope.xml",
     "ramp": "terrains/ramp.xml",
     "rough": "terrains/uneven_terrain_10x10.xml",

@@ -761,7 +761,7 @@ The MuJoCo scene supplies the physical collision surfaces, but the explicit terr
 The loop is joint/IMU feedback, state estimation, a new MPC observation, replanning and joint PD plus feedforward actuation.
 This can provide empirical robustness to model/contact mismatch, but it is not a formal robust-MPC guarantee or an implemented unknown-terrain estimator.
 
-The evidence below comes from the 2026-10-24 Jazzy trials on the current 3-degree ramp, using the linear KF, requested MPC/MRT rates of 100/1000 Hz and a 0.795 m height command.
+The evidence below comes from the 2026-10-24 Jazzy trials on the 3-degree plate ramp used then (the ramp is now a wedge set by `config/terrains/ramp_params.yaml`; at 3° its top surface is the same), using the linear KF, requested MPC/MRT rates of 100/1000 Hz and a 0.795 m height command.
 Measured MPC rates were below the requested rate, and the command schedule was wall-clock based; physical velocities were scored using recorded simulator timestamps.
 The 0.3 m/s cases used a 3 s command ramp, 20 s hold, 3 s ramp down and 5 s stop after 4 s of standing; the 0.2 m/s case used a 25 s hold.
 Only the vertical and orientation stabilization gains changed between the rebuilt baseline and final configuration; all other table settings were already present in both.

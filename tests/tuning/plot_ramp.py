@@ -12,6 +12,9 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
+import yaml
+
+RAMP = yaml.safe_load((Path(__file__).resolve().parents[2] / "config/terrains/ramp_params.yaml").read_text())["ramp"]
 
 
 def main():
@@ -27,8 +30,9 @@ def main():
     seconds = gt[:, 0] - gt[0, 0]
     fig, axes = plt.subplots(5, 1, figsize=(12, 12), sharex=True)
     axes[0].plot(seconds, gt[:, 2], label="physical x")
-    axes[0].axhline(1.5, color="k", ls="--", label="ramp starts")
-    axes[0].axhline(5.49, color="gray", ls="--", label="ramp ends")
+    # Start and end x of the ramp from its parameters (assumes the ramp ascends along world +x).
+    axes[0].axhline(RAMP["base"]["pos"][0], color="k", ls="--", label="ramp starts")
+    axes[0].axhline(RAMP["base"]["pos"][0] + RAMP["length"], color="gray", ls="--", label="ramp ends")
     axes[0].set_ylabel("x [m]")
     for axis, name, column in ((axes[1], "z", 4), (axes[2], "vx", 5)):
         axis.plot(seconds, gt[:, column], label="physical")

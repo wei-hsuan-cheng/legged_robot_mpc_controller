@@ -6,6 +6,7 @@ The existing YAML loaders and launch argument names are unchanged.
 ```text
 config/terrains/
   stairs_params.yaml
+  ramp_params.yaml
   stair_climbing/
     g1.yaml
     h2.yaml
@@ -15,6 +16,8 @@ config/terrains/
 ```
 
 [`stairs_params.yaml`](stairs_params.yaml) defines the staircase geometry and physical properties consumed by the MuJoCo and RViz staircase xacros.
+[`ramp_params.yaml`](ramp_params.yaml) does the same for the wedge ramp: entry-edge position, yaw, horizontal length, incline angle and width.
+The movable boxes are objects, not terrain: their parameters are in [`../objects/boxes_params.yaml`](../objects/boxes_params.yaml).
 The planner YAML files contain matching staircase geometry plus gait/reference settings; keep that geometry synchronized when editing the environment.
 Each launch automatically selects its robot's variant, and `stairClimbingFile` / `terrainWalkingFile` can still select another file explicitly.
 

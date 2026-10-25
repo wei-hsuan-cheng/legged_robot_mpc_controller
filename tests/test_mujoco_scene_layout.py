@@ -135,6 +135,40 @@ class SceneLayoutTest(unittest.TestCase):
         self.assertEqual(len(rviz.findall("./link/visual")), len(generated.findall(".//geom")))
 
     @unittest.skipIf(xacro is None, "xacro Python package is not installed")
+    def test_ramp_and_boxes_xacros_find_shared_parameters(self):
+        # Committed MJCF must be the current xacro output, like stairs.xml.
+        for module, tag in (("terrains/ramp", "mesh"), ("objects/boxes", "body")):
+            generated = ET.fromstring(xacro.process_file(str(SCENES / f"{module}.xml.xacro")).toxml())
+            committed = ET.parse(SCENES / f"{module}.xml")
+            for kind in (tag, "geom"):
+                self.assertEqual([elem.attrib for elem in generated.iter(kind)],
+                                 [elem.attrib for elem in committed.iter(kind)], module)
+        ramp = ET.fromstring(xacro.process_file(str(ROOT / "description/urdf/terrains/ramp.urdf.xacro")).toxml())
+        mesh = ramp.find("./link/visual/geometry/mesh")
+        self.assertTrue(mesh.get("filename").endswith("description/meshes/terrains/unit_wedge.stl"))
+        self.assertTrue((ROOT / "description/meshes/terrains/unit_wedge.stl").is_file())
+        boxes = ET.fromstring(xacro.process_file(str(ROOT / "description/urdf/objects/boxes.urdf.xacro")).toxml())
+        self.assertEqual(len(boxes.findall("./link/visual")), len(committed.findall(".//body")))
+
+    @unittest.skipIf(mujoco is None, "MuJoCo Python package is not installed")
+    def test_ramp_is_a_wedge_from_its_parameters(self):
+        import math
+        import numpy as np
+        import yaml
+        params = yaml.safe_load((ROOT / "config/terrains/ramp_params.yaml").read_text())["ramp"]
+        model = mujoco.MjModel.from_xml_path(str(G1_SCENES / "scene_ramp.xml"))
+        data = mujoco.MjData(model)
+        mujoco.mj_forward(model, data)
+        rise = params["length"] * math.tan(math.radians(params["incline_deg"]))
+        geom = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, "ramp_surface")
+        corners = data.geom_xpos[geom] + model.mesh_vert[model.mesh_vertadr[model.geom_dataid[geom]]:][
+            :model.mesh_vertnum[model.geom_dataid[geom]]] @ data.geom_xmat[geom].reshape(3, 3).T
+        np.testing.assert_allclose(corners[:, 2].min(), params["base"]["pos"][2], atol=1e-6)  # MuJoCo recentres mesh vertices
+        np.testing.assert_allclose(corners[:, 2].max(), params["base"]["pos"][2] + rise, atol=1e-6)  # MuJoCo recentres mesh vertices
+        np.testing.assert_allclose(np.ptp(corners[:, 0]), params["length"], atol=1e-6)  # MuJoCo recentres mesh vertices
+        np.testing.assert_allclose(np.ptp(corners[:, 1]), params["width"], atol=1e-6)  # MuJoCo recentres mesh vertices
+
+    @unittest.skipIf(xacro is None, "xacro Python package is not installed")
     def test_robot_control_xacro(self):
         # Replace package discovery, not xacro expansion, for a ROS-independent path check.
         with patch("xacro.substitution_args._eval_find", return_value=str(ROOT)):
@@ -164,6 +198,11 @@ class SceneLayoutTest(unittest.TestCase):
             urdf = xacro.process_file(str(package / "description/urdf/terrains/stairs.urdf.xacro"))
             self.assertEqual(len(ET.fromstring(mjcf.toxml()).findall(".//geom")),
                              len(ET.fromstring(urdf.toxml()).findall("./link/visual")))
+            for module in ("terrains/ramp", "objects/boxes"):
+                mjcf = xacro.process_file(str(package / f"description/mujoco/{module}.xml.xacro"))
+                urdf = xacro.process_file(str(package / f"description/urdf/{module}.urdf.xacro"))
+                self.assertEqual(len(ET.fromstring(mjcf.toxml()).findall(".//geom")),
+                                 len(ET.fromstring(urdf.toxml()).findall("./link/visual")), module)
 
 
 if __name__ == "__main__":

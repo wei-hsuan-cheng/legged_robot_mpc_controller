@@ -1,0 +1,66 @@
+<?xml version="1.0"?>
+<robot name="boxes" xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <!--
+    Environment description: the parametric boxes (same convention as
+    ../../mujoco/objects/boxes.xml.xacro, driven by the SAME params file). It is not
+    part of the robot. robot.launch.py runs it through xacro when selected with
+    environmentDescription and publishes it with its own robot_state_publisher in
+    the "environment" namespace.
+
+    The boxes are free bodies in the simulator, so this shows their SPAWN pose:
+      <parent> -[fixed]-> <name of box 1> ... <name of box N>
+  -->
+  <xacro:arg name="boxes_params_file" default="../../../config/objects/boxes_params.yaml"/>
+  <xacro:arg name="parent" default="world"/>
+
+  <xacro:property name="boxes_params_file" value="$(arg boxes_params_file)"/>
+  <xacro:property name="parent_link"       value="$(arg parent)"/>
+
+  <xacro:property name="boxes" value="${xacro.load_yaml(boxes_params_file)['boxes']}"/>
+
+  <xacro:property name="num_boxes" value="${boxes['num_boxes']}"/>
+  <xacro:property name="names"     value="${boxes['names']}"/>
+  <xacro:property name="positions" value="${boxes['positions']}"/>
+  <xacro:property name="yaws"      value="${boxes['yaws']}"/>
+  <xacro:property name="sizes"     value="${boxes['sizes']}"/>
+  <xacro:property name="colors"    value="${boxes['colors']}"/>
+
+  <link name="${parent_link}"/>
+
+  <!--
+    Recursively emit one link + fixed joint per box.
+      i : 1-based box index
+  -->
+  <xacro:macro name="emit_box" params="i">
+    <xacro:if value="${i &lt;= num_boxes}">
+      <xacro:property name="p" value="${positions[i-1]}"/>
+      <xacro:property name="s" value="${sizes[i-1]}"/>
+      <xacro:property name="c" value="${colors[i-1]}"/>
+
+      <link name="${names[i-1]}">
+        <visual>
+          <geometry>
+            <box size="${s[0]} ${s[1]} ${s[2]}"/>
+          </geometry>
+          <material name="${names[i-1]}_mat">
+            <color rgba="${c[0]} ${c[1]} ${c[2]} ${c[3]}"/>
+          </material>
+        </visual>
+        <collision>
+          <geometry>
+            <box size="${s[0]} ${s[1]} ${s[2]}"/>
+          </geometry>
+        </collision>
+      </link>
+      <joint name="${names[i-1]}_joint" type="fixed">
+        <parent link="${parent_link}"/>
+        <child link="${names[i-1]}"/>
+        <origin xyz="${p[0]} ${p[1]} ${p[2]}" rpy="0 0 ${yaws[i-1]}"/>
+      </joint>
+
+      <xacro:emit_box i="${i + 1}"/>
+    </xacro:if>
+  </xacro:macro>
+
+  <xacro:emit_box i="${1}"/>
+</robot>

@@ -7,6 +7,7 @@ import tempfile
 import unittest
 
 import numpy as np
+import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 MUJOCO = ROOT / "description/mujoco"
@@ -61,20 +62,26 @@ class TerrainReferenceTest(unittest.TestCase):
     @unittest.skipIf(mujoco is None, "MuJoCo Python package not installed")
     def test_exported_ramp_matches_compiled_mujoco_and_rays(self):
         scene = SCENES / "scene_ramp.xml"
+        params = yaml.safe_load((ROOT / "config/terrains/ramp_params.yaml").read_text())["ramp"]
+        incline, yaw = math.radians(params["incline_deg"]), params["base"]["yaw"]
         model = mujoco.MjModel.from_xml_path(str(scene))
         data = mujoco.MjData(model)
         mujoco.mj_forward(model, data)
         exported = terrain.scene_regions(scene)
-        index = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, "ramp_surface")
-        rotation = data.geom_xmat[index].reshape(3, 3)
-        top = data.geom_xpos[index] + rotation[:, 2] * model.geom_size[index, 2]
-        np.testing.assert_allclose(exported["regions"][0]["normal"], rotation[:, 2], atol=1e-9)
-        self.assertAlmostEqual(exported["regions"][0]["height"], top[2])
-        for x in (1.7, 2, 3, 4, 5.3):
-            distance = mujoco.mj_ray(model, data, np.array([x, 0., 2.]), np.array([0., 0., -1.]),
+        self.assertEqual(len(exported["regions"]), 1)
+        np.testing.assert_allclose(exported["regions"][0]["normal"],
+                                   [-math.sin(incline) * math.cos(yaw), -math.sin(incline) * math.sin(yaw), math.cos(incline)],
+                                   atol=1e-9)
+        origin = np.asarray(params["base"]["pos"][:2], float)
+        forward = np.array([math.cos(yaw), math.sin(yaw)])
+        top = params["base"]["pos"][2] + params["length"] * math.tan(incline) + 1.0
+        for fraction in (0.05, 0.25, 0.5, 0.75, 0.95):
+            xy = origin + fraction * params["length"] * forward
+            distance = mujoco.mj_ray(model, data, np.array([*xy, top]), np.array([0., 0., -1.]),
                                      None, 1, -1, np.array([-1], dtype=np.int32))
             self.assertGreater(distance, 0)
-            self.assertAlmostEqual(surface_height(exported, [x, 0]), 2 - distance, places=7)
+            self.assertAlmostEqual(top - distance, fraction * params["length"] * math.tan(incline), places=7)
+            self.assertAlmostEqual(surface_height(exported, xy), top - distance, places=7)
 
     def test_dynamic_geometry_is_excluded_and_unsupported_static_geometry_fails(self):
         with tempfile.TemporaryDirectory() as directory:

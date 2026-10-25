@@ -48,7 +48,7 @@ For headless testing, additionally pass `rviz:=false mujoco_headless:=true`.
 [terrain_scene_model.py](../launch/terrain_scene_model.py) exports static box tops and the common horizontal floor from the selected scene to a temporary YAML file.
 At this archived checkpoint the former `g1.launch.py` used it for WB-ID MuJoCo launches when `terrainFromScene:=true`, retaining the planner settings from `terrainWalkingFile`; the current launch no longer does so.
 Use `terrainFromScene:=false` to retain a manually configured terrain file or the legacy staircase geometry.
-The exporter supports the current horizontal tiles and pitch-only ramp, nested static-body transforms, quaternion/Euler poses and included compiler angle units.
+The exporter supports horizontal tiles, box tops, the upward faces of inline-vertex convex meshes such as the wedge ramp (`ramp_params.yaml`), nested static-body transforms, quaternion/Euler poses and included compiler angle units.
 Dynamic bodies are excluded; unsupported static geometry, compound slopes with nonrectangular XY projections, tilted infinite planes and inconsistent floor levels fail explicitly.
 Meshes, heightfields, moving platforms, riser collision avoidance and perception are not supplied by this exporter.
 

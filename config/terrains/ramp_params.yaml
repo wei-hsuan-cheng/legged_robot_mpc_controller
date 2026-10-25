@@ -1,0 +1,40 @@
+# -----------------------------------------------------------------------------
+# Semantic-level parameters for a parametric ramp (a solid wedge).
+#
+# Geometry convention (see description/mujoco/terrains/ramp.xml.xacro):
+#   - The reference frame is the centre of the ramp's LOW (entry) edge, on the
+#     ground. It lies in the horizontal plane and is fully described by its world
+#     position and yaw orientation.
+#   - The top surface rises in the local +x direction (the direction the yaw
+#     points) at the incline angle, from height 0 at the entry edge to
+#     rise = length * tan(incline) at the far end, which drops vertically to the
+#     ground. Seen from the side the ramp is a long right triangle:
+#
+#                                   ____----|
+#                         ____----''        |  rise
+#               ____----''  incline         |
+#       O===''==============================+====> +x (ascent / yaw direction)
+#       ^<------------- length -------------->
+#       entry edge centre (world pos + yaw)
+#
+#   - length is the HORIZONTAL (projected) length, width is along +y, centred.
+#
+# This single file feeds BOTH:
+#   - description/mujoco/terrains/ramp.xml.xacro -> ramp.xml
+#   - description/urdf/terrains/ramp.urdf.xacro  -> the RViz environment
+# Keep it as the single source of truth.
+# -----------------------------------------------------------------------------
+ramp:
+  # ----- entry edge: reference frame in the horizontal plane -----
+  base:
+    pos: [1.5, 0.0, 0.0]   # world position of the entry-edge centre [x, y, z]
+    yaw: 0.0               # ascent direction about world +z [radians]
+
+  # ----- shape -----
+  length: 4.0              # horizontal (projected) length along +x [m]
+  incline_deg: 15.0        # incline angle of the top surface [degrees], in (0, 90)
+  width: 2.0               # width along +y, centred [m]
+
+  # ----- shared appearance / physics -----
+  friction: [0.8, 0.1, 0.001]   # MuJoCo geom friction (slide, spin, roll)
+  color_gray: 0.55              # RViz colour; MuJoCo uses the shared studio_terrain material

@@ -42,10 +42,13 @@ def generate_launch_description():
     ])
     urdf_default = PathJoinSubstitution([mpc_share_dir, "description", "urdf", "robots", robot_name, urdf_name])
 
-    # The environment, rooted at world - not part of the robot. "" for none (e.g. with scene_flat.xml). 
-    # Driven by the same params file as the MuJoCo stairs.
+    # The environment, rooted at world - not part of the robot. "" for none (e.g. with scene_flat.xml);
+    # description/urdf/terrains/ramp.urdf.xacro or description/urdf/objects/boxes.urdf.xacro for the others.
+    # Each xacro reads the same params file as its MuJoCo module; all three files are passed to whichever is selected.
     environment_default = PathJoinSubstitution([mpc_share_dir, "description", "urdf", "terrains", "stairs.urdf.xacro"])
     stairs_params_file = PathJoinSubstitution([mpc_share_dir, "config", "terrains", "stairs_params.yaml"])
+    ramp_params_file = PathJoinSubstitution([mpc_share_dir, "config", "terrains", "ramp_params.yaml"])
+    boxes_params_file = PathJoinSubstitution([mpc_share_dir, "config", "objects", "boxes_params.yaml"])
 
     controllers_file_default = PathJoinSubstitution([
         mpc_share_dir, "config", robot_name,
@@ -203,7 +206,9 @@ def generate_launch_description():
             Command([
                 PathJoinSubstitution([FindExecutable(name="xacro")]), " ",
                 LaunchConfiguration("environmentDescription"), " ",
-                "stairs_params_file:=", stairs_params_file,
+                "stairs_params_file:=", stairs_params_file, " ",
+                "ramp_params_file:=", ramp_params_file, " ",
+                "boxes_params_file:=", boxes_params_file,
             ]),
             value_type=str,
         )
