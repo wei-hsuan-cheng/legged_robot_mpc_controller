@@ -55,6 +55,31 @@ This fix lives in the separate `ocs2_ros2` repository and must accompany the con
 The standalone 200-phase AddressSanitizer reproduction failed before the fix and passed afterward; the dependency's 19 trajectory-spreading tests also passed.
 
 
+## Per-Gait Swing Height
+
+Set `ocs2.gait.templates.<name>.swingHeight` to choose a nominal clearance for each gait, in meters.
+Omit it or use -1 to inherit `ocs2.gait.swingTrajectory.swingHeight`; zero means zero additional clearance, not fallback.
+The selected ladders now have these overrides:
+
+| Robot | Gait | Nominal height [m] | Steady swing duration [s] | Scaled reference clearance [m] |
+| --- | --- | --- | --- | --- |
+| G1 | walk | 0.08 | 0.30 | 0.06 |
+| G1 | trot | 0.09 | 0.50 | 0.09 |
+| G1 | run | 0.10 | 0.41 | 0.10 |
+| H2 | walk | 0.10 | 0.30 | 0.075 |
+| H2 | trot | 0.15 | 0.50 | 0.15 |
+| H2 | run | 0.20 | 0.40 | 0.20 |
+
+The existing duration scaling remains $\min(1,T_{\mathrm{swing}}/0.4)$, and clearance is measured above the higher lift-off/touchdown endpoint.
+The schedule carries the height alongside each mode, so previously scheduled walking swings retain their height when future running phases are inserted.
+Every mode within one complete swing uses the height selected at lift-off, preserving spline continuity across flight boundaries.
+Other G1/H2 templates retain their respective 0.08/0.10 m defaults.
+The shared parser supports the optional property in both controller schemas without changing centroidal YAML values.
+The new G1/H2 trot/run heights are user-requested starting values, not performance-validated tuning; all running results below used the previous universal G1/H2 heights of 0.08/0.10 m.
+The Jazzy Release build and both native AddressSanitizer regressions passed, including 100 schedule-transition cycles; these checks do not establish locomotion robustness.
+Higher swings demand faster leg motion and can increase torque, joint-limit and collision pressure; do not assume that doubling clearance preserves the previous robustness.
+
+
 ## Tuning and Validation
 
 Both saved source configurations passed 1.0 m/s-command trials with 30 s holds and complete stops, plus final timestamp-paired flight checks.

@@ -236,6 +236,7 @@ void SwitchedModelReferenceManager::modifyReferences(scalar_t initTime,
 
   const auto timeHorizon = finalTime - initTime;
   modeSchedule = gaitSchedulePtr_->getModeSchedule(initTime - timeHorizon, finalTime + timeHorizon);
+  const auto& swingHeights = gaitSchedulePtr_->getSwingHeightSequence();
 
   const auto& stairPlan = stairClimbingPlan_.get();
   if (stairPlan) {
@@ -244,7 +245,7 @@ void SwitchedModelReferenceManager::modifyReferences(scalar_t initTime,
     feet_array_t<scalar_array_t> liftOffHeightSequence;
     feet_array_t<scalar_array_t> touchDownHeightSequence;
     stairPlan->getHeightSequences(modeSchedule, liftOffHeightSequence, touchDownHeightSequence);
-    swingTrajectoryPtr_->update(modeSchedule, liftOffHeightSequence, touchDownHeightSequence);
+    swingTrajectoryPtr_->update(modeSchedule, liftOffHeightSequence, touchDownHeightSequence, swingHeights);
   } else if (isTerrainWalkActive()) {
     // Terrain-aware walking: re-plan the footsteps over the ground-truth
     // terrain for the current window, terrain-adapt the base height reference,
@@ -311,10 +312,10 @@ void SwitchedModelReferenceManager::modifyReferences(scalar_t initTime,
     feet_array_t<scalar_array_t> liftOffHeightSequence;
     feet_array_t<scalar_array_t> touchDownHeightSequence;
     planner.getHeightSequences(modeSchedule, liftOffHeightSequence, touchDownHeightSequence);
-    swingTrajectoryPtr_->update(modeSchedule, liftOffHeightSequence, touchDownHeightSequence);
+    swingTrajectoryPtr_->update(modeSchedule, liftOffHeightSequence, touchDownHeightSequence, swingHeights);
   } else {
     scalar_t terrainHeight = adaptToCurrentGroundHeight(targetTrajectories, initState, initMode);
-    swingTrajectoryPtr_->update(modeSchedule, terrainHeight);
+    swingTrajectoryPtr_->update(modeSchedule, terrainHeight, swingHeights);
   }
 
   modeSchedule_ = modeSchedule;

@@ -10,6 +10,22 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class RunningGaitTest(unittest.TestCase):
+    def test_gait_heights_and_optional_schema_defaults(self):
+        for robot, heights in (("g1", (.08, .09, .10)), ("h2", (.10, .15, .20))):
+            with self.subTest(robot=robot):
+                config = yaml.safe_load((ROOT / "config" / robot / "ros2_controllers.yaml").read_text())
+                gait = config["humanoid_whole_body_inverse_dynamics_mpc_controller"]["ros__parameters"]["ocs2"]["gait"]
+                for name, height in zip(("walk", "trot", "run"), heights):
+                    self.assertEqual(gait["templates"][name]["swingHeight"], height)
+                self.assertEqual(gait["swingTrajectory"]["swingHeight"], heights[0])
+        for relative in (
+            "src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller_parameter.yaml",
+            "src/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller_parameter.yaml",
+        ):
+            schema = yaml.safe_load((ROOT / relative).read_text())
+            params = next(iter(schema.values()))
+            self.assertEqual(params["ocs2"]["gait"]["templates"]["__map_names"]["swingHeight"]["default_value"], -1.)
+
     def test_flight_timing_and_supported_transition_gaits(self):
         for robot, support, flight in (("g1", .25, .08), ("h2", .28, .06)):
             with self.subTest(robot=robot):

@@ -1,6 +1,7 @@
 #ifndef LEGGED_ROBOT_MPC_CONTROLLER__COMMON__CONFIG__CONFIG_BUILDER_UTILS_HPP_
 #define LEGGED_ROBOT_MPC_CONTROLLER__COMMON__CONFIG__CONFIG_BUILDER_UTILS_HPP_
 
+#include <cmath>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -139,7 +140,13 @@ ocs2::humanoid::GaitMap buildGaitMap(const Params& params)
       throw std::invalid_argument(
         "[config_builder] ocs2.gait.templates." + name + ": N modes need N+1 switching times");
     }
-    gaitMap.insert({name, ocs2::humanoid::modeSequenceTemplateFromStrings(entry.switchingTimes, entry.modeSequence)});
+    if (!std::isfinite(entry.swingHeight) || (entry.swingHeight < 0.0 && entry.swingHeight != -1.0)) {
+      throw std::invalid_argument(
+        "[config_builder] ocs2.gait.templates." + name + ": swingHeight must be nonnegative or -1 (inherit)");
+    }
+    auto gait = ocs2::humanoid::modeSequenceTemplateFromStrings(entry.switchingTimes, entry.modeSequence);
+    gait.swingHeight = entry.swingHeight;
+    gaitMap.insert({name, std::move(gait)});
   }
   return gaitMap;
 }

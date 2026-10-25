@@ -537,7 +537,15 @@ $$
 $$
 
 All airborne modes of one foot share this complete spline, including flight and opposite-foot support during running.
-Current G1 swing height is 0.08 m; the earlier blind-ramp trials in Section 9 used 0.10 m.
+`ocs2.gait.swingTrajectory.swingHeight` is the default clearance; each `ocs2.gait.templates.<name>.swingHeight` can override it.
+Omitting the template override or setting it to -1 uses the default, while zero explicitly requests zero additional clearance.
+The planner selects the height belonging to the phase at lift-off and keeps it across the complete swing, including internal flight modes and gait transitions.
+The duration factor $\lambda$ still applies to both default and overridden heights.
+G1 retains its 0.08 m default and overrides walk/trot/run to 0.08/0.09/0.10 m; the earlier blind-ramp trials in Section 9 used 0.10 m.
+H2 now requests nominal heights of 0.10 m for walk, 0.15 m for trot and 0.20 m for run; other templates inherit its 0.10 m default.
+With H2's current timing and $T_{\mathrm{swing,scale}}=0.4$ s, a steady walking swing lasts 0.3 s and requests 0.075 m clearance, while steady trot/run swings receive the full 0.15/0.20 m.
+G1's steady walking swing similarly requests 0.06 m after duration scaling, while trot/run receive the full 0.09/0.10 m.
+These are references above the higher endpoint, not guaranteed measured clearance; the increased G1/H2 heights have not been locomotion-tested.
 The spline supplies $z_d$, $\dot z_d$ and $\ddot z_d$ to the swing equality and impact-proximity factors to the costs.
 Shared stair-plan and terrain-foothold hooks are connected when config files are supplied, but that wiring does not establish validated WB-ID stair walking.
 A standalone offline utility can export static box tops from MuJoCo XML, but the launch file does not invoke it or provide a `terrainFromScene` argument.

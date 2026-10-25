@@ -1168,6 +1168,12 @@ humanoid_centroidal_mpc_controller:
           validation: { unique<>: null }
         }
         __map_names:
+          swingHeight: {
+            type: double,
+            default_value: -1.0,
+            description: "Swing clearance [m] for this gait; -1 inherits gait.swingTrajectory.swingHeight. Short swings still use swingTimeScale.",
+            validation: { gt_eq: [-1.0] }
+          }
           modeSequence: {
             type: string_array,
             default_value: [],

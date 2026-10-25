@@ -31,6 +31,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "humanoid_common_mpc/swing_foot_planner/SwingTrajectoryPlanner.h"
 
+#include <cmath>
+#include <stdexcept>
+
 #include <ocs2_core/misc/Lookup.h>
 
 #include "humanoid_common_mpc/gait/MotionPhaseDefinition.h"
@@ -82,14 +85,15 @@ scalar_t SwingTrajectoryPlanner::getImpactProximityFactor(size_t leg, scalar_t t
 /******************************************************************************************************/
 /******************************************************************************************************/
 
-void SwingTrajectoryPlanner::update(const ModeSchedule& modeSchedule, scalar_t terrainHeight) {
+void SwingTrajectoryPlanner::update(const ModeSchedule& modeSchedule, scalar_t terrainHeight,
+                                    const scalar_array_t& swingHeightSequence) {
   const scalar_array_t terrainHeightSequence(modeSchedule.modeSequence.size(), terrainHeight);
   const scalar_array_t touchDownTerrainHeightSequence(modeSchedule.modeSequence.size(), terrainHeight + config_.touchDownHeightOffset);
   feet_array_t<scalar_array_t> liftOffHeightSequence;
   liftOffHeightSequence.fill(terrainHeightSequence);
   feet_array_t<scalar_array_t> touchDownHeightSequence;
   touchDownHeightSequence.fill(touchDownTerrainHeightSequence);
-  update(modeSchedule, liftOffHeightSequence, touchDownHeightSequence);
+  update(modeSchedule, liftOffHeightSequence, touchDownHeightSequence, swingHeightSequence);
 }
 
 /******************************************************************************************************/
@@ -98,9 +102,18 @@ void SwingTrajectoryPlanner::update(const ModeSchedule& modeSchedule, scalar_t t
 
 void SwingTrajectoryPlanner::update(const ModeSchedule& modeSchedule,
                                     const feet_array_t<scalar_array_t>& liftOffHeightSequence,
-                                    const feet_array_t<scalar_array_t>& touchDownHeightSequence) {
+                                    const feet_array_t<scalar_array_t>& touchDownHeightSequence,
+                                    const scalar_array_t& swingHeightSequence) {
   const auto& modeSequence = modeSchedule.modeSequence;
   const auto& eventTimes = modeSchedule.eventTimes;
+  if (!swingHeightSequence.empty() && swingHeightSequence.size() != modeSequence.size()) {
+    throw std::invalid_argument("Swing heights must match the mode sequence length.");
+  }
+  for (const scalar_t height : swingHeightSequence) {
+    if (!std::isfinite(height) || (height < 0.0 && height != -1.0)) {
+      throw std::invalid_argument("Swing height must be nonnegative, or -1 to inherit the global height.");
+    }
+  }
 
   const auto eesContactFlagStocks = extractContactFlags(modeSequence);
 
@@ -128,7 +141,10 @@ void SwingTrajectoryPlanner::update(const ModeSchedule& modeSchedule,
         const scalar_t touchDownZ = touchDownHeightSequence[j][swingFinalIndex];
         const CubicSpline::Node liftOffHeight{swingStartTime, liftOffZ, scaling * config_.liftOffVelocity};
         const CubicSpline::Node touchDownHeight{swingFinalTime, touchDownZ, scaling * config_.touchDownVelocity};
-        const scalar_t midHeight = std::max(liftOffZ, touchDownZ) + scaling * config_.swingHeight;
+        // Select at lift-off, not at the current phase: flight modes and gait splices share one spline.
+        const scalar_t gaitHeight = swingHeightSequence.empty() ? -1.0 : swingHeightSequence[swingStartIndex + 1];
+        const scalar_t swingHeight = gaitHeight < 0.0 ? config_.swingHeight : gaitHeight;
+        const scalar_t midHeight = std::max(liftOffZ, touchDownZ) + scaling * swingHeight;
         feetHeightTrajectories_[j].emplace_back(liftOffHeight, midHeight, touchDownHeight);
 
         const CubicSpline::Node impactProximityLiftOff{swingStartTime, 1.0, scaling * config_.impactProximityFactorLiftOffVelocity};

@@ -68,12 +68,16 @@ struct ModeSequenceTemplate {
    * active in period [t_i, t_(i+1)]
    */
   std::vector<size_t> modeSequence;
+
+  /** Swing clearance [m]; -1 inherits the swing planner's global height. */
+  scalar_t swingHeight = -1.0;
 };
 
 /** Swap two modesequence templates */
 inline void swap(ModeSequenceTemplate& lh, ModeSequenceTemplate& rh) {
   lh.switchingTimes.swap(rh.switchingTimes);
   lh.modeSequence.swap(rh.modeSequence);
+  std::swap(lh.swingHeight, rh.swingHeight);
 }
 
 /** Print the modesequence template */

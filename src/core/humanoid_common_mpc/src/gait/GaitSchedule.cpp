@@ -41,6 +41,7 @@ namespace ocs2::humanoid {
 /******************************************************************************************************/
 GaitSchedule::GaitSchedule(ModeSchedule initModeSchedule, ModeSequenceTemplate initModeSequenceTemplate, scalar_t phaseTransitionStanceTime)
     : modeSchedule_(std::move(initModeSchedule)),
+      swingHeightSequence_(modeSchedule_.modeSequence.size(), initModeSequenceTemplate.swingHeight),
       modeSequenceTemplate_(std::move(initModeSequenceTemplate)),
       phaseTransitionStanceTime_(phaseTransitionStanceTime) {}
 
@@ -60,6 +61,7 @@ void GaitSchedule::insertModeSequenceTemplate(const ModeSequenceTemplate& modeSe
   if (index < eventTimes.size()) {
     eventTimes.erase(eventTimes.begin() + index, eventTimes.end());
     modeSequence.erase(modeSequence.begin() + index + 1, modeSequence.end());
+    swingHeightSequence_.erase(swingHeightSequence_.begin() + index + 1, swingHeightSequence_.end());
   }
 
   // add an intermediate stance phase
@@ -71,6 +73,7 @@ void GaitSchedule::insertModeSequenceTemplate(const ModeSequenceTemplate& modeSe
   if (phaseTransitionStanceTime > 0.0) {
     eventTimes.push_back(startTime);
     modeSequence.push_back(ModeNumber::STANCE);
+    swingHeightSequence_.push_back(-1.0);
   }
 
   // tile the mode sequence template from startTime+phaseTransitionStanceTime to finalTime.
@@ -90,6 +93,7 @@ ModeSchedule GaitSchedule::getModeSchedule(scalar_t lowerBoundTime, scalar_t upp
     eventTimes.erase(eventTimes.begin(),
                      eventTimes.begin() + index - 1);  // keep the one before the last to make it stance
     modeSequence.erase(modeSequence.begin(), modeSequence.begin() + index - 1);
+    swingHeightSequence_.erase(swingHeightSequence_.begin(), swingHeightSequence_.begin() + index - 1);
 
     // set the default initial phase
     modeSequence.front() = ModeNumber::STANCE;
@@ -101,6 +105,7 @@ ModeSchedule GaitSchedule::getModeSchedule(scalar_t lowerBoundTime, scalar_t upp
   // delete the last default stance phase
   eventTimes.erase(eventTimes.end() - 1, eventTimes.end());
   modeSequence.erase(modeSequence.end() - 1, modeSequence.end());
+  swingHeightSequence_.pop_back();
 
   // tile the template logic
   tileModeSequenceTemplate(tilingStartTime, upperBoundTime);
@@ -133,6 +138,7 @@ void GaitSchedule::tileModeSequenceTemplate(scalar_t startTime, scalar_t finalTi
   while (eventTimes.back() < finalTime) {
     for (size_t i = 0; i < templateModeSequence.size(); i++) {
       modeSequence.push_back(templateModeSequence[i]);
+      swingHeightSequence_.push_back(modeSequenceTemplate_.swingHeight);
       scalar_t deltaTime = templateTimes[i + 1] - templateTimes[i];
       eventTimes.push_back(eventTimes.back() + deltaTime);
     }  // end of i loop
@@ -140,6 +146,7 @@ void GaitSchedule::tileModeSequenceTemplate(scalar_t startTime, scalar_t finalTi
 
   // default final phase
   modeSequence.push_back(ModeNumber::STANCE);
+  swingHeightSequence_.push_back(-1.0);
 }
 
 /******************************************************************************************************/
@@ -179,6 +186,7 @@ std::shared_ptr<GaitSchedule> GaitSchedule::createGaitSchedule(const ModeSchedul
 
 void GaitSchedule::updateModeSchedule(const ModeSchedule& modeSchedule) {
   modeSchedule_ = modeSchedule;
+  swingHeightSequence_.assign(modeSchedule_.modeSequence.size(), -1.0);
 }
 
 }  // namespace ocs2::humanoid

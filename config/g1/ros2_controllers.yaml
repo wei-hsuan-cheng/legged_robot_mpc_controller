@@ -565,7 +565,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         swingTrajectory:
           liftOffVelocity: 0.05
           touchDownVelocity: -0.0
-          swingHeight: 0.08
+          swingHeight: 0.08 # default fallback for templates that omit swingHeight; 0.08 [m] is the walk value.
           touchDownHeightOffset: -0.001
           swingTimeScale: 0.4
           impactProximityFactorLiftOffVelocity: -0.15
@@ -576,20 +576,22 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         # STANCE = both feet in contact, LF = left foot in contact (right swings), RF = right, FLY = none.
         # Preserve slow walking; quicker supported steps bridge into the flight gait.
         templates:
+          # Optional swingHeight [m] per gait; omitted or -1 uses swingTrajectory.swingHeight.
+          # The existing swingTimeScale still reduces clearance for short swings.
           names: [stance, left_leg, right_leg, trot, fast_trot, slow_trot, slower_trot, walk, fast_walk, slow_walk, very_slow_walk, run, fast_run, skip, jump, terrain_walk]
           stance:         {modeSequence: [STANCE],                   switchingTimes: [0.0, 0.5]}
           left_leg:       {modeSequence: [LF],                       switchingTimes: [0.0, 0.5]}
           right_leg:      {modeSequence: [RF],                       switchingTimes: [0.0, 0.5]}
-          trot:           {modeSequence: [LF, RF],                   switchingTimes: [0.0, 0.5, 1.0]}
+          trot:           {modeSequence: [LF, RF],                   switchingTimes: [0.0, 0.5, 1.0], swingHeight: 0.09}
           fast_trot:      {modeSequence: [LF, RF],                   switchingTimes: [0.0, 0.4, 0.8]}
           slow_trot:      {modeSequence: [LF, RF],                   switchingTimes: [0.0, 0.55, 1.1]}
           slower_trot:    {modeSequence: [LF, RF],                   switchingTimes: [0.0, 0.6, 1.2]}
-          walk:           {modeSequence: [LF, STANCE, RF, STANCE],   switchingTimes: [0.0, 0.3, 0.4, 0.7, 0.8]}
+          walk:           {modeSequence: [LF, STANCE, RF, STANCE],   switchingTimes: [0.0, 0.3, 0.4, 0.7, 0.8], swingHeight: 0.08}
           fast_walk:      {modeSequence: [LF, STANCE, RF, STANCE],   switchingTimes: [0.0, 0.3, 0.5, 0.8, 1.0]}
           slow_walk:      {modeSequence: [LF, STANCE, RF, STANCE],   switchingTimes: [0.0, 0.4, 0.55, 0.95, 1.1]}
           very_slow_walk: {modeSequence: [RF, STANCE, LF, STANCE],   switchingTimes: [0.0, 0.7, 1.1, 1.8, 2.2]}
           # 0.25 s single support, then 0.08 s with both feet in swing.
-          run:            {modeSequence: [LF, FLY, RF, FLY],         switchingTimes: [0.0, 0.25, 0.33, 0.58, 0.66]}
+          run:            {modeSequence: [LF, FLY, RF, FLY],         switchingTimes: [0.0, 0.25, 0.33, 0.58, 0.66], swingHeight: 0.1}
           fast_run:       {modeSequence: [LF, FLY, RF, FLY],         switchingTimes: [0.0, 0.3, 0.4, 0.7, 0.8]}
           skip:           {modeSequence: [LF, FLY, LF, RF, FLY, RF], switchingTimes: [0.0, 0.25, 0.3, 0.5, 0.75, 0.8, 1.0]}
           jump:           {modeSequence: [STANCE, FLY],              switchingTimes: [0.0, 0.3, 0.5]}

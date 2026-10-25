@@ -53,11 +53,12 @@ class SwingTrajectoryPlanner {
 
   SwingTrajectoryPlanner(Config config, size_t numFeet);
 
-  void update(const ModeSchedule& modeSchedule, scalar_t terrainHeight);
+  void update(const ModeSchedule& modeSchedule, scalar_t terrainHeight, const scalar_array_t& swingHeightSequence = {});
 
   void update(const ModeSchedule& modeSchedule,
               const feet_array_t<scalar_array_t>& liftOffHeightSequence,
-              const feet_array_t<scalar_array_t>& touchDownHeightSequence);
+              const feet_array_t<scalar_array_t>& touchDownHeightSequence,
+              const scalar_array_t& swingHeightSequence = {});
 
   scalar_t getZaccelerationConstraint(size_t leg, scalar_t time) const;
 

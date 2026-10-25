@@ -1,6 +1,23 @@
 # WB-ID MPC Walking Robustness Handoff
 
 
+## Per-Gait Swing Clearance (2026-10-25)
+
+Added optional `ocs2.gait.templates.<name>.swingHeight` [m]; omitted or -1 inherits `ocs2.gait.swingTrajectory.swingHeight`, while zero is an explicit zero-clearance request.
+H2 overrides are walk0.10, trot0.15 and run0.20; all other H2 templates inherit0.10.
+G1 follows the same YAML style with walk0.08, trot0.09 and run0.10; its default fallback and all other templates remain0.08.
+These are the user's latest YAML edits at commit time, superseding the initially requested trot0.12/run0.16 values; no new simulation evidence is claimed for the revised values.
+This G1 follow-up changes configuration only, not C++, gait timings, costs or constraints; both robots' height overrides are covered by the configuration regression.
+The existing swingTimeScale0.4 remains unchanged: steady H2 walk0.30 s gets0.075 m clearance, trot0.50 s gets0.15 m, run0.40 s gets0.20 m.
+GaitSchedule carries per-phase heights through insertion, truncation and horizon extension; the swing planner chooses the lift-off phase's height for the entire contiguous swing, including flight modes.
+Both parameter schemas support the property because the gait-map builder is shared; centroidal YAML values are unchanged.
+Tests cover per-phase metadata alignment, old/future gait coexistence, future replacement, fallback, zero/invalid overrides, duration scaling, terrain endpoints and spline continuity.
+Validation passed: two-job Jazzy Release build in Docker `ros_jazzy` (6 min20 s), both native AddressSanitizer regressions including100 gait-transition cycles,37 focused WB-ID tests,40 discovery tests (four ROS-only skips) and the parameter contract.
+No walking/running simulation with these higher G1/H2 heights is claimed, and earlier running results used the universal0.08/0.10 m heights respectively.
+Stopped after the build and regressions at the user's request to test manually; no simulation was started for this change.
+The0.20 m run target may reduce robustness through higher velocity/torque/collision demands; no costs, constraints, base targets or gait timing were retuned in this change.
+
+
 ## G1/H2 Four-Stage Gait Ladder (2026-10-25, Untested)
 
 Both WB-ID controllers now select `[stance, walk, trot, run]`; this supersedes the six-stage selection described below.

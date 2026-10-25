@@ -208,7 +208,10 @@ $$
 t_{n+1}=t_n+\left(\tau_{j+1}-\tau_j\right).
 $$
 
-When changing gaits, an optional intermediate `STANCE` phase is inserted before the new template. The existing future schedule is truncated, then the selected template is tiled beyond the MPC horizon. This is implemented by [`insertModeSequenceTemplate()`](../src/core/humanoid_common_mpc/src/gait/GaitSchedule.cpp#L51-L78), [`getModeSchedule()`](../src/core/humanoid_common_mpc/src/gait/GaitSchedule.cpp#L83-L107), and [`tileModeSequenceTemplate()`](../src/core/humanoid_common_mpc/src/gait/GaitSchedule.cpp#L113-L143).
+When changing gaits, an optional intermediate `STANCE` phase is inserted before the new template.
+The existing future schedule is truncated, then the selected template is tiled beyond the MPC horizon.
+This is implemented by [`insertModeSequenceTemplate()`](../src/core/humanoid_common_mpc/src/gait/GaitSchedule.cpp#L52), [`getModeSchedule()`](../src/core/humanoid_common_mpc/src/gait/GaitSchedule.cpp#L86), and [`tileModeSequenceTemplate()`](../src/core/humanoid_common_mpc/src/gait/GaitSchedule.cpp#L118).
+Per-template `swingHeight` metadata follows those same schedule edits; omitted overrides inherit `gait.swingTrajectory.swingHeight`.
 
 The reference manager requests a schedule over an interval wider than the current horizon:
 
@@ -561,7 +564,10 @@ z_{\mathrm{apex}}
 +s_T h_{\mathrm{swing}},
 $$
 
-where $s_T$ is the swing-duration scaling. Using the higher contact surface ensures clearance while stepping up. The spline construction is in [`SwingTrajectoryPlanner::update()`](../src/core/humanoid_common_mpc/src/swing_foot_planner/SwingTrajectoryPlanner.cpp#L99-L137).
+where $s_T$ is the swing-duration scaling.
+Using the higher contact surface raises the reference apex above both endpoints while stepping up, but does not guarantee collision-free tracking.
+The spline construction is in [`SwingTrajectoryPlanner::update()`](../src/core/humanoid_common_mpc/src/swing_foot_planner/SwingTrajectoryPlanner.cpp#L103).
+The nominal height can be overridden per gait; the phase at lift-off selects the height for the complete swing.
 
 ## How the MPC Follows the Gait
 
@@ -670,10 +676,10 @@ ros2 run legged_robot_mpc_controller terrain_walk_test.sh \
 | Velocity target conditioning | [`WalkingVelocityTarget.cpp`](../src/core/humanoid_common_mpc/src/target/WalkingVelocityTarget.cpp#L40-L81) |
 | Centroidal target trajectory | [`CentroidalMpcTargetTrajectoriesCalculator.cpp`](../src/core/humanoid_centroidal_mpc/src/command/CentroidalMpcTargetTrajectoriesCalculator.cpp#L104-L174) |
 | Terrain-walk gait selection | [`ProceduralMpcMotionManager.cpp`](../src/core/humanoid_common_mpc/src/reference_manager/ProceduralMpcMotionManager.cpp#L132-L203) |
-| Gait schedule tiling | [`GaitSchedule.cpp`](../src/core/humanoid_common_mpc/src/gait/GaitSchedule.cpp#L51-L143) |
+| Gait schedule tiling | [`GaitSchedule.cpp`](../src/core/humanoid_common_mpc/src/gait/GaitSchedule.cpp#L52) |
 | Terrain model and foothold planning | [`TerrainFootholdPlanner.cpp`](../src/core/humanoid_common_mpc/src/reference_manager/TerrainFootholdPlanner.cpp#L37-L347) |
 | Base and swing reference integration | [`SwitchedModelReferenceManager.cpp`](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L143-L295) |
-| Swing-height splines | [`SwingTrajectoryPlanner.cpp`](../src/core/humanoid_common_mpc/src/swing_foot_planner/SwingTrajectoryPlanner.cpp#L85-L153) |
+| Swing-height splines | [`SwingTrajectoryPlanner.cpp`](../src/core/humanoid_common_mpc/src/swing_foot_planner/SwingTrajectoryPlanner.cpp#L88) |
 | Foot tracking cost | [`CentroidalMpcEndEffectorFootCost.cpp`](../src/core/humanoid_centroidal_mpc/src/cost/CentroidalMpcEndEffectorFootCost.cpp#L92-L160) |
 | Mode-dependent OCP constraints | [`CentroidalMpcInterface.cpp`](../src/core/humanoid_centroidal_mpc/src/CentroidalMpcInterface.cpp#L185-L212) |
 

@@ -395,6 +395,8 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
             ocs2.gait.templates.<name>. The gait ladder and the stair/terrain modes select templates by these names.",
             validation: {unique<>: null}}
         __map_names:
+          swingHeight: {type: double, default_value: -1.0, description: "Swing clearance [m] for this gait; -1 inherits gait.swingTrajectory.swingHeight. Short swings still use swingTimeScale.",
+              validation: {gt_eq: [-1.0]}}
           modeSequence: {type: string_array, default_value: [], description: "The template's N modes in order: STANCE
               (both feet in contact), LF (left foot in contact, right swings), RF (right foot in contact) or FLY (no contact)",
               validation: {subset_of<>: [["STANCE", "LF", "RF", "FLY"]]}}

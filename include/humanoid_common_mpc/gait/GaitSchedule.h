@@ -51,6 +51,9 @@ class GaitSchedule {
 
   ModeSchedule getCurrentModeSchedule() const { return modeSchedule_; };
 
+  /** Per-phase swing clearance, aligned with the current mode sequence. */
+  const scalar_array_t& getSwingHeightSequence() const { return swingHeightSequence_; }
+
   /**
    * Used to insert a new user defined logic in the given time period.
    *
@@ -78,6 +81,7 @@ class GaitSchedule {
 
  private:
   ModeSchedule modeSchedule_;
+  scalar_array_t swingHeightSequence_;
   ModeSequenceTemplate modeSequenceTemplate_;
   scalar_t phaseTransitionStanceTime_;
 };
