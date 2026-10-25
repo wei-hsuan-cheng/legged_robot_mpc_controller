@@ -173,7 +173,7 @@ The WB-ID gait templates, including supported walking and running, start at [ros
 The [flight-spline regression](../tests/swing_flight_test.cpp) checks internal-mode continuity, overrides, fallback, duration scaling, terrain endpoints, invalid inputs, ordinary walking and event-free stance.
 The [gait-height regression](../tests/gait_swing_height_test.cpp) checks metadata alignment through gait insertion, rolling-horizon trimming, future replacement and external schedule reset.
 See [running validation](./wb_id_running.md) and the [warm-start transition regression](../tests/running_gait_transition_test.cpp) for the separate OCS2 dependency fix required for safe trajectory truncation.
-The WB-ID builder explicitly disables capture placement at [line 257](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L257).
+The WB-ID builder maps `ocs2.costs.captureFootPlacement` at [line 258](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L258); it is off by default and enabled only in the H2 configuration (see [H2 to 2 m/s](./wb_id_running.md#h2-to-2-ms)).
 Shared stair/terrain setup is connected at [controller line 169](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L169), which should not be interpreted as validated WB-ID terrain performance.
 
 
@@ -185,19 +185,48 @@ In ordinary `base_twist`, there is no independent foot-XY or touchdown-position 
 | Behavior | Current implementation |
 | --- | --- |
 | Whole-body configuration is an optimized state | [WbIdMpcRobotModel.h:37](../include/humanoid_wb_id_mpc/common/WbIdMpcRobotModel.h#L37) defines the state/input dimensions; [line 65](../include/humanoid_wb_id_mpc/common/WbIdMpcRobotModel.h#L65) extracts generalized coordinates; [WbIdDynamics.cpp:18](../src/core/humanoid_wb_id_mpc/src/dynamics/WbIdDynamics.cpp#L18) integrates velocity/acceleration |
-| No capture-point foothold heuristic in WB-ID | [Builder:257](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L257) explicitly sets `captureFootPlacement.enabled=false` |
+| Optional flat-ground foothold target (off by default; on for H2) | [Builder:258](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L258) maps `captureFootPlacement`; when enabled, each swing foot gets an xy target `stanceTimeGain * v * T_stance` ahead of the predicted base until its touchdown, tracked with `trackingWeight` (see [Section 5.4](#54-flat-ground-foothold-target-capturefootplacement)) |
 | Ordinary walking generates height references only | [Reference manager:316](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L316) selects the normal ground-height/swing-planner path; [SwingTrajectoryPlanner.cpp:144](../src/core/humanoid_common_mpc/src/swing_foot_planner/SwingTrajectoryPlanner.cpp#L144) builds the vertical spline |
 | Swing equality leaves XY motion free of a prescribed path | [WbIdFootAccelerationConstraintCppAd.cpp:107](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdFootAccelerationConstraintCppAd.cpp#L107) returns only the vertical acceleration/velocity/position residual during swing |
 | Stance stabilizes XY velocity, not XY position | [Constraint:115](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdFootAccelerationConstraintCppAd.cpp#L115) uses horizontal acceleration plus velocity, without an XY position-reference term |
 | Foot task-space quantities come from optimized kinematics | [Foot cost:105](../src/core/humanoid_centroidal_mpc/src/cost/CentroidalMpcEndEffectorFootCost.cpp#L105) extracts the model's generalized coordinates/velocities and evaluates foot FK and twist; this shared class is [registered by WB-ID](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L206) despite its centroidal-prefixed name |
-| Zero position reference is harmless only with zero position weights | [Foot cost:136](../src/core/humanoid_centroidal_mpc/src/cost/CentroidalMpcEndEffectorFootCost.cpp#L136) initializes the default position reference to zero; current [G1 weights](../config/g1/ros2_controllers.yaml#L398) and [H2 weights](../config/h2/ros2_controllers.yaml#L416) set all three position weights to zero |
+| Zero position reference is harmless only with zero position weights | [Foot cost:136](../src/core/humanoid_centroidal_mpc/src/cost/CentroidalMpcEndEffectorFootCost.cpp#L136) initializes the default position reference to zero; current [G1 weights](../config/g1/ros2_controllers.yaml#L398) and [H2 weights](../config/h2/ros2_controllers.yaml#L416) set all three position weights to zero; when the [foothold target](#54-flat-ground-foothold-target-capturefootplacement) overrides the x/y weights it also supplies the reference |
 | Horizontal foot speed is regularized, not prescribed | [Foot residual:116](../src/core/humanoid_centroidal_mpc/src/cost/CentroidalMpcEndEffectorFootCost.cpp#L116) multiplies the linear-velocity error by the impact-proximity factor; [reference:156](../src/core/humanoid_centroidal_mpc/src/cost/CentroidalMpcEndEffectorFootCost.cpp#L156) sets desired linear velocity to zero; [weight mapping:58](../src/core/humanoid_common_mpc/src/cost/EndEffectorKinematicCostHelpers.cpp#L58) identifies the position/orientation/linear/angular blocks |
 | Other objectives select among possible placements | [OCP cost registration:115](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L115) adds base, joint and state/input objectives; [H2 posture weights](../config/h2/ros2_controllers.yaml#L354) include the tuned hip-pitch preference |
 | Anti-crossing is a soft preference, not a foothold generator | [FootCollisionConstraint.cpp:146](../src/core/humanoid_common_mpc/src/constraint/FootCollisionConstraint.cpp#L146) adds the heading-relative lateral margin; [H2 settings](../config/h2/ros2_controllers.yaml#L527) enable it |
-| Explicit terrain/stair modes can add XY guidance | [Reference selection:471](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L471) selects available foothold references; [foot cost:145](../src/core/humanoid_centroidal_mpc/src/cost/CentroidalMpcEndEffectorFootCost.cpp#L145) replaces the reference and horizontal position weights when one is supplied |
+| Explicit terrain/stair modes can add XY guidance | [Reference selection:503](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L503) selects available foothold references; [foot cost:145](../src/core/humanoid_centroidal_mpc/src/cost/CentroidalMpcEndEffectorFootCost.cpp#L145) replaces the reference and horizontal position weights when one is supplied |
 
 The scheduled contact flags select stance/swing equalities at [constraint line 61](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdFootAccelerationConstraintCppAd.cpp#L61), rather than allowing the solver to choose touchdown timing or detect terrain contact through complementarity.
 The planned touchdown XY location is therefore an optimized kinematic outcome at a prescribed event time, not proof of the actual contact location or safety on unknown terrain.
+
+### 5.4 Flat-ground foothold target (`captureFootPlacement`)
+
+The equations are in [formulation Section 6.6](./humanoid_whole_body_inverse_dynamics_mpc.md#66-optional-flat-ground-foothold-target-capturefootplacement).
+The target is computed once per solve on the solver thread and is read by the foot cost's parameter evaluation in the same solve.
+
+| Step | Implementation |
+| --- | --- |
+| Settings and defaults (all off) | [SwitchedModelReferenceManager.h:84](../include/humanoid_common_mpc/reference_manager/SwitchedModelReferenceManager.h#L84); the running additions `stanceTimeGain` at [line 145](../include/humanoid_common_mpc/reference_manager/SwitchedModelReferenceManager.h#L145) and `currentSwingOnly` at [line 149](../include/humanoid_common_mpc/reference_manager/SwitchedModelReferenceManager.h#L149) |
+| WB-ID schema, `enabled` default false | [parameter YAML:202](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller_parameter.yaml#L202) |
+| YAML to settings | [Builder:258](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L258) maps every field |
+| Settings to the reference manager | [WbIdMpcInterface.cpp:88](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L88) |
+| Per-solve update | `preSolverRun` calls `updateCaptureFootholds` at [line 326](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L326), after the solve's mode schedule is stored |
+| Disabled path | [line 335](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L335) returns with no valid target, so the lookup below never supplies one |
+| Capture point $\xi$ | [line 352](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L352); $v$ is the state's world-frame base velocity ([WbIdMpcRobotModel.h:89](../include/humanoid_wb_id_mpc/common/WbIdMpcRobotModel.h#L89)) |
+| $t_{\mathrm{TD},j}$ and $T_{\mathrm{st},j}$ per foot | [line 404](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L404) searches the solve's mode sequence; airborne feet come from the same schedule |
+| $\hat p_{b,j}$ | [line 439](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L439) |
+| Forward lead $(k_L T_{\mathrm{step}}+k_s T_{\mathrm{st},j})v$ | [line 444](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L444) |
+| $p^{\mathrm{nom}}_j$ with centre offset and half width | [line 454](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L454) |
+| $\xi_{\mathrm{TD},j}$ and clipped $\delta_j$ | [line 463](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L463) and [line 471](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L471) |
+| Store $r_j$ and $t_{\mathrm{TD},j}$ | [line 477](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L477) and [line 480](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L480) |
+| Lookup, precedence and window | [getSwingFootholdReference:503](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L503) returns the target only without a stair plan or `terrain_walk`; [line 512](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L512) ends it at $t_{\mathrm{TD},j}$ when `currentSwingOnly` is set |
+| Cost term $\ell^{\mathrm{fh}}_j$ | [Foot cost:145](../src/core/humanoid_centroidal_mpc/src/cost/CentroidalMpcEndEffectorFootCost.cpp#L145) queries the target per node, replaces the $x/y$ position weights with $\sqrt{w_{\mathrm{tr}}}$ at [line 148](../src/core/humanoid_centroidal_mpc/src/cost/CentroidalMpcEndEffectorFootCost.cpp#L148) and sets the reference at [line 154](../src/core/humanoid_centroidal_mpc/src/cost/CentroidalMpcEndEffectorFootCost.cpp#L154); weights and reference are CppAD parameters, so no code regeneration is needed |
+| H2 values | [config/h2/ros2_controllers.yaml:424](../config/h2/ros2_controllers.yaml#L424) |
+| Static check | `test_h2_running_foothold_reference` in [tests/test_wb_id_running.py](../tests/test_wb_id_running.py) |
+
+The same code serves the centroidal MPC, whose G1 configuration enables the target with `currentSwingOnly` false and `stanceTimeGain` 0.
+For single-swing gaits the per-foot touchdown search returns the same time as the old next-event rule, so only the contact-flag source (the solve's schedule instead of the buffered one) differs there; the centroidal controller was not re-tested after this change.
+To return H2 to optimizer-only foot placement, set `ocs2.costs.captureFootPlacement.enabled: false`; restoring its pre-2 m/s behaviour also needs the other settings listed in [H2 to 2 m/s](./wb_id_running.md#h2-to-2-ms).
 
 
 ## 6. Arm Command Support
@@ -256,6 +285,7 @@ These are static regression checks, not a substitute for repeated startup tests 
 | `ocs2.costs.taskSpaceFootCost.activate`, `.weights` | Enable both foot costs and set their weights |
 | `ocs2.costs.taskSpaceCosts.<name>.activate`, `.linkName`, `.weights` | Enable and configure each named link cost |
 | `ocs2.costs.torsoTiltCost` | Soft gravity-relative tilt corridor and transverse angular-motion weight |
+| `ocs2.costs.captureFootPlacement` | Optional flat-ground swing-foot xy target, off by default ([Section 5.4](#54-flat-ground-foothold-target-capturefootplacement)) |
 | `ocs2.costs.legTorqueCost.activate`, `.scaling`, leg joint names and weights | Enable and configure both external-load costs |
 | `ocs2.constraints.footMotionEquality` | Acceleration-level stance/swing gains |
 | `ocs2.constraints.swingFootZeroWrench.activate` | Register the hard zero-wrench equality for swing feet |

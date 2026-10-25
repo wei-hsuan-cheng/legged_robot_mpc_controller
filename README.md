@@ -155,8 +155,9 @@ terrainWalkingFile:=<pkg_share>/config/terrains/terrain_walking/g1.yaml
 
 In `base_twist` mode, G1 and H2 use `[stance, walk, trot, run]`, with overlapping speed bands.
 Running is requested at a forward command of 0.75 m/s or higher, subject to the speed, dwell and scheduling guards.
-These revised transition sequences have not been simulation-tested; the earlier running tests used `[stance, slow_walk, walk, run]`.
-Start on `mujocoModelFile:=scene_flat.xml` and try 0.75-1.0 m/s; the running schedule includes intervals with both feet in swing.
+G1's revised sequence has not been simulation-tested; the earlier running tests used `[stance, slow_walk, walk, run]`.
+H2 runs up to a 2.0 m/s command (full GUI stick) with a swing-foot target that lands each step about v·T_stance/2 ahead of the body; the result is grounded running rather than an aerial run.
+Start on `mujocoModelFile:=scene_flat.xml` and try 0.75-1.0 m/s (G1) or up to 2.0 m/s (H2); the running schedule includes intervals with both feet in swing.
 See [Running Checkpoint](./docs/wb_id_running.md) for timing, automated tests and the difference between scheduled and actual flight.
 Speeds above 1.0 m/s still select `run` when permitted by the command limits, but have not been validated.
 

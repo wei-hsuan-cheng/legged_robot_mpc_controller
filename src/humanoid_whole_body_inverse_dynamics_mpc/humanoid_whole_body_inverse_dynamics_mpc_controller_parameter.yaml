@@ -199,6 +199,28 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         weights: {type: double_array, default_value: [0.0, 0.0, 0.0, 1000.0, 1000.0, 0.0, 10.0,
               10.0, 0.0, 1.0, 1.0, 0.005], description: "Foot task-space kinematics weights [pos xyz, orientation
             xyz, lin vel xyz, ang vel xyz]", validation: {fixed_size<>: [12]}}
+      captureFootPlacement:
+        enabled: {type: bool, default_value: false, description: "Give the swing foot a flat-ground xy foothold
+            reference through the foot cost; off leaves foot placement entirely to the optimizer"}
+        gain: {type: double, default_value: 0.0, description: "Capture-point correction gain; 0 keeps the nominal
+            foothold", validation: {gt_eq: [0.0]}}
+        stepWidth: {type: double, default_value: 0.28, description: "Nominal lateral spacing between the feet [m]",
+          validation: {gt: [0.0]}}
+        maxAdjustment: {type: double, default_value: 0.10, description: "Bound on the capture-point correction
+            [m]", validation: {gt: [0.0]}}
+        trackingWeight: {type: double, default_value: 100.0, description: "xy foothold tracking weight in the
+            foot cost", validation: {gt_eq: [0.0]}}
+        projectionHorizon: {type: double, default_value: 0.0, description: "Capture-point propagation horizon
+            about the stance foot [s], capped at the time to touchdown", validation: {gt_eq: [0.0]}}
+        stepLengthGain: {type: double, default_value: 0.0, description: "Feedforward step ahead as a fraction of
+            velocity x step period (spacing of the next two events)", validation: {gt_eq: [0.0]}}
+        stanceTimeGain: {type: double, default_value: 0.5, description: "Raibert neutral point: land ahead of the
+            predicted base by this fraction of velocity x the landing foot's scheduled stance time", validation: {
+            gt_eq: [0.0]}}
+        footCenterOffset: {type: double, default_value: 0.0, description: "Ankle-frame to support-centre offset
+            along the heading [m]; the contact frame already sits at the sole centre"}
+        currentSwingOnly: {type: bool, default_value: true, description: "Apply the foothold only until this
+            foot's scheduled touchdown, not to its later swings within the horizon"}
       torsoTiltCost:
         activate: {type: bool, default_value: false, description: "Register the soft gravity-relative torso tilt and angular-motion cost at configuration"}
         linkName: {type: string, default_value: "torso_link", description: "Tracked torso frame whose local +Z points upright"}

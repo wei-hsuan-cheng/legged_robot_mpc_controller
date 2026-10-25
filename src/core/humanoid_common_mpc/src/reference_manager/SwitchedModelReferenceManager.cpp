@@ -356,7 +356,8 @@ void SwitchedModelReferenceManager::updateCaptureFootholds(scalar_t initTime, co
   const vector2_t lateralDirection(-std::sin(yaw), std::cos(yaw));
   const vector2_t forwardDirection(std::cos(yaw), std::sin(yaw));
 
-  const contact_flag_t contactFlags = getContactFlags(initTime);
+  // Use the schedule this solve was built on, the same one the event times below come from.
+  const contact_flag_t contactFlags = modeNumber2StanceLeg(modeSchedule_.modeAtTime(initTime));
   const scalar_t halfWidth = 0.5 * captureFootPlacement_.stepWidth;
   const feet_array_t<vector3_t> feetPositions = computeFeetPositions(initState);
 
@@ -392,7 +393,29 @@ void SwitchedModelReferenceManager::updateCaptureFootholds(scalar_t initTime, co
   // velocity error into an unreachable foothold, and the clamp below would then
   // saturate every step and destroy the feedback. Measured: a 0.4 s horizon is
   // worse than none at all.
-  const scalar_t dcmHorizon = std::min(timeToTouchdown, captureFootPlacement_.projectionHorizon);
+  // Each airborne foot's own touchdown and the stance that follows it. The next
+  // event is not this foot's touchdown once both feet can be airborne (running
+  // flight), where it would aim the foot that just lifted off at the other
+  // foot's landing time. Walking gaits give the same time as the next event.
+  const auto& eventTimes = modeSchedule_.eventTimes;
+  const auto& modeSequence = modeSchedule_.modeSequence;
+  const auto firstEvent = static_cast<size_t>(
+      std::upper_bound(eventTimes.begin(), eventTimes.end(), initTime) - eventTimes.begin());
+  const auto footSchedule = [&](size_t foot, scalar_t& touchdown, scalar_t& stanceDuration) {
+    for (size_t k = firstEvent; k < eventTimes.size() && k + 1 < modeSequence.size(); ++k) {
+      if (modeNumber2StanceLeg(modeSequence[k + 1])[foot]) {
+        touchdown = eventTimes[k];
+        for (size_t j = k + 1; j < eventTimes.size() && j + 1 < modeSequence.size(); ++j) {
+          if (!modeNumber2StanceLeg(modeSequence[j + 1])[foot]) {
+            stanceDuration = eventTimes[j] - eventTimes[k];
+            break;
+          }
+        }
+        return true;
+      }
+    }
+    return false;
+  };
 
   for (size_t foot = 0; foot < captureFoothold_.size(); ++foot) {
     if (contactFlags[foot]) {
@@ -401,19 +424,26 @@ void SwitchedModelReferenceManager::updateCaptureFootholds(scalar_t initTime, co
     // Foot 0 is the left foot, so it sits on the positive lateral side.
     const scalar_t side = (foot == 0) ? 1.0 : -1.0;
 
+    scalar_t footTouchdown = initTime + timeToTouchdown;
+    scalar_t stanceDuration = 0.0;
+    footSchedule(foot, footTouchdown, stanceDuration);
+    const scalar_t footTimeToTouchdown = std::clamp(footTouchdown - initTime, 0.0, 1.0);
+    const scalar_t dcmHorizon = std::min(footTimeToTouchdown, captureFootPlacement_.projectionHorizon);
+
     // The nominal foothold has to sit under where the BASE WILL BE when the foot
     // lands, not under where it is now. Using the current base position biases
     // every foothold backwards by v * timeToTouchdown - about 0.08 m at 0.2 m/s
     // over a 0.4 s swing - so the robot is perpetually stepping short and pitches
     // forward, and the error grows with speed. That matches the measured failure:
     // pitch creeping up through a walk and diverging sooner the faster it goes.
-    const vector2_t baseAtTouchdown = basePose.head<2>() + comVelocity * timeToTouchdown;
+    const vector2_t baseAtTouchdown = basePose.head<2>() + comVelocity * footTimeToTouchdown;
 
     // Feedforward step length: the foot has to land ahead of the base so the body
     // can pass over it, which the capture point (a stopping placement) never
-    // asks for. See CaptureFootPlacementSettings::stepLengthGain.
+    // asks for. See CaptureFootPlacementSettings::stepLengthGain and stanceTimeGain.
     const vector2_t stepAhead =
-        captureFootPlacement_.stepLengthGain * stepPeriod * comVelocity;
+        (captureFootPlacement_.stepLengthGain * stepPeriod + captureFootPlacement_.stanceTimeGain * stanceDuration) *
+        comVelocity;
 
     // Centre the SUPPORT POLYGON under the base, not the ankle. The ankle is the
     // contact frame, but the sole extends 0.125 m ahead of it and only 0.055 m
@@ -447,6 +477,7 @@ void SwitchedModelReferenceManager::updateCaptureFootholds(scalar_t initTime, co
     captureFoothold_[foot].head<2>() = nominal + correction;
     captureFoothold_[foot](2) = 0.0;  // flat ground
     captureFootholdValid_[foot] = true;
+    captureFootholdTouchdownTime_[foot] = footTouchdown;
   }
 }
 
@@ -477,7 +508,8 @@ bool SwitchedModelReferenceManager::getSwingFootholdReference(size_t foot,
   // foothold below assumes flat ground.
   const auto& stairPlanForFoothold = stairClimbingPlan_.get();
   if (!stairPlanForFoothold && !isTerrainWalkActive() && captureFootPlacement_.enabled &&
-      foot < captureFootholdValid_.size() && captureFootholdValid_[foot]) {
+      foot < captureFootholdValid_.size() && captureFootholdValid_[foot] &&
+      (!captureFootPlacement_.currentSwingOnly || time <= captureFootholdTouchdownTime_[foot])) {
     positionReference = captureFoothold_[foot];
     trackingWeight = captureFootPlacement_.trackingWeight;
     return true;

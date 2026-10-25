@@ -419,6 +419,20 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
             [0.0, 0.0, 0.0, 50.0, 50.0, 0.0,
              5.0, 5.0, 0.0, 1.0, 1.0, 0.005]
 
+        # Swing-foot xy target through the foot cost above: land v * T_stance / 2 ahead of the
+        # predicted base. Without it running touchdowns fall short and the robot runs away above ~1.8 m/s.
+        captureFootPlacement:
+          enabled: true
+          gain: 0.0                  # no capture-point term; speed feedback stays with the MPC
+          stepWidth: 0.26
+          maxAdjustment: 0.10
+          trackingWeight: 50.0       # 100 gave a near-fall at 2 m/s; 20 fell while decelerating
+          projectionHorizon: 0.0
+          stepLengthGain: 0.0
+          stanceTimeGain: 0.5        # Raibert neutral point
+          footCenterOffset: 0.0      # contactGeometry already puts the frame at the sole centre
+          currentSwingOnly: true
+
         # Cartesian pose/twist tracking costs; H2 tracks head orientation/angular velocity only.
         taskSpaceCosts:
           names:
@@ -466,7 +480,9 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         inverseDynamics:
           # Keep physical equalities enabled for locomotion; disabling is diagnostic-only.
           activate: true
-          torqueConstraintNodes: 3
+          # Joint-torque rows and limits over the first 0.2 s, about one running stance; with 3 nodes the
+          # plan asks the ankles for ~2x their limit above 1.5 m/s.
+          torqueConstraintNodes: 10
 
         footMotionEquality:
           activate: true
@@ -521,8 +537,10 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           #          50.0, 50.0,
           #          130.0, 60.0, 60.0, 60.0,
           #          130.0, 60.0, 60.0, 60.0]
-          mu: 0.1
-          delta: 5.0
+          # Stiff past the limit (curvature mu/delta^2 = 0.5) but light inside it; mu 5 / delta 5 starved
+          # the walking start of ankle torque.
+          mu: 0.5
+          delta: 1.0
 
         legSelfCollision:
           activate: true
@@ -544,7 +562,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         targetDisplacementVelocity: 0.5
         targetRotationVelocity: 0.5
         # GUI/topic normalization maxima, not OCP velocity bounds or robustness guarantees.
-        maxDisplacementVelocityX: 1.0
+        maxDisplacementVelocityX: 2.0
         maxDisplacementVelocityY: 0.5
         maxDeltaPelvisHeight: 0.4
         maxRotationVelocity: 1.5708
@@ -614,8 +632,8 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           fast_walk:      {modeSequence: [LF, STANCE, RF, STANCE],   switchingTimes: [0.0, 0.3, 0.5, 0.8, 1.0]}
           slow_walk:      {modeSequence: [LF, STANCE, RF, STANCE],   switchingTimes: [0.0, 0.4, 0.55, 0.95, 1.1]}
           very_slow_walk: {modeSequence: [RF, STANCE, LF, STANCE],   switchingTimes: [0.0, 0.7, 1.1, 1.8, 2.2]}
-          # 0.28 s single support, then 0.06 s with both feet in swing.
-          run:            {modeSequence: [LF, FLY, RF, FLY],         switchingTimes: [0.0, 0.28, 0.34, 0.62, 0.68], swingHeight: 0.20}
+          # 0.26 s single support, then 0.04 s with both feet in swing; 0.34 s steps alternate long/short above 1.5 m/s.
+          run:            {modeSequence: [LF, FLY, RF, FLY],         switchingTimes: [0.0, 0.26, 0.30, 0.56, 0.60], swingHeight: 0.20}
           fast_run:       {modeSequence: [LF, FLY, RF, FLY],         switchingTimes: [0.0, 0.3, 0.4, 0.7, 0.8]}
           skip:           {modeSequence: [LF, FLY, LF, RF, FLY, RF], switchingTimes: [0.0, 0.25, 0.3, 0.5, 0.75, 0.8, 1.0]}
           jump:           {modeSequence: [STANCE, FLY],              switchingTimes: [0.0, 0.3, 0.5]}

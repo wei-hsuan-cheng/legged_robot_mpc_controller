@@ -254,8 +254,18 @@ ocs2::humanoid::WbIdMpcInterface::Config buildWholeBodyInverseDynamicsMpcConfig(
       config.verbose);
   }
 
-  // Flat-ground footholds are optimized, not supplied by a capture-point heuristic.
-  config.captureFootPlacement.enabled = false;
+  // Off by default: flat-ground footholds are then left entirely to the optimizer.
+  const auto& capture = p.costs.captureFootPlacement;
+  config.captureFootPlacement.enabled = capture.enabled;
+  config.captureFootPlacement.gain = capture.gain;
+  config.captureFootPlacement.stepWidth = capture.stepWidth;
+  config.captureFootPlacement.maxAdjustment = capture.maxAdjustment;
+  config.captureFootPlacement.trackingWeight = capture.trackingWeight;
+  config.captureFootPlacement.projectionHorizon = capture.projectionHorizon;
+  config.captureFootPlacement.stepLengthGain = capture.stepLengthGain;
+  config.captureFootPlacement.stanceTimeGain = capture.stanceTimeGain;
+  config.captureFootPlacement.footCenterOffset = capture.footCenterOffset;
+  config.captureFootPlacement.currentSwingOnly = capture.currentSwingOnly;
 
   config.armSwing.enabled = p.reference.armSwing.enabled;
   config.armSwing.shoulderPitchAmplitude = p.reference.armSwing.shoulderPitchAmplitude;

@@ -27,7 +27,7 @@ class RunningGaitTest(unittest.TestCase):
             self.assertEqual(params["ocs2"]["gait"]["templates"]["__map_names"]["swingHeight"]["default_value"], -1.)
 
     def test_flight_timing_and_supported_transition_gaits(self):
-        for robot, support, flight in (("g1", .25, .08), ("h2", .28, .06)):
+        for robot, support, flight in (("g1", .25, .08), ("h2", .26, .04)):
             with self.subTest(robot=robot):
                 config = yaml.safe_load((ROOT / "config" / robot / "ros2_controllers.yaml").read_text())
                 gait = config["humanoid_whole_body_inverse_dynamics_mpc_controller"]["ros__parameters"]["ocs2"]["gait"]
@@ -66,6 +66,25 @@ class RunningGaitTest(unittest.TestCase):
                 first_moving = transition[transition["ladder"][1]]
                 self.assertLess(first_moving["yawRate"][0], transition["stance"]["yawRate"][1])
                 self.assertGreater(params["ocs2"]["constraints"]["legSelfCollision"]["minimumLateralSeparation"], 0)
+
+    def test_h2_running_foothold_reference(self):
+        schema = yaml.safe_load((ROOT / "src/humanoid_whole_body_inverse_dynamics_mpc/"
+                                 "humanoid_whole_body_inverse_dynamics_mpc_controller_parameter.yaml").read_text())
+        defaults = next(iter(schema.values()))["ocs2"]["costs"]["captureFootPlacement"]
+        self.assertFalse(defaults["enabled"]["default_value"])
+        h2 = yaml.safe_load((ROOT / "config/h2/ros2_controllers.yaml").read_text())
+        params = h2["humanoid_whole_body_inverse_dynamics_mpc_controller"]["ros__parameters"]
+        capture = params["ocs2"]["costs"]["captureFootPlacement"]
+        self.assertEqual(set(capture), {key for key in defaults})
+        self.assertTrue(capture["enabled"])
+        self.assertEqual(capture["gain"], 0.0)
+        self.assertEqual(capture["stanceTimeGain"], 0.5)
+        self.assertTrue(capture["currentSwingOnly"])
+        self.assertEqual(params["ocs2"]["constraints"]["inverseDynamics"]["torqueConstraintNodes"], 10)
+        self.assertGreaterEqual(params["ocs2"]["reference"]["maxDisplacementVelocityX"], 2.0)
+        g1 = yaml.safe_load((ROOT / "config/g1/ros2_controllers.yaml").read_text())
+        self.assertNotIn("captureFootPlacement",
+                         g1["humanoid_whole_body_inverse_dynamics_mpc_controller"]["ros__parameters"]["ocs2"]["costs"])
 
     def test_inclusive_speed_boundary_tolerates_filter_roundoff(self):
         source = (ROOT / "src/core/humanoid_common_mpc/src/reference_manager/ProceduralMpcMotionManager.cpp").read_text()

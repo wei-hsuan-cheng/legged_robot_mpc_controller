@@ -344,7 +344,7 @@ k_{a,z}(a_{c,z}-\ddot z_{c,d})+k_{d,z}(v_{c,z}-\dot z_{c,d})+k_{p,z}(z_c-z_{c,d}
 $$
 
 Flat-ground horizontal footholds emerge from optimization under the other terms.
-The WB-ID builder explicitly disables capture-point foot placement.
+An optional soft foothold target (`ocs2.costs.captureFootPlacement`, off by default, on for H2) adds an xy tracking term on the swing foot; see [Section 6.6](#66-optional-flat-ground-foothold-target-capturefootplacement).
 
 ### 5.4 Friction and CoP margins
 
@@ -557,8 +557,8 @@ The [Terrain Trial Checkpoint](./wb_id_terrain_checkpoint.md) is an archived pro
 ### 6.5 Horizontal swing motion and foothold selection
 
 In ordinary WB-ID `base_twist` walking, both the horizontal swing trajectory and the planned touchdown XY position emerge from optimization.
-There is no separately prescribed XY swing spline, Raibert/capture-point foothold, or independent touchdown-position decision variable in this path.
-The WB-ID builder explicitly disables the shared capture-point placement heuristic.
+There is no separately prescribed XY swing spline or independent touchdown-position decision variable in this path.
+By default there is no foothold target either; H2 enables the optional soft target of [Section 6.6](#66-optional-flat-ground-foothold-target-capturefootplacement), which pulls each swing foot toward a landing point but still leaves the touchdown to the optimizer.
 The optimized whole-body configuration determines each foot's position through forward kinematics:
 
 $$
@@ -580,7 +580,7 @@ The swing equality in Section 5.3 controls only Z against the supplied spline an
 | Base motion and joint posture costs | References and weights are configured; motion is optimized | Encourage commanded body motion and preferred leg configurations, indirectly shaping step length, width and stagger |
 | Dynamics, contact conditions and soft joint/collision margins | Define physical equations and penalized restrictions | Couple foot motion to support forces, available joint motion and inter-leg clearance |
 
-The current G1/H2 WB-ID foot task-space cost has zero XYZ position weights, so its default zero position reference does not pull the feet toward the world origin.
+The current G1/H2 WB-ID foot task-space cost has zero XYZ position weights, so its default zero position reference does not pull the feet toward the world origin; on H2 the Section 6.6 target replaces the $x/y$ reference and weight during each swing.
 It has horizontal velocity weights $w_x=w_y=5$ and zero reference foot velocity, giving this horizontal contribution when the cost is enabled:
 
 $$
@@ -609,6 +609,79 @@ Those references are a soft bias on the optimized whole-body motion, not the ord
 Do not simply enable horizontal foot position weights without supplying an appropriate reference: the fallback position reference is zero.
 Optimized foothold freedom does not itself establish safe landing regions on unknown terrain, global optimality, or guaranteed recovery.
 See [horizontal swing and foothold implementation](./humanoid_whole_body_inverse_dynamics_mpc_impl.md#53-horizontal-swing-and-foothold-selection) for the code paths.
+
+### 6.6 Optional flat-ground foothold target (`captureFootPlacement`)
+
+This option is off by default. H2 enables it so that running up to 2 m/s lands each foot far enough ahead of the body.
+It does not replace the optimization of Section 6.5: it adds one soft horizontal tracking term to the existing foot cost for each swing that is in progress, and the optimizer still chooses where the foot lands.
+
+At every solve, with initial time $t_0$ and initial state $x_0$, the reference manager computes one target for every foot $j$ that is airborne at $t_0$ in that solve's mode schedule.
+It uses these quantities:
+
+- $p_b\in\mathbb R^2$ and $\psi$: horizontal base (pelvis) position and yaw, with heading $e_f=(\cos\psi,\sin\psi)$ and left direction $e_\ell=(-\sin\psi,\cos\psi)$;
+- $v\in\mathbb R^2$: horizontal part of the state's base linear velocity in the world frame (the pelvis velocity in the WB-ID model);
+- $c$ and $z_c$: whole-body CoM position and height, $\omega=\sqrt{g/\max(z_c,0.1)}$, and the instantaneous capture point $\xi=c_{xy}+v/\omega$;
+- $t_{\mathrm{TD},j}$: the first scheduled event after $t_0$ at which foot $j$ is in contact; $T_{\mathrm{st},j}$: the duration of the stance it begins; $\Delta t_j=\operatorname{clip}(t_{\mathrm{TD},j}-t_0,\,0,\,1)$;
+- $T_{\mathrm{step}}$: the spacing of the next two scheduled events of either foot;
+- $\sigma_j=+1$ for the left foot and $-1$ for the right; $p_s\in\mathbb R^2$: the current horizontal position of the other foot.
+
+The target is
+
+$$
+\hat p_{b,j}=p_b+v\,\Delta t_j,
+$$
+
+$$
+p^{\mathrm{nom}}_j=\hat p_{b,j}+\left(k_L\,T_{\mathrm{step}}+k_s\,T_{\mathrm{st},j}\right)v-d_c\,e_f+\sigma_j\,\tfrac{w}{2}\,e_\ell,
+$$
+
+$$
+\xi_{\mathrm{TD},j}=p_s+(\xi-p_s)\,e^{\,\omega\min(\Delta t_j,\,T_{\mathrm{proj}})},\qquad
+\delta_j=\operatorname{clip}_{[-a,\,a]}\!\left(k_{cp}\,(\xi_{\mathrm{TD},j}-\hat p_{b,j})\right),
+$$
+
+$$
+r_j=\begin{bmatrix}p^{\mathrm{nom}}_j+\delta_j\\0\end{bmatrix}.
+$$
+
+$\hat p_{b,j}$ is where the base will be at that foot's touchdown at constant velocity.
+The clip acts on each world axis separately.
+For every plan time $t$ from $t_0$ to $t_{\mathrm{TD},j}$, the foot cost then uses $r_j$ as its position reference and $w_{\mathrm{tr}}$ as its $x/y$ position weight:
+
+$$
+\ell^{\mathrm{fh}}_j(t)=\tfrac12\,w_{\mathrm{tr}}\left\|P_{xy}\left(f_j(q(t))-r_j\right)\right\|^2 .
+$$
+
+This term is added to the foot cost's orientation and velocity terms; the $z$ position weight stays as configured, which is zero for G1 and H2.
+Within one solve $r_j$ is a fixed point, not a path interpolated along the swing; the next solve recomputes it from the new measured state.
+Feet that are in stance at $t_0$ get no target, including for their later swings inside the horizon.
+Stair-plan and `terrain_walk` foothold references take precedence when they are active.
+
+| Symbol | `ocs2.costs.captureFootPlacement.` | H2 value | Meaning |
+| --- | --- | --- | --- |
+| — | `enabled` | true (default false) | Turns the target on |
+| $k_s$ | `stanceTimeGain` | 0.5 | Forward lead per $v\,T_{\mathrm{st},j}$ |
+| $w_{\mathrm{tr}}$ | `trackingWeight` | 50 | Horizontal tracking weight |
+| $w$ | `stepWidth` | 0.26 m | Lateral foot spacing |
+| — | `currentSwingOnly` | true | The term stops at the foot's touchdown; when false it applies over the whole horizon |
+| $k_{cp}$ | `gain` | 0 | Capture-point correction gain |
+| $a$ | `maxAdjustment` | 0.10 m | Clamp on the correction; inactive while $k_{cp}=0$ |
+| $T_{\mathrm{proj}}$ | `projectionHorizon` | 0 s | Capture-point propagation time |
+| $k_L$ | `stepLengthGain` | 0 | Forward lead per $v\,T_{\mathrm{step}}$ |
+| $d_c$ | `footCenterOffset` | 0 m | Ankle-to-sole-centre offset; H2's contact frame is already at the sole centre |
+
+With the H2 values the target reduces to
+
+$$
+r_{j,xy}=p_b+v\left(\Delta t_j+0.5\,T_{\mathrm{st},j}\right)\pm0.13\,e_\ell .
+$$
+
+At 1.9 m/s with $T_{\mathrm{st}}=0.26$ s, it leads the predicted base by $0.5\cdot1.9\cdot0.26\approx0.25$ m.
+This is the Raibert neutral point: the body travels $v\,T_{\mathrm{st}}$ during the coming stance, so landing half of that ahead makes the stance symmetric about the foot, and braking and push-off cancel at constant speed.
+Measured on H2 at 2 m/s, touchdown moved from 0.10-0.15 m ahead of the CoM without the target (lift-off 0.28-0.44 m behind, net propulsion every step) to 0.20-0.23 m ahead with it (lift-off about 0.31 m behind).
+The lead scales with the measured velocity, not the command, so a robot running too fast gets a target further ahead, which brakes it; speed tracking otherwise comes from the base-velocity cost.
+$k_{cp}=0$ because the capture point is a stopping placement: at 2 m/s, $\xi-\hat p_{b,j}\approx v/\omega\approx0.6$ m, which would saturate $a$ on every step and act as a constant offset rather than feedback.
+See [H2 to 2 m/s](./wb_id_running.md#h2-to-2-ms) for the trials and the [foothold-target implementation](./humanoid_whole_body_inverse_dynamics_mpc_impl.md#54-flat-ground-foothold-target-capturefootplacement) for the code.
 
 
 ## 7. Policy Execution and Inner Servo

@@ -134,6 +134,19 @@ class SwitchedModelReferenceManager : public ReferenceManager {
     //!
     //! Measured from the model geometry: (0.125 - 0.055) / 2 = 0.035.
     scalar_t footCenterOffset = 0.035;
+    //! Raibert neutral point, as a fraction of (velocity x the landing foot's
+    //! scheduled stance duration).
+    //!
+    //! Constant-speed running needs the foot to land as far ahead of the CoM as it
+    //! leaves behind, i.e. about v * T_stance / 2 ahead of the base at touchdown;
+    //! landing shorter nets propulsion every stance and the robot runs away.
+    //! Unlike stepLengthGain this uses the landing foot's own stance time, so it is
+    //! well defined for gaits with double support or flight between steps.
+    scalar_t stanceTimeGain = 0.0;
+    //! Apply the foothold only until this foot's scheduled touchdown. Otherwise the
+    //! target also pulls the foot's later swings within the horizon back to it,
+    //! which matters once the horizon spans several steps (running).
+    bool currentSwingOnly = false;
   };
 
   /**
@@ -381,6 +394,7 @@ class SwitchedModelReferenceManager : public ReferenceManager {
   CaptureFootPlacementSettings captureFootPlacement_;
   feet_array_t<vector3_t> captureFoothold_{vector3_t::Zero(), vector3_t::Zero()};
   feet_array_t<bool> captureFootholdValid_{false, false};
+  feet_array_t<scalar_t> captureFootholdTouchdownTime_{0.0, 0.0};
 
   std::shared_ptr<GaitSchedule> gaitSchedulePtr_;
   std::shared_ptr<SwingTrajectoryPlanner> swingTrajectoryPtr_;

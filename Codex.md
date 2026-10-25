@@ -1,6 +1,37 @@
 # WB-ID MPC Walking Robustness Handoff
 
 
+## H2 Running to 2 m/s (2026-10-25, Latest)
+
+H2 now holds a 2.0 m/s command: 6/6 trials passed (four 12 s holds, one 30 s hold, one 12 s ramp), plus 1.5, 1.0 (x2), 0.75, 0.3, vy ±0.3 and yaw 0.5 regressions.
+Before: a 2.0 m/s command fell 1.6 s into the hold; a slow ramp fell at about 1.75 m/s; steps alternated long/short above 1.5 m/s.
+Protocol: `tests/wb_id_walk_test.py --robot-name h2 --scene scene_flat.xml --source state_estimator --estimator humanoid_linear_kf --mpc-rate 90 --settle 4 --ramp 4 --hold 12 --rest 6 --record-joints --record-tracking`, in Docker `ros_jazzy`; analysis on the Mac with `analyze_running.py`, `analyze_leg_clearance.py` and the new `tests/tuning/analyze_gait_regularity.py`.
+Raw outputs, 81 trials, config variants and the trial log (`claude_trials.md`) are in ignored `tuning_results/h2_run_2ms/`.
+
+Root cause chain, each step measured:
+
+- above 1.5 m/s the 3-node torque window let the plan demand ankle-pitch 78-125 Nm (limit 66.9) and hip 356-423 Nm (limit 360); actuators clipped and execution departed from the plan;
+- the friction cone (mu 0.4) became binding exactly where the gait degraded (planned |Fxy|/Fz > 0.36 on 2% of loaded samples at 1.25-1.5 m/s, 44% at 1.5-1.75, 82% at 1.75-2.0);
+- with 0.32-0.34 s steps the step length alternated (CV 0.39-0.51); 0.30 s steps were regular (CV 0.02-0.06);
+- even the regular gait landed the foot only +0.10-0.15 m ahead of the CoM (knee 0.9-1.1 rad) against -0.28..-0.44 m at lift-off, netting propulsion every stance; the robot ran away past ~1.8 m/s within ~3 s. Swing hip torque was not saturated, so this was the optimizer's choice.
+
+Sixty YAML-only trials could not fix the touchdown placement (weights on pitch/height/vx/knee/hip/foot velocity/contact moments, torque window 10/25, torque barrier shapes, cadence 0.28-0.34 s, swing height 0.12-0.20, friction 0.6, height 0.95, arm swing).
+The existing capture-point foothold in `SwitchedModelReferenceManager` was hard-coded off in `whole_body_inverse_dynamics_mpc_config_builder.cpp`.
+C++ change (default off, so other configurations are unchanged):
+
+- WB-ID schema `ocs2.costs.captureFootPlacement.*` and builder mapping;
+- per-foot touchdown and stance time from the solve's mode schedule (flight-safe; walking gives the old next-event time);
+- `stanceTimeGain` (land `stanceTimeGain * v * T_stance` ahead of the predicted base) and `currentSwingOnly` (target only until that foot's touchdown).
+
+H2 YAML: `maxDisplacementVelocityX` 1.0 -> 2.0; run 0.26 s support / 0.04 s flight; `torqueConstraintNodes` 3 -> 10; torque barrier `mu/delta` 0.1/5.0 -> 0.5/1.0; foothold enabled (`gain` 0, `stanceTimeGain` 0.5, `trackingWeight` 50, `stepWidth` 0.26, `currentSwingOnly` true).
+Ablations at 2.0 m/s: without the torque window, the cadence or the barrier-less combination it fell; without the barrier change it passed with twice the lean, a 0.84 m dip and 6.5 m drift; the foothold alone on the old settings fell.
+Results with the source YAML: 30 s hold 1.87 m/s, hold roll RMS 0.010, pitch +0.010 ± 0.013 rad, base 0.922 ± 0.009 m, step period/length CV 0.03/0.03, touchdown +0.20-0.23 / lift-off about -0.31 m vs CoM; no crossing, overlap or self-contact; MPC 82 Hz.
+Limitations: grounded run (physical flight ≤ 10 ms against 40 ms windows); held speed 3-7% under command; heading drift 0.1-0.4 rad per run (0.40 rad and 16.9 m over the 64 m long run); one walk-to-trot transient in ten ramps (0.85 m, 0.12 rad roll, 12° heading jump); G1 untouched and not re-tested.
+`tests/test_wb_id_running.py` updated for the new H2 run timing plus a foothold-settings check; 41 discovery tests (8 native skips) and the WB-ID contract scripts pass.
+Package build (2 jobs, Release, `--packages-select legged_robot_mpc_controller`) passed in 5 min 10 s; no new warnings.
+Details and the reproduce command: [H2 to 2 m/s](docs/wb_id_running.md#h2-to-2-ms). No commit or push.
+
+
 ## Per-Gait Swing Clearance (2026-10-25)
 
 Added optional `ocs2.gait.templates.<name>.swingHeight` [m]; omitted or -1 inherits `ocs2.gait.swingTrajectory.swingHeight`, while zero is an explicit zero-clearance request.
