@@ -3,7 +3,7 @@
 [`ros2_control`](https://control.ros.org/rolling/index.html) implementation for legged robot MPC using [`ocs2_ros2`](https://github.com/wei-hsuan-cheng/ocs2_ros2.git) and [`pinocchio`](https://github.com/stack-of-tasks/pinocchio.git).  Tested in [`ros2 jazzy`](https://docs.ros.org/en/jazzy/index.html) and [`mujoco`](https://mujoco.readthedocs.io/en/stable/overview.html) simulation environment.
 
 
-## Interactive Velocity and Base Height Control
+## Demos
 
 <table align="center">
   <tr>
@@ -24,6 +24,12 @@
   <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/h2_run.gif?raw=true" width="800" alt="H2 runs, stops, stumbles, and regains balance" />
   <br />
   <b>Unitree H2</b><br />Runs, stops, stumbles, and regains balance
+</p>
+
+<p align="center">
+  <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/h2_uneven_terrain.gif?raw=true" width="700" alt="H2 walking on uneven terrain with proprioception only" />
+  <br />
+  <b>Unitree H2</b><br />Uneven terrain locomotion with proprioception only
 </p>
 
 
