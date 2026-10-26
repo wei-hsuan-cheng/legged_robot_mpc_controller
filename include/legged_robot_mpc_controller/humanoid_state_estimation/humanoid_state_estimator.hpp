@@ -27,8 +27,10 @@ struct EstimatorCommonSettings
   std::string odom_topic;
   std::string odom_frame;
   double publish_rate{100.0};
-  //! "scheduled" (the gait's contact flags) or "torque".
+  //! "scheduled" (the gait's contact flags), "torque" or "sensor".
   std::string contact_source{"scheduled"};
+  //! "sensor" only: one per-foot contact state interface, in foot-index order.
+  std::vector<std::string> contact_sensor_interfaces;
   // Readiness. The timer is the primary gate; the std-devs are divergence guards
   // on the observable states only (see the readiness parameters for why).
   double ready_min_seconds{5.0};

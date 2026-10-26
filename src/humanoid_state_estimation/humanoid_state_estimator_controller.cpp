@@ -60,6 +60,12 @@ HumanoidStateEstimatorController::state_interface_configuration() const
   for (const char * component : {"w", "x", "y", "z"}) {
     config.names.emplace_back(imu + "/orientation." + component);
   }
+  // Claimed last, so the joint and IMU indices above do not depend on the contact source.
+  if (se.contact_source == "sensor") {
+    for (const auto & name : se.contact_sensor_interfaces) {
+      config.names.emplace_back(name);
+    }
+  }
   return config;
 }
 
@@ -80,6 +86,11 @@ controller_interface::CallbackReturn HumanoidStateEstimatorController::on_config
   joint_pos_.assign(n, 0.0);
   joint_vel_.assign(n, 0.0);
   joint_eff_.assign(n, 0.0);
+  if (se.contact_source == "sensor" && se.contact_sensor_interfaces.size() != 2) {
+    RCLCPP_ERROR(
+      get_node()->get_logger(), "contact.source sensor needs contact.sensorInterfaces with one interface per foot (2)");
+    return controller_interface::CallbackReturn::ERROR;
+  }
   foot_contacts_.assign(2, true);
   exported_values_.assign(estimator_interfaces::names().size(), 0.0);
 
@@ -241,11 +252,20 @@ controller_interface::return_type HumanoidStateEstimatorController::update_and_w
     filter.setBaseOrientation(imu_orientation_);
   }
 
-  if (estimator_->settings().contact_source == "scheduled") {
+  const auto & contact_source = estimator_->settings().contact_source;
+  if (contact_source == "scheduled") {
     // From the consumer's reference interfaces; a missing or NaN value counts as
     // stance, the state the robot is in until the MPC drives.
     for (std::size_t foot = 0; foot < 2; ++foot) {
       const auto flag = reference_handles_[estimator_interfaces::kContactLeft + foot]->get_optional();
+      foot_contacts_[foot] = !flag || !std::isfinite(*flag) || *flag > 0.5;
+    }
+    estimate_ = filter.update(gyro_, accel_, joint_pos_, joint_vel_, joint_eff_, foot_contacts_);
+  } else if (contact_source == "sensor") {
+    // The sensor interfaces follow the joint and IMU ones; a missing value counts as stance.
+    const std::size_t first = state_interfaces_.size() - foot_contacts_.size();
+    for (std::size_t foot = 0; foot < foot_contacts_.size(); ++foot) {
+      const auto flag = state_interfaces_[first + foot].get_optional();
       foot_contacts_[foot] = !flag || !std::isfinite(*flag) || *flag > 0.5;
     }
     estimate_ = filter.update(gyro_, accel_, joint_pos_, joint_vel_, joint_eff_, foot_contacts_);

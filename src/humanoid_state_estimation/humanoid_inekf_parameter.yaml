@@ -167,25 +167,53 @@ humanoid_inekf:
     source: {
       type: string,
       default_value: "scheduled",
-      description: "Contact source for InEKF kinematic updates: scheduled uses the MPC gait schedule; torque uses the estimator library contact classifier",
+      description: "Contact source for InEKF kinematic updates: scheduled = the MPC gait schedule; torque = contact forces estimated from joint torques (robot-agnostic least squares, one decision per foot); sensor = per-foot contact flags read from the state interfaces in sensorInterfaces (simulator ground truth, or foot contact sensors)",
       validation: {
-        one_of<>: [["scheduled", "torque"]]
+        one_of<>: [["scheduled", "torque", "sensor"]]
       }
+    }
+    sensorInterfaces: {
+      type: string_array,
+      default_value: [],
+      description: "sensor only: one state interface per foot, in foot-index order, read as in contact when > 0.5 (e.g. left_foot_contact/contact from the MuJoCo contact-wrench sensor)"
+    }
+    settleTime: {
+      type: double,
+      default_value: 0.0,
+      description: "For this long after a contact enters stance [s] its kinematic measurement (and the new landmark's initial covariance) uses settleNoise, so a landing foot that is still rolling or conforming moves its own landmark instead of the base. 0 disables",
+      validation: { gt_eq: [0.0] }
+    }
+    settleNoise: {
+      type: double,
+      default_value: 0.05,
+      description: "Kinematic measurement noise of a settling contact [m]",
+      validation: { gt: [0.0] }
+    }
+    pointForceRatio: {
+      type: double,
+      default_value: 0.0,
+      description: "torque only: a contact point of a foot in stance is used as a fixed point only while it carries at least this fraction of the foot's normal force, so a rolling flat foot (heel strike, toe-off) does not pin an unloaded heel or toe. 0 = all points of a foot together",
+      validation: { bounds<>: [0.0, 1.0] }
+    }
+    releaseThreshold: {
+      type: double,
+      default_value: -1.0,
+      description: "torque only: a foot in stance leaves it when its contact probability falls below this (hysteresis); negative = probabilityThreshold"
     }
     footIndices: {
       type: int_array,
       default_value: [0, 0, 1, 1],
-      description: "Foot index for each contactFrames entry; G1 maps left heel/toe to 0 and right heel/toe to 1"
+      description: "Foot (rigid body) index for each contactFrames entry; heel and toe of one foot share an index. Maps per-foot contact flags to contacts, and groups contacts for the torque detector"
     }
     beta0: {
       type: double_array,
       default_value: [-20.0, -20.0, -20.0, -20.0],
-      description: "Logistic-regression bias per contact (torque-based contact estimator); one entry per contactFrame"
+      description: "Logistic-regression offset per contact (torque detector), applied to the foot's summed normal force; a foot uses its first contact's values. One entry per contactFrame"
     }
     beta1: {
       type: double_array,
       default_value: [0.7, 0.7, 0.7, 0.7],
-      description: "Logistic-regression slope per contact; one entry per contactFrame"
+      description: "Logistic-regression slope [1/N] per contact; 50% contact probability at -beta0/beta1 newtons. One entry per contactFrame"
     }
     forceCovarianceAlpha: { type: double, default_value: 100.0, description: "Contact force covariance scaling" }
     probabilityThreshold: { type: double, default_value: 0.5, description: "Contact on/off probability threshold" }

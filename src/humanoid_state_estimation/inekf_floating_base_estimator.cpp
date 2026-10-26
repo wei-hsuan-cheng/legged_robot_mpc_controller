@@ -32,6 +32,11 @@ legged_state_estimator::LeggedStateEstimatorSettings toLibrarySettings(
   out.contact_estimator_settings.beta1 = s.contact_beta1;
   out.contact_estimator_settings.contact_force_covariance_alpha = s.contact_force_covariance_alpha;
   out.contact_estimator_settings.contact_probability_threshold = s.contact_probability_threshold;
+  out.contact_estimator_settings.contact_release_probability_threshold =
+    s.contact_release_probability_threshold;
+  out.contact_estimator_settings.contact_point_force_ratio = s.contact_point_force_ratio;
+  out.contact_estimator_settings.contact_groups.assign(
+    s.contact_foot_indices.begin(), s.contact_foot_indices.end());
 
   out.inekf_noise_params.setGyroscopeNoise(s.gyroscope_noise);
   out.inekf_noise_params.setAccelerometerNoise(s.accelerometer_noise);
@@ -41,6 +46,8 @@ legged_state_estimator::LeggedStateEstimatorSettings toLibrarySettings(
 
   out.dynamic_contact_estimation = s.dynamic_contact_estimation;
   out.contact_position_noise = s.contact_position_noise;
+  out.contact_settle_time = s.contact_settle_time;
+  out.contact_settle_position_noise = s.contact_settle_noise;
   out.contact_rotation_noise = s.contact_rotation_noise;
   out.sampling_time = s.sampling_time;
 
@@ -75,14 +82,14 @@ InekfFloatingBaseEstimator::InekfFloatingBaseEstimator(const Settings& settings)
     throw std::invalid_argument(
       "[InekfFloatingBaseEstimator] height_source must be 'inekf', 'kinematic', 'blend' or 'anchored'");
   }
-  if (settings_.contact_source != "torque" && settings_.contact_source != "scheduled") {
+  if (settings_.contact_source != "torque" && settings_.contact_source != "scheduled" &&
+      settings_.contact_source != "sensor") {
     throw std::invalid_argument(
-      "[InekfFloatingBaseEstimator] contact_source must be 'torque' or 'scheduled'");
+      "[InekfFloatingBaseEstimator] contact_source must be 'torque', 'scheduled' or 'sensor'");
   }
-  if (settings_.contact_source == "scheduled" &&
-      settings_.contact_foot_indices.size() != settings_.contact_frames.size()) {
+  if (settings_.contact_foot_indices.size() != settings_.contact_frames.size()) {
     throw std::invalid_argument(
-      "[InekfFloatingBaseEstimator] scheduled contact source requires one foot index per contact frame");
+      "[InekfFloatingBaseEstimator] contact_foot_indices needs one foot index per contact frame");
   }
 
   // Build a Pinocchio floating-base model from the same URDF the estimator uses, to
@@ -210,6 +217,7 @@ void InekfFloatingBaseEstimator::initialize(
   // heights, and mark every contact as fresh so the first stance re-anchors cleanly.
   contact_ground_anchor_ = ground_heights;
   contact_was_in_stance_.assign(contact_frame_ids_.size(), false);
+  contact_stance_.assign(contact_frame_ids_.size(), false);
   stance_height_offset_valid_ = false;
   estimator_->init(imu_position, quat_xyzw, qj_, ground_heights);
   initialized_ = true;
@@ -286,14 +294,8 @@ void InekfFloatingBaseEstimator::contactHeightsRelativeToBase(
 bool InekfFloatingBaseEstimator::isContactInStance(
   size_t contact, const std::vector<bool>* foot_contacts) const
 {
-  if (foot_contacts == nullptr) {
-    return true;  // no contact information: treat every configured contact as support
-  }
-  const int64_t foot = settings_.contact_foot_indices[contact];
-  if (foot < 0 || static_cast<size_t>(foot) >= foot_contacts->size()) {
-    return false;
-  }
-  return (*foot_contacts)[static_cast<size_t>(foot)];
+  (void)foot_contacts;  // already folded into contact_stance_ by updateImpl
+  return contact < contact_stance_.size() && contact_stance_[contact];
 }
 
 bool InekfFloatingBaseEstimator::kinematicBaseHeight(
@@ -404,6 +406,30 @@ void InekfFloatingBaseEstimator::collectDiagnostics(const std::vector<bool>* foo
   for (size_t contact = 0; contact < n; ++contact) {
     d.contact_in_stance[contact] = isContactInStance(contact, foot_contacts);
   }
+  // Per foot: the stance flag used, and what the torque detector says (it runs every tick).
+  const auto& detector = estimator_->getContactEstimator();
+  double stance[2] = {0.0, 0.0}, force[2] = {0.0, 0.0}, torque_stance[2] = {0.0, 0.0};
+  for (size_t contact = 0; contact < n; ++contact) {
+    const int64_t foot = settings_.contact_foot_indices[contact];
+    if (foot < 0 || foot > 1) {
+      continue;
+    }
+    stance[foot] = std::max(stance[foot], contact_stance_[contact] ? 1.0 : 0.0);
+    force[foot] += detector.getNormalContactForceEstimate()[contact];
+    torque_stance[foot] =
+      std::max(torque_stance[foot], detector.getContactState()[contact].second ? 1.0 : 0.0);
+  }
+  d.foot_stance_left = stance[0];
+  d.foot_stance_right = stance[1];
+  d.foot_normal_force_left = force[0];
+  d.foot_normal_force_right = force[1];
+  d.foot_torque_stance_left = torque_stance[0];
+  d.foot_torque_stance_right = torque_stance[1];
+  for (size_t contact = 0; contact < d.point_normal_force.size(); ++contact) {
+    const bool exists = contact < n;
+    d.point_normal_force[contact] = exists ? detector.getNormalContactForceEstimate()[contact] : 0.0;
+    d.point_stance[contact] = exists && contact_stance_[contact] ? 1.0 : 0.0;
+  }
 
   d.attitude_std = estimator_->getAttitudeStdDev();
   d.velocity_std = estimator_->getVelocityStdDev();
@@ -453,8 +479,14 @@ FloatingBaseEstimate InekfFloatingBaseEstimator::updateImpl(
     }
     estimator_->update(
       imu_gyro_body, imu_linear_acceleration_body, qj_, dqj_, tauj_, contact_state);
+    for (const auto& [contact, stance] : contact_state) {
+      contact_stance_[static_cast<size_t>(contact)] = stance;
+    }
   } else {
     estimator_->update(imu_gyro_body, imu_linear_acceleration_body, qj_, dqj_, tauj_);
+    for (const auto& [contact, stance] : estimator_->getContactEstimator().getContactState()) {
+      contact_stance_[static_cast<size_t>(contact)] = stance;
+    }
   }
 
   // The InEKF estimates the IMU frame; convert back to the pelvis (floating-base) frame.

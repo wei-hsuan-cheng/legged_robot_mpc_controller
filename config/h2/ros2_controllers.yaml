@@ -74,10 +74,22 @@ humanoid_inekf:
       heightStdDevMax: 0.10
       velocityStdDevMax: 0.50
 
+    # Initial filter std-devs and whether the IMU biases are estimated (parameter-file defaults).
+    initialCovariance:
+      attitude: 0.01
+      velocity: 0.01
+      position: 0.01
+      # Small initial gyro-bias std: a free gyro bias hides as tilt during long turns and
+      # reappears when the robot stops (fell standing after circles on uneven tiles).
+      # Assumes the gyro bias is calibrated at standstill before walking on hardware.
+      gyroscopeBias: 0.001
+      accelerometerBias: 0.1
+    estimateImuBias: true
+
     noise:
       gyroscope: 1.0e-2
       accelerometer: 1.5e0
-      gyroscopeBias: 1.0e-5
+      gyroscopeBias: 1.0e-7
       accelerometerBias: 1.0e-4
       contact: 1.0e-2
       contactPosition: 2.0e-3
@@ -89,23 +101,37 @@ humanoid_inekf:
       groundZ: 0.0
       holdThroughFlight: true
     contact:
+      # scheduled = the MPC gait schedule; torque = contacts from joint torques (robot-agnostic
+      # least squares, one decision per foot; 97-99% agreement with true contact walking and
+      # running, and it follows real touchdowns on uneven ground where the schedule does not);
+      # sensor = the flags in sensorInterfaces (simulation ground truth).
       source: scheduled
       footIndices:
         [0, 0, 1, 1]
+      # Stance at 50% probability for a foot normal force of -beta0/beta1 = 350 N; swing feet
+      # read up to ~300 N (unmodelled swing-leg acceleration), stance 500-1300 N.
       beta0:
-        [-20.0, -20.0, -20.0, -20.0]
+        [-7.0, -7.0, -7.0, -7.0]
       beta1:
-        [0.7, 0.7, 0.7, 0.7]
-      forceCovarianceAlpha: 10.0
+        [0.02, 0.02, 0.02, 0.02]
+      # Measurement variance alpha * (change of foot force per tick [N])^2 [m^2]: loosens the
+      # legs only at impacts; at alpha 10 even 1 N per tick ignored the legs.
+      forceCovarianceAlpha: 1.0e-8
       probabilityThreshold: 0.5
+      releaseThreshold: 0.05       # leave stance below ~200 N
+      pointForceRatio: 0.0
+      settleTime: 0.03             # a landing contact moves its own landmark for 30 ms
+      settleNoise: 0.05
       dynamicEstimation: false
+      # source: sensor reads these per-foot flags (MuJoCo contact-wrench sensors, simulation only).
+      sensorInterfaces: [left_foot_contact/contact, right_foot_contact/contact]
     lpf:
       gyroCutoff: 80.0
       gyroAccelCutoff: 50.0
       linAccelCutoff: 15.0
       dqJCutoff: 10.0
       ddqJCutoff: 5.0
-      tauJCutoff: 10.0
+      tauJCutoff: 50.0             # torque contact detection; 10 Hz delayed touchdown/liftoff
 
 
 # Two-stage linear KF (Bledt et al. 2018)

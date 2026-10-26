@@ -85,6 +85,20 @@ void visit(Estimate & e, Diagnostics & d, Status & s, F && f)
   f("diagnostics.kinematic_height", d.kinematic_height);
   f("diagnostics.kinematic_height_valid", d.kinematic_height_valid);
   f("diagnostics.reported_height", d.reported_height);
+  f("diagnostics.foot_stance.left", d.foot_stance_left);
+  f("diagnostics.foot_stance.right", d.foot_stance_right);
+  f("diagnostics.foot_normal_force.left", d.foot_normal_force_left);
+  f("diagnostics.foot_normal_force.right", d.foot_normal_force_right);
+  f("diagnostics.foot_torque_stance.left", d.foot_torque_stance_left);
+  f("diagnostics.foot_torque_stance.right", d.foot_torque_stance_right);
+  f("diagnostics.point_normal_force.0", d.point_normal_force[0]);
+  f("diagnostics.point_normal_force.1", d.point_normal_force[1]);
+  f("diagnostics.point_normal_force.2", d.point_normal_force[2]);
+  f("diagnostics.point_normal_force.3", d.point_normal_force[3]);
+  f("diagnostics.point_stance.0", d.point_stance[0]);
+  f("diagnostics.point_stance.1", d.point_stance[1]);
+  f("diagnostics.point_stance.2", d.point_stance[2]);
+  f("diagnostics.point_stance.3", d.point_stance[3]);
 }
 
 /**

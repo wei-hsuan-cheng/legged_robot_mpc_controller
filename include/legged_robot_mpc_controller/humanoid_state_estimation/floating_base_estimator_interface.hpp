@@ -93,9 +93,15 @@ struct EstimatorSettings
   std::vector<double> contact_beta1;
   double contact_force_covariance_alpha{100.0};
   double contact_probability_threshold{0.5};
+  double contact_release_probability_threshold{-1.0};  //!< hysteresis; < 0 = no hysteresis
+  double contact_point_force_ratio{0.0};  //!< per-point stance: min share of the foot's force
+  double contact_settle_time{0.0};   //!< [s] a new contact's measurement uses contact_settle_noise
+  double contact_settle_noise{0.05}; //!< [m]
   bool dynamic_contact_estimation{false};
-  std::string contact_source{"torque"};             //!< "torque" or externally supplied "scheduled"
-  std::vector<int64_t> contact_foot_indices;        //!< foot index for each point-contact frame
+  //! "torque" (estimated from joint torques), or per-foot flags supplied by the caller:
+  //! "scheduled" (the gait) or "sensor" (contact sensors / simulator ground truth).
+  std::string contact_source{"torque"};
+  std::vector<int64_t> contact_foot_indices;        //!< foot (rigid body) index of each contact frame
 
   //! Number of physical FEET, which is NOT the number of contact frames.
   //!
@@ -215,6 +221,21 @@ struct EstimatorDiagnostics
   bool kinematic_height_valid{false};
   double reported_height{0.0};      //!< what the MPC actually receives
   std::vector<double> contact_ground_anchor;
+
+  // --- per foot (feet 0 and 1) ------------------------------------------------
+  //! Stance flag the filter used this tick, whatever the contact source.
+  double foot_stance_left{0.0};
+  double foot_stance_right{0.0};
+  //! Torque-estimated normal force [N]. Computed every tick, also when the contacts come from
+  //! the schedule or a sensor, so the torque detector can be judged against them live.
+  double foot_normal_force_left{0.0};
+  double foot_normal_force_right{0.0};
+  double foot_torque_stance_left{0.0};   //!< the torque detector's decision
+  double foot_torque_stance_right{0.0};
+  //! Per contact point (the first four contact frames): torque-estimated normal force [N] and
+  //! the stance flag the filter used. Exported by index, so the layout stays robot-independent.
+  std::array<double, 4> point_normal_force{};
+  std::array<double, 4> point_stance{};
 };
 
 /**

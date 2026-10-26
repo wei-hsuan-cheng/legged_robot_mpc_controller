@@ -43,7 +43,23 @@
       <state_interface name="effort" />
     </joint>
   </xacro:macro>
-  <xacro:macro name="h2_ros2_control" params="       use_fake_hardware       use_mujoco_sim       joint_init       system_name:=H2System       command_interface:=effort       effort_pd_kp:=1200.0       effort_pd_kd:=10.0       mujoco_position_kp:=10000       mujoco_position_ki:=50       mujoco_position_kd:=500       mujoco_position_i_max:=10000       mujoco_position_i_min:=-10000       mujoco_effort_command_mode:=actuator       use_lidar:=false       base_height:=''">
+  <xacro:macro name="foot_contact_sensor" params="name body threshold:=5.0">
+    <sensor name="${name}">
+      <param name="mujoco_contact_body_name">${body}</param>
+      <param name="mujoco_contact_frame">body</param>
+      <param name="mujoco_contact_threshold">${threshold}</param>
+      <state_interface name="force.x" />
+      <state_interface name="force.y" />
+      <state_interface name="force.z" />
+      <state_interface name="torque.x" />
+      <state_interface name="torque.y" />
+      <state_interface name="torque.z" />
+      <state_interface name="normal_force" />
+      <state_interface name="contact" />
+    </sensor>
+  </xacro:macro>
+  
+  <xacro:macro name="h2_ros2_control" params="       use_fake_hardware       use_mujoco_sim       joint_init       system_name:=H2System       command_interface:=effort       effort_pd_kp:=1200.0       effort_pd_kd:=10.0       mujoco_position_kp:=10000       mujoco_position_ki:=50       mujoco_position_kd:=500       mujoco_position_i_max:=10000       mujoco_position_i_min:=-10000       mujoco_effort_command_mode:=actuator       use_lidar:=false       use_contact_sensors:=true       base_height:=''">
     <ros2_control name="${system_name}" type="system">
       <hardware>
         <xacro:if value="${use_mujoco_sim}">
@@ -94,6 +110,13 @@
           <state_interface name="linear_acceleration.y" />
           <state_interface name="linear_acceleration.z" />
         </sensor>
+        <!-- Simulation-only ground truth: net contact wrench on each foot body (body frame, about
+             the body origin, so -torque.y / force.z is the centre of pressure along the sole), its
+             summed normal force and a contact flag above the threshold [N]. -->
+        <xacro:if value="${use_contact_sensors}">
+          <xacro:foot_contact_sensor name="left_foot_contact" body="left_ankle_pitch_link" />
+          <xacro:foot_contact_sensor name="right_foot_contact" body="right_ankle_pitch_link" />
+        </xacro:if>
         <xacro:if value="${use_lidar}">
           <sensor name="mid360_lidar">
             <param name="mujoco_site_name">mid360</param>

@@ -48,6 +48,7 @@ bool HumanoidInEkf::readParameters(
   common.odom_frame = p.odomFrame;
   common.publish_rate = p.publishRate;
   common.contact_source = p.contact.source;
+  common.contact_sensor_interfaces = p.contact.sensorInterfaces;
   common.ready_min_seconds = p.readiness.minSeconds;
   common.ready_roll_pitch_std_max = p.readiness.rollPitchStdDevMax;
   common.ready_height_std_max = p.readiness.heightStdDevMax;
@@ -75,6 +76,10 @@ bool HumanoidInEkf::readParameters(
   filter.contact_probability_threshold = p.contact.probabilityThreshold;
   filter.dynamic_contact_estimation = p.contact.dynamicEstimation;
   filter.contact_foot_indices = p.contact.footIndices;
+  filter.contact_release_probability_threshold = p.contact.releaseThreshold;
+  filter.contact_point_force_ratio = p.contact.pointForceRatio;
+  filter.contact_settle_time = p.contact.settleTime;
+  filter.contact_settle_noise = p.contact.settleNoise;
 
   filter.height_source = p.height.source;
   filter.height_kinematic_weight = p.height.kinematicWeight;
