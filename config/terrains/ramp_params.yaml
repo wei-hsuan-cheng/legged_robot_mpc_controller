@@ -32,7 +32,7 @@ ramp:
 
   # ----- shape -----
   length: 4.0              # horizontal (projected) length along +x [m]
-  incline_deg: 15.0        # incline angle of the top surface [degrees], in (0, 90)
+  incline_deg: 5.0        # incline angle of the top surface [degrees], in (0, 90)
   width: 2.0               # width along +y, centred [m]
 
   # ----- shared appearance / physics -----

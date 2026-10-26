@@ -4,7 +4,8 @@
   <!-- background -->
   <include file="../../common/backgrounds/background_night.xml" />
   <!-- terrain/object -->
-  <!-- <include file="../../terrains/uneven_terrain.xml" /> -->
+  <include file="../../terrains/uneven_terrain.xml" />
+  <include file="../../terrains/ramp.xml" />
   <!-- robot -->
   <include file="h2_31dof.xml" />
 </mujoco>
