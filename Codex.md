@@ -1,6 +1,79 @@
 # WB-ID MPC Walking Robustness Handoff
 
 
+## Estimator Durability Matrix, H2 and G1 (2026-10-25/26)
+
+Question: can WB-ID + each floating-base estimator run for 1 h without the estimate degrading control into a fall?
+Matrix per robot: {stand, walk circle vx 0.5 + yaw 0.7845, run circle vx 1.0 + yaw 0.7854} x {humanoid_inekf, humanoid_linear_kf}, 1 h hold each, flat scene, MPC 90 / MRT 1000, headless, `state_estimator` feedback.
+The linear KF takes orientation from simulator truth; the InEKF integrates raw IMU acceleration and angular rate, so the InEKF runs are the realistic case.
+Run-circle tasks retry with yaw 0.6 / 0.45 / 0.3 if they fall within 10 min (user rule for over-aggressive commands); later falls are kept as results.
+New tools:
+- `tests/estimator_durability_test.py`: one run; 20 Hz truth + estimate to `<prefix>.csv`, minute status with process RSS, stops on a fall, verdict in `<prefix>.json`.
+- `tests/tuning/analyze_estimator_durability.py PREFIX...`: frame alignment, per-minute errors, error-growth class (bounded / random walk / steady drift, with sign statistics), control outcome, MPC rate; writes `<prefix>_durability.png` / `.json`.
+- `tests/tuning/plot_estimator_durability.py matrix PREFIX... --out F`: several runs per hold minute on shared axes (tilt and height estimate error, true tilt RMS, true height; InEKF solid, linear KF dashed, x = fall). Produced `h2_matrix_summary.png` and `g1_matrix_summary.png`.
+- `tests/tuning/plot_estimator_durability.py stop PREFIX... --out F`: true vs estimated attitude, estimate error, yaw rate and height around the commanded stop, one column per run. Produced `inekf_stop_tilt.png`.
+- Analysis Python needs numpy and matplotlib (not in the ros_jazzy container); prefixes are paths without extension, and the matrix mode also accepts a shell glob of run files.
+
+Reproduce one run (inside ros_jazzy, from `/root/ocs2_ros2_ws`, about 1 h): `python3 src/legged_robot_mpc_controller/tests/estimator_durability_test.py --robot-name g1 --estimator humanoid_inekf --vx 0.5 --yaw-rate 0.7845 --duration 3600 --prefix /tmp/claude_dur_g1_walk_inekf`.
+Batch scripts and all data: ignored `tuning_results/estimator_durability/` (`claude_batch_all.sh`, `claude_batch_run.sh`, `<robot>_progress.txt`, `claude_dur_<robot>_<task>_<estimator>*`, `h2_matrix_summary.png`, `g1_matrix_summary.png`, `inekf_stop_tilt.png`).
+
+Verdict: both estimators keep standing and walking upright for 1 h, but the InEKF has two estimate-corruption failure modes that end in falls, and neither shows up as a large error before it bites:
+1. Scheduled flight phases (H2 run gait): the published height switches to the drifting internal filter height and the MPC crouches the robot into a fall within 3.5 min.
+2. Long constant turns (G1 walk and fast circles): a roll/pitch error of 1.5-1.9 deg builds up over the hour without changing sign; at the stop it grows to 4 deg in 5 s and the robot falls backward 2 s after stopping. H2 shows the same effect at 0.8 deg and survives.
+The linear KF (truth orientation, so it cannot show mode 2) survived every task its controller could do: 3/3 hours on H2 and 3/3 on G1 (G1 at vx 1.0 excluded; neither estimator lasts 15 s there).
+
+| H2 task | Estimator | Wall time (UTC) | Result | Estimate error over the hour | Control first 10 min -> last 10 min |
+| --- | --- | --- | --- | --- | --- |
+| stand | InEKF | 15:40-16:41 | SURVIVED 60 min | height 0.001 mm, roll < 0.001 deg, yaw +0.16 deg | z 1.0142 -> 1.0142 m, tilt 0.21 deg, MPC 83.2 -> 83.7 Hz |
+| stand | linear KF | 16:41-17:42 | SURVIVED 60 min | all bounded, max velocity error 0.0003 m/s | unchanged; MPC 83.4 -> 83.7 Hz |
+| walk circle | InEKF | 17:42-18:43 | SURVIVED 60 min | height <= 6 mm bounded, roll/pitch <= 0.5 deg bounded; yaw steady drift -38.7 rad (about 6 turns, ~1% turn-rate deficit) | vx 0.511 -> 0.512, wz 0.741 -> 0.735, z 1.009 m, tilt 0.64 -> 0.52 deg, MPC 86 Hz |
+| walk circle | linear KF | 18:43-19:44 | SURVIVED 60 min | height offset -0.8 mm bounded, yaw <= 1 deg | vx 0.515 -> 0.517, wz 0.738, z 1.011 m, tilt 0.72 deg |
+| run circle | InEKF | 19:44-19:57 | FALL at yaw 0.7854 / 0.6 / 0.45 / 0.3 after 183 / 175 / 212 / 160 s | see root cause below | true height sank 0.95 -> 0.78-0.83 m and speed crept 0.96 -> 1.35 m/s before each fall |
+| run circle | linear KF | 19:57-20:57 | SURVIVED 60 min at yaw 0.7854 | height <= 1.6 cm bounded with sign flips; vx bias +0.036 -> +0.011 m/s | vx 0.958 -> 0.961, wz 0.720 -> 0.717, z 0.958 m, tilt 2.3 deg, MPC 84 Hz |
+
+Total H2 batch 5 h 17 min. No solver exceptions or torque-window overruns in any run; MPC rate did not degrade over any hour.
+
+Root cause of the InEKF running falls (estimator corruption, not command aggressiveness; it is independent of yaw rate):
+- `InekfFloatingBaseEstimator` with `height.source: kinematic` replaces the reported height with stance-foot kinematics only when `kinematicBaseHeight(...)` succeeds (`src/humanoid_state_estimation/inekf_floating_base_estimator.cpp:485-499`).
+- With `contact.source: scheduled` the run gait's scheduled flight (0.04 s of every 0.30 s step) has no stance foot, so the published height falls back to the filter's internal height, which the code itself documents as drifting uncorrected.
+- In the 20 Hz data the median height error stays 0 mm, but about 13% of samples (the scheduled flights) are too high, and the spikes grow: 95th percentile 19 cm (20-40 s), 64 cm (80-100 s), 124 cm (130-150 s).
+- The 15 s mean error climbs about 1.2 cm per 15 s from the first running step; the MPC lowers the body against the inflated height until the robot overspeeds and falls at a mean error of 21-24 cm.
+- Walking always has a stance foot, so the same drift stays hidden there (InEKF walk circle: height error <= 6 mm for 1 h). The linear KF does not show it.
+- Fix candidates (not implemented): carry the last kinematic height through no-contact phases with the vertical velocity instead of switching to the internal height; add the height pseudo-measurement inside the filter (Phase 2.5 in `Claude.md`); detect contact instead of trusting the schedule.
+
+Other findings:
+- InEKF yaw drift is proportional to rotation (smoke test 0.5% turn-rate deficit; hour-long walk circle about 1%) yet did not affect control, since WB-ID tracks body-frame twist and yaw is a gauge state.
+- While moving, per-minute lateral/vertical velocity error is 0.13-0.20 m/s RMS (forward 0.02-0.14 m/s) for both estimators; it is step-frequency error that does not grow, with only 6 ms median estimate-to-truth pairing lag.
+- Simulator process RSS was about 1.4 GB and grew +11 MB/h standing and +23 MB/h moving (fresh process per run); not limiting at 1 h, worth heap profiling before multi-day use.
+- `mujoco_ros2_control` ground-truth odometry reports about 0 angular z while the robot turns at 0.74 rad/s, although the code looks correct; the analyzer derives the true yaw rate from the yaw angle instead.
+- The early-fall yaw-retry rule assumed early falls meant an over-aggressive command; these falls were estimator-driven, so lower yaw rates could not help.
+
+G1 matrix (started 2026-10-25 20:58:50 UTC, same tasks):
+
+| G1 task | Estimator | Wall time (UTC) | Result | Estimate error over the hour | Control first 10 min -> last 10 min |
+| --- | --- | --- | --- | --- | --- |
+| stand | InEKF | 20:59-21:59 | SURVIVED 60 min | all negligible (height 0.00 cm, yaw 0.9 deg) | z 0.751 m, tilt 0.02 deg, MPC 88 Hz |
+| stand | linear KF | 21:59-23:00 | SURVIVED 60 min | all bounded about zero, with sign flips | unchanged; MPC 88 Hz |
+| walk circle | InEKF | 23:00-00:01 | FALL 2 s into the rest after the full 60 min hold | roll and pitch error grew 0 -> 1.0 / 1.1 deg with no sign change; yaw steady drift -91 rad (3.4% turn-rate deficit) | vx 0.411 -> 0.412 (command 0.5), wz 0.737 -> 0.750, z 0.757 -> 0.762, tilt RMS 1.13 -> 1.84 deg |
+| walk circle | linear KF | 00:01-01:02 | SURVIVED 60 min and the stop | all bounded; constant vx bias -0.010 -> -0.012 m/s, height 0.2 mm | vx 0.423 -> 0.426, wz 0.736, z 0.758 m, tilt RMS 1.31 deg unchanged, MPC 88 Hz |
+| run circle vx 1.0 | InEKF, linear KF | 01:02-01:07 | FALL 4-12 s into the hold at every yaw rate (0.7854 / 0.6 / 0.45 / 0.3) | accurate up to the fall: pitch error < 0.006 rad, vx error < 0.03 m/s | G1 controller limit, not the estimator: it falls within seconds of reaching about 0.7 m/s, where the `run` rung engages |
+| fast circle vx 0.65, yaw 0.7854 | linear KF | 01:07-02:08 | SURVIVED 60 min and the stop (first candidate) | all bounded; constant vx bias -0.016 -> -0.015 m/s, height 0.1 mm | vx 0.536 -> 0.532, wz 0.730, z 0.759 m, tilt RMS 1.65 -> 1.66 deg, MPC 88 Hz |
+| fast circle vx 0.65, yaw 0.7854 | InEKF | 02:08-03:09 | FALL 2 s into the rest after the full 60 min hold | roll/pitch error grew 0 -> 1.9 deg (pitch 1.64 deg) with no sign change; vx bias -0.001 -> -0.022 m/s; yaw drift -75 rad | vx 0.524, wz 0.732 -> 0.757, z 0.759 -> 0.767, tilt RMS 1.45 -> 1.95 deg, MPC 88 Hz |
+
+Total G1 batch 6 h 10 min (20:58:50-03:08:43 UTC). No solver exceptions or overruns; MPC 87.5-88 Hz throughout; simulator RSS +11 to +36 MB/h.
+
+G1 cannot run at 1.0 m/s with this controller, so the durability question moves to a fast task below the run threshold (`claude_batch_fast.sh`): the linear KF tries vx/yaw 0.65/0.7854, then 0.65/0.5, then 0.6/0.4 and keeps the first it sustains past 10 min; the InEKF then runs that condition with no retry.
+
+G1 InEKF walk- and fast-circle falls: the hidden tilt error appears at the stop (`inekf_stop_tilt.png`, `g1_matrix_summary.png`).
+- During the hold the roll/pitch estimate error grew steadily (walk 1.5 deg, fast 1.9 deg, faster circle grows faster, still rising at 60 min) without changing sign, and the true tilt RMS rose with it (1.1 -> 1.9 and 1.4 -> 2.0 deg) while the linear KF runs stayed flat; it never looked like a failure.
+- The fast circle failed exactly like the walk circle: pitch error 1.9 -> 4 deg during the 5 s stop ramp, true pitch leaning back while the estimate stayed level, fall 2 s into the rest.
+- As the yaw rate ramped from 0.74 to 0 rad/s, the pitch error grew at about 0.01 rad/s (1.1 -> 3.8 deg in 5 s). The estimated pitch stayed between 0 and -1 deg, the controller held that, and the true pitch leaned back to -5.4 deg, then the robot fell backward 2 s into the rest.
+- Same signature on H2 (InEKF walk circle), smaller and converging: pitch error 0 -> -0.8 deg over 20 s after the stop, true pitch following to +1.2 deg; it survived. The linear KF (truth orientation) shows none of it.
+- Likely mechanism (inference, biases are not logged by this harness): while yawing at a constant rate with constant body tilt, a gyro x/y bias error integrates into a body-fixed tilt error of about bias/yaw-rate, offset by an accelerometer bias error, which kinematic contact updates cannot see. Removing the turn breaks that balance and the bias error integrates into tilt. Observed size fits: 0.0125 rad/s drift at the stop vs 0.75 rad/s turning gives 0.017 rad hidden tilt; observed 0.027 rad.
+- Next test item: walk circle -> stop with turning times of 5, 15 and 30 min, logging the InEKF gyro/accelerometer bias, to find how long a turn the InEKF tolerates before the stop is fatal and to confirm the bias mechanism; then the bias random-walk noise and the estimator's own stance/turn handling as fixes.
+No controller, estimator or config change was made for these tests; nothing committed.
+
+
 ## Uneven RViz Filename Fix (2026-10-25)
 
 The user selected `uneven_terrain.urdf.xacro` as the launch default, but the generator previously produced `uneven_terrain.urdf`; the missing file caused the reported xacro launch exception.
