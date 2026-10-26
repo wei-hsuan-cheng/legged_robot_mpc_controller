@@ -144,7 +144,7 @@ $$
 
 For positive `ocs2.constraints.inverseDynamics.torqueConstraintNodes` $N_\tau$, $T_\tau=(N_\tau-\tfrac12)\Delta t_{\mathrm{SQP}}$.
 A nonpositive setting enables the joint equations and torque-limit penalties over the entire horizon.
-With the current $N_\tau=3$ and $\Delta t_{\mathrm{SQP}}=0.02$ s, the window is 0.05 s.
+With $\Delta t_{\mathrm{SQP}}=0.02$ s, G1's $N_\tau=3$ gives a 0.05 s window and H2's $N_\tau=10$ gives 0.19 s, about one running stance (see [H2 to 2 m/s](./wb_id_running.md#h2-to-2-ms)); the reference implementation uses `tau_nodes = 3` with hard torque bounds and drops $\tau_j$ from the input after the window.
 Activation is time-based, so event-adjusted grid spacing can affect the number of knots inside the window.
 Outside it, the explicit torque input is not tied to inverse dynamics and cannot be treated as an executable physical torque.
 Base dynamics still constrain the planned motion there, but full-horizon actuator feasibility is not guaranteed.
