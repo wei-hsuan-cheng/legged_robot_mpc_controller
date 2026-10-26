@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Comparison plots for estimator_durability_test.py runs.
 
-matrix: per-minute estimate error and control outcome of several runs on shared axes, from the
+matrix: per-minute estimate error (mean and 95th percentile of the height error) and control
+        outcome of several runs on shared axes, from the
         <prefix>_durability.json written by analyze_estimator_durability.py (run here if missing).
         InEKF runs are solid, linear KF runs dashed, and a run that fell ends in an x.
 stop:   attitude, true vs estimated, around the commanded stop (start of ramp_out), one column per
@@ -32,7 +33,7 @@ def run_label(summary):
 
 
 def plot_matrix(prefixes, out):
-    fig, axes = plt.subplots(4, 1, figsize=(11, 12), sharex=True)
+    fig, axes = plt.subplots(5, 1, figsize=(11, 14), sharex=True)
     for i, prefix in enumerate(prefixes):
         path = Path(str(prefix) + "_durability.json")
         if not path.exists():
@@ -45,7 +46,7 @@ def plot_matrix(prefixes, out):
         t = np.array([m["t_min"] for m in minutes]) + 0.5
         col = lambda k: np.array([m[k] for m in minutes])
         style = dict(color=f"C{i % 10}", ls="-" if "inekf" in (summary.get("estimator") or "") else "--")
-        series = (np.degrees(np.hypot(col("roll_err"), col("pitch_err"))), 100 * col("z_err"),
+        series = (np.degrees(np.hypot(col("roll_err"), col("pitch_err"))), 100 * col("z_err"), 100 * col("z_err_p95"),
                   np.degrees(col("gt_tilt_rms")), col("gt_z"))
         for axis, values in zip(axes, series):
             axis.plot(t, values, label=run_label(summary), **style)
@@ -53,8 +54,9 @@ def plot_matrix(prefixes, out):
                 axis.plot(t[-1], values[-1], "x", color=style["color"], ms=9, mew=2)
     axes[0].set_ylabel("tilt estimate error [deg]\n(1 min mean of |roll, pitch|)")
     axes[1].set_ylabel("height estimate error [cm]\n(1 min mean)")
-    axes[2].set_ylabel("true tilt RMS [deg]")
-    axes[3].set_ylabel("true base height [m]")
+    axes[2].set_ylabel("height error 95th pct [cm]\n(flight: filter's own height)")
+    axes[3].set_ylabel("true tilt RMS [deg]")
+    axes[4].set_ylabel("true base height [m]")
     axes[-1].set_xlabel("hold time [min]")
     axes[0].legend(fontsize=7, ncol=2)
     for axis in axes:

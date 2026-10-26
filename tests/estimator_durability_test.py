@@ -107,6 +107,9 @@ def main():
     parser.add_argument("--minimum-height", type=float, default=0.38)
     parser.add_argument("--startup-timeout", type=float, default=600.0)
     parser.add_argument("--config", type=Path, help="Controller YAML (default: config/<robot-name>/ros2_controllers.yaml)")
+    parser.add_argument("--set", action="append", default=[], metavar="PATH=VALUE",
+                        help="Override one existing controller YAML value by dotted path, repeatable, "
+                             "e.g. humanoid_inekf.ros__parameters.noise.contact=0.1")
     parser.add_argument("--prefix", default="/tmp/estimator_durability")
     args = parser.parse_args()
 
@@ -114,6 +117,16 @@ def main():
     prefix.parent.mkdir(parents=True, exist_ok=True)
     args.config = args.config or Path(__file__).resolve().parents[1] / "config" / args.robot_name / "ros2_controllers.yaml"
     config = yaml.safe_load(args.config.read_text())
+    for item in args.set:
+        path, _, value = item.partition("=")
+        *parents, leaf = path.split(".")
+        node = config
+        for key in parents:
+            node = node.get(key) if isinstance(node, dict) else None
+        if not isinstance(node, dict) or leaf not in node:
+            parser.error(f"--set {path}: no such key in {args.config}")
+        # Keep a float a float: PyYAML reads "1e-2" as a string.
+        node[leaf] = float(value) if isinstance(node[leaf], float) else yaml.safe_load(value)
     reference = config[CONTROLLER]["ros__parameters"]["ocs2"]["reference"]
     if abs(args.vx) > reference["maxDisplacementVelocityX"] or abs(args.yaw_rate) > reference["maxRotationVelocity"]:
         parser.error("command exceeds the configured normalization limits")

@@ -1,6 +1,41 @@
 # WB-ID MPC Walking Robustness Handoff
 
 
+## InEKF Height Hold Through Flight (2026-10-26)
+
+Fixes InEKF failure mode 1 from the durability matrix below (H2 run gait, fell within 3.5 min).
+`height.holdThroughFlight` (new, `humanoid_inekf`; default false in the parameter file, true in the H2 and G1 configs):
+- With a non-`inekf` height source, every tick with a scheduled stance foot records `reported - filter height`.
+- With no stance foot (flight), the reported height is `filter height + that offset`: the last stance height plus the filter's change since liftoff.
+- The filter's absolute height is a gauge state and drifts without bound; only its change over one flight (about 0.1 s of IMU) reaches the MPC now.
+- No effect while any foot is in stance, so walking and standing are unchanged. The internal filter height still drifts.
+- Code: `InekfFloatingBaseEstimator::updateImpl` (`src/humanoid_state_estimation/inekf_floating_base_estimator.cpp`), offset reset in `initialize`.
+
+H2 run circle (vx 1.0, yaw 0.7854), InEKF, 10 min hold; flight-phase height error = per-minute 95th percentile of |height error| (`z_err_p95`):
+
+| change | flight height error per minute | outcome |
+| --- | --- | --- |
+| none (baseline) | 36 -> 68 -> 143 cm | fell at 3 min |
+| `noise.contactPosition` 0.002 -> 0.01 | grows faster each minute, about 16 m by min 9 | full hold, fell 2 s after the stop |
+| `noise.contact` 0.01 -> 0.1 | not reached | never started: the estimator's own height-std readiness guard (0.10 m) blocks the hand-off |
+| `noise.accelerometerBias` 1e-4 -> 1e-6 | same accelerating growth, about 25 m by min 9 | full hold, fell 2 s after the stop; rules out a wandering accelerometer bias |
+| `height.holdThroughFlight: true` | 0.25-0.29 cm, flat | SURVIVED hold and stop; true height 0.957 m, tilt RMS 2.3 deg, vx 0.94 m/s, MPC 83 Hz (matches the linear KF) |
+
+Notes:
+- Surviving the hold with metre-scale flight heights is not robustness; the controller appears to stop reacting to absurd heights, and every such run fell at the stop.
+- The noise parameters cannot bound the drift: with contact-only corrections nothing measures absolute height, so each flight's integration error becomes permanent at the next touchdown.
+- A 10 min walk check with the hold on was stopped at 600 s of 615 (upright, height error 1 mm); the stop phase was not reached.
+- Not yet run: the 30 min run and walk confirmation (the user is running it), and any G1 run with the hold on.
+- `launch/robot.launch.py` now defaults `floatingBaseEstimator` to `humanoid_inekf` (user change).
+
+Open, deliberately deferred:
+- `contact.source: torque` is structurally wrong for humanoids: `legged_state_estimator/src/contact_estimator.cpp:70-71` inverts a 3x3 Jacobian block over joints `3i..3i+2` per contact (12-joint quadruped layout), so on H2 heel force comes from hip torques and toe force from knee/ankle torques. Planned: a robot-agnostic detector configured with contact count, which contacts share a rigid body, and the joints driving each body (per-body 6-D wrench from the full Jacobian, one stance flag per body).
+- Cheap sizing experiment first: feed simulator-true foot contacts as the contact source; if the internal drift mostly disappears, schedule mismatch dominates and the detector is worth it, otherwise the in-filter height measurement (Phase 2.5) matters more.
+
+Test tooling: `tests/estimator_durability_test.py --set path=value` overrides one existing controller YAML value per flag (rejects unknown keys); `analyze_estimator_durability.py` adds `z_err_p95`; `plot_estimator_durability.py matrix` plots it.
+Data and the case runner: ignored `tuning_results/inekf_tuning/` (`claude_cases.sh CASEFILE`, `claude_screen_run.txt`, `claude_fix_10min.txt`, `progress.txt`, `claude_tune_*`).
+
+
 ## Estimator Durability Matrix, H2 and G1 (2026-10-25/26)
 
 Question: can WB-ID + each floating-base estimator run for 1 h without the estimate degrading control into a fall?

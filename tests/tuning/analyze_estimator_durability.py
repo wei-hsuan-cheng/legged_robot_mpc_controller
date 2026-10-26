@@ -102,6 +102,10 @@ def analyze(prefix, plot=True):
         minutes.append(dict(
             t_min=float((start - t[hold][0]) / 60), xy_drift=float(err["xy"][m][-1]), yaw_drift=float(err["yaw"][m][-1]),
             z_err=float(err["z"][m].mean()), roll_err=float(err["roll"][m].mean()), pitch_err=float(err["pitch"][m].mean()),
+            # With height.source kinematic the published height is the filter's own only when no foot is
+            # scheduled in stance; in a gait with flight those samples sit in the tail, so this tracks the
+            # filter's hidden height drift. Without flight it is the stance noise.
+            z_err_p95=float(np.percentile(np.abs(err["z"][m]), 95)),
             **{f"{k}_bias": float(err[k][m].mean()) for k in ("vx", "vy", "vz", "wz")},
             **{f"{k}_rms": float(np.sqrt(np.mean(err[k][m] ** 2))) for k in ("vx", "vy", "vz", "wz")},
             gt_vx=float(d["gt_vx"][m].mean()), gt_wz=float(d["gt_wz"][m].mean()), gt_z=float(d["gt_z"][m].mean()),
@@ -121,9 +125,9 @@ def analyze(prefix, plot=True):
             final=dict(xy_drift=minutes[-1]["xy_drift"], yaw_drift=minutes[-1]["yaw_drift"]),
             drift_per_hour={k: slope(k) for k in ("xy_drift", "yaw_drift", "z_err", "roll_err", "pitch_err", "vx_bias", "vy_bias", "wz_bias")},
             first10_vs_last10={k: [float(col(k)[early].mean()), float(col(k)[late].mean())]
-                               for k in ("z_err", "roll_err", "pitch_err", "vx_bias", "vy_bias", "wz_bias", "vx_rms", "wz_rms",
+                               for k in ("z_err", "z_err_p95", "roll_err", "pitch_err", "vx_bias", "vy_bias", "wz_bias", "vx_rms", "wz_rms",
                                          "gt_vx", "gt_wz", "gt_z", "gt_z_sd", "gt_tilt_rms")},
-            worst_minute={k: float(np.max(np.abs(col(k)))) for k in ("z_err", "roll_err", "pitch_err", "vx_rms", "vy_rms", "vz_rms", "wz_rms")})
+            worst_minute={k: float(np.max(np.abs(col(k)))) for k in ("z_err", "z_err_p95", "roll_err", "pitch_err", "vx_rms", "vy_rms", "vz_rms", "wz_rms")})
     if len(timing):
         summary["mpc_rate"] = dict(mean=float(timing[:, 1].mean()), min=float(timing[:, 1].min()),
                                    first10=float(timing[timing[:, 0] < timing[0, 0] + 600, 1].mean()),
@@ -207,6 +211,7 @@ def line(s):
     f = s["first10_vs_last10"]
     return (f"{s['prefix']}: {s['verdict']} {s['hold_minutes']} min | drift xy {s['final']['xy_drift']:.2f} m yaw "
             f"{np.degrees(s['final']['yaw_drift']):+.1f} deg | z err {100*f['z_err'][0]:+.2f}->{100*f['z_err'][1]:+.2f} cm "
+            f"(p95 {100*f['z_err_p95'][0]:.2f}->{100*f['z_err_p95'][1]:.2f}) "
             f"pitch err {np.degrees(f['pitch_err'][0]):+.2f}->{np.degrees(f['pitch_err'][1]):+.2f} deg "
             f"vx bias {f['vx_bias'][0]:+.3f}->{f['vx_bias'][1]:+.3f} | true vx {f['gt_vx'][0]:.3f}->{f['gt_vx'][1]:.3f} "
             f"wz {f['gt_wz'][0]:.3f}->{f['gt_wz'][1]:.3f} z {f['gt_z'][0]:.3f}->{f['gt_z'][1]:.3f} "
