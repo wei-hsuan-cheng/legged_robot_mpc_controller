@@ -5,7 +5,8 @@ Launches one robot headless on an isolated flat scene with state-estimator feedb
 command (stand still, or a constant forward speed plus yaw rate, i.e. a circle) for the requested
 duration and records ground truth and the estimate at a decimated rate. It stops early on a fall.
 
-Outputs: <prefix>.csv (20 Hz ground truth + estimate), <prefix>.log (launch output),
+Outputs: <prefix>.csv (20 Hz ground truth + estimate), <prefix>_internals.csv (estimator internals and
+simulator foot contacts at --internals-rate, via a state_interfaces_broadcaster), <prefix>.log (launch output),
 <prefix>.yaml (effective controller YAML), <prefix>_scene.xml and <prefix>.json (verdict, minute
 status, controller memory). Analyze with tests/tuning/analyze_estimator_durability.py.
 Run from a sourced workspace, like tests/wb_id_walk_test.py.
@@ -27,12 +28,30 @@ from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy
 from nav_msgs.msg import Odometry
 from ocs2_msgs.msg import WalkingVelocityCommand
+from control_msgs.msg import Float64Values, Keys
 import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from mujoco_scene import write_scene
+from mujoco_scene import MODULES, write_scene
 
 CONTROLLER = "humanoid_whole_body_inverse_dynamics_mpc_controller"
+INTERNALS_CONTROLLER = "probe_internals_broadcaster"
+ESTIMATOR_INTERNALS = ["position.z", "linear_velocity_world.x", "linear_velocity_world.y", "linear_velocity_world.z",
+                       "orientation.w", "orientation.x", "orientation.y", "orientation.z", "diagnostics.inekf_height", "diagnostics.kinematic_height",
+                       "diagnostics.kinematic_height_valid", "diagnostics.reported_height",
+                       "diagnostics.accelerometer_bias.x", "diagnostics.accelerometer_bias.y", "diagnostics.accelerometer_bias.z",
+                       "diagnostics.gyroscope_bias.x", "diagnostics.gyroscope_bias.y", "diagnostics.gyroscope_bias.z",
+                       "diagnostics.nis_per_dof", "diagnostics.num_augmented_contacts",
+                       "diagnostics.foot_stance.left", "diagnostics.foot_stance.right",
+                       "diagnostics.foot_normal_force.left", "diagnostics.foot_normal_force.right",
+                       "diagnostics.foot_torque_stance.left", "diagnostics.foot_torque_stance.right",
+                       *[f"diagnostics.point_normal_force.{i}" for i in range(4)],
+                       *[f"diagnostics.point_stance.{i}" for i in range(4)]]
+# Simulation-only ground truth from the MuJoCo contact-wrench sensors (see the robot's ros2_control xacro).
+TRUTH_CONTACTS = {"h2": [f"{side}_foot_contact/{name}" for side in ("left", "right")
+                         for name in ("contact", "normal_force", "force.z", "torque.x", "torque.y")]}
+# Ground-truth pelvis from the simulator's body-state sensor (position world, velocity body frame).
+TRUTH_BASE = ["pelvis/position.z", "pelvis/linear_velocity.x", "pelvis/linear_velocity.y", "pelvis/linear_velocity.z"]
 COLUMNS = ["phase", "t", "gt_x", "gt_y", "gt_z", "gt_roll", "gt_pitch", "gt_yaw", "gt_vx", "gt_vy", "gt_vz", "gt_wz",
            "est_t", "est_x", "est_y", "est_z", "est_roll", "est_pitch", "est_yaw", "est_vx", "est_vy", "est_vz", "est_wz"]
 
@@ -61,6 +80,23 @@ class Probe(Node):
         self.last_record = -1e9
         self.last_wall = time.monotonic()
         self.phase = "startup"
+
+    def record_internals(self, path):
+        self.internals_file = path.open("w", newline="")
+        self.internals_writer = csv.writer(self.internals_file)
+        self.internals_keys = None
+        self.create_subscription(Keys, f"/{INTERNALS_CONTROLLER}/names", self.observe_keys, 10)
+        self.create_subscription(Float64Values, f"/{INTERNALS_CONTROLLER}/values", self.observe_internals, 1000)
+
+    def observe_keys(self, msg):
+        if self.internals_keys is None:
+            self.internals_keys = list(msg.keys)
+            self.internals_writer.writerow(["phase", "t", *self.internals_keys])
+
+    def observe_internals(self, msg):
+        if self.internals_keys is not None and len(msg.values) == len(self.internals_keys):
+            stamp = msg.header.stamp.sec + 1e-9 * msg.header.stamp.nanosec
+            self.internals_writer.writerow((self.phase, stamp, *msg.values))
 
     def observe_estimate(self, msg):
         self.estimate = pose_twist(msg)
@@ -98,6 +134,8 @@ def main():
     parser.add_argument("--estimator", choices=["humanoid_inekf", "humanoid_linear_kf"], default="humanoid_inekf")
     parser.add_argument("--vx", type=float, default=0.0, help="Forward command [m/s]; 0 with --yaw-rate 0 stands still")
     parser.add_argument("--yaw-rate", type=float, default=0.0, help="Yaw-rate command [rad/s]")
+    parser.add_argument("--terrain", choices=MODULES, default="none",
+                        help="Terrain module added to the robot scene (none = flat floor)")
     parser.add_argument("--duration", type=float, default=3600.0, help="Hold duration [simulation s]")
     parser.add_argument("--settle", type=float, default=10.0)
     parser.add_argument("--ramp", type=float, default=5.0)
@@ -110,6 +148,8 @@ def main():
     parser.add_argument("--set", action="append", default=[], metavar="PATH=VALUE",
                         help="Override one existing controller YAML value by dotted path, repeatable, "
                              "e.g. humanoid_inekf.ros__parameters.noise.contact=0.1")
+    parser.add_argument("--internals-rate", type=int, default=200,
+                        help="Rate [Hz] of <prefix>_internals.csv; 0 disables the internals broadcaster")
     parser.add_argument("--prefix", default="/tmp/estimator_durability")
     args = parser.parse_args()
 
@@ -133,9 +173,15 @@ def main():
     vx_norm = args.vx / reference["maxDisplacementVelocityX"]
     yaw_norm = args.yaw_rate / reference["maxRotationVelocity"]
     height = float(reference["defaultBaseHeight"])
+    internals = ([f"{args.estimator}/{name}" for name in ESTIMATOR_INTERNALS] + TRUTH_CONTACTS.get(args.robot_name, [])
+                 + TRUTH_BASE)
+    internals_params = Path(str(prefix) + "_internals.yaml")
+    internals_params.write_text(yaml.safe_dump({INTERNALS_CONTROLLER: {"ros__parameters": {
+        "type": "state_interfaces_broadcaster/StateInterfacesBroadcaster",
+        "interfaces": internals, "update_rate": args.internals_rate}}}))
     config_path = Path(str(prefix) + ".yaml")
     config_path.write_text(yaml.safe_dump(config, sort_keys=False))
-    scene = write_scene(Path(str(prefix) + "_scene.xml"), args.robot_name)
+    scene = write_scene(Path(str(prefix) + "_scene.xml"), args.robot_name, args.terrain)
 
     launch = ["ros2", "launch", "legged_robot_mpc_controller", "robot.launch.py",
               f"robotName:={args.robot_name}", f"mpcControllerName:={CONTROLLER}", f"mujocoModelFile:={scene}",
@@ -152,6 +198,8 @@ def main():
             writer = csv.writer(csv_file)
             writer.writerow(COLUMNS)
             probe = Probe(writer, 1.0 / args.record_rate)
+            if args.internals_rate > 0:
+                probe.record_internals(Path(str(prefix) + "_internals.csv"))
             process = subprocess.Popen(launch, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
             deadline = time.monotonic() + args.startup_timeout
             start = bad_since = None
@@ -173,6 +221,11 @@ def main():
                         continue
                     start = probe.gt[0]
                     deadline = time.monotonic() + 3 * total + 120
+                    if args.internals_rate > 0:
+                        subprocess.Popen(
+                            ["ros2", "run", "controller_manager", "spawner", INTERNALS_CONTROLLER, "-c", "/controller_manager",
+                             "-p", str(internals_params)],
+                            stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
                 elapsed = probe.gt[0] - start
                 if elapsed < args.settle:
                     probe.phase, fraction = "settle", 0.0
@@ -213,6 +266,8 @@ def main():
                 os.killpg(process.pid, signal.SIGKILL)
                 process.wait()
         if probe is not None:
+            if getattr(probe, "internals_file", None) is not None:
+                probe.internals_file.close()
             probe.destroy_node()
         rclpy.shutdown()
         Path(str(prefix) + ".json").write_text(json.dumps(result, indent=2) + "\n")
