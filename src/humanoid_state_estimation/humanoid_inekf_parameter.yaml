@@ -158,6 +158,11 @@ humanoid_inekf:
       default_value: 0.0,
       description: "Assumed ground-plane height [m] the stance feet rest on; must match the plane the MPC references (terrainHeight = 0)"
     }
+    holdThroughFlight: {
+      type: bool,
+      default_value: false,
+      description: "Not inekf: with no foot in stance (flight), report the filter height plus the offset of the last stance height instead of the raw filter height, whose absolute value drifts without bound in a gait with flight phases."
+    }
   contact:
     source: {
       type: string,

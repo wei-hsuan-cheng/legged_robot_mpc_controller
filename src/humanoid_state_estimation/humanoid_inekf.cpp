@@ -80,6 +80,7 @@ bool HumanoidInEkf::readParameters(
   filter.height_kinematic_weight = p.height.kinematicWeight;
   filter.height_ground_z = p.height.groundZ;
   filter.height_anchor_update_threshold = p.height.anchorUpdateThreshold;
+  filter.height_hold_through_flight = p.height.holdThroughFlight;
 
   filter.lpf_gyro_cutoff = p.lpf.gyroCutoff;
   filter.lpf_gyro_accel_cutoff = p.lpf.gyroAccelCutoff;

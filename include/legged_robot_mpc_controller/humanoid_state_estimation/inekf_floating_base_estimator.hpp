@@ -166,6 +166,9 @@ private:
   // height at which each contact last touched down, held for the duration of stance.
   std::vector<double> contact_ground_anchor_;
   std::vector<bool> contact_was_in_stance_;
+  // Reported minus filter height at the last tick with a stance foot (height_hold_through_flight).
+  double stance_height_offset_{0.0};
+  bool stance_height_offset_valid_{false};
   std::vector<double> contact_relative_heights_;
 
   Diagnostics diagnostics_;

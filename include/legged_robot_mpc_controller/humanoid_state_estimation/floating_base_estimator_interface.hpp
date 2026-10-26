@@ -147,6 +147,11 @@ struct EstimatorSettings
   //! filter's height noise (~0.03 m) so flat ground keeps its exact, noise-free anchor,
   //! and stay well below a stair riser (0.17 m) so real steps are still captured.
   double height_anchor_update_threshold{0.05};
+  //! Not "inekf": with no foot in stance (a flight phase), report the filter height shifted by
+  //! the offset of the last conditioned stance height instead of the raw filter height. The
+  //! filter's absolute height is a gauge state that drifts without bound, but its change over
+  //! one flight is accurate, so the reported height stays continuous through flight.
+  bool height_hold_through_flight{false};
 
   // Low-pass filter cutoff frequencies [Hz].
   double lpf_gyro_cutoff{250.0};

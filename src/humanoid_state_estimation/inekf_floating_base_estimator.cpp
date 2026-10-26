@@ -210,6 +210,7 @@ void InekfFloatingBaseEstimator::initialize(
   // heights, and mark every contact as fresh so the first stance re-anchors cleanly.
   contact_ground_anchor_ = ground_heights;
   contact_was_in_stance_.assign(contact_frame_ids_.size(), false);
+  stance_height_offset_valid_ = false;
   estimator_->init(imu_position, quat_xyzw, qj_, ground_heights);
   initialized_ = true;
 }
@@ -495,6 +496,12 @@ FloatingBaseEstimate InekfFloatingBaseEstimator::updateImpl(
         const double w = std::clamp(settings_.height_kinematic_weight, 0.0, 1.0);
         estimate.position.z() = (1.0 - w) * estimate.position.z() + w * kinematic_height;
       }
+      stance_height_offset_ = estimate.position.z() - diagnostics_.inekf_height;
+      stance_height_offset_valid_ = true;
+    } else if (settings_.height_hold_through_flight && stance_height_offset_valid_) {
+      // No foot in stance: the filter's change in height since the last stance tick is
+      // accurate, its absolute height is not.
+      estimate.position.z() = diagnostics_.inekf_height + stance_height_offset_;
     }
   }
   diagnostics_.reported_height = estimate.position.z();

@@ -87,6 +87,7 @@ humanoid_inekf:
       kinematicWeight: 0.9
       anchorUpdateThreshold: 0.05
       groundZ: 0.0
+      holdThroughFlight: true
     contact:
       source: scheduled
       footIndices:
