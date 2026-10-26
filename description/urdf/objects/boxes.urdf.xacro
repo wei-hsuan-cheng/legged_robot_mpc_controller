@@ -1,26 +1,18 @@
 <?xml version="1.0"?>
 <robot name="boxes" xmlns:xacro="http://www.ros.org/wiki/xacro">
   <!--
-    Environment description: the parametric boxes (same convention as
+    Environment piece: the parametric boxes (same convention as
     ../../mujoco/objects/boxes.xml.xacro, driven by the SAME params file). It is not
-    part of the robot. robot.launch.py runs it through xacro when selected with
-    environmentDescription and publishes it with its own robot_state_publisher in
-    the "environment" namespace.
+    part of the robot. Include it from ../env.urdf.xacro, which owns the "world" link.
 
     The boxes are free bodies in the simulator, so this shows their SPAWN pose:
-      <parent> -[fixed]-> <name of box 1> ... <name of box N>
+      world -[fixed]-> <name of box 1> ... <name of box N>
+    Everything sits inside a macro, so these properties stay local.
   -->
-  <xacro:arg name="boxes_params_file" default="../../../config/objects/boxes_params.yaml"/>
-  <xacro:arg name="parent" default="world"/>
-
-  <xacro:property name="boxes_params_file" value="$(arg boxes_params_file)"/>
-  <xacro:property name="parent_link"       value="$(arg parent)"/>
-
-  <xacro:property name="boxes" value="${xacro.load_yaml(boxes_params_file)['boxes']}"/>
+  <xacro:macro name="boxes_environment">
+  <xacro:property name="boxes" value="${xacro.load_yaml('../../../config/objects/boxes_params.yaml')['boxes']}"/>
 
   <xacro:property name="box_ids" value="${list(boxes.keys())}"/>
-
-  <link name="${parent_link}"/>
 
   <!--
     Recursively emit one link + fixed joint per box.
@@ -50,7 +42,7 @@
         </collision>
       </link>
       <joint name="${name}_joint" type="fixed">
-        <parent link="${parent_link}"/>
+        <parent link="world"/>
         <child link="${name}"/>
         <origin xyz="${p[0]} ${p[1]} ${p[2]}" rpy="0 0 ${box['yaw']}"/>
       </joint>
@@ -60,4 +52,7 @@
   </xacro:macro>
 
   <xacro:emit_box i="${0}"/>
+  </xacro:macro>
+
+  <xacro:boxes_environment/>
 </robot>

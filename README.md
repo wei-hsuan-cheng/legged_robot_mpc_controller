@@ -152,7 +152,6 @@ mpcFreq:=100                             # integer
 mrtFreq:=1000                            # integer
 libFolder:=auto_generated/g1             # default: auto_generated/<robotName>
 mujocoModelFile:=scene.xml               # robot-local filename or absolute custom scene path
-environmentDescription:=""              # disable the RViz environment; current default is uneven terrain
 stairClimbingFile:=<pkg_share>/config/terrains/stair_climbing/g1.yaml
 terrainWalkingFile:=<pkg_share>/config/terrains/terrain_walking/g1.yaml
 ```
@@ -294,15 +293,15 @@ Supported target channels are soft costs balanced against the rest of the MPC; r
 ## Robot Description and Frames
 
 Descriptions are grouped by format: `description/meshes/robots/g1/`, `description/mujoco/robots/g1/` and `description/urdf/robots/g1/` contain the G1 assets.
-Scene entry points and shared simulation environments live under `description/mujoco/`, while RViz environment descriptions live under `description/urdf/terrains/`.
+Scene entry points and shared simulation environments live under `description/mujoco/`, while the RViz environment is [`description/urdf/env.urdf.xacro`](./description/urdf/env.urdf.xacro), which includes pieces from `description/urdf/terrains/` and `description/urdf/objects/`.
 See the [description layout](./description/README.md) and [MuJoCo scene composition guide](./description/mujoco/README.md).
 
 There is one robot URDF, [`description/urdf/robots/g1/g1_29dof.urdf`](./description/urdf/robots/g1/g1_29dof.urdf), rooted at the pelvis with **no `world` link and no floating joint**. The MPC and the estimators add the floating base themselves (Pinocchio), MuJoCo owns its free joint in the MJCF, and the base pose reaches the TF tree from the estimator. [`g1.ros2_control.xacro`](./description/urdf/robots/g1/g1.ros2_control.xacro) includes that URDF and adds the `<ros2_control>` block; the result is the single `/robot_description`, used by the controller manager and robot_state_publisher.
 
-The optional environment is not part of the robot; the current launch default selects `uneven_terrain.urdf.xacro`, and `environmentDescription:=""` disables it.
-For example, select `<pkg_share>/description/urdf/terrains/stairs.urdf.xacro` to publish matching stairs as `/environment/robot_description` (the "Environment" display in RViz), rooted at `world` and driven by the shared [`stairs_params.yaml`](./config/terrains/stairs_params.yaml).
-Other existing choices are `terrains/ramp.urdf.xacro`, `terrains/uneven_terrain.urdf.xacro` and `objects/boxes.urdf.xacro` under `<pkg_share>/description/urdf/`.
-This RViz choice does not change MuJoCo physics; edit each robot's single `scene.xml` or pass a custom `mujocoModelFile` independently.
+The environment is not part of the robot. The launch always publishes [`description/urdf/env.urdf.xacro`](./description/urdf/env.urdf.xacro) as `/environment/robot_description` (the "Environment" display in RViz), rooted at `world`.
+Like a robot's `scene.xml`, it includes terrain and object pieces, `terrains/stairs.urdf.xacro`, `terrains/ramp.urdf.xacro`, `terrains/uneven_terrain.urdf.xacro` and `objects/boxes.urdf.xacro`; comment or uncomment them to match the scene (default: uneven terrain and ramp, as in H2's scene).
+Each piece reads its own params file under `config/`, the same one its MuJoCo module uses, for example [`stairs_params.yaml`](./config/terrains/stairs_params.yaml).
+This file is visualization only; MuJoCo physics comes from the robot's `scene.xml` or a custom `mujocoModelFile`, so keep the two in step.
 
 ```mermaid
 flowchart LR
@@ -310,8 +309,7 @@ flowchart LR
     odom -->|"estimator, odom → pelvis"| pelvis
     pelvis -->|"robot_state_publisher"| links
 
-    world -->|"environment robot_state_publisher"| stairs_base
-    stairs_base --> stairs_steps["stairs_step_1 ... N"]
+    world -->|"environment robot_state_publisher"| pieces["env.urdf.xacro pieces: ramp_base, uneven_terrain, ..."]
 
 ```
 

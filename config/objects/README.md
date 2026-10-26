@@ -14,5 +14,5 @@ xacro description/mujoco/objects/boxes.xml.xacro -o description/mujoco/objects/b
 ```
 
 Include `../../objects/boxes.xml` in the selected robot's `scene.xml` to add the boxes to physics.
-To visualize their spawn poses in RViz, set `environmentDescription` to the full path of `description/urdf/objects/boxes.urdf.xacro`; it reads the same YAML at launch.
+To visualize their spawn poses in RViz, uncomment `objects/boxes.urdf.xacro` in [`description/urdf/env.urdf.xacro`](../../description/urdf/env.urdf.xacro); it reads the same YAML.
 Selecting the boxes for RViz is independent of the MuJoCo scene, and RViz does not follow the boxes after they move in MuJoCo.

@@ -42,13 +42,9 @@ def generate_launch_description():
     ])
     urdf_default = PathJoinSubstitution([mpc_share_dir, "description", "urdf", "robots", robot_name, urdf_name])
 
-    # Optional RViz environment, rooted at world and separate from the MuJoCo scene.
-    # Each xacro reads the same params file as its MuJoCo module; all three files are passed to whichever is selected.
-    environment_default = ""
-    # environment_default = PathJoinSubstitution([mpc_share_dir, "description", "urdf", "terrains", "uneven_terrain.urdf.xacro"])
-    stairs_params_file = PathJoinSubstitution([mpc_share_dir, "config", "terrains", "stairs_params.yaml"])
-    ramp_params_file = PathJoinSubstitution([mpc_share_dir, "config", "terrains", "ramp_params.yaml"])
-    boxes_params_file = PathJoinSubstitution([mpc_share_dir, "config", "objects", "boxes_params.yaml"])
+    # RViz environment, rooted at world and separate from the MuJoCo scene: comment or uncomment
+    # the terrain/object includes in env.urdf.xacro to match the scene.
+    environment_file = PathJoinSubstitution([mpc_share_dir, "description", "urdf", "env.urdf.xacro"])
 
     controllers_file_default = PathJoinSubstitution([
         mpc_share_dir, "config", robot_name,
@@ -89,14 +85,6 @@ def generate_launch_description():
         # (pelvis can have one TF parent).
         DeclareLaunchArgument("gt_body_frame", default_value="pelvis"),
         DeclareLaunchArgument("urdfFile", default_value=urdf_default),
-        DeclareLaunchArgument(
-            "environmentDescription",
-            default_value=environment_default,
-            description="Optional environment URDF/xacro path for RViz; empty disables it. "
-                        "Existing choices under <package_share>/description/urdf/: "
-                        "terrains/stairs.urdf.xacro, terrains/ramp.urdf.xacro, "
-                        "terrains/uneven_terrain.urdf.xacro, or objects/boxes.urdf.xacro. "
-                        "Select the geometry matching your MuJoCo scene.",),
         DeclareLaunchArgument(
             "mpcControllerName",
             default_value=whole_body_controller,
@@ -214,20 +202,10 @@ def generate_launch_description():
 
     environment_description = {
         "robot_description": ParameterValue(
-            Command([
-                PathJoinSubstitution([FindExecutable(name="xacro")]), " ",
-                LaunchConfiguration("environmentDescription"), " ",
-                "stairs_params_file:=", stairs_params_file, " ",
-                "ramp_params_file:=", ramp_params_file, " ",
-                "boxes_params_file:=", boxes_params_file,
-            ]),
+            Command([PathJoinSubstitution([FindExecutable(name="xacro")]), " ", environment_file]),
             value_type=str,
         )
     }
-    has_environment = IfCondition(
-        PythonExpression(['"', LaunchConfiguration("environmentDescription"), '" != ""'])
-    )
-
     # Controller sequenced by controller_sequence.py: "none" starts MuJoCo with
     # joint_state_broadcaster only, which is only useful for environment smoke tests.
     sequence_controller_name = PythonExpression(
@@ -405,7 +383,6 @@ def generate_launch_description():
         namespace="environment",
         output="screen",
         parameters=[environment_description, {"use_sim_time": use_sim_time}],
-        condition=has_environment,
     )
 
     base_command_gui_node = Node(

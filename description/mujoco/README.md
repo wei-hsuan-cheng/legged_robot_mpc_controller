@@ -18,6 +18,7 @@ description/
     objects/
     textures/
   urdf/
+    env.urdf.xacro
     robots/g1/
     robots/h2/
     terrains/{stairs,ramp}.urdf.xacro
@@ -105,9 +106,8 @@ cd description/mujoco/terrains && xacro ./ramp.xml.xacro ramp_params_file:=../..
 cd description/mujoco/objects && xacro ./boxes.xml.xacro boxes_params_file:=../../../config/objects/boxes_params.yaml -o ./boxes.xml
 ```
 
-The current RViz environment default is `uneven_terrain.urdf.xacro`; use `environmentDescription:=""` to disable it.
-Select a matching environment with a full path under `<pkg_share>/description/urdf/`: `terrains/stairs.urdf.xacro`, `terrains/ramp.urdf.xacro`, `terrains/uneven_terrain.urdf.xacro` or `objects/boxes.urdf.xacro`.
-The launch description lists these choices without restricting custom URDF/xacro paths; the launch passes all three xacro parameter files, and each xacro reads its own.
+The RViz environment is `../urdf/env.urdf.xacro`, which the launch always publishes. Like `scene.xml`, it includes `terrains/stairs.urdf.xacro`, `terrains/ramp.urdf.xacro`, `terrains/uneven_terrain.urdf.xacro` and `objects/boxes.urdf.xacro`; comment or uncomment them to match the scene.
+Each piece attaches to the file's single `world` link, keeps its properties local and reads its own params file by a path relative to itself, so nothing is passed on the command line.
 This is visualization only and does not change the modules in MuJoCo's `scene.xml`.
 
 For the uneven field, edit [the shared YAML](../../config/terrains/uneven_terrain_params.yaml), then regenerate both formats:
@@ -119,7 +119,7 @@ python3 description/mujoco/terrains/generate_uneven_terrain.py --check
 
 See [uneven-terrain parameters](../../config/terrains/README.md#uneven-terrain) for height-difference bounds, profile, seed, center, grid and clear-patch semantics.
 The old fixed-size `uneven_terrain_10x10.xml` name is removed; use `uneven_terrain.xml` independently of the configured footprint.
-The generated RViz file contains ordinary URDF with a `.urdf.xacro` suffix, which the existing `environmentDescription` xacro command accepts; Python regeneration is still required after YAML edits.
+The generated RViz file contains ordinary URDF without a `world` link, ready to be included by `../urdf/env.urdf.xacro`; Python regeneration is still required after YAML edits.
 
 Validate the layout from the package root with `python3 -m unittest discover -s tests -p test_mujoco_scene_layout.py -v`.
 MuJoCo and xacro checks run when their Python packages are installed; the remaining resource-path checks need only the standard library.

@@ -303,12 +303,12 @@ Seven H2 model/xacro checks, 11 scene-layout checks, 23 WB-ID contract checks, n
 
 ## Reproduce
 
-For manual flat-ground trials, keep only the robot and background includes in H2's `scene.xml`.
+For manual flat-ground trials, keep only the robot and background includes in H2's `scene.xml`, and comment out the terrain includes in `description/urdf/env.urdf.xacro`.
 The old `scene_flat.xml` filenames in historical results identify the scene used at the time; that separate file is no longer shipped.
 
 ```bash
 ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=h2 \
-  mujocoModelFile:=scene.xml environmentDescription:="" \
+  mujocoModelFile:=scene.xml \
   mpcFreq:=100 mrtFreq:=1000 \
   rviz:=true mujoco_headless:=false baseCommandGui:=true
 ```

@@ -1,6 +1,14 @@
 # WB-ID MPC Walking Robustness Handoff
 
 
+## Unified RViz Environment (2026-10-26)
+
+- `description/urdf/env.urdf.xacro` is the RViz counterpart of a robot's MuJoCo `scene.xml`: one `world` link plus `<xacro:include>`s of `terrains/stairs`, `terrains/ramp`, `terrains/uneven_terrain` and `objects/boxes` `.urdf.xacro`; comment or uncomment to match the scene (default uneven terrain + ramp, as in H2's committed scene; G1's scene has no terrain).
+- Each piece is a self-contained include: it attaches to `world`, keeps its properties inside a macro it calls itself (no collisions between pieces), and loads its params YAML by a path relative to itself (xacro resolves `load_yaml` from the including file), so no `*_params_file` args are needed. The uneven-terrain generator no longer emits a `world` link.
+- `robot.launch.py`: the `environmentDescription` argument and the params-file plumbing are removed; the environment `robot_state_publisher` always publishes `env.urdf.xacro` as `/environment/robot_description`.
+- Tests: `tests/test_robot_launch.py` checks `env.urdf.xacro` expands and that all four pieces combine with unique links under one `world`; launch, uneven-terrain and shared-terrain tests pass (16 passed, 2 skipped). Docs updated (README, `description/README.md`, `description/mujoco/README.md`, `config/terrains/README.md`, `config/objects/README.md`, `docs/h2_wb_id_mpc.md`).
+
+
 ## Torque Contact Detection and Hidden Height Drift (2026-10-26)
 
 Goal set by the user: `contact.source: torque`, H2 walking and running robustly on flat and uneven terrain, proprioceptive only. Nothing committed yet.

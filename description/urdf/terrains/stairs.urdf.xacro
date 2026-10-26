@@ -1,26 +1,21 @@
 <?xml version="1.0"?>
 <robot name="stairs" xmlns:xacro="http://www.ros.org/wiki/xacro">
   <!--
-    Environment description: a parametric staircase (same geometry convention
-    as ../../mujoco/terrains/stairs.xml.xacro, driven by the SAME params file). It is not
-    part of the robot. robot.launch.py runs it through xacro and publishes it with
-    its own robot_state_publisher in the "environment" namespace, so rviz shows
-    it next to the robot.
+    Environment piece: a parametric staircase (same geometry convention as
+    ../../mujoco/terrains/stairs.xml.xacro, driven by the SAME params file). It is not
+    part of the robot. Include it from ../env.urdf.xacro, which owns the "world" link;
+    robot.launch.py publishes that file as /environment/robot_description for rviz.
 
-    The result is a chain of fixed joints, rooted at <parent> (default "world"):
-      <parent> -[fixed]-> stairs_base -[fixed]-> stairs_step_1 ... stairs_step_N
+    The result is a chain of fixed joints, rooted at "world":
+      world -[fixed]-> stairs_base -[fixed]-> stairs_step_1 ... stairs_step_N
     The "stairs_base" link is the 0th step reference frame (world pos + yaw).
 
     Each step is a SOLID box from the ground up to its tread height; the box
-    origin sits at half that height.
+    origin sits at half that height. Everything sits inside a macro, so these
+    properties stay local and do not collide with other included pieces.
   -->
-  <xacro:arg name="stairs_params_file" default="../../../config/terrains/stairs_params.yaml"/>
-  <xacro:arg name="parent" default="world"/>
-
-  <xacro:property name="stairs_params_file" value="$(arg stairs_params_file)"/>
-  <xacro:property name="parent_link"        value="$(arg parent)"/>
-
-  <xacro:property name="stairs" value="${xacro.load_yaml(stairs_params_file)['stairs']}"/>
+  <xacro:macro name="stairs_environment">
+  <xacro:property name="stairs" value="${xacro.load_yaml('../../../config/terrains/stairs_params.yaml')['stairs']}"/>
 
   <xacro:property name="base"      value="${stairs['base']}"/>
   <xacro:property name="num_steps" value="${stairs['num_steps']}"/>
@@ -32,12 +27,10 @@
   <xacro:property name="gray_step" value="${stairs['color_gray_step']}"/>
   <xacro:property name="gray_max"  value="${stairs['color_gray_max']}"/>
 
-  <link name="${parent_link}"/>
-
   <!-- 0th step reference frame: world center position + yaw. -->
   <link name="stairs_base"/>
   <joint name="stairs_base_joint" type="fixed">
-    <parent link="${parent_link}"/>
+    <parent link="world"/>
     <child link="stairs_base"/>
     <origin xyz="${base['pos'][0]} ${base['pos'][1]} ${base['pos'][2]}"
             rpy="0 0 ${base['yaw']}"/>
@@ -85,4 +78,7 @@
   </xacro:macro>
 
   <xacro:emit_step i="${1}" x0="${base['start_offset']}" z0="${0}"/>
+  </xacro:macro>
+
+  <xacro:stairs_environment/>
 </robot>

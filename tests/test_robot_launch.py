@@ -55,9 +55,6 @@ class RobotLaunchTest(unittest.TestCase):
                 self.assertIn(robot, Path(values[argument]).parts)
             self.assertEqual(values['libFolder'], f'auto_generated/{robot}')
             self.assertEqual(values['mujocoModelFile'], 'scene.xml')
-            environment = Path(values['environmentDescription'])
-            self.assertEqual(environment.name, 'uneven_terrain.urdf.xacro')
-            self.assertTrue(environment.is_file())
             self.assertEqual(values['refBaseHeight'], '')
             self.assertEqual(float(values['guiMaxVx']), reference['maxDisplacementVelocityX'])
 
@@ -73,28 +70,34 @@ class RobotLaunchTest(unittest.TestCase):
             self.assertNotEqual(Path(values['controllersParamsFile']), source)
             self.assertEqual(source.read_bytes(), before)
 
-    def test_scene_and_environment_paths_remain_unrestricted(self):
+    def test_scene_path_remains_unrestricted(self):
         for robot in ('g1', 'h2'):
-            context, description = self.resolve(robot, mujocoModelFile='/tmp/my_scene.xml',
-                                                environmentDescription='/tmp/my_environment.urdf')
+            context, description = self.resolve(robot, mujocoModelFile='/tmp/my_scene.xml')
             self.assertEqual(context.launch_configurations['mujocoModelFile'], '/tmp/my_scene.xml')
-            self.assertEqual(context.launch_configurations['environmentDescription'], '/tmp/my_environment.urdf')
-            argument = next(action for action in description.entities
-                            if isinstance(action, DeclareLaunchArgument) and action.name == 'environmentDescription')
-            for choice in ('stairs.urdf.xacro', 'ramp.urdf.xacro', 'uneven_terrain.urdf.xacro', 'boxes.urdf.xacro'):
-                self.assertIn(choice, argument.description)
+            self.assertFalse(any(isinstance(action, DeclareLaunchArgument) and action.name == 'environmentDescription'
+                                 for action in description.entities))
 
-    def test_default_environment_expands_and_can_be_disabled(self):
-        for robot in ('g1', 'h2'):
-            context, description = self.resolve(robot)
-            output = subprocess.check_output(['xacro', context.launch_configurations['environmentDescription'],
-                                              'stairs_params_file:=unused', 'ramp_params_file:=unused',
-                                              'boxes_params_file:=unused'], text=True)
-            root = ET.fromstring(output)
+    def test_environment_expands_and_every_piece_combines(self):
+        def expand(path):
+            root = ET.fromstring(subprocess.check_output(['xacro', str(path)], text=True))
             self.assertEqual(root.tag, 'robot')
-            self.assertGreater(len(root.findall('./link/visual')), 0)
-            context, description = self.resolve(robot, environmentDescription='')
-            self.assertEqual(context.launch_configurations['environmentDescription'], '')
+            links = [link.get('name') for link in root.findall('./link')]
+            self.assertEqual(len(links), len(set(links)))
+            self.assertEqual(links.count('world'), 1)
+            return root
+        self.assertGreater(len(expand(ROOT / 'description/urdf/env.urdf.xacro').findall('./link/visual')), 0)
+        pieces = ['terrains/stairs.urdf.xacro', 'terrains/ramp.urdf.xacro', 'terrains/uneven_terrain.urdf.xacro',
+                  'objects/boxes.urdf.xacro']
+        includes = ''.join(f'<xacro:include filename="{ROOT / "description/urdf" / piece}"/>' for piece in pieces)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'env.urdf.xacro'
+            path.write_text('<robot name="environment" xmlns:xacro="http://www.ros.org/wiki/xacro">'
+                            f'<link name="world"/>{includes}</robot>')
+            root = expand(path)
+        roots = {joint.find('parent').get('link') for joint in root.findall('./joint')}
+        for link in ('stairs_base', 'ramp_base', 'uneven_terrain', 'purple_box'):
+            self.assertIn(link, [element.get('name') for element in root.findall('./link')])
+        self.assertIn('world', roots)
 
     def test_custom_controller_yaml_supplies_gui_height(self):
         config = yaml.safe_load((ROOT / 'config/h2/ros2_controllers.yaml').read_text())

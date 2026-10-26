@@ -72,11 +72,11 @@ ros2 launch legged_robot_mpc_controller robot.launch.py \
   robotName:=g1 \
   mpcControllerName:=humanoid_whole_body_inverse_dynamics_mpc_controller \
   mujocoModelFile:=scene.xml \
-  environmentDescription:="$(ros2 pkg prefix legged_robot_mpc_controller)/share/legged_robot_mpc_controller/description/urdf/terrains/uneven_terrain.urdf.xacro" \
   mpcFreq:=90 mrtFreq:=1000 rviz:=true mujoco_headless:=false baseCommandGui:=true
 ```
 
 Use `robotName:=h2` for H2; both use the same terrain module and YAML.
+For RViz, keep `terrains/uneven_terrain.urdf.xacro` included in [`description/urdf/env.urdf.xacro`](../../description/urdf/env.urdf.xacro).
 This changes the simulation environment only and does not supply its heights to the MPC in ordinary `base_twist` mode.
 The larger roughness is not a claim that the current controller can walk over every block without falling.
 
