@@ -48,6 +48,10 @@ After estimator-driven locomotion has begun, losing a valid policy latches the b
 
 ### 2.1 Configuration and velocity
 
+WB-ID supports `ocs2.model.orientationRepresentation` values `euler_zyx` and `tangent_space`.
+The equations immediately below describe the Euler baseline; the measured-anchor tangent model, body-angular-velocity convention and changed stored dimension are described in [Tangent-Space Orientation](./wb_id_tangent_orientation.md).
+Both robots retain Euler by default; H2's tangent experiment and its uneven-terrain limitations are documented in the comparison.
+
 Let $n_j$ be the number of MPC joints and $n_v=6+n_j$.
 The generalized configuration and velocity are:
 
@@ -62,7 +66,7 @@ $$
 $\psi,\theta,\phi$ are yaw, pitch and roll in ZYX order, with $R_{WB}=R_z(\psi)R_y(\theta)R_x(\phi)$.
 Pinocchio uses a Translation + SphericalZYX composite base joint, so $n_q=n_v$ and $v=\dot q$ in these coordinates.
 The angular entries of $v$ are Euler rates, not the body angular velocity measured by the IMU.
-The implementation uses Euler coordinates rather than quaternion or SE(3) integration, and the Euler singularity near pitch $\pm\pi/2$ remains.
+In `euler_zyx` mode the implementation uses Euler coordinates, and the Euler singularity near pitch $\pm\pi/2$ remains.
 
 ### 2.2 Optimization variables
 
@@ -105,7 +109,7 @@ Joint velocities already belong to the WB-ID state and must not be inserted into
 
 ### 3.1 State propagation
 
-OCS2 receives a double-integrator flow map:
+In `euler_zyx` mode, OCS2 receives a double-integrator flow map:
 
 $$
 \dot x=\begin{bmatrix}v\\a\end{bmatrix}.

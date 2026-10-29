@@ -67,6 +67,7 @@ PinocchioInterface createCustomPinocchioInterface(const std::string& urdfFilePat
                                                   const ModelSettings& modelSettings,
                                                   bool scaleTotalMass = false,
                                                   scalar_t totalMass = 1.0,
-                                                  bool verbose = false);
+                                                  bool verbose = false,
+                                                  bool sphericalBase = false);
 
 }  // namespace ocs2::humanoid

@@ -39,7 +39,7 @@ class WbIdMpcTargetTrajectoriesCalculator : public TargetTrajectoriesCalculatorB
                                                            const vector_t& initState) override;
 
  private:
-  vector_t makeState(const vector6_t& basePose, const vector6_t& baseVelocity) const;
+  vector_t makeState(const vector6_t& basePose, const vector6_t& baseVelocity, const vector_t& initial) const;
 };
 
 }  // namespace ocs2::humanoid

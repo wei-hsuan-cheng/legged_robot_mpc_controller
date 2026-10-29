@@ -42,6 +42,7 @@ This repository contains examples for two MPC formulations: **whole-body inverse
 The **whole-body inverse dynamics MPC** jointly optimizes floating-base and joint configurations and velocities, contact wrenches, generalized accelerations, and joint torques. Full rigid-body dynamics are imposed through the recursive Newton-Euler algorithm (RNEA): floating-base dynamics are enforced throughout the prediction horizon, while actuated-joint inverse dynamics and torque limits are enforced within a configurable initial torque window. The implementation adapts the formulations in [(RA-L2024) Khazoom et al., Tailoring Solution Accuracy for Fast Whole-body Model Predictive Control of Legged Robots](https://arxiv.org/abs/2407.10789) and [(RA-L2025) Molnar et al., Whole-Body Inverse Dynamics MPC for Legged Loco-Manipulation](https://arxiv.org/abs/2511.19709) to OCS2's SQP solver and the G1 humanoid.
 
 See [WB-ID MPC Formulation and Signal Flow](./docs/humanoid_whole_body_inverse_dynamics_mpc.md) for equations and control diagrams, and [WB-ID MPC Implementation Guide](./docs/humanoid_whole_body_inverse_dynamics_mpc_impl.md) for code-line references and parameter mappings.
+An optional measured-anchor tangent-space orientation model is available for WB-ID; see [orientation representation and benchmark details](./docs/wb_id_tangent_orientation.md), including its current terrain limitations.
 
 
 ### Centroidal Dynamics MPC

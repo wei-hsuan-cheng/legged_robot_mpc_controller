@@ -45,6 +45,7 @@ ocs2::humanoid::WbIdMpcInterface::Config buildWholeBodyInverseDynamicsMpcConfig(
   ocs2::humanoid::WbIdMpcInterface::Config config;
   config.urdfFile = params.paths.urdfFile;
   config.verbose = p.interface.verbose;
+  config.tangentSpaceOrientation = p.model.orientationRepresentation == "tangent_space";
 
   // --- model settings ---
   auto& model = config.modelParams;
@@ -141,7 +142,9 @@ ocs2::humanoid::WbIdMpcInterface::Config buildWholeBodyInverseDynamicsMpcConfig(
   // x = [q, v]. The controller replaces this construction-time state from sensors.
   checkJointArraySize(p.reference.defaultJointState, numJoints, "reference.defaultJointState");
   const auto nv = static_cast<Eigen::Index>(6 + numJoints);
-  config.initialState = vector_t::Zero(2 * nv);
+  const auto nx = 2 * nv + (config.tangentSpaceOrientation ? 4 : 0);
+  config.initialState = vector_t::Zero(nx);
+  if (config.tangentSpaceOrientation) config.initialState(nx - 1) = 1.0;
   config.initialState(2) = p.reference.defaultBaseHeight;
   config.initialState.segment(6, static_cast<Eigen::Index>(numJoints)) = toVector(p.reference.defaultJointState);
 
@@ -187,6 +190,14 @@ ocs2::humanoid::WbIdMpcInterface::Config buildWholeBodyInverseDynamicsMpcConfig(
   auto& costs = config.costConstraintConfig;
   costs.Q = assembleDiagonalMatrix({zeros6, qJointsGeneric, zeros6, qJointVelocities}, p.costs.qScaling);
   costs.QFinal = assembleDiagonalMatrix({zeros6, qFinalJointsGeneric, zeros6, qFinalJointVelocities}, p.costs.qScaling);
+  if (config.tangentSpaceOrientation) {
+    // The copied quaternion anchor is fixed data, not another tracked orientation.
+    for (auto* weight : {&costs.Q, &costs.QFinal}) {
+      const ocs2::matrix_t old = *weight;
+      *weight = ocs2::matrix_t::Zero(nx, nx);
+      weight->topLeftCorner(2 * nv, 2 * nv) = old;
+    }
+  }
   costs.baseMotionQ = assembleDiagonalMatrix({p.costs.q.basePose, p.costs.q.baseVelocity}, p.costs.qScaling);
   costs.baseMotionQFinal = assembleDiagonalMatrix({p.costs.qFinal.basePose, p.costs.qFinal.baseVelocity}, p.costs.qScaling);
   costs.armJointIndices = armJointIndices;

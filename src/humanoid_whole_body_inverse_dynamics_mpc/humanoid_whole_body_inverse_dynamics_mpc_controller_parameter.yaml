@@ -1,6 +1,6 @@
 # Standalone WB-ID parameters: x = [base pose, joints, base velocity, joint velocities].
 # u = [contact wrenches, base acceleration, joint acceleration, joint torque].
-# Pose uses Euler ZYX coordinates; base angular state entries are Euler rates.
+# Euler mode uses ZYX angles/rates; tangent mode uses local rotation increments/body angular velocity.
 # All running/terminal state weights and input weights live under ocs2.costs.
 humanoid_whole_body_inverse_dynamics_mpc_controller:
   paths:
@@ -99,6 +99,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
       recompileLibraries: {type: bool, default_value: true, description: "Force recompilation of the CppAD
           generated libraries"}
     model:
+      orientationRepresentation: {type: string, default_value: "euler_zyx", description: "WB-ID orientation coordinates: euler_zyx or measured-anchor tangent_space; tangent angular velocities are body-local XYZ, not Euler rates.", validation: {one_of<>: [["euler_zyx", "tangent_space"]]}}
       robotName: {type: string, default_value: "g1", description: "Robot name used by the MPC model and CppAD codegen"}
       fixedJointNames: {type: string_array, default_value: [], description: "Joints excluded (locked) from the MPC
           model, e.g. wrists"}

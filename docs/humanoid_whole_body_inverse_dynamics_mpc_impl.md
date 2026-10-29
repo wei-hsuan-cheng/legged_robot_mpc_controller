@@ -10,7 +10,8 @@ Links use repository-relative paths with line anchors, which may shift as the so
 | --- | --- |
 | Lifecycle, observations and actuation | [humanoid_whole_body_inverse_dynamics_mpc_controller.cpp](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp) |
 | Standalone parameter schema | [humanoid_whole_body_inverse_dynamics_mpc_controller_parameter.yaml](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller_parameter.yaml) |
-| Current G1 values | [ros2_controllers.yaml:709](../config/g1/ros2_controllers.yaml#L709) |
+| Current G1 values | [ros2_controllers.yaml:192](../config/g1/ros2_controllers.yaml#L192) |
+| Current H2 values | [ros2_controllers.yaml:220](../config/h2/ros2_controllers.yaml#L220) |
 | Config translation | [whole_body_inverse_dynamics_mpc_config_builder.cpp](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp) |
 | OCP assembly | [WbIdMpcInterface.cpp:106](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L106) |
 | G1 model and mesh paths | [g1_29dof.xml:16](../description/mujoco/robots/g1/g1_29dof.xml#L16), [g1_29dof.urdf:16](../description/urdf/robots/g1/g1_29dof.urdf#L16) |
@@ -19,7 +20,7 @@ Links use repository-relative paths with line anchors, which may shift as the so
 
 WB-ID has its own generated parameter schema rather than loading the centroidal controller schema.
 The builder maps solver settings at [line 88](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L88), gait settings at [line 124](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L124) and costs at [line 172](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L172).
-The interface validates the Translation + SphericalZYX dimensions at [WbIdMpcInterface.cpp:46](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L46).
+The interface validates the selected Translation + SphericalZYX/Spherical dimensions at [WbIdMpcInterface.cpp:52](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L52).
 The common launch selects the robot URDF at [line 43](../launch/robot.launch.py#L43), the separate RViz environment at [line 47](../launch/robot.launch.py#L47), and the robot-local MuJoCo scene at [line 165](../launch/robot.launch.py#L165).
 The selected controller YAML supplies both MPC and GUI height through [the parameter resolver](../launch/robot.launch.py#L234-L259); `refBaseHeight` remains an optional override of both.
 Scene names passed through `mujocoModelFile` are unchanged by the description-directory reorganization.
@@ -27,17 +28,25 @@ Scene names passed through `mujocoModelFile` are unchanged by the description-di
 
 ## 2. Model and Observation
 
-[WbIdMpcRobotModel.h:13](../include/humanoid_wb_id_mpc/common/WbIdMpcRobotModel.h#L13) defines $`x=[q,v]`$ and $`u=[W_L,W_R,a,\tau_j]`$.
-Dimensions are constructed at [line 37](../include/humanoid_wb_id_mpc/common/WbIdMpcRobotModel.h#L37), and block indices are defined at [line 48](../include/humanoid_wb_id_mpc/common/WbIdMpcRobotModel.h#L48).
-The inherited `getBaseComVelocity` name returns pelvis world linear velocity and Euler rates in WB-ID, not centroidal momentum.
-Joint velocities are read from the state at [line 105](../include/humanoid_wb_id_mpc/common/WbIdMpcRobotModel.h#L105), while generalized accelerations and joint torques are read from the input at [line 120](../include/humanoid_wb_id_mpc/common/WbIdMpcRobotModel.h#L120).
+The optional measured-anchor orientation path is documented in [Tangent-Space Orientation](./wb_id_tangent_orientation.md).
+`ocs2.model.orientationRepresentation` selects `euler_zyx` or `tangent_space`; both use the same observation and joint-servo entry points.
+The tangent decoder in [WbIdMpcRobotModel.h](../include/humanoid_wb_id_mpc/common/WbIdMpcRobotModel.h) reconstructs a quaternion for Pinocchio's spherical joint from the three-component increment and fixed measured anchor.
+[WbIdTangentDynamics.h](../include/humanoid_wb_id_mpc/dynamics/WbIdTangentDynamics.h) supplies auto-generated chart dynamics, and [WbIdBaseMotionCost.cpp](../src/core/humanoid_wb_id_mpc/src/cost/WbIdBaseMotionCost.cpp) supplies a three-component orientation-log residual.
+The controller registers an optional OCS2 SQP warm-start transform at [line 1193](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1193) to preserve physical poses across chart changes, and rebases observations into the active policy at [line 1382](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1382).
+Both robot YAML files retain Euler as the default; the tangent experiment's native tests, repeated 80 Hz results and limitations are recorded in its dedicated document.
+The Euler-coordinate descriptions and line anchors below refer to the retained baseline path unless explicitly stated otherwise.
 
-[build_observation():995](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L995) combines joint interfaces and floating-base feedback.
-Estimator feedback is read at [line 1027](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1027).
+[WbIdMpcRobotModel.h:17](../include/humanoid_wb_id_mpc/common/WbIdMpcRobotModel.h#L17) defines the two state layouts and $`u=[W_L,W_R,a,\tau_j]`$.
+Dimensions are constructed at [line 44](../include/humanoid_wb_id_mpc/common/WbIdMpcRobotModel.h#L44), and block indices are defined at [line 81](../include/humanoid_wb_id_mpc/common/WbIdMpcRobotModel.h#L81).
+The inherited `getBaseComVelocity` name returns pelvis world linear velocity, not centroidal momentum; its angular entries are Euler rates in Euler mode or world angular velocity reordered ZYX in tangent mode.
+Joint velocities are read from the state at [line 161](../include/humanoid_wb_id_mpc/common/WbIdMpcRobotModel.h#L161), while generalized accelerations and joint torques are read from the input at [line 176](../include/humanoid_wb_id_mpc/common/WbIdMpcRobotModel.h#L176).
+
+[build_observation():1003](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1003) combines joint interfaces and floating-base feedback.
+Estimator feedback is read at [line 1030](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1030).
 For simulation debugging, `floatingBaseSource:=ground_truth_state` can replace estimator feedback with GT, but this bypass is not available for real-world deployment.
-Quaternion normalization, yaw unwrapping and angular velocity conversion are at [line 1060](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1060).
-The optional generalized velocity low-pass is at [line 1081](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1081).
-`observation.input` is zeroed at [line 1005](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1005), not filled with measured torques or wrenches.
+Quaternion normalization, yaw unwrapping and angular velocity conversion are at [line 1067](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1067).
+The optional generalized velocity low-pass is at [line 1098](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1098).
+`observation.input` is zeroed at [line 1013](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1013), not filled with measured torques or wrenches.
 
 
 ## 3. Dynamics, Constraints and Initialization

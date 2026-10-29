@@ -23,6 +23,8 @@
 #include "humanoid_wb_id_mpc/constraint/WbIdJointVelocityLimitConstraint.h"
 #include "humanoid_wb_id_mpc/constraint/WbIdRneaConstraintCppAd.h"
 #include "humanoid_wb_id_mpc/dynamics/WbIdDynamics.h"
+#include "humanoid_wb_id_mpc/dynamics/WbIdTangentDynamics.h"
+#include "humanoid_wb_id_mpc/cost/WbIdBaseMotionCost.h"
 
 namespace ocs2::humanoid {
 
@@ -30,7 +32,8 @@ WbIdMpcInterface::WbIdMpcInterface(Config config, bool setupOCP)
     // The "wb_id_mpc_" prefix keeps the generated CppAD libraries in their own folder:
     // they are cached by model NAME only, and several terms here share their name with
     // a centroidal one built for different state/input dimensions.
-    : modelSettings_(config.modelParams, config.urdfFile, "wb_id_mpc_", config.verbose),
+    : modelSettings_(config.modelParams, config.urdfFile,
+                     config.tangentSpaceOrientation ? "wb_id_tangent_v3_" : "wb_id_mpc_", config.verbose),
       ddpSettings_(config.ddpSettings),
       mpcSettings_(config.mpcSettings),
       sqpSettings_(config.sqpSettings),
@@ -43,11 +46,15 @@ WbIdMpcInterface::WbIdMpcInterface(Config config, bool setupOCP)
   }
   std::cerr << "[WbIdMpcInterface] Loading Pinocchio model from: " << config_.urdfFile << std::endl;
 
-  pinocchioInterfacePtr_ = std::make_unique<PinocchioInterface>(createCustomPinocchioInterface(config_.urdfFile, modelSettings_, false));
+  pinocchioInterfacePtr_ = std::make_unique<PinocchioInterface>(
+      createCustomPinocchioInterface(config_.urdfFile, modelSettings_, false, 1.0, false, config_.tangentSpaceOrientation));
   const auto& model = pinocchioInterfacePtr_->getModel();
-  if (model.nq != model.nv || static_cast<size_t>(model.nv) != 6 + modelSettings_.mpc_joint_dim) {
-    throw std::invalid_argument("[WbIdMpcInterface] expected nq == nv == 6 + " + std::to_string(modelSettings_.mpc_joint_dim) +
-                                " (Translation + SphericalZYX base), got nq=" + std::to_string(model.nq) +
+  if (model.nq != model.nv + (config_.tangentSpaceOrientation ? 1 : 0) ||
+      static_cast<size_t>(model.nv) != 6 + modelSettings_.mpc_joint_dim) {
+    throw std::invalid_argument("[WbIdMpcInterface] expected nv == 6 + " + std::to_string(modelSettings_.mpc_joint_dim) +
+                                (config_.tangentSpaceOrientation ? " and nq == nv + 1 (Translation + Spherical base), got nq="
+                                                                 : " and nq == nv (Translation + SphericalZYX base), got nq=") +
+                                std::to_string(model.nq) +
                                 " nv=" + std::to_string(model.nv));
   }
   for (const auto& contactName : modelSettings_.contactNames) {
@@ -76,8 +83,8 @@ WbIdMpcInterface::WbIdMpcInterface(Config config, bool setupOCP)
     }
   }
 
-  mpcRobotModelPtr_ = std::make_unique<WbIdMpcRobotModel<scalar_t>>(modelSettings_);
-  mpcRobotModelADPtr_ = std::make_unique<WbIdMpcRobotModel<ad_scalar_t>>(modelSettings_);
+  mpcRobotModelPtr_ = std::make_unique<WbIdMpcRobotModel<scalar_t>>(modelSettings_, config_.tangentSpaceOrientation);
+  mpcRobotModelADPtr_ = std::make_unique<WbIdMpcRobotModel<ad_scalar_t>>(modelSettings_, config_.tangentSpaceOrientation);
 
   // Same gait, swing planner and reference manager as the centroidal MPC.
   std::unique_ptr<SwingTrajectoryPlanner> swingTrajectoryPlanner(new SwingTrajectoryPlanner(config_.swingTrajectoryConfig, N_CONTACTS));
@@ -109,15 +116,30 @@ void WbIdMpcInterface::setupOptimalControlProblem() {
 
   problemPtr_ = std::make_unique<OptimalControlProblem>();
 
-  // Dynamics: a double integrator; the rigid-body dynamics are the RNEA constraint below.
-  problemPtr_->dynamicsPtr = std::make_unique<WbIdDynamics>(*mpcRobotModelPtr_);
+  // Kinematic integration in the selected chart; rigid-body dynamics enter through RNEA below.
+  if (config_.tangentSpaceOrientation) {
+    problemPtr_->dynamicsPtr = std::make_unique<WbIdTangentDynamics>(*mpcRobotModelPtr_);
+  } else {
+    problemPtr_->dynamicsPtr = std::make_unique<WbIdDynamics>(*mpcRobotModelPtr_);
+  }
 
-  // Costs - the centroidal MPC's set, in the whole-body dimensions.
+  // Joint/input objectives are shared; tangent base motion uses a rotation-log residual.
   problemPtr_->costPtr->add("stateInputQuadraticCost", factory.getStateInputQuadraticCost());
-  problemPtr_->stateCostPtr->add("baseMotionTrackingCost", factory.getBaseMotionTrackingCost());
+  if (config_.tangentSpaceOrientation) {
+    problemPtr_->stateCostPtr->add("baseMotionTrackingCost", std::make_unique<WbIdBaseMotionCost>(
+        config_.costConstraintConfig.baseMotionQ, *referenceManagerPtr_, *mpcRobotModelPtr_, *mpcRobotModelADPtr_));
+  } else {
+    problemPtr_->stateCostPtr->add("baseMotionTrackingCost", factory.getBaseMotionTrackingCost());
+  }
   problemPtr_->stateCostPtr->add("jointTrackingCost", factory.getJointTrackingCost());
   problemPtr_->finalCostPtr->add("terminalCost", factory.getTerminalCost());
-  problemPtr_->finalCostPtr->add("baseMotionTrackingTerminalCost", factory.getBaseMotionTrackingTerminalCost());
+  if (config_.tangentSpaceOrientation) {
+    problemPtr_->finalCostPtr->add("baseMotionTrackingTerminalCost", std::make_unique<WbIdBaseMotionCost>(
+        config_.costConstraintConfig.terminalCostScaling * config_.costConstraintConfig.baseMotionQFinal,
+        *referenceManagerPtr_, *mpcRobotModelPtr_, *mpcRobotModelADPtr_));
+  } else {
+    problemPtr_->finalCostPtr->add("baseMotionTrackingTerminalCost", factory.getBaseMotionTrackingTerminalCost());
+  }
   problemPtr_->finalCostPtr->add("jointTrackingTerminalCost", factory.getJointTrackingTerminalCost());
 
   if (config_.torsoTiltCost.activate) {
@@ -125,7 +147,7 @@ void WbIdMpcInterface::setupOptimalControlProblem() {
         config_.torsoTiltCost, *pinocchioInterfacePtr_, *mpcRobotModelADPtr_, modelSettings_));
   }
 
-  const WbIdPinocchioMappingCppAd pinocchioMappingCppAd(mpcRobotModelPtr_->getGenCoordinatesDim(), mpcRobotModelPtr_->getInputDim());
+  const WbIdPinocchioMappingCppAd pinocchioMappingCppAd(*mpcRobotModelADPtr_);
   for (const TaskSpaceCostConfig& taskSpaceCost : config_.taskSpaceCosts) {
     if (!taskSpaceCost.activate) {
       continue;

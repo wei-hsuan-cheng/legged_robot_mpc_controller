@@ -1,3 +1,4 @@
+#include <pinocchio/codegen/cppadcg.hpp>
 #include "legged_robot_mpc_controller/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.hpp"
 
 #include <algorithm>
@@ -677,9 +678,14 @@ HumanoidWholeBodyInverseDynamicsMpcController::hold_command(
   ocs2::SystemObservation stand;
   stand.state = vector_t::Zero(static_cast<Eigen::Index>(control_model_->getStateDim()));
   stand.input = vector_t::Zero(static_cast<Eigen::Index>(control_model_->getInputDim()));
-  vector_t generalized(6 + q_measured.size());
+  const bool tangent = control_model_->usesTangentSpace();
+  vector_t generalized(6 + q_measured.size() + (tangent ? 1 : 0));
   generalized.head<3>().setZero();
-  generalized.segment<3>(3) = ocs2::humanoid::quaternionToEulerZYX(*imu_orientation);
+  if (tangent) {
+    generalized.segment<4>(3) = imu_orientation->normalized().coeffs();
+  } else {
+    generalized.segment<3>(3) = ocs2::humanoid::quaternionToEulerZYX(*imu_orientation);
+  }
   generalized.tail(q_measured.size()) = q_measured;
   control_model_->setGeneralizedCoordinates(stand.state, generalized);
   command.feedforward = compute_weight_compensating_torque(stand);
@@ -1067,15 +1073,24 @@ ocs2::SystemObservation HumanoidWholeBodyInverseDynamicsMpcController::build_obs
   ocs2::vector3_t euler_zyx = ocs2::humanoid::quaternionToEulerZYX(base_orientation);
   euler_zyx(0) = yaw_unwrapper_.unwrap(euler_zyx(0));
 
-  vector_t q_pinocchio(gen_coordinates_dim);
+  const bool tangent = control_model_->usesTangentSpace();
+  vector_t q_pinocchio(gen_coordinates_dim + (tangent ? 1 : 0));
   q_pinocchio.head<3>() = base_position;
-  q_pinocchio.segment<3>(3) = euler_zyx;
+  if (tangent) {
+    q_pinocchio.segment<4>(3) = base_orientation.coeffs();
+  } else {
+    q_pinocchio.segment<3>(3) = euler_zyx;
+  }
   q_pinocchio.tail(joint_dim) = q_joint;
 
   vector_t v_pinocchio(gen_coordinates_dim);
   v_pinocchio.head<3>() = linear_velocity_world;
-  v_pinocchio.segment<3>(3) =
-    ocs2::getEulerAnglesZyxDerivativesFromLocalAngularVelocity<ocs2::scalar_t>(euler_zyx, angular_velocity_local);
+  if (tangent) {
+    v_pinocchio.segment<3>(3) = angular_velocity_local;
+  } else {
+    v_pinocchio.segment<3>(3) =
+      ocs2::getEulerAnglesZyxDerivativesFromLocalAngularVelocity<ocs2::scalar_t>(euler_zyx, angular_velocity_local);
+  }
   v_pinocchio.tail(joint_dim) = v_joint;
 
   // Same velocity low-pass as the centroidal controller: raw simulator velocity
@@ -1121,7 +1136,9 @@ ocs2::TargetTrajectories HumanoidWholeBodyInverseDynamicsMpcController::current_
 {
   // Hold the current pose upright and at rest: zero pitch/roll and zero velocities.
   vector_t target_state = observation.state;
-  target_state.segment<2>(4).setZero();
+  auto pose = control_model_->getBasePose(target_state);
+  pose.tail<2>().setZero();
+  control_model_->setBasePose(target_state, pose);
   control_model_->setGeneralizedVelocities(
     target_state, vector_t::Zero(static_cast<Eigen::Index>(control_model_->getGenCoordinatesDim())));
   return ocs2::TargetTrajectories({observation.time}, {target_state}, {vector_t::Zero(observation.input.size())});
@@ -1171,6 +1188,15 @@ void HumanoidWholeBodyInverseDynamicsMpcController::construct_solver(const ocs2:
   mpc_solver_ = std::make_unique<ocs2::SqpMpc>(
     mpc_interface_->mpcSettings(), mpc_interface_->sqpSettings(), mpc_interface_->getOptimalControlProblem(),
     mpc_interface_->getInitializer());
+  if (control_model_->usesTangentSpace()) {
+    auto* solver = static_cast<ocs2::SqpSolver*>(mpc_solver_->getSolverPtr());
+    solver->setWarmStartTransform([this](const vector_t& initial, ocs2::PrimalSolution& primal) {
+      const Eigen::Quaterniond anchor(initial.tail<4>());
+      for (auto& state : primal.stateTrajectory_) {
+        control_model_->rebase(state, anchor);
+      }
+    });
+  }
   mpc_solver_->getSolverPtr()->setReferenceManager(mpc_interface_->getReferenceManagerPtr());
   mrt_interface_ = std::make_unique<ocs2::MPC_MRT_Interface>(*mpc_solver_);
   mrt_interface_->initRollout(&mpc_interface_->getRollout());
@@ -1353,7 +1379,11 @@ HumanoidWholeBodyInverseDynamicsMpcController::compute_mpc_joint_action(const oc
   vector_t policy_input;
   size_t policy_mode = ocs2::humanoid::STANCE;
   const double policy_time = observation.time + parameters_.ocs2.solver.rollout.policyTimeOffset;
-  mrt_interface_->evaluatePolicy(policy_time, observation.state, policy_state, policy_input, policy_mode);
+  vector_t policy_observation = observation.state;
+  if (control_model_->usesTangentSpace()) {
+    control_model_->rebase(policy_observation, Eigen::Quaterniond(mrt_interface_->getPolicy().stateTrajectory_.front().tail<4>()));
+  }
+  mrt_interface_->evaluatePolicy(policy_time, policy_observation, policy_state, policy_input, policy_mode);
   if (tracking_publisher_) {
     tracking_policy_valid_ = true;
     tracking_policy_state_ = policy_state;

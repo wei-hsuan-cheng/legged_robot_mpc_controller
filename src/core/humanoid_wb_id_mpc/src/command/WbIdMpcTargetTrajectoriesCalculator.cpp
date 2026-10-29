@@ -1,6 +1,7 @@
 #include "humanoid_wb_id_mpc/command/WbIdMpcTargetTrajectoriesCalculator.h"
 
 #include <array>
+#include "humanoid_wb_id_mpc/common/WbIdMpcRobotModel.h"
 
 namespace ocs2::humanoid {
 
@@ -13,13 +14,15 @@ WbIdMpcTargetTrajectoriesCalculator::WbIdMpcTargetTrajectoriesCalculator(const R
 /******************************************************************************************************/
 /******************************************************************************************************/
 
-vector_t WbIdMpcTargetTrajectoriesCalculator::makeState(const vector6_t& basePose, const vector6_t& baseVelocity) const {
+vector_t WbIdMpcTargetTrajectoriesCalculator::makeState(
+    const vector6_t& basePose, const vector6_t& baseVelocity, const vector_t& initial) const {
   // [base pose (6), joints (nj), base velocity (6), joint velocities (nj) = 0]
-  const auto nj = static_cast<Eigen::Index>(mpcRobotModelPtr_->getJointDim());
   vector_t state = vector_t::Zero(static_cast<Eigen::Index>(mpcRobotModelPtr_->getStateDim()));
-  state.head<6>() = basePose;
-  state.segment(6, nj) = targetJointState_;
-  state.segment<6>(6 + nj) = baseVelocity;
+  mpcRobotModelPtr_->setBasePose(state, basePose);
+  mpcRobotModelPtr_->setJointAngles(state, targetJointState_);
+  static_cast<const WbIdMpcRobotModel<scalar_t>&>(*mpcRobotModelPtr_).setBaseVelocity(state, baseVelocity);
+  const auto& model = static_cast<const WbIdMpcRobotModel<scalar_t>&>(*mpcRobotModelPtr_);
+  if (model.usesTangentSpace()) model.rebase(state, Eigen::Quaterniond(initial.tail<4>()));
   return state;
 }
 
@@ -35,7 +38,7 @@ TargetTrajectories WbIdMpcTargetTrajectoriesCalculator::commandedPositionToTarge
   const scalar_t targetReachingTime = initTime + estimateTimeToTarget(targetPose - currentPoseTarget);
 
   const scalar_array_t timeTrajectory{initTime, targetReachingTime};
-  const vector_array_t stateTrajectory{makeState(currentPoseTarget, vector6_t::Zero()), makeState(targetPose, vector6_t::Zero())};
+  const vector_array_t stateTrajectory{makeState(currentPoseTarget, vector6_t::Zero(), initState), makeState(targetPose, vector6_t::Zero(), initState)};
   const vector_array_t inputTrajectory(2, vector_t::Zero(static_cast<Eigen::Index>(mpcRobotModelPtr_->getInputDim())));
   return TargetTrajectories{timeTrajectory, stateTrajectory, inputTrajectory};
 }
@@ -51,7 +54,7 @@ TargetTrajectories WbIdMpcTargetTrajectoriesCalculator::commandedBasePoseToTarge
   const scalar_t targetReachingTime = initTime + estimateTimeToBasePoseTarget(targetBasePose - currentPose);
 
   const scalar_array_t timeTrajectory{initTime, targetReachingTime};
-  const vector_array_t stateTrajectory{makeState(currentPose, vector6_t::Zero()), makeState(targetBasePose, vector6_t::Zero())};
+  const vector_array_t stateTrajectory{makeState(currentPose, vector6_t::Zero(), initState), makeState(targetBasePose, vector6_t::Zero(), initState)};
   const vector_array_t inputTrajectory(2, vector_t::Zero(static_cast<Eigen::Index>(mpcRobotModelPtr_->getInputDim())));
   return TargetTrajectories{timeTrajectory, stateTrajectory, inputTrajectory};
 }
@@ -79,9 +82,10 @@ TargetTrajectories WbIdMpcTargetTrajectoriesCalculator::commandedVelocityToTarge
   for (const auto& pose : poses) {
     const vector4_t velocityWorld = transformVelCommandToGlobal(commandedVelocities, pose(3));
     vector6_t baseVelocity;
-    // [vx, vy, vz] world, then ZYX Euler rates [yaw, pitch, roll]
+    // Logical reference order: world linear velocity followed by commanded world
+    // yaw angular velocity (also the yaw Euler rate for these level references).
     baseVelocity << velocityWorld(0), velocityWorld(1), 0.0, velocityWorld(3), 0.0, 0.0;
-    stateTrajectory.push_back(makeState(pose, baseVelocity));
+    stateTrajectory.push_back(makeState(pose, baseVelocity, initState));
   }
 
   const vector_array_t inputTrajectory(3, vector_t::Zero(static_cast<Eigen::Index>(mpcRobotModelPtr_->getInputDim())));

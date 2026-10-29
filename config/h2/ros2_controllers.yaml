@@ -316,6 +316,10 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
 
       model:
         robotName: h2
+        # tangent_space: local rotation increments and body XYZ angular velocity.
+        # euler_zyx: absolute ZYX angles and their Euler rates.
+        # Keep the tested baseline by default; tangent terrain reliability is still experimental.
+        orientationRepresentation: euler_zyx # tangent_space | euler_zyx
 
         fixedJointNames:
           - left_wrist_roll_joint
@@ -374,9 +378,13 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         rScaling: 0.001
         terminalCostScaling: 1.0
 
-        # Q/Qf on x = [base pose, joint positions, base velocity, joint velocities].
-        # Base pose: [x, y, z, yaw, pitch, roll].
-        # Base velocity: [vx, vy, vz, yaw rate, pitch rate, roll rate] (Euler rates).
+        # Q/Qf weights are split into model-aware base tracking and joint costs.
+        # tangent_space:
+        #   Base pose: [x, y, z, rotation-log z, y, x].
+        #   Base velocity: [vx, vy, vz, wz, wy, wx]; heading axes for base_twist, world axes for base_pose.
+        # euler_zyx:
+        #   Base pose: [x, y, z, yaw, pitch, roll].
+        #   Base velocity: [vx, vy, vz, yaw rate, pitch rate, roll rate]; angular entries are Euler rates.
         q:
           # Preserve support height during flight without demanding exact forward tracking.
           basePose: [0.0, 0.0, 150.0, 0.0, 100.0, 100.0]
@@ -417,6 +425,8 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
              0.02, 0.02, 0.02, 0.02]
 
         # R on u = [wrench_left, wrench_right, base acceleration, joint acceleration, joint torque].
+        # tangent_space base acceleration: [ax, ay, az] world, then body angular acceleration [x, y, z].
+        # euler_zyx base acceleration: [ax, ay, az] world, then Euler accelerations [yaw, pitch, roll].
         # Contact wrench order per foot: [fx, fy, fz, mx, my, mz].
         r:
           # Stronger yaw-moment regularization; this is a soft cost, not a torsional-friction constraint.

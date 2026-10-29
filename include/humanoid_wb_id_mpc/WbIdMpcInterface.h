@@ -1,5 +1,7 @@
 #pragma once
 
+#include <pinocchio/codegen/cppadcg.hpp>
+
 #include <memory>
 #include <string>
 #include <vector>
@@ -64,6 +66,7 @@ class WbIdMpcInterface final : public RobotInterface {
   struct Config {
     std::string urdfFile;
     bool verbose = false;
+    bool tangentSpaceOrientation = false;
 
     ModelSettings::Params modelParams;
 

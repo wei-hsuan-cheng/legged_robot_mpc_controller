@@ -354,10 +354,11 @@ def main():
                     result.update(walk_pose_mean_vx_world=(last[1] - first[1]) / duration,
                                   walk_pose_mean_vy_world=(last[2] - first[2]) / duration)
     finally:
-        if sender is not None:
+        if sender is not None and rclpy.ok():
             for _ in range(5):
                 sender.stop()
-                rclpy.spin_once(probe, timeout_sec=0.01)
+                # CSV's context has closed; do not dispatch odometry callbacks here.
+                time.sleep(0.01)
         if probe is not None and sequence:
             with Path(str(prefix) + "_wrenches.csv").open("w") as file:
                 writer = csv.writer(file)
@@ -379,7 +380,8 @@ def main():
                 process.wait()
         if probe is not None:
             probe.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
         result["verdict"] = verdict
         Path(str(prefix) + ".json").write_text(json.dumps(result, indent=2) + "\n")
         print(json.dumps(result, indent=2), flush=True)

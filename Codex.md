@@ -1,6 +1,173 @@
 # WB-ID MPC Walking Robustness Handoff
 
 
+## Tangent-Space Orientation Experiment (2026-10-30, Opt-In Checkpoint)
+
+Work on the existing `feat/tangent_space_orientation` branch; quaternion decision-variable experiments are explicitly deferred.
+Latest user instruction: commit and push both repositories once this checkpoint is mature and validated.
+The Euler fallback remains available; do not describe tangent terrain robustness as mature based only on flat-ground success.
+The user authorizes building/testing in Parallels `ros_jazzy` and changes to `ocs2_ros2` if necessary.
+All simulator tests use isolated scenes, headless execution and `baseCommandGui:=false`.
+
+Current validation summary: both representations pass flat vx/vy/yaw/run and the mild 50 N push, but tangent is not yet an uneven-terrain robustness improvement.
+Keep `euler_zyx` as the saved default for both robots; tangent remains selectable on this experimental feature branch, not a validated terrain replacement.
+At MPC 80/MRT 1000, original-setting rough trials complete Euler 3/3 versus tangent 1/3; the default scene gives Euler one success, one tracking failure and one fall versus tangent three falls.
+Three flat vx trials pass for both, with mean achieved rates 77.06/73.34 Hz and reported mean solve times 12.18/13.62 ms (Euler/tangent).
+No solver exceptions or torque-window overruns occur in the 26 baseline comparison trials.
+The native model tests now also verify identical physical RNEA results after Euler/tangent velocity, acceleration and force-coordinate conversion.
+OCS2's new `tangent_math_tests` target passes three GTests, including generated complete-flow derivatives at zero and generated `atan2` Hessians on axes/quadrants.
+The full scenario table, frame differences, caveats and reproduction commands are in `docs/wb_id_tangent_orientation.md`.
+The paragraphs below are chronological development history: earlier statements about pending tests or superseded AD helper choices do not describe the current implementation.
+
+Reference inspection: `wb-mpc-locoman/dynamics/dynamics_whole_body_torque.py` uses Pinocchio/CasADi `integrate` and `difference`; `optimization/ocp_whole_body_rnea.py` optimizes `DX_opt` of dimension `2*nv`, reconstructs `q = integrate(q_measured, dq)`, and advances fixed-anchor increments with explicit Euler `dq_next = dq + v*dt`.
+The paper's quaternion is reconstructed storage, not a four-component free orientation decision with a unit-norm constraint.
+Our experiment keeps measured-anchor three-component rotation increments, world linear velocity and body-local XYZ angular velocity; Pinocchio uses Translation + Spherical instead of Translation + SphericalZYX.
+OCS2 currently carries the measured anchor in four zero-flow state slots fixed by the initial condition, with zero anchor cost; these are bookkeeping, not free quaternion decisions.
+Warm-start states must be rebased to each new measured anchor before trajectory interpolation; an optional SQP warm-start transform was added for this purpose.
+The exact chart flow uses the inverse SO(3) right Jacobian, rather than treating a fixed-anchor rotation increment's derivative as body angular velocity at arbitrary increments.
+Do not claim this is an exact reproduction of the paper's approximate explicit-Euler transcription.
+
+Baseline before modifications: H2, InEKF feedback, flat, vx 0.5 m/s, MPC 90/MRT 1000, 5 s settle + 3 s ramp + 25 s hold + 3 s stop + 5 s rest.
+`/tmp/tangent_h2_euler_flat`: SUCCESS, 41 simulation seconds, hold mean vx 0.5361 m/s, minimum base height 0.9917 m, max roll 0.01265 rad, max pitch 0.02729 rad, max heading error 0.06285 rad.
+These files are inside the Docker container; no tangent walking result exists yet at this checkpoint.
+
+First native build failed in Pinocchio `log3/Jlog3` for `CppAD::AD<CppAD::cg::CG<double>>`, at Boost's pi/numeric-limits machinery.
+This is not evidence that Pinocchio cannot do AD manifolds: the reference repo uses CasADi, and upstream Pinocchio has CppAD and CppADCodeGen specializations.
+Upstream references checked: [AD spatial tests](https://github.com/stack-of-tasks/pinocchio/blob/devel/unittest/cppad/spatial.cpp), [AD integrate/difference tests](https://github.com/stack-of-tasks/pinocchio/blob/devel/unittest/cppad/joint-configurations.cpp), and [CppADCodeGen backend](https://github.com/stack-of-tasks/pinocchio/blob/devel/include/pinocchio/codegen/cppadcg.hpp).
+A native probe with the backend include first compiled and ran generated-library validation.
+Direct matrix `Jlog3(Exp(phi))` produced NaN generated derivatives at phi=0 despite finite values; the quaternion log path itself had finite derivatives.
+Pinocchio quaternion `exp3/log3` plus `Jexp3(phi).inverse()` passed generated derivatives at zero, tiny angles, a large tilt near pi/2 and a 2.8-rad rotation, with values compared against native Pinocchio `log3/Jlog3`.
+Use this existing upstream Pinocchio path; no custom SO(3) math helper or finite-difference MPC derivative remains.
+Temporary custom AD-compatible SO(3) helpers/tests were removed after the successful upstream probe.
+Reproduce the native code-generation test in a sourced workspace with `python3 src/legged_robot_mpc_controller/tests/run_tangent_native_tests.py`.
+There are no finite-difference derivatives in the MPC; numerical checks are tests only.
+The first full main rebuild passed with the temporary helpers; the rebuild with the selected Pinocchio-only math is running.
+`tests/wb_id_tangent_model_test.cpp` passed native H2 FK, world-linear/body-angular twist mapping, local-chart integration against `pinocchio::integrate`, generated flow Jacobian finiteness, analytic Pinocchio-state-map Jacobians against independent perturbations, and physical pose preservation under rebasing.
+The native cases include zero rotation and absolute attitudes near/past +/-pi/2 pitch; these are model-math checks, not a claim that a humanoid can walk pitched 90 degrees.
+Run with `python3 src/legged_robot_mpc_controller/tests/run_tangent_native_tests.py --test wb_id_tangent_model_test`.
+No tangent closed-loop result exists yet; do not call this checkpoint ready for user testing.
+
+First tangent simulator attempt `/tmp/tangent_h2_flat_v1` ended with STARTUP_ERROR during base-cost code generation (`GreaterThanOrZero cannot be called for non-parameters`), before MPC takeover.
+This is a backend scalar-dispatch/include-order failure, not a walking instability.
+The selected backend must be included before Pinocchio math template definitions; the next patch makes that explicit in WB-ID public entry headers and its controller translation unit, without forcing a new include on unrelated Pinocchio users.
+Also corrected the startup upright target to use model accessors instead of directly zeroing Euler indices, which mean local rotation increments in tangent mode.
+The following two-job rebuild was killed in `cc1plus` while another native test was also compiling; retry with one build job and no concurrent compiler workloads.
+Inspection also identified a concrete illegal CG branch: Eigen's quaternion `normalize()` delegates to a vector normalization that tests `squaredNorm() > 0` in ordinary C++.
+Replaced it with algebraic normalization in the tangent state decoder; no custom manifold formula or finite-difference derivative is involved.
+The 23 WB-ID parameter/activation/startup/torque contract tests pass in the Jazzy container.
+Full local `test_*.py` discovery still has the five pre-existing `test_none_removes_every_environment_module` include-order subcase failures (56 tests, 13 skips); do not claim a clean full-suite run.
+The old flat replay has zero opposite-leg overlap/crossing samples, minimum signed foot width 0.125 m and final stagger 0.033 m; native pose replay is latest-sample paired rather than force-contact truth.
+Added `tests/tangent_orientation_benchmark.py` to compare unchanged gains under Euler/tangent modes serially, with vx/vy/yaw/run, rough-only/default-scene terrain and an optional existing 50 N pelvis-push case.
+It writes raw harness outputs plus comparison CSV/JSON and reports solve timing, exceptions and torque-window overruns; startup failures abort the matrix instead of being mislabeled as walking failures.
+The single-job Release rebuild passed (13 min 42 s after broad header recompilation); no simulator ran during the rebuild.
+Next gates are the expanded native base-cost generated-gradient/gauge checks and a fresh tangent simulator startup.
+Expanded native testing caught NaN base-cost orientation gradients at exact upright with the matrix-to-quaternion error conversion (cost value itself was zero).
+The correction forms full/heading-removed relative quaternions directly and calls Pinocchio quaternion `log3`; no matrix-to-quaternion conversion is needed in this base objective.
+The cost cache name advances to `tangent_base_motion_v2` to prevent reuse of the failed expression.
+Further compiler diagnostics exposed an actual initialization bug in that prototype: plain integer zeros in an Eigen comma initializer with the nested AD/CG scalar were not populating the heading matrix as intended.
+Replaced it with a fully initialized AD identity matrix plus explicit entries, and explicitly typed the quaternion zero coefficients.
+Therefore, do not attribute the earlier base-cost NaNs to an upstream matrix-to-quaternion defect; the standalone upstream matrix-Jlog3 derivative failure is separate and remains directly reproduced.
+The subsequent isolated generated `atan2(y,x)` probe reproduced NaN Jacobians at `(0,1)`, while raw Pinocchio quaternion log had the correct finite Jacobian at identity.
+OCS2 bundles an older CppAD `atan2` with `fabs` and eager divisions; upstream CppAD uses conditional absolute values and corrected quadrant selection ([source](https://github.com/coin-or/CppAD/blob/master/include/cppad/core/atan2.hpp)).
+Backported that upstream implementation in `ocs2_thirdparty/include/cppad/core/atan2.hpp`, additionally guarding only inactive denominators for code generation (the selected ratio is unchanged).
+The generated axis derivatives now match analytic `atan2` derivatives on all four axes and a non-axis point; no finite differences are used in control.
+The expanded native model test, compiling the current cost source directly, now passes identity/nonzero base-cost gradients, quaternion-sign invariance and common planar-gauge invariance, in addition to FK/integration/mapping/rebasing checks.
+Code-generation cache folders advance to `wb_id_tangent_v3_<robot>` and base cost to `tangent_base_motion_v3` so previous broken generated functions are not reused.
+The next step is a dependency rebuild and the first successful closed-loop attempt; no tangent walking success is claimed yet.
+The full-pose (`base_pose`, not relative walking) base residual now uses world-frame velocity errors and bypasses heading extraction, so that cost need not reintroduce a heading singularity at vertical pitch.
+Added generated-cost finiteness cases at +/-90 degrees and beyond, and a native Euler-rate conditioning comparison; these expanded checks are queued after the rebuild.
+The 23 WB-ID contract tests passed again during the dependency rebuild.
+Full dependency build succeeded: 21 packages, 19 min 1 s wall time, one compile job; controller package 14 min 49 s.
+Both native regressions passed against the rebuilt libraries, including full-pose residual Jacobians at +/-90 degrees and beyond, plus analytic generated `atan2` Jacobian/Hessian checks in every quadrant and on the axes.
+Native rate-map condition numbers at absolute pitch 0/60/80/89/89.9 degrees: Euler 1/3.732/11.430/114.589/1145.92; tangent at each newly measured anchor (phi=0) is 1.
+This is coordinate conditioning evidence, not evidence of walking or recovering with the humanoid pitched 90 degrees.
+The first current closed-loop test is `/tmp/tangent_orientation_benchmark/h2_vx_tangent_space_1` in Docker; no gains were changed.
+That attempt compiled/configured all generated libraries, but stayed in the stand hold before receiving any policy.
+A debugger sample found the solver inside HPIPM QP residual computation, not waiting on the observation handoff; the run was stopped before any walking.
+Investigating QP dimensions/finiteness with the existing `printSolverStatus` flag before changing gains; do not classify this as a walking fall or claim tangent closed-loop success.
+The QP diagnostic isolated nonfinite discrete dynamics A matrices before equality projection; equality values/Jacobians and costs were finite.
+An expanded native regression reproduced this directly: flow Jacobians at phi=0 are NaN for the composed Pinocchio `Jexp3(phi).inverse()*omega`, including omega=0, despite the earlier matrix-only generated probe passing.
+Thus the earlier probe was insufficient to validate the flow at zero; RK4 sensitivity checks at zero are now mandatory.
+Upstream Pinocchio's current `Jexp3` still forms `1/norm(phi)` before selecting its small-angle branch ([source](https://github.com/stack-of-tasks/pinocchio/blob/devel/include/pinocchio/src/spatial/explog.hxx)).
+A small `ocs2_robotic_tools/common/So3Tangent.h` adapter now uses the standard inverse-dexp formula and near-zero series documented in [GTSAM SO3.cpp](https://github.com/borglab/gtsam/blob/develop/gtsam/geometry/SO3.cpp), with a guarded inactive norm before sqrt/division for AD/codegen.
+Pinocchio exp/log and spherical FK/RNEA remain in use; no finite-difference control derivative is introduced.
+The flow cache changes to `tangent_dynamics_v2`; revalidate native zero-flow/RK4 tests before another simulator attempt.
+The expanded native zero-increment flow/RK4 tests now pass at omega scales 0, 1e-20, 1e-15, 1e-10, 1e-5 and 1, together with the previous model/base-cost checks.
+Temporary QP diagnostic prints/checks were removed; the remaining SQP change is only the optional warm-start transform.
+Incremental build passed (23.3 s).
+First current tangent closed-loop SUCCESS: `/tmp/tangent_orientation_benchmark/h2_vx_tangent_space_1`, H2 flat, InEKF, vx=0.5, MPC90/MRT1000, 41 s including start/stop; mean vx=0.53083, min z=0.99154 m, max roll=0.01229 rad, max pitch=0.02472 rad, max heading error=0.04570 rad.
+Reported solve averages mean=13.253 ms, worst logged solve=57.612 ms, mean actual rate=75.21 Hz; zero solver exceptions and torque-window overruns.
+No tuning gains changed; the next check is tangent rough ground, then paired Euler/tangent scenarios.
+The preliminary 90 Hz tangent rough-only run also passed 36 s including stop/rest at vx=0.2: mean body vx=0.28367, min z=0.92443 m, max roll=0.14591 rad, max pitch=0.09600 rad; zero exceptions/torque-window overruns.
+Logged maximum dynamics SSE was 291.5 on that rough run, so survival must not be described as a tightly converged terrain solution.
+Latest user instruction: all further H2 runs at requested MPC 80 Hz, compare achieved solve rates for both modes, and separate Euler/tangent YAML comments.
+The authoritative paired matrix is now `/tmp/tangent_orientation_benchmark_80hz`; keep the 90 Hz runs as preliminary data, not mixed into its timing comparisons.
+First 80 Hz pair (vx=0.5, 41 s start/walk/stop): both SUCCESS; Euler mean vx=0.53312, achieved=75.665 Hz, reported mean solve=12.696 ms; tangent mean vx=0.53223, achieved=72.617 Hz, reported mean solve=13.746 ms.
+Tangent was about 4% lower in achieved rate in this first pair, not faster; repeated measurements are needed before a broad timing claim.
+SQP per-iteration breakdown: Euler LQ/QP=5.337/6.891 ms; tangent LQ/QP=5.632/7.727 ms, so the larger QP (four fixed anchor state slots) accounts for most of this observed overhead.
+Both had zero exceptions and torque-window overruns; max heading error Euler=0.06257 rad, tangent=0.20219 rad, showing one trial does not establish better heading behavior.
+Current YAML comments separately describe Euler vs tangent state, base costs and base-acceleration conventions; user-added inline mode-choice comment is preserved.
+Benchmark measurement caveat: H2's `/mujoco/ground_truth/odom` twist is not aligned with its published pose axes.
+The publisher calls `mj_objectVelocity(..., mjOBJ_BODY, ..., local=1)`, which returns inertial-body axes; the pelvis inertia principal axes are rotated roughly 90 degrees about X.
+Local synthetic check at identity pose with true world vy=0.25 and wz=0.6: `mjOBJ_BODY` returned angular approximately [0.0088,0.5999,0.0013] and linear [-0.0029,0.00058,-0.2501], while `mjOBJ_XBODY` returned exactly [0,0,0.6,0,0.25,0].
+Do not use the legacy raw `walk_mean_vy/wz` fields as physical tracking scores for these runs; the comparison/plots now derive body-horizontal speeds and yaw rate from the GT pose trajectory.
+This does not change the tested control loop (InEKF feedback) and the simulator repository remains unmodified; investigate/fix its body-vs-inertial convention separately before using GT twist as controller feedback.
+80 Hz lateral pair, vy command 0.25, 41 s: both SUCCESS; pose-world mean vy Euler=0.23884, tangent=0.23575 m/s; rates=75.907/70.263 Hz, reported mean solve=12.738/14.304 ms, zero exceptions/window overruns.
+80 Hz yaw pair, command 0.6 rad/s, 46 s: both SUCCESS through repeated heading wraps; total rotations Euler=18.32657, tangent=18.34341 rad; maximum translation drifts=0.15788/0.12453 m.
+Yaw pair achieved rates=75.367/72.359 Hz; mean solve=12.919/13.806 ms; max roll/pitch below 0.014 rad in either trial, zero exceptions/window overruns.
+These are single trials; the direction of yaw drift and rare solve-time spikes must not be treated as statistically established representation advantages.
+Latest user now authorizes commit/push of both legged and OCS2 once the checkpoint is mature; this supersedes the earlier no-commit instruction.
+Frames: Euler angles parameterize the world-referenced attitude, but Euler rates are not physical world angular velocity; they are a configuration-dependent transform of body gyro velocity.
+Tangent reconstructs the same world attitude using an anchor-local right increment and uses physical body XYZ angular velocity, so it is not an entirely local/world-free controller.
+Same numeric angular weights do not define the same physical metric between these paths; tangent removes Euler-rate conditioning/noise amplification, not actual estimator uncertainty.
+Detailed comparison and limitations were added to `docs/wb_id_tangent_orientation.md`.
+80 Hz rough pair: Euler survived the 36 s trial, tangent fell at 9.18 s after takeover (about 1.18 s into the full command), min z=0.260 m, max roll=1.338 rad.
+No solver exceptions/window overruns occurred; tangent's preliminary 90 Hz rough run survived, so investigate partial footholds/clearance and repeat rather than claiming orientation alone improves terrain robustness.
+User specifically requests repeated uneven-terrain trials after falls; one successful/failed run is not enough to rank the representations.
+User prefers the physical body-angular-velocity state; clarify that it is not generally phidot (the inverse-right-Jacobian map is required).
+Setting `orientationRepresentation: euler_zyx` selects the retained baseline model/dynamics/base cost; no saved tuning gains have changed, although shared dependency fixes remain and timing makes trajectories nondeterministic.
+Terrain swing-height experiments are temporary `--set` overrides applied equally to both representations, not saved YAML changes.
+Push harness cleanup exposed an existing bug: spinning after closing CSV dispatched an odometry write to the closed file; cleanup now sends zeros without dispatching callbacks, and shutdown is guarded against already-shutdown ROS contexts.
+The aborted first push attempt had completed the physical trial, but its cleanup prevented a result JSON; it is rerun, not counted as a validated recovery.
+The first rough tangent failure replay has zero opposite-leg mesh overlap samples and minimum foot-point distance 0.187 m; signed-width crossings appear only as the robot is already falling.
+Snapshots around t=7.5 s show feet at the boundary of the clear floor opening; the first swing rises only about 7.5 cm (0.10 m template height scaled by the 0.3 s swing), consistent with an entry-step/partial-foothold problem rather than leg collision, but no contact-force truth was recorded for that diagnosis.
+Trying a shared temporary walk swing height of 0.15 m for both modes, in `/tmp/tangent_orientation_80hz_clearance`, without changing saved gains or gait YAML.
+80 Hz 1.0 m/s run/start/stop pair: both SUCCESS for 46 s; Euler/tangent mean body vx about 1.018/1.006 m/s, achieved rates 77.263/72.313 Hz; min z 0.93781/0.93634 m; zero exceptions/window overruns.
+80 Hz verified 50 N lateral pelvis push during vx=0.3: both SUCCESS, 41 s; rates Euler/tangent 76.327/70.930 Hz; min z 0.94556/0.91555 m. These are mild-push trials, not recovery-envelope limits.
+Baseline default-scene first pair: Euler SUCCESS, tangent FALL at 11.07 s; repeat before ranking terrain robustness.
+Temporary 0.15 m walk swing trials: rough Euler SUCCESS, tangent NO_TRACKING (upright but blocked); default scene Euler FALL near 35 s, tangent NO_TRACKING (upright but little progress).
+Do not promote that swing-height change: it has not demonstrated a reliable improvement and survival without commanded progress is not a terrain-walking success.
+Next batch repeats original saved settings at 80 Hz for vx timing and both terrain scenes, alternating A/B order between repeats.
+Repeated flat vx runs now pass three of three in both representations; tangent repeat 2/3 achieved 72.659/74.745 Hz with mean solve 13.760/13.339 ms.
+The second original-setting rough tangent trial fell at 10.16 s, while the second Euler trial completed 36 s; no solver exception or torque-window overrun occurred in either.
+Continue the counterbalanced terrain repeats before drawing a robustness conclusion or pushing a final checkpoint.
+Those repeats are now complete; see the current summary at the beginning of this section and the full table in the tangent document.
+A further temporary tangent-only contact-compliance profile used foot height/tilt equality gains 25/50 instead of 50/100: rough falls at 8.75/13.11 s, default-scene falls at 22.40/9.22 s.
+Reject that profile too; no gain or gait-height changes from the baseline are saved.
+The integration is an opt-in experimental checkpoint with native/flat-ground validation, not a successful terrain-robustness upgrade; retain that qualification when committing or handing off.
+Final single-job Release rebuild passed for `ocs2_sqp` and the controller (3 min 32 s); 42 focused Python tests, both native model/codegen executables and the three OCS2 math GTests passed.
+Fresh post-build H2 80 Hz flat vx=0.5 smoke pair completed 41 s each: Euler/tangent achieved 78.24/75.64 Hz, mean solve 11.74/13.21 ms, pose-derived body vx 0.5359/0.5357 m/s, zero exceptions/window overruns.
+Artifacts: Docker `/tmp/tangent_orientation_final_smoke`; baseline 26-trial matrix `/tmp/tangent_orientation_benchmark_80hz`; rejected profiles `/tmp/tangent_orientation_80hz_clearance` and `/tmp/tangent_orientation_80hz_soft_contact`.
+Commit/push destinations: legged `feat/tangent_space_orientation`, OCS2 `jazzy`; do not merge the experiment into main or claim better terrain robustness from these results.
+Required OCS2 dependency checkpoint: `ffdde1d7e` (`FEAT: support tangent-space SQP models`).
+
+Commit messages:
+
+```text
+FEAT: support tangent-space SQP models
+
+Add optional warm-start rebasing and codegen-safe SO(3) derivatives.
+Backport the CppAD atan2 axis fix and cover generated derivatives.
+```
+
+```text
+FEAT: add opt-in tangent-space WB-ID orientation
+
+Use measured-anchor rotations and physical body angular velocity.
+Retain Euler defaults and document repeated 80 Hz benchmark limits.
+```
+
+
 ## Unified RViz Environment (2026-10-26)
 
 - `description/urdf/env.urdf.xacro` is the RViz counterpart of a robot's MuJoCo `scene.xml`: one `world` link plus `<xacro:include>`s of `terrains/stairs`, `terrains/ramp`, `terrains/uneven_terrain` and `objects/boxes` `.urdf.xacro`; comment or uncomment to match the scene (default uneven terrain + ramp, as in H2's committed scene; G1's scene has no terrain).

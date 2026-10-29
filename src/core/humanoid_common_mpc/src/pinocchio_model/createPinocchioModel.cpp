@@ -57,12 +57,16 @@ namespace ocs2::humanoid {
 /// \brief Create a joint model composite with the appropriate DoF
 ///
 
-static pinocchio::JointModelComposite getBaseJointcomposite() {
+static pinocchio::JointModelComposite getBaseJointcomposite(bool sphericalBase = false) {
   // add 6 DoF for the floating base
   pinocchio::JointModelComposite baseJointComposite(2);
   // baseJointComposite.addJoint(pinocchio::JointModelFreeFlyer());
   baseJointComposite.addJoint(pinocchio::JointModelTranslation());
-  baseJointComposite.addJoint(pinocchio::JointModelSphericalZYX());
+  if (sphericalBase) {
+    baseJointComposite.addJoint(pinocchio::JointModelSpherical());
+  } else {
+    baseJointComposite.addJoint(pinocchio::JointModelSphericalZYX());
+  }
   return baseJointComposite;
 }
 
@@ -145,7 +149,8 @@ PinocchioInterface createCustomPinocchioInterface(const std::string& urdfFilePat
                                                   const ModelSettings& modelSettings,
                                                   bool scaleTotalMass,
                                                   scalar_t totalMass,
-                                                  bool verbose) {
+                                                  bool verbose,
+                                                  bool sphericalBase) {
   urdf::ModelInterfaceSharedPtr urdfTree = urdf::parseURDFFile(urdfFilePath);
   if (urdfTree == nullptr) {
     throw std::invalid_argument("The file " + urdfFilePath + " does not contain a valid URDF model!");
@@ -163,7 +168,7 @@ PinocchioInterface createCustomPinocchioInterface(const std::string& urdfFilePat
   }
 
   pinocchio::ModelTpl<scalar_t> model;
-  pinocchio::urdf::buildModel(newModel, getBaseJointcomposite(), model);
+  pinocchio::urdf::buildModel(newModel, getBaseJointcomposite(sphericalBase), model);
 
   for (int i = 0; i < N_CONTACTS; i++) {
     ContactRectangle contactRectangle = ContactRectangle::fromModelSettings(modelSettings, i, verbose);

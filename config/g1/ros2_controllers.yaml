@@ -282,6 +282,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
 
       model:
         robotName: g1
+        orientationRepresentation: euler_zyx # tangent_space | euler_zyx
 
         fixedJointNames:
           - left_wrist_roll_joint
