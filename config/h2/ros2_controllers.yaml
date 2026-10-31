@@ -367,7 +367,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         solverType: sqp
         mpcDesiredFrequency: $(var mpcFreq)
         mrtDesiredFrequency: $(var mrtFreq)
-        timeHorizon: 1.0
+        timeHorizon: 0.8
         solutionTimeWindow: -1.0
         coldStart: false
         debugPrint: false
@@ -706,9 +706,9 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           # Minimum time between two gait changes [s].
           minDwellTime: 0.2
           # A new gait starts at the first contact event after
-          # initTime + switchDelayHorizonFraction * horizon (0.3 of a 1.0 s horizon = 0.3 s).
+          # initTime + switchDelayHorizonFraction * horizon (0.375 of a 0.8 s horizon = 0.3 s).
           # Earlier stepping handles lateral command steps without reducing command slew limits.
-          switchDelayHorizonFraction: 0.3
+          switchDelayHorizonFraction: 0.375
           # Supported walking first, then the tuned flight gait at higher planar commands.
           ladder: [stance, walk, trot, run]
           #             linearVelocity [m/s]          yawRate [rad/s]        measuredMargin [lin, yaw]
