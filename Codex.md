@@ -1,6 +1,37 @@
 # WB-ID MPC Walking Robustness Handoff
 
 
+## Collision Sphere Visualization (2026-10-31 Asia/Taipei)
+
+Added WB-ID-only `visualization.collisionSpheres: {activate, markerTopic, alpha}`; both shipped robots enable it with alpha 0.25.
+The controller builds marker geometry from the same parsed OCP config: all 10 leg spheres plus 16 arm spheres and 6/8 body spheres for G1/H2, respectively.
+Only enabled collision groups are drawn, but leg geometry remains visible during double support even when its sphere penalty is gait-gated off.
+No new collision pairs, optimizer terms, gains, solver settings, launch arguments or centroidal controls were added.
+The shared visualization worker now receives the observed state along with its existing policy snapshot and publishes from separately owned Pinocchio data.
+Markers show the observed pose, true configured radii without safety/buffer inflation, distinct leg/arm/body colors and one-second ROS-time expiry.
+Added a best-effort, volatile, depth-one `/performance_visualization/collisionSpheres` topic and a matching enabled `Collision Spheres` RViz display.
+Subscriber gating prevents collision FK/marker work without a subscriber; the existing 10 Hz WB-ID snapshot cap is unchanged.
+The alpha/activation controls are configure-time YAML settings, not live dynamic toggles.
+Completed verification after midnight, 2026-11-01 Asia/Taipei: Release build in Parallels Docker `ros_jazzy`, native collision CTest, 33 WB-ID contract tests, 5 arm/body geometry tests and 9 visualization contract tests passed.
+The first build exposed a missing Pinocchio multibody forward-declaration include in the new header; this was corrected before the successful rebuild and runtime tests.
+Live marker tests ran sequentially in isolated ROS domain 73, using InEKF, headless flat scenes, an 80 Hz MPC request and vx 0.1 m/s.
+Both 15-second walking trials returned SUCCESS and stayed upright; H2 peak roll/pitch were 0.00674/0.00744 rad, G1 0.00910/0.03732 rad.
+Five initial marker messages per robot passed exact count/diameter checks, finite poses, stable unique IDs, group colors, alpha, one-second expiry and configured relative offsets for spheres on the same rigid link.
+The publisher was discovered with best-effort/volatile QoS after the subscription-free startup interval; marker geometry work begins only after subscribing.
+G1 published 10 leg + 16 arm + 6 body spheres; H2 published 10 leg + 16 arm + 8 body spheres.
+This verified actual MarkerArray data, not an RViz GUI screenshot or a new solve-rate benchmark.
+Logs, config snapshots, marker JSON and walk results are retained in ignored `tuning_results/collision_spheres_20261101/` and Docker `/tmp/{g1,h2}_collision_spheres*`.
+All owned simulator/controller/build/test processes are stopped; no commit or push was made for this visualization change.
+
+```text
+FEAT: visualize WB-ID arm and leg collision spheres in RViz
+
+- Reuse enabled MPC collision geometry at the observed robot pose
+- Publish subscriber-driven markers from the isolated visualization worker
+- Add YAML controls, best-effort RViz display and geometry/QoS regression tests
+```
+
+
 ## Arm Versus Body Collision Checkpoint (2026-10-31 Asia/Taipei)
 
 ### Final Manual-Test Checkpoint

@@ -262,6 +262,20 @@ Visualization Manager:
       Visual Enabled: true
     - Class: rviz_default_plugins/MarkerArray
       Enabled: true
+      Name: Collision Spheres
+      Namespaces:
+        collision_arms: true
+        collision_body: true
+        collision_legs: true
+      Topic:
+        Depth: 1
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+        Value: /performance_visualization/collisionSpheres
+      Value: true
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
       Name: Optimized State Ghosts
       Namespaces:
         optimized_state_ghosts: true

@@ -461,6 +461,12 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
     optimizedStateRobotModelsInterval: {type: double, default_value: 0.2,
         description: "Nominal temporal spacing of mesh ghosts across the actual MPC policy horizon [s]",
         validation: {gt: [0.0]}}
+    collisionSpheres:
+      activate: {type: bool, default_value: false, description: "Draw enabled arm/body and leg collision spheres at the observed state"}
+      markerTopic: {type: string, default_value: "/performance_visualization/collisionSpheres",
+          description: "Best-effort collision sphere marker topic"}
+      alpha: {type: double, default_value: 0.25, description: "Collision sphere opacity",
+          validation: {gt: [0.0], lt_eq: [1.0]}}
     trajectory:
       activate: {type: bool, default_value: true, description: "Enable optimized trajectory visualization"}
       markerTopic: {type: string, default_value: "/performance_visualization/optimizedStateTrajectory",

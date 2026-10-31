@@ -243,6 +243,9 @@ Arm `joint` and `default` commands are implemented for both MPC controllers.
 WB-ID also has an optional `ocs2.constraints.armSelfCollision` sphere penalty for arms versus torso, pelvis and head, enabled in the G1/H2 YAMLs.
 It does not add arm-arm or arm-leg checks, and it is a soft safeguard, not a collision-free guarantee.
 See [arm/body collision margins](./docs/humanoid_whole_body_inverse_dynamics_mpc.md#58-arm-versus-body-sphere-margins) for geometry and penalty tuning.
+For WB-ID, `visualization.collisionSpheres.activate` shows the enabled collision spheres in RViz's **Collision Spheres** display: green legs, orange arms and blue body.
+`alpha` controls transparency; geometry comes directly from the MPC collision settings, not another sphere list.
+See [collision sphere visualization](./docs/humanoid_whole_body_inverse_dynamics_mpc_impl.md#13-collision-spheres) for details.
 
 | `command_type` | Meaning |
 |---|---|

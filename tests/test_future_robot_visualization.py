@@ -50,7 +50,7 @@ class FutureRobotVisualizationTest(unittest.TestCase):
     def test_shared_worker_uses_consistent_policy_snapshot(self):
         worker = (ROOT / "src/visualization/performance_visualization.cpp").read_text()
         self.assertIn("if (!has_subscribers_.load", worker)
-        self.assertIn("Snapshot{times, states, targets}", worker)
+        self.assertIn("Snapshot{times, states, targets, observedState}", worker)
         self.assertIn("robot_model_visualization_->publish(snapshot->times, snapshot->states, snapshot->targets)", worker)
         source = (ROOT / "src/visualization/future_robot_model_visualization.cpp").read_text()
         self.assertIn("mpc_robot_model_->getGeneralizedCoordinates(state)", source)

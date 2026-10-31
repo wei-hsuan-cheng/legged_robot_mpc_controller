@@ -101,8 +101,8 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
   // paths.libFolder/wb_id_mpc_<robot>, which takes a while; later runs load them.
   const char* configure_stage = "building the whole-body inverse-dynamics MPC interface";
   try {
-    mpc_interface_ = std::make_unique<ocs2::humanoid::WbIdMpcInterface>(
-      buildWholeBodyInverseDynamicsMpcConfig(parameters_));
+    const auto mpc_config = buildWholeBodyInverseDynamicsMpcConfig(parameters_);
+    mpc_interface_ = std::make_unique<ocs2::humanoid::WbIdMpcInterface>(mpc_config);
     control_model_.reset(mpc_interface_->getMpcRobotModel().clone());
     control_pinocchio_ = std::make_unique<ocs2::PinocchioInterface>(mpc_interface_->getPinocchioInterface());
 
@@ -187,11 +187,37 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
       common::selectAtIndices(parameters_.robot.jointNames, common::findArmJointIndices(parameters_.robot.jointNames)),
       {}, {});
 
+    auto visualization_settings = visualization::makePerformanceVisualizationSettings(parameters_);
+    auto& spheres = visualization_settings.collision_spheres;
+    spheres.activate = parameters_.visualization.collisionSpheres.activate;
+    spheres.marker_topic = parameters_.visualization.collisionSpheres.markerTopic;
+    spheres.frame_id = parameters_.visualization.frameId;
+    spheres.alpha = parameters_.visualization.collisionSpheres.alpha;
+    if (spheres.activate && mpc_config.activateLegSelfCollision) {
+      const auto& leg = mpc_config.costConstraintConfig.footCollisionConfig;
+      for (const auto& frame : {leg.leftAnkleFrame, leg.rightAnkleFrame,
+                               leg.leftFootCenterFrame, leg.rightFootCenterFrame,
+                               leg.leftFootFrame1, leg.rightFootFrame1,
+                               leg.leftFootFrame2, leg.rightFootFrame2}) {
+        spheres.spheres.push_back({frame, frame, Eigen::Vector3d::Zero(), leg.footCollisionSphereRadius, "legs"});
+      }
+      for (const auto& frame : {leg.leftKneeFrame, leg.rightKneeFrame}) {
+        spheres.spheres.push_back({frame, frame, Eigen::Vector3d::Zero(), leg.kneeCollisionSphereRadius, "legs"});
+      }
+    }
+    if (spheres.activate && mpc_config.armSelfCollision.activate) {
+      for (const auto& sphere : mpc_config.armSelfCollision.arms) {
+        spheres.spheres.push_back({sphere.name, sphere.linkName, sphere.center, sphere.radius, "arms"});
+      }
+      for (const auto& sphere : mpc_config.armSelfCollision.bodies) {
+        spheres.spheres.push_back({sphere.name, sphere.linkName, sphere.center, sphere.radius, "body"});
+      }
+    }
     performance_visualization_ = std::make_unique<visualization::PerformanceVisualization>(
       get_node(),
       mpc_interface_->getPinocchioInterface(),
       mpc_interface_->getMpcRobotModel(),
-      visualization::makePerformanceVisualizationSettings(parameters_));
+      std::move(visualization_settings));
 
     configure_stage = "setting up the tracking debug topic";
     configure_tracking();
@@ -588,7 +614,8 @@ controller_interface::return_type HumanoidWholeBodyInverseDynamicsMpcController:
     last_visualization_time_ = observation.time;
     const auto& policy = mrt_interface_->getPolicy();
     performance_visualization_->update_visualization(
-      policy.timeTrajectory_, policy.stateTrajectory_, mrt_interface_->getCommand().mpcTargetTrajectories_);
+      policy.timeTrajectory_, policy.stateTrajectory_, mrt_interface_->getCommand().mpcTargetTrajectories_,
+      observation.state);
   }
 
   return controller_interface::return_type::OK;

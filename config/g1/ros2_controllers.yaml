@@ -500,7 +500,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
 
         # Arm versus torso/pelvis/head only; independent of legSelfCollision.
         armSelfCollision:
-          activate: true
+          activate: false
           minimumDistance: 0.015
           # Polynomial is inactive beyond minimumDistance + delta; avoids spreading the arms at rest.
           implementation: polynomial
@@ -750,6 +750,10 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
       update_rate: 30.0
       optimizedStateRobotModelsActivate: true
       optimizedStateRobotModelsInterval: 0.2 # [s]
+      collisionSpheres:
+        activate: false
+        markerTopic: /performance_visualization/collisionSpheres
+        alpha: 0.25
       trajectory:
         activate: true
         markerTopic: /performance_visualization/optimizedStateTrajectory

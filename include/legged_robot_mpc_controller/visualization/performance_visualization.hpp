@@ -15,6 +15,7 @@
 
 #include "legged_robot_mpc_controller/visualization/optimized_state_trajectory_visualization.hpp"
 #include "legged_robot_mpc_controller/visualization/future_robot_model_visualization.hpp"
+#include "legged_robot_mpc_controller/visualization/collision_sphere_visualization.hpp"
 
 namespace legged_robot_mpc_controller::visualization
 {
@@ -29,6 +30,7 @@ public:
     double update_rate{5.0};
     OptimizedStateTrajectoryVisualization::Settings trajectory;
     FutureRobotModelVisualization::Settings robot_models;
+    CollisionSphereVisualization::Settings collision_spheres;
   };
 
   PerformanceVisualization(
@@ -41,7 +43,8 @@ public:
 
   void update_visualization(
     const ocs2::scalar_array_t& times, const ocs2::vector_array_t& states,
-    const ocs2::TargetTrajectories& targets);
+    const ocs2::TargetTrajectories& targets,
+    const ocs2::vector_t& observedState = ocs2::vector_t());
 
 private:
   void visualization_loop();
@@ -51,12 +54,14 @@ private:
     ocs2::scalar_array_t times;
     ocs2::vector_array_t states;
     ocs2::TargetTrajectories targets{0};
+    ocs2::vector_t observed_state;
   };
 
   std::shared_ptr<rclcpp_lifecycle::LifecycleNode> node_;
   Settings settings_;
   std::unique_ptr<OptimizedStateTrajectoryVisualization> trajectory_visualization_;
   std::unique_ptr<FutureRobotModelVisualization> robot_model_visualization_;
+  std::unique_ptr<CollisionSphereVisualization> collision_sphere_visualization_;
   realtime_tools::RealtimeThreadSafeBox<Snapshot> latest_snapshot_;
   std::thread visualization_thread_;
   std::chrono::duration<double> period_{0.2};

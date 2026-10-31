@@ -38,7 +38,12 @@ PerformanceVisualization::PerformanceVisualization(
       pinocchioInterface, mpcRobotModel, *node_, settings_.robot_models);
   }
 
-  if (!trajectory_visualization_ && !robot_model_visualization_) {
+  if (settings_.collision_spheres.activate && !settings_.collision_spheres.spheres.empty()) {
+    collision_sphere_visualization_ = std::make_unique<CollisionSphereVisualization>(
+      pinocchioInterface, mpcRobotModel, *node_, settings_.collision_spheres);
+  }
+
+  if (!trajectory_visualization_ && !robot_model_visualization_ && !collision_sphere_visualization_) {
     RCLCPP_INFO(node_->get_logger(), "[Performance Visualization] no visualization features active");
     return;
   }
@@ -65,10 +70,10 @@ PerformanceVisualization::~PerformanceVisualization()
 
 void PerformanceVisualization::update_visualization(
   const ocs2::scalar_array_t& times, const ocs2::vector_array_t& states,
-  const ocs2::TargetTrajectories& targets)
+  const ocs2::TargetTrajectories& targets, const ocs2::vector_t& observedState)
 {
   if (!has_subscribers_.load(std::memory_order_relaxed)) return;
-  if (latest_snapshot_.try_set(Snapshot{times, states, targets})) {
+  if (latest_snapshot_.try_set(Snapshot{times, states, targets, observedState})) {
     has_optimized_state_trajectory_.store(true);
   }
 }
@@ -81,7 +86,8 @@ void PerformanceVisualization::visualization_loop()
     try {
       const bool trajectory_subscribed = trajectory_visualization_ && trajectory_visualization_->hasSubscribers();
       const bool ghosts_subscribed = robot_model_visualization_ && robot_model_visualization_->hasSubscribers();
-      const bool subscribed = trajectory_subscribed || ghosts_subscribed;
+      const bool collision_subscribed = collision_sphere_visualization_ && collision_sphere_visualization_->hasSubscribers();
+      const bool subscribed = trajectory_subscribed || ghosts_subscribed || collision_subscribed;
       has_subscribers_.store(subscribed, std::memory_order_relaxed);
       if (!subscribed || !has_optimized_state_trajectory_.exchange(false)) continue;
       const auto snapshot = latest_snapshot_.try_get();
@@ -94,6 +100,9 @@ void PerformanceVisualization::visualization_loop()
       }
       if (ghosts_subscribed) {
         robot_model_visualization_->publish(snapshot->times, snapshot->states, snapshot->targets);
+      }
+      if (collision_subscribed && snapshot->observed_state.size() > 0) {
+        collision_sphere_visualization_->publish(snapshot->observed_state);
       }
     } catch (const std::exception& error) {
       RCLCPP_WARN_THROTTLE(

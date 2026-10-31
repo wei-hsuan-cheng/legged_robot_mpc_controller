@@ -32,12 +32,12 @@ Dimensions are constructed at [line 37](../include/humanoid_wb_id_mpc/common/WbI
 The inherited `getBaseComVelocity` name returns pelvis world linear velocity and Euler rates in WB-ID, not centroidal momentum.
 Joint velocities are read from the state at [line 105](../include/humanoid_wb_id_mpc/common/WbIdMpcRobotModel.h#L105), while generalized accelerations and joint torques are read from the input at [line 120](../include/humanoid_wb_id_mpc/common/WbIdMpcRobotModel.h#L120).
 
-[build_observation():995](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L995) combines joint interfaces and floating-base feedback.
-Estimator feedback is read at [line 1027](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1027).
+[build_observation():1024](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1024) combines joint interfaces and floating-base feedback.
+Estimator feedback is read at [line 1054](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1054).
 For simulation debugging, `floatingBaseSource:=ground_truth_state` can replace estimator feedback with GT, but this bypass is not available for real-world deployment.
-Quaternion normalization, yaw unwrapping and angular velocity conversion are at [line 1060](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1060).
-The optional generalized velocity low-pass is at [line 1081](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1081).
-`observation.input` is zeroed at [line 1005](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1005), not filled with measured torques or wrenches.
+Quaternion normalization, yaw unwrapping and angular velocity conversion are at [line 1087](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1087).
+The optional generalized velocity low-pass is at [line 1108](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1108).
+`observation.input` is zeroed at [line 1032](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1032), not filled with measured torques or wrenches.
 
 
 ## 3. Dynamics, Constraints and Initialization
@@ -192,7 +192,7 @@ Target-mode changes request filter reset and pose latching at [ProceduralMpcMoti
 [ProceduralMpcMotionManager.cpp:126](../src/core/humanoid_common_mpc/src/reference_manager/ProceduralMpcMotionManager.cpp#L126) implements faster/slower gait guards.
 Per-solver target dispatch, measured-speed checks and template selection start at [line 173](../src/core/humanoid_common_mpc/src/reference_manager/ProceduralMpcMotionManager.cpp#L173).
 [GaitScheduleUpdater.cpp:45](../src/core/humanoid_common_mpc/src/gait/GaitScheduleUpdater.cpp#L45) delays template insertion, while [GaitSchedule.cpp](../src/core/humanoid_common_mpc/src/gait/GaitSchedule.cpp) extends the schedule.
-The WB-ID gait templates, including supported walking and running, start at [ros2_controllers.yaml:578](../config/g1/ros2_controllers.yaml#L689).
+The WB-ID gait templates, including supported walking and running, start at [ros2_controllers.yaml:689](../config/g1/ros2_controllers.yaml#L689).
 [SwitchedModelReferenceManager.cpp:224](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L224) combines schedule, support heights and swing references.
 [config_builder_utils.hpp](../include/legged_robot_mpc_controller/common/config/config_builder_utils.hpp#L130) loads optional per-template `swingHeight`, with -1 inheriting `gait.swingTrajectory.swingHeight`.
 [GaitSchedule.cpp](../src/core/humanoid_common_mpc/src/gait/GaitSchedule.cpp#L52) preserves per-phase height metadata when inserting, trimming and extending gait templates.
@@ -274,24 +274,24 @@ Implementing frame relations requires schema/builder frame-pair declarations and
 
 ## 7. Solver, Policy and Actuation
 
-[construct_solver():1165](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1165) accepts only `sqp`, constructs `SqpMpc`, connects MRT and installs the synchronized modules.
-The asynchronous worker starts at [line 1194](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1194).
-The control loop forwards each valid observation through OCS2's existing `setCurrentObservation()` before policy checks or bring-up dispatch at [line 526](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L526).
-After construction, the worker waits for a new control-loop observation before its first solve at [line 1156](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1156).
-Policy handover checks finite timestamps and requires the evaluation time to lie inside the plan, with two control periods remaining, at [line 538](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L538).
+[construct_solver():1192](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1192) accepts only `sqp`, constructs `SqpMpc`, connects MRT and installs the synchronized modules.
+The asynchronous worker starts at [line 1221](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1221).
+The control loop forwards each valid observation through OCS2's existing `setCurrentObservation()` before policy checks or bring-up dispatch at [line 552](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L552).
+After construction, the worker waits for a new control-loop observation before its first solve at [line 1183](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1183).
+Policy handover checks finite timestamps and requires the evaluation time to lie inside the plan, with two control periods remaining, at [line 564](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L564).
 An unusable policy requests `resetMpcNode()` on the solver worker, following the atomic warm-start reset pattern in `dynamics_mpc_controller`, rather than resetting the solver from the control thread.
 Startup keeps holding the standing posture and retries; loss of a valid policy during the startup blend returns to `StartingMpc`, while loss after entering estimator-driven `Locomotion` latches the existing `Fault` state.
 The ground-truth feedback path holds the last commanded posture while awaiting a valid replacement policy.
 No additional age-limit parameter or alternative observation interface is introduced.
-[compute_mpc_joint_action():1348](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1348) evaluates the policy using `ocs2.solver.rollout.policyTimeOffset`.
+[compute_mpc_joint_action():1375](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1375) evaluates the policy using `ocs2.solver.rollout.policyTimeOffset`.
 The same offset is used by policy-interval validation, so the accepted interval and execution time remain consistent; it is a runtime policy look-ahead, not an ODE timestep.
 `MRT_BASE::evaluatePolicy()` interpolates the planned state and evaluates its input controller without calling `rolloutPolicy()`.
 WB-ID therefore has no `TimeTriggeredRollout` object or MRT `initRollout()` call; its obsolete ODE settings and unused DDP settings storage were removed.
-Planned joint position/velocity extraction is at [line 1364](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1364).
-The torque-window check and planned-state inverse-dynamics fallback are at [line 1382](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1382).
-The alternative measured-state inverse dynamics is at [line 1399](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1399).
-Feedforward clipping is [clamp_torque():1339](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1339).
-Joint position/velocity/effort and optional gain interface writes are at [line 1666](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1666).
+Planned joint position/velocity extraction is at [line 1391](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1391).
+The torque-window check and planned-state inverse-dynamics fallback are at [line 1409](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1409).
+The alternative measured-state inverse dynamics is at [line 1426](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1426).
+Feedforward clipping is [clamp_torque():1367](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1367).
+Joint position/velocity/effort and optional gain interface writes are at [line 1711](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1711).
 
 `python3 tests/wb_id_startup_contract_test.py -v` checks the startup observation flow, policy bounds, reset ownership and bring-up guards without a ROS build.
 These are static regression checks, not a substitute for repeated startup tests in the simulator.
@@ -362,18 +362,18 @@ The references below map that table to the current implementation; only the pair
 
 | Responsibility | Implementation or current parameters |
 | --- | --- |
-| Stance height/tilt correction gains | [ros2_controllers.yaml:971](../config/g1/ros2_controllers.yaml#L1082), [stance equations:116](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdFootAccelerationConstraintCppAd.cpp#L116) |
+| Stance height/tilt correction gains | [ros2_controllers.yaml:446](../config/g1/ros2_controllers.yaml#L446), [stance equations:116](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdFootAccelerationConstraintCppAd.cpp#L116) |
 | Shared gain in swing vertical correction | [WbIdFootAccelerationConstraintCppAd.cpp:109](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdFootAccelerationConstraintCppAd.cpp#L109) |
-| Running/terminal base z and vz weights | [Q:864](../config/g1/ros2_controllers.yaml#L975), [Qf:880](../config/g1/ros2_controllers.yaml#L991) |
-| Foot task-space cost | [weights:916](../config/g1/ros2_controllers.yaml#L1027) |
-| Swing clearance | [swingHeight:1084](../config/g1/ros2_controllers.yaml#L1195) |
-| Torso free lean and angular damping | [torsoTiltCost:935](../config/g1/ros2_controllers.yaml#L1046) |
-| Extra leg-load cost activation | [legTorqueCost:943](../config/g1/ros2_controllers.yaml#L1054) |
-| Joint PD and feedforward | [control:756](../config/g1/ros2_controllers.yaml#L867) |
-| Command slew limits and filtering | [limits:1049](../config/g1/ros2_controllers.yaml#L1160), [WalkingVelocityTarget.cpp:90](../src/core/humanoid_common_mpc/src/target/WalkingVelocityTarget.cpp#L90) |
+| Running/terminal base z and vz weights | [Q:338](../config/g1/ros2_controllers.yaml#L338), [Qf:354](../config/g1/ros2_controllers.yaml#L354) |
+| Foot task-space cost | [weights:391](../config/g1/ros2_controllers.yaml#L391) |
+| Swing clearance | [swingHeight:672](../config/g1/ros2_controllers.yaml#L672) |
+| Torso free lean and angular damping | [torsoTiltCost:410](../config/g1/ros2_controllers.yaml#L410) |
+| Extra leg-load cost activation | [legTorqueCost:418](../config/g1/ros2_controllers.yaml#L418) |
+| Joint PD and feedforward | [control:239](../config/g1/ros2_controllers.yaml#L239) |
+| Command slew limits and filtering | [limits:637](../config/g1/ros2_controllers.yaml#L637), [WalkingVelocityTarget.cpp:90](../src/core/humanoid_common_mpc/src/target/WalkingVelocityTarget.cpp#L90) |
 | Planar-relative base tracking | [BaseMotionTrackingCost.cpp:51](../src/core/humanoid_common_mpc/src/cost/BaseMotionTrackingCost.cpp#L51) |
 | Mapped terrain planner inactive outside its explicit mode | [mode gate:189](../src/core/humanoid_common_mpc/src/reference_manager/ProceduralMpcMotionManager.cpp#L189), [world-up fallback:307](../include/humanoid_common_mpc/reference_manager/SwitchedModelReferenceManager.h#L307) |
-| Current flat support-height assumption | [option:1052](../config/g1/ros2_controllers.yaml#L1163), [reference fallback:126](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L126) |
+| Current flat support-height assumption | [option:641](../config/g1/ros2_controllers.yaml#L641), [reference fallback:126](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L126) |
 | Linear KF flat contact-height observation | [zero heights:159](../src/humanoid_state_estimation/linear_kf_floating_base_estimator.cpp#L159), [measurement:303](../src/humanoid_state_estimation/linear_kf_floating_base_estimator.cpp#L303) |
 | Scheduled estimator contacts | [contact source:168](../config/g1/ros2_controllers.yaml#L168) |
 | Automatic recording and scoring | [run_case.sh:35](../tests/tuning/run_case.sh#L35), [command schedule:76](../tests/tuning/tune_probe.py#L76) |
@@ -435,15 +435,15 @@ The following links point to the current WB-ID YAML and construction guards, rat
 
 | Constraint group | Current parameters | OCP registration |
 | --- | --- | --- |
-| `inverseDynamics` | [YAML:966](../config/g1/ros2_controllers.yaml#L1077) | [RNEA rows:163](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L169) |
-| `footMotionEquality` | [YAML:971](../config/g1/ros2_controllers.yaml#L1082) | [Acceleration equalities:193](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L199) |
-| `swingFootZeroWrench` | [YAML:985](../config/g1/ros2_controllers.yaml#L1096) | [Zero-wrench equality:190](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L196) |
-| `frictionCone` | [YAML:988](../config/g1/ros2_controllers.yaml#L1099) | [Soft cone:183](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L189) |
-| `contactMomentXY` | [YAML:994](../config/g1/ros2_controllers.yaml#L1105) | [Soft CoP:186](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L192) |
-| `jointPositionLimits` | [YAML:999](../config/g1/ros2_controllers.yaml#L1110) | [Soft position bounds:144](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L144) |
-| `jointVelocityLimits` | [YAML:1005](../config/g1/ros2_controllers.yaml#L1116) | [Scaled soft velocity bounds:150](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L156) |
-| `jointTorqueLimits` | [YAML:1012](../config/g1/ros2_controllers.yaml#L1123) | [Soft torque bounds:171](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L177) |
-| `legSelfCollision` | [YAML:1026](../config/g1/ros2_controllers.yaml#L1137) | [Soft leg separation:147](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L147) |
+| `inverseDynamics` | [YAML:441](../config/g1/ros2_controllers.yaml#L441) | [RNEA rows:163](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L169) |
+| `footMotionEquality` | [YAML:446](../config/g1/ros2_controllers.yaml#L446) | [Acceleration equalities:193](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L199) |
+| `swingFootZeroWrench` | [YAML:460](../config/g1/ros2_controllers.yaml#L460) | [Zero-wrench equality:190](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L196) |
+| `frictionCone` | [YAML:463](../config/g1/ros2_controllers.yaml#L463) | [Soft cone:183](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L189) |
+| `contactMomentXY` | [YAML:469](../config/g1/ros2_controllers.yaml#L469) | [Soft CoP:186](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L192) |
+| `jointPositionLimits` | [YAML:474](../config/g1/ros2_controllers.yaml#L474) | [Soft position bounds:144](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L144) |
+| `jointVelocityLimits` | [YAML:480](../config/g1/ros2_controllers.yaml#L480) | [Scaled soft velocity bounds:150](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L156) |
+| `jointTorqueLimits` | [YAML:487](../config/g1/ros2_controllers.yaml#L487) | [Soft torque bounds:171](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L177) |
+| `legSelfCollision` | [YAML:612](../config/g1/ros2_controllers.yaml#L612) | [Soft leg separation:147](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L147) |
 
 The generated schema declares the renamed groups at [footMotionEquality:236](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller_parameter.yaml#L236), [swingFootZeroWrench:310](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller_parameter.yaml#L328) and [legSelfCollision:274](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller_parameter.yaml#L274), and the [builder:205](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L230) maps all nine activation flags.
 The builder maps each switch to a same-purpose `WbIdMpcInterface::Config` field, and the interface skips construction and registration when disabled; the shared factory and centroidal schema retain their existing interfaces.
@@ -456,13 +456,13 @@ The controller warns if dynamics/contact equalities are disabled and uses measur
 
 ## 12. Future Robot Mesh Ghosts
 
-The visualization-only settings are declared in both controller schemas and set in the [G1 WB-ID YAML](../config/g1/ros2_controllers.yaml#L750), [G1 centroidal YAML](../config/g1/ros2_controllers.yaml#L1271) and [H2 WB-ID YAML](../config/h2/ros2_controllers.yaml#L786).
+The visualization-only settings are declared in both controller schemas and set in the [G1 WB-ID YAML](../config/g1/ros2_controllers.yaml#L750), [G1 centroidal YAML](../config/g1/ros2_controllers.yaml#L1263) and [H2 WB-ID YAML](../config/h2/ros2_controllers.yaml#L832).
 `optimizedStateRobotModelsActivate` and `optimizedStateRobotModelsInterval` retain the legacy names and defaults `true` and `0.2 s`; there is no launch argument or separate ghost horizon.
 
 | Stage | Implementation |
 | --- | --- |
-| Consistent policy snapshot | [Controller handoff](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L590) passes policy timestamps/states and the matching MRT command targets at the existing maximum 10 Hz handoff rate |
-| Subscriber-driven copying | [Worker input](../src/visualization/performance_visualization.cpp#L66) returns before copying when no display is subscribed; the [worker](../src/visualization/performance_visualization.cpp#L76) performs FK/publishing only for subscribed displays and fresh snapshots |
+| Consistent policy snapshot | [Controller handoff](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L616) passes policy timestamps/states and the matching MRT command targets at the existing maximum 10 Hz handoff rate |
+| Subscriber-driven copying | [Worker input](../src/visualization/performance_visualization.cpp#L71) returns before copying when no display is subscribed; the [worker](../src/visualization/performance_visualization.cpp#L81) performs FK/publishing only for subscribed displays and fresh snapshots |
 | Robot-independent visuals | [URDF extraction](../src/visualization/future_robot_model_visualization.cpp#L70) retains visual origins, mesh scales, multiple visuals and primitive geometry on BODY frames, including reduced-model fixed links |
 | Correct state layout | [State-to-pose conversion](../src/visualization/future_robot_model_visualization.cpp#L148) uses `MpcRobotModelBase::getGeneralizedCoordinates`, not the full centroidal or WB-ID state as a Pinocchio configuration |
 | Temporal resolution | [Sampling](../src/visualization/future_robot_model_visualization.cpp#L186) uses the actual policy start/end, rounds horizon/interval to the number of ghosts, then distributes samples equally over that horizon including its endpoint, as in the legacy controller |
@@ -478,3 +478,31 @@ This changes neither the OCP nor actuator commands.
 
 `tests/test_future_robot_visualization.py` checks parameter defaults, YAML-only controls, shared worker wiring, RViz topics and best-effort settings without ROS.
 `tests/future_robot_ghosts_test.py --robot-name g1|h2 --horizon <seconds>` runs a short headless flat walk, subscribes after a subscription-free startup interval, checks the published ghost count, colors, alpha, mesh resources, poses and QoS, and lets the owned walking test stop its simulator normally.
+
+
+## 13. Collision Spheres
+
+WB-ID declares `visualization.collisionSpheres.activate`, `markerTopic` and `alpha` in its [parameter schema](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller_parameter.yaml#L464).
+The schema defaults activation to false; both shipped G1/H2 WB-ID YAMLs enable it with alpha 0.25 and topic `/performance_visualization/collisionSpheres`.
+There are no new launch arguments or collision geometry overrides in the visualization group.
+
+The [controller configuration](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L190) copies the resolved OCP geometry into marker settings once.
+Only enabled collision groups are drawn: `legSelfCollision` supplies eight foot/ankle spheres and two knee spheres; `armSelfCollision` supplies all named arm and torso/pelvis/head spheres.
+G1 therefore draws 32 spheres and H2 draws 34 with their current enabled groups.
+These counts are distinct from the number of collision pairs; showing a sphere does not imply every pair of displayed spheres is constrained.
+Leg spheres remain visible in double support for geometry inspection, even when the leg sphere penalty is gait-gated off; the minimum-lateral-separation row is not a sphere and is not drawn.
+
+[CollisionSphereVisualization](../src/visualization/collision_sphere_visualization.cpp#L51) converts the observed MPC state through `getGeneralizedCoordinates()` and computes each center as the frame placement acting on the configured local offset.
+The display is the latest observed pose handed to the worker, not a future ghost or the oldest policy sample.
+Marker diameter is twice the collision radius; neither `minimumDistance` nor the polynomial/barrier buffer is added to the rendered radius.
+Green, orange and blue namespaces distinguish legs, arms and body; RViz can hide them independently.
+The markers expire after one second of ROS time without updates, so stopped poses do not persist indefinitely.
+
+The existing [visualization worker](../src/visualization/performance_visualization.cpp#L86) owns separate Pinocchio data and a cloned robot model, receives the observation through its nonblocking snapshot handoff and performs FK/publishing only with a sphere-topic subscriber.
+The existing WB-ID handoff remains capped at 10 Hz, while `visualization.update_rate` controls worker polling; setting it to 30 Hz does not turn the source handoff into 30 Hz.
+The topic uses best-effort, volatile, depth-one QoS, matched by the saved [RViz display](../config/rviz/humanoid.rviz).
+This adds no optimizer terms, solver-thread FK, new collision pairs or actuator behavior.
+As with the existing ghosts, enabling a display still consumes CPU and adds snapshot-copy work; disabling RViz avoids subscriber-driven marker work.
+
+`tests/test_collision_sphere_visualization.py` checks schema/configuration, shared geometry wiring, threading and RViz/QoS contracts without ROS.
+`tests/collision_spheres_test.py --robot-name g1|h2 --prefix /tmp/collision_spheres_<robot>` runs an owned headless flat walk at an 80 Hz MPC request and checks late-subscriber discovery, counts, exact diameters, namespaces, finite poses, alpha, expiry and relative sphere offsets on each rigid link.
