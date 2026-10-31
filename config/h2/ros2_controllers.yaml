@@ -349,9 +349,9 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           # Adaptive time steps with fine-to-coarse resolution within the time horizon
           timeGrid:
             activate: true # false: uniform time grid
-            maxStep: 0.035
-            growthFactor: 1.4
-            fineHorizon: 0.2
+            maxStep: 0.035 # [s]; maximum time step size
+            growthFactor: 1.4 # dt_k = growthFactor^k * dt_0
+            fineHorizon: 0.2 # [s]; remain uniform time steps at the first x [sec], then grow to the max step size.
           sqpIteration: 1
           deltaTol: 0.0001
           g_max: 0.01
