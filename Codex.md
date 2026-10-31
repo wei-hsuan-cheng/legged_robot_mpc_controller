@@ -1,6 +1,118 @@
 # WB-ID MPC Walking Robustness Handoff
 
 
+## Arm Versus Body Collision Checkpoint (2026-10-31 Asia/Taipei)
+
+### Final Manual-Test Checkpoint
+
+Ready for manual testing; all owned simulator, controller and test processes are stopped.
+Checkpoint prepared on `feat/arm_swing`, based on `08e052ee713b7f4000e87b517cc3e24612612e74`, for the user's requested commit and push.
+No OCS2 edits were made.
+Release build in Parallels Docker `ros_jazzy` succeeded with two build jobs and `BUILD_TESTING=ON` for the native test.
+CTest, 33 existing WB-ID contract tests and 5 new configuration/geometry tests passed.
+Native tests include 100 randomized analytic-Jacobian checks, selected-row ordering/bounds, base-pose invariance, clone isolation, coincident centers, and generic-versus-optimized cost/gradient/Hessian equivalence.
+All retained G1/H2 parameter values are unchanged, verified by structured comparison against HEAD after removing only the new `ocs2.constraints.armSelfCollision` block.
+No arm-swing reference, launch, solver, terrain, estimator or existing leg-collision settings were changed.
+
+| Robot | Saved arm collision setting | Flat locomotion | Inward-arm sphere clearance |
+| --- | --- | --- | --- |
+| G1 | `polynomial`, min distance 0.015 m, mu 6000, delta 0.01 m; 96 pairs | vx 0.5 m/s, 28 s, upright; achieved about 0.432 m/s | Minimum 16.72 mm; no overlap or requested-margin violation |
+| H2 | `polynomial`, min distance 0.015 m, mu 3000, delta 0.02 m; 128 pairs | vx 0.5 m/s for 28 s and vy 0.3 m/s for 26 s, upright; achieved about 0.528 / 0.287 m/s | Minimum 26.39 mm; no overlap or requested-margin violation |
+
+The final selected-row implementation was rebuilt and rerun on G1/H2 forward walking and H2 lateral walking, with no falls, solver exceptions or torque-window overruns.
+The final inward-arm settings were tested before the last exact Jacobian-work optimization; native comparisons prove that optimization preserves the cost/gradient/Gauss-Newton Hessian, including active and fully inactive cases.
+The latest final-code runs are `/tmp/arm_body_{g1,h2}_selected_vx_1` and `/tmp/arm_body_h2_selected_vy_1` inside Docker.
+
+| Worker rate comparison, 125 Hz requested | Disabled references | Latest final code | Latest walking mean advance |
+| --- | --- | --- | --- |
+| G1 forward, unchanged uniform grid (~54 nodes) | 87.56 / 93.41 Hz | 86.04 Hz | 11.581 ms |
+| H2 forward, unchanged nonuniform grid (~38 nodes) | 119.35 / 116.70 / 113.31 Hz | 103.46 Hz | 9.498 ms |
+| H2 lateral, ~42 nodes | Not paired in this session | 96.45 Hz | 10.441 ms |
+
+Timing provenance was rechecked against the saved test JSON and model-loading logs: the G1/H2 labels are not reversed.
+`arm_body_g1_selected_vx_1` loaded `g1_29dof.urdf`; `arm_body_h2_selected_vx_1` loaded `h2_31dof.urdf`; both requested 125 Hz.
+These were isolated headless flat-scene trials using InEKF, with no RViz or GUI subscribers, not predictions for every interactive session.
+The user reports about **86 Hz on H2** in their own test, correcting their earlier 80 Hz report.
+Record that observation separately; its cause has not been established, and the retained headless result does not invalidate it or demonstrate sustained 100 Hz in the user's setup.
+Compare enabled/disabled under matched launch, grid, logging and runtime load before attributing that difference to this collision cost.
+
+Observed latest forward comparisons are about 8-9% lower than the nearest disabled references, but substantial VM run-to-run spread prevents claiming this is a precise intrinsic overhead.
+Earlier filtered-wrapper runs reached G1 95.13 Hz and H2 112.34 Hz; do not cherry-pick those as the final rate or claim adding collision makes solves faster.
+Rate comes from worker timing logs, not 100 Hz diagnostic publication counts; all comparisons use the same 100 Hz tracking diagnostics and `OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1`.
+The feature does add geometry work; no hard real-time deadline is established, and some VM advances exceeded 100 ms.
+A controlled synthetic per-node benchmark (62-state, 128-pair, single-thread BLAS/OpenMP) measured generic versus selected-row evaluation at 65.94 versus 1.74 us with all pairs clear, and 71.90 versus 19.70 us in a near-body case.
+That component improvement justifies the exact active-row/Jacobian optimization, but is not an end-to-end MPC speedup claim.
+Reproduce with `OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 ./build/legged_robot_mpc_controller/arm_body_collision_test --benchmark` in the sourced Docker workspace.
+
+Raw config snapshots, CSV/JSON, timing plots, clearance plots and a rendered replay are retained locally in ignored `tuning_results/arm_body_collision_20261031/`.
+Start with `comparison.png`, `comparison.json`, `native_benchmark.txt`, `*_selected_*_time_grid.json`, `*_arm_clearance.json` and `*_mesh.json` there.
+The microbenchmark without the matching single-thread environment was discarded.
+Only flat locomotion was checked for this feature; uneven terrain, running, pushes and real hardware are not newly certified.
+The spheres approximate selected volumes, not the full original mesh surface; there is no arm-arm, arm-leg, environment or runtime-hard-stop collision protection.
+These remain soft preferences, not a collision-free guarantee.
+
+```text
+FEAT: add WB-ID arm-body sphere collision avoidance
+
+- Add configurable G1/H2 spheres, activation and polynomial/RBF penalties
+- Use analytic Jacobians and exact active-row cost assembly
+- Add clearance tests, solve-rate benchmarks and documentation
+```
+
+
+### Investigation Notes
+
+Work is on `feat/arm_swing`; user first requested a draft under `/tmp`, then explicitly authorized applying, building and testing.
+Added WB-ID-only `constraints.armSelfCollision`, with named link-local arm and torso/pelvis/head spheres, configure-time activation, and `implementation: rbf` or `polynomial`.
+Existing leg self-collision, arm-swing references, solver settings and centroidal configuration are unchanged.
+Each arm sphere is checked against each body sphere in every gait, including stance; there are no new arm-arm or arm-leg pairs.
+The constraint uses analytic Pinocchio frame/offset Jacobians, independently owned worker Data/mappings, and conservative epsilon distance regularization.
+No new CppAD models or OCS2 changes are needed.
+The initial geometry has 16 arm spheres and 6 body spheres on G1 (96 rows), and 16 arm spheres and 8 body spheres on H2 (128 rows).
+These are approximate selected collision volumes, not a certified enclosing mesh model; proximal shoulder attachments and other unconfigured volumes are not fully represented.
+Offline initial-posture sphere surface gaps are 28.62 mm on G1 and 52.22 mm on H2, versus the configured 15 mm margin.
+Read `/Users/whcheng/src/mpc/dynamics_mpc_controller/docs/rbf.md`; current RBF start is `mu: 0.01`, `delta: 0.02`, giving boundary slope -1 and curvature 25.
+Polynomial `mu` has different units/scaling; it is not interchangeable numerically with RBF `mu`.
+The log barrier has feasible-region gradients; the polynomial is exactly inactive beyond its buffer.
+Jazzy package build succeeded; the new native test passed 100 randomized Jacobian comparisons (worst absolute error 1.66534e-10), base-pose invariance, clone isolation, coincident centers, activation, invalid configurations and penalty derivatives.
+An initial GT-feedback benchmark was invalid: GT bypasses estimator bring-up, the robot fell before the legacy harness's locomotion marker, and no valid command phases were reached.
+That process was stopped; do not use its timing as a locomotion comparison or blame the disabled collision term.
+Repeating paired enabled/disabled tests using `floatingBaseSource:=state_estimator`, InEKF, isolated flat scene, 125 Hz request and identical 100 Hz diagnostic logging.
+The valid H2 disabled baseline `/tmp/arm_body_h2_off_2` completed 28 s, vx command 0.5 m/s, achieved mean vx 0.5253 m/s, minimum base z 0.9872 m, peak roll/pitch 0.0128/0.0162 rad.
+The first RBF walking pair completed with mean reported actual rate 119.35 Hz disabled versus 116.15 Hz enabled, mean walking advance 7.868 versus 8.547 ms.
+However, RBF changed mean left shoulder roll from 0.2096 to 0.3456 rad under the same nominal 0.2 rad reference, consistent with its noncompact feasible-region gradient.
+The repeatable inward target `[0.2,-0.4,0,1.2, 0.2,-0.2,0,1.2]` produced minimum sphere gaps -17.83 mm with avoidance disabled, +12.10 mm with light RBF, and +26.33 mm with polynomial `mu=3000, delta=0.02`.
+All remained upright; the 0.01 m/s command is below locomotion activation, so the walking harness labels these intentional stationary arm tests `NO_TRACKING`, not a walking pass.
+The disabled case had 1789 overlapping replay samples; polynomial had zero sphere overlaps and zero requested-margin violations.
+Initially selected polynomial with mu 3000 for both robots to avoid continuously spreading the arms; G1 uses delta 0.01 (25 mm activation gap), H2 delta 0.02 (35 mm activation gap), both minimumDistance 0.015.
+G1 was subsequently strengthened to mu 6000 as recorded in the final checkpoint above.
+The narrower G1 buffer leaves its nominal 28.6 mm gap unpenalized.
+H2 generic-wrapper polynomial vx trials passed twice (28 s each, achieved vx 0.5240/0.5254 m/s), and vy 0.3 m/s passed for 26 s (pose-derived lateral speed 0.2867 m/s, minimum sphere gap 25.99 mm).
+Do not use raw published GT `walk_mean_vy` as lateral speed; its known frame issue remains, so use pose-derived displacement/speed.
+The generic wrapper polynomial trials cost more: actual 105.24/100.42 Hz versus disabled repeats 119.35/116.70 Hz, mean walking advance 9.381/9.837 versus 7.868/8.102 ms.
+To avoid multiplying dense Hessians by exactly zero polynomial rows, added local `ArmBodyCollisionSoftConstraint`, reusing OCS2 `MultidimensionalPenalty` on only active rows; every pair's distance is still checked and all noncompact RBF rows remain.
+This is an exact objective/gradient/Gauss-Newton-Hessian optimization, not a new avoidance rule or reduced constraint set.
+After rebuilding, native comparisons against generic `StateSoftConstraint` passed for both penalties over 100 random states, including 62 active and 38 fully inactive polynomial cases; worst distance-Jacobian error 1.66533e-10.
+G1 disabled vx baseline also passed, actual 87.56 Hz with its unchanged uniform grid (~54 nodes), versus H2's nonuniform ~38-node forward grid; compare each robot against itself, not across robots.
+The harness now recognizes successful direct-GT first advances too, rather than waiting indefinitely for an estimator-only bring-up marker after an early fall.
+Current task changes no retained G1/H2 parameter values: a structured comparison against HEAD, removing only the new armSelfCollision block, returned identical configurations for both robots.
+Final optimized-wrapper H2 vx passed (28 s, mean reported actual 112.34 Hz, walking advance 8.683 ms, achieved vx 0.5294 m/s, minimum sphere gap 27.43 mm).
+Its lateral regression passed (26 s, reported actual 111.80 Hz, walking advance 8.941 ms, pose-derived vy 0.2866 m/s for 0.3 commanded, minimum sphere gap 26.01 mm).
+Final-wrapper H2 inward target again remained upright with minimum sphere gap 26.39 mm and no requested-margin violations.
+G1 optimized-wrapper vx also passed (28 s, 95.13 Hz, advance 10.298 ms, achieved vx 0.4338 m/s, minimum gap 25.23 mm).
+G1 repeated disabled baseline measured 93.41 Hz, advance 10.570 ms; its earlier disabled case was 87.56 Hz, so VM variation is substantial and this is not evidence that adding collision improves solve speed.
+Actual worker Hz comes from `[MPC_TIMING]` wall-time logs, not the fixed 100 Hz diagnostic topic; advance statistics are from the constant-command walking phase.
+VM scheduling outliers remain (one optimized H2 recorded advance reached 93.8 ms); do not claim a hard 100 Hz deadline or deterministic timing from these averages.
+The first G1 inward target with mu 3000 had no sphere overlap but settled at 14.60 mm, 0.40 mm below the requested margin.
+Raised only G1 mu to 6000 while keeping delta 0.01: same -30 boundary slope as H2, no new nominal-posture penalty because the inactive buffer boundary is unchanged.
+Verification of that final G1 strength and timing repeats is complete, with final results summarized above.
+The final G1 mu 6000 inward-arm rerun passed the requested sphere margin: minimum 16.72 mm, no overlap or margin violations, upright throughout 20 s.
+Independent offline checks of MuJoCo collision geoms/convex meshes at 101 sampled poses found minimum arm/body clearance 20.56 mm for H2 avoidance-disabled inward motion, 30.96 mm for H2 enabled, and 18.42 mm for final G1 enabled.
+Therefore do not describe the disabled H2 sphere-proxy overlap as an observed physical mesh collision; the proxy is conservative for that pair/path.
+These sampled convex-geometry checks are not a continuous original-mesh certificate and do not remove the documented coverage limitations.
+`/tmp/legged_arm_body_collision_draft` also contains an exploratory inflated geometry proposal that produced nominal proxy overlaps and was NOT applied; the authoritative geometry is the current G1/H2 YAML, not that draft generator.
+
+
 ## Package-Wide SQP-Only Cleanup (2026-10-31 Asia/Taipei)
 
 The user confirmed SQP is the only intended backend in legged MPC, expanding the preceding WB-ID-only cleanup to both controller implementations.

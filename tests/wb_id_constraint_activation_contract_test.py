@@ -25,9 +25,9 @@ FLAGS = {
 
 
 class ConstraintActivationContractTest(unittest.TestCase):
-    def test_every_constraint_has_an_enabled_default_and_builder_mapping(self):
+    def test_existing_constraints_have_enabled_defaults_and_builder_mappings(self):
         header = (ROOT / "include/humanoid_wb_id_mpc/WbIdMpcInterface.h").read_text()
-        self.assertEqual(set(PARAMS["ocs2"]["constraints"]), set(FLAGS))
+        self.assertEqual(set(PARAMS["ocs2"]["constraints"]), set(FLAGS) | {"armSelfCollision"})
         for name, (flag, _) in FLAGS.items():
             with self.subTest(constraint=name):
                 self.assertIs(PARAMS["ocs2"]["constraints"][name]["activate"], True)
@@ -36,6 +36,14 @@ class ConstraintActivationContractTest(unittest.TestCase):
                 self.assertIs(entry["default_value"], True)
                 self.assertIn(f"bool {flag} = true;", header)
                 self.assertIn(f"config.{flag} = p.constraints.{name}.activate;", BUILDER)
+
+    def test_arm_body_collision_is_opt_in_and_guarded(self):
+        self.assertFalse(SCHEMA["ocs2"]["constraints"]["armSelfCollision"]["activate"]["default_value"])
+        self.assertTrue(PARAMS["ocs2"]["constraints"]["armSelfCollision"]["activate"])
+        self.assertIn("armCollision.activate = armParams.activate;", BUILDER)
+        guard = block(INTERFACE, "if (config_.armSelfCollision.activate)")
+        self.assertIn('"armSelfCollision"', guard)
+        self.assertIn("std::make_unique<ArmBodyCollisionSoftConstraint>", guard)
 
     def test_all_switch_combinations_are_declared_parameters(self):
         for values in product((False, True), repeat=len(FLAGS)):

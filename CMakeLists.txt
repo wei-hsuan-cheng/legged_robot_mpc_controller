@@ -251,6 +251,9 @@ install(TARGETS
 )
 
 if(BUILD_TESTING)
+  add_executable(arm_body_collision_test tests/arm_body_collision_test.cpp)
+  target_link_libraries(arm_body_collision_test PRIVATE legged_robot_humanoid_wb_id_core)
+  add_test(NAME arm_body_collision_test COMMAND arm_body_collision_test)
   find_package(ament_lint_auto REQUIRED)
   set(ament_cmake_copyright_FOUND TRUE)
   set(ament_cmake_cpplint_FOUND TRUE)

@@ -463,7 +463,8 @@ The runtime feedforward torque clamp is a separate control operation.
 
 ### 5.7 Configure-time constraint activation
 
-Every WB-ID constraint group has `activate: true` by default; none of the listed groups is a placeholder.
+The existing WB-ID constraint groups default to `activate: true`; the optional `armSelfCollision` defaults to false in the parameter schema and is enabled explicitly in the supplied G1/H2 configurations.
+None of the listed groups is a placeholder.
 `footMotionEquality` contains hard equalities only, not inequality constraints or soft penalties; the position, orientation and velocity gains are feedback terms within those acceleration equations.
 These switches control construction and registration, following the configure-time optional-cost pattern; restart or reconfigure the controller to apply them.
 
@@ -478,9 +479,58 @@ These switches control construction and registration, following the configure-ti
 | `jointVelocityLimits` | Soft scaled URDF velocity bounds | Whole horizon |
 | `jointTorqueLimits` | Soft scaled URDF or override torque bounds | Torque window only; does not disable feedforward clipping |
 | `legSelfCollision` | Soft foot/knee sphere distances and optional signed lateral separation | Sphere distances off in double support; optional lateral margin in all modes |
+| `armSelfCollision` | Soft arm versus torso/pelvis/head sphere clearances | All modes, including double support; no arm-arm or arm-leg pairs |
 
 Disabling dynamics or contact equalities is a diagnostic ablation, not a physically consistent locomotion model, and produces a startup warning.
 With inverse dynamics disabled, runtime uses measured-state RNEA rather than executing unconstrained policy torque inputs; that fallback does not restore physical feasibility to the optimized trajectory.
+
+
+### 5.8 Arm versus body sphere margins
+
+`armSelfCollision` approximates selected upper-arm, forearm and hand volumes and selected torso, pelvis and head volumes with link-local spheres.
+It is separate from `legSelfCollision` and does not change the arm reference, gait or leg collision model.
+It uses planned kinematic configurations, not simulator contact signals or ground-truth geometry feedback.
+For arm sphere $i$ and body sphere $j$, define:
+
+$$
+c_i(q)=p_{W F_i}(q)+R_{W F_i}(q)s_i,\qquad
+h_{ij}(q)=\sqrt{\|c_i(q)-c_j(q)\|^2+\epsilon^2}-\epsilon-r_i-r_j-d_{\min}.
+$$
+
+Here $s_i$ is the configured `center` in `linkName`, $r_i$ is `radius`, $d_{\min}$ is `minimumDistance`, and $\epsilon=10^{-9}$ m avoids nonfinite derivatives at coincident centers.
+The regularized distance slightly underestimates the true center distance rather than allowing extra clearance.
+All configured arm/body combinations are evaluated at every ordinary OCP stage, including double support:
+
+$$
+\ell_{\mathrm{armBody}}(q)=\sum_{i\in\mathcal A}\sum_{j\in\mathcal B}p_{\mu,\delta}\big(h_{ij}(q)\big).
+$$
+
+Pinocchio provides analytic frame Jacobians; the local sphere offset contributes $\omega\times R_{W F_i}s_i$ to the center velocity.
+There is no runtime finite differencing or new generated CppAD library.
+The resulting self-clearance is invariant to a common world translation or rotation, and has zero velocity-state derivatives.
+Each solver clone owns its kinematic Data and mapping.
+At exactly coincident centers the finite distance gradient is zero; the regularization is not a special escape-direction rule.
+For the polynomial, rows whose value, gradient and curvature are exactly zero are excluded from the soft-cost Hessian assembly.
+This does not disable any distance check or change the objective; the remaining rows use OCS2's existing penalty and Gauss-Newton approximation.
+These rows contribute soft costs, not new hard QP inequalities or decision variables.
+Extra solve time comes from geometry/Jacobian evaluation, objective assembly and any change in QP conditioning when avoidance is active.
+
+The supplied configurations use `implementation: polynomial`, `minimumDistance: 0.015`, with `mu: 6000.0`, `delta: 0.01` on G1 and `mu: 3000.0`, `delta: 0.02` on H2.
+This polynomial has zero value and gradient for surface gaps at least 0.025 m on G1 or 0.035 m on H2, so it does not continuously spread already-clear arms.
+At $h=0$, its slope is $-\mu\delta/2=-30$ for both settings, and its violation-region curvature is $\mu$, namely 6000 on G1 or 3000 on H2.
+`implementation: rbf` selects the relaxed logarithmic barrier from Section 5.6 instead.
+For RBF, a separate initial scale is `mu: 0.01`, `delta: 0.02`, giving slope $-2\mu/\delta=-1$ and curvature $\mu/\delta^2=25$ at the boundary.
+These two `mu` scales are not interchangeable.
+RBF retains a nonzero feasible-region gradient, whereas the polynomial is inactive beyond its buffer.
+
+Tune sphere placement/radii first, then `minimumDistance`, then penalty strength and transition width.
+Changing the number of overlapping sphere pairs also changes the summed penalty, so recheck strength after changing the approximation.
+Use the sphere centers in the specified link frames, not mesh origins or joint angles.
+The supplied volumes are approximations, not a certified enclosing mesh decomposition; mechanical shoulder attachments and other unconfigured regions are not fully covered.
+Proxy-sphere overlap does not itself prove physical mesh contact, and positive proxy clearance does not certify every unrepresented mesh feature.
+No new arm-arm, arm-leg, environment, continuous-time, terminal-state or runtime hard-stop collision check is added.
+Soft penalties, discrete prediction nodes and one SQP iteration do not guarantee a collision-free executed motion.
+The geometry and soft-margin design are inspired by [Chiu et al., A Collision-Free MPC for Whole-Body Dynamic Locomotion and Manipulation](https://arxiv.org/html/2202.12385v1), but this sphere-pair implementation is not a reproduction of their complete collision pipeline.
 
 
 ## 6. Commands, Gait and Swing References

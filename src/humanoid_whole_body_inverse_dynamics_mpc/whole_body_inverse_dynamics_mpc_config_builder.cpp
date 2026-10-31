@@ -197,6 +197,31 @@ ocs2::humanoid::WbIdMpcInterface::Config buildWholeBodyInverseDynamicsMpcConfig(
      perJoint(p.costs.r.jointTorques, numJoints, 0.1, "costs.r.jointTorques")}, p.costs.rScaling);
 
   // --- constraints ---
+  auto& armCollision = config.armSelfCollision;
+  const auto& armParams = p.constraints.armSelfCollision;
+  armCollision.activate = armParams.activate;
+  armCollision.minimumDistance = armParams.minimumDistance;
+  armCollision.implementation = armParams.implementation;
+  armCollision.mu = armParams.mu;
+  armCollision.delta = armParams.delta;
+  const auto readSpheres = [](const auto& group, auto& spheres) {
+    for (const auto& name : group.names) {
+      const auto& entry = group.names_map.at(name);
+      ocs2::humanoid::ArmBodyCollisionSphere sphere;
+      sphere.name = name;
+      sphere.linkName = entry.linkName;
+      if (entry.center.size() != 3) {
+        throw std::invalid_argument("armSelfCollision sphere " + name + " needs a three-element center");
+      }
+      sphere.center = Eigen::Vector3d(entry.center[0], entry.center[1], entry.center[2]);
+      sphere.radius = entry.radius;
+      spheres.push_back(std::move(sphere));
+    }
+  };
+  if (armCollision.activate) {
+    readSpheres(armParams.arms, armCollision.arms);
+    readSpheres(armParams.bodies, armCollision.bodies);
+  }
   config.activateInverseDynamics = p.constraints.inverseDynamics.activate;
   config.activateFootMotionEquality = p.constraints.footMotionEquality.activate;
   config.activateSwingFootZeroWrench = p.constraints.swingFootZeroWrench.activate;

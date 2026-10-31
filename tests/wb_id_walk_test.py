@@ -22,7 +22,7 @@ from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import JointState
-from ocs2_msgs.msg import WalkingVelocityCommand
+from ocs2_msgs.msg import WalkingVelocityCommand, MpcTargets, MpcTargetTrajectories, MpcState, MpcInput
 import yaml
 from ament_index_python.packages import get_package_prefix
 from mujoco_scene import write_scene
@@ -156,6 +156,8 @@ def main():
     parser.add_argument("--startup-timeout", type=float, default=600.0)
     parser.add_argument("--record-joints", action="store_true", help="Save latest joint sample with each base pose for collision analysis and render replay")
     parser.add_argument("--record-tracking", action="store_true", help="Enable 100 Hz controller tracking and record policy modes, planned wrenches and foot motion")
+    parser.add_argument("--arm-target", type=json.loads, help="Optional JSON array for all shoulder/elbow positions, in robot.jointNames order")
+    parser.add_argument("--arm-target-delay", type=float, default=2.0, help="Apply the arm target after MPC takeover [simulation s]")
     parser.add_argument("--launch-prefix", help="Optional debugger prefix for the MuJoCo process only")
     parser.add_argument("--wrench-sequence", type=Path, help="Optional MuJoCo wrench sequence YAML")
     parser.add_argument("--wrench-delay", type=float, default=8.0, help="First pulse after MPC takeover [simulation s]")
@@ -182,6 +184,13 @@ def main():
         parser.error("hold must be positive, ramp nonnegative, and speed nonzero")
     config = yaml.safe_load(args.config.read_text())
     params = config[CONTROLLER]["ros__parameters"]
+    arm_names = [name for name in params["robot"]["jointNames"] if "shoulder" in name or "elbow" in name]
+    if args.arm_target is not None:
+        if (not isinstance(args.arm_target, list) or len(args.arm_target) != len(arm_names)
+                or not all(isinstance(x, (int, float)) and math.isfinite(x) for x in args.arm_target)):
+            parser.error("arm-target must contain one finite position for each shoulder/elbow joint")
+        if not math.isfinite(args.arm_target_delay) or args.arm_target_delay < 0:
+            parser.error("arm-target-delay must be finite and nonnegative")
     if args.record_tracking:
         params["diagnostics"]["trackingRate"] = 100.0
     for entry in args.set:
@@ -245,6 +254,9 @@ def main():
             writer = csv.writer(csv_file)
             writer.writerow(["phase", "time", "x", "y", "z", "roll", "pitch", "yaw", "vx_body", "vy_body", "vz_body", "wz_body"])
             probe = Probe(writer, args.record_joints, args.record_tracking)
+            arm_publisher = probe.create_publisher(MpcTargets, "/humanoid/mpc_targets", QoSProfile(
+                depth=1, reliability=ReliabilityPolicy.BEST_EFFORT)) if args.arm_target is not None else None
+            arm_sent = False
             sender = WrenchPublisher(probe, sequence) if sequence else None
             process = subprocess.Popen(launch_cmd, cwd=launch_cwd, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
             deadline = time.monotonic() + args.startup_timeout
@@ -272,12 +284,27 @@ def main():
                 if start is None:
                     startup_log = log_path.read_text(errors="replace")
                     ready = "-> locomotion" in startup_log
+                    if args.source == "ground_truth_state":
+                        ready = ready or ("activated (ground-truth base)" in startup_log and
+                                          "first MPC advance:" in startup_log)
                     if not ready:
                         probe.command(0.0, 0.0, args.height)
                         continue
                     start = probe.gt[0]
                     deadline = time.monotonic() + 6 * (args.settle + 2 * args.ramp + args.hold + args.rest) + 60
                 elapsed = probe.gt[0] - start
+                if arm_publisher is not None and not arm_sent and elapsed >= args.arm_target_delay:
+                    target = MpcTargets()
+                    target.command_type = "joint"
+                    target.joint_names = arm_names
+                    trajectory = MpcTargetTrajectories()
+                    trajectory.time_trajectory = [0.0]
+                    trajectory.state_trajectory = [MpcState(value=args.arm_target)]
+                    trajectory.input_trajectory = [MpcInput(value=[])]
+                    target.target_trajectories = [trajectory]
+                    arm_publisher.publish(target)
+                    arm_sent = True
+                    print("ARM_TARGET sent", flush=True)
                 if sender:
                     sender.send(elapsed - args.wrench_delay)
                 if elapsed < args.settle:

@@ -498,6 +498,117 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           mu: 0.1
           delta: 5.0
 
+        # Arm versus torso/pelvis/head only; independent of legSelfCollision.
+        armSelfCollision:
+          activate: true
+          minimumDistance: 0.015
+          # Polynomial is inactive beyond minimumDistance + delta; avoids spreading the arms at rest.
+          implementation: polynomial
+          # Polynomial boundary slope = -mu*delta/2 = -30; violation curvature = mu = 6000.
+          # For rbf, start separately with mu: 0.01, delta: 0.02 (curvature mu/delta^2 = 25).
+          mu: 6000.0
+          # A narrower buffer leaves the nominal 28.6 mm arm/body gap unpenalized.
+          delta: 0.01
+          arms:
+            # Selected upper-arm/forearm/hand volumes, excluding mechanical shoulder attachments.
+            names:
+              [left_upper_arm_0, left_upper_arm_1, left_forearm_0, left_forearm_1,
+               left_forearm_2, left_hand_0, left_hand_1, left_hand_2,
+               right_upper_arm_0, right_upper_arm_1, right_forearm_0, right_forearm_1,
+               right_forearm_2, right_hand_0, right_hand_1, right_hand_2]
+            left_upper_arm_0:
+              linkName: left_shoulder_yaw_link
+              center: [0.008, 0.0, -0.035]
+              radius: 0.047
+            left_upper_arm_1:
+              linkName: left_shoulder_yaw_link
+              center: [0.008, 0.0, -0.09]
+              radius: 0.047
+            left_forearm_0:
+              linkName: left_elbow_link
+              center: [0.01, 0.0, -0.005]
+              radius: 0.04
+            left_forearm_1:
+              linkName: left_elbow_link
+              center: [0.065, 0.0, -0.005]
+              radius: 0.04
+            left_forearm_2:
+              linkName: left_elbow_link
+              center: [0.1, 0.0, -0.005]
+              radius: 0.04
+            left_hand_0:
+              linkName: left_rubber_hand
+              center: [0.025, -0.012, 0.008]
+              radius: 0.052
+            left_hand_1:
+              linkName: left_rubber_hand
+              center: [0.075, -0.012, 0.008]
+              radius: 0.052
+            left_hand_2:
+              linkName: left_rubber_hand
+              center: [0.115, -0.012, 0.008]
+              radius: 0.052
+            right_upper_arm_0:
+              linkName: right_shoulder_yaw_link
+              center: [0.008, 0.0, -0.035]
+              radius: 0.047
+            right_upper_arm_1:
+              linkName: right_shoulder_yaw_link
+              center: [0.008, 0.0, -0.09]
+              radius: 0.047
+            right_forearm_0:
+              linkName: right_elbow_link
+              center: [0.01, 0.0, -0.005]
+              radius: 0.04
+            right_forearm_1:
+              linkName: right_elbow_link
+              center: [0.065, 0.0, -0.005]
+              radius: 0.04
+            right_forearm_2:
+              linkName: right_elbow_link
+              center: [0.1, 0.0, -0.005]
+              radius: 0.04
+            right_hand_0:
+              linkName: right_rubber_hand
+              center: [0.025, 0.012, 0.008]
+              radius: 0.052
+            right_hand_1:
+              linkName: right_rubber_hand
+              center: [0.075, 0.012, 0.008]
+              radius: 0.052
+            right_hand_2:
+              linkName: right_rubber_hand
+              center: [0.115, 0.012, 0.008]
+              radius: 0.052
+          bodies:
+            names:
+              [torso_0, torso_1, torso_2, pelvis_0,
+               pelvis_1, head]
+            torso_0:
+              linkName: torso_link
+              center: [0.0, 0.0, 0.035]
+              radius: 0.1
+            torso_1:
+              linkName: torso_link
+              center: [0.0, 0.0, 0.13]
+              radius: 0.1
+            torso_2:
+              linkName: torso_link
+              center: [0.0, 0.0, 0.225]
+              radius: 0.1
+            pelvis_0:
+              linkName: pelvis
+              center: [0.0, -0.025, -0.075]
+              radius: 0.08
+            pelvis_1:
+              linkName: pelvis
+              center: [0.0, 0.025, -0.075]
+              radius: 0.08
+            head:
+              linkName: head_link
+              center: [0.005, 0.0, 0.42]
+              radius: 0.115
+
         legSelfCollision:
           activate: true
           leftAnkleFrame: left_ankle_roll_joint

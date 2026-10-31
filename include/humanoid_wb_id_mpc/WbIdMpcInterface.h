@@ -19,6 +19,7 @@
 #include "humanoid_common_mpc/reference_manager/SwitchedModelReferenceManager.h"
 #include "humanoid_common_mpc/swing_foot_planner/SwingTrajectoryPlanner.h"
 #include "humanoid_wb_id_mpc/common/WbIdMpcRobotModel.h"
+#include "humanoid_wb_id_mpc/constraint/ArmBodyCollisionConstraint.h"
 #include "humanoid_wb_id_mpc/cost/WbIdTorsoTiltCost.h"
 #include "humanoid_wb_id_mpc/constraint/WbIdFootAccelerationConstraintCppAd.h"
 #include "humanoid_wb_id_mpc/constraint/WbIdTorqueWindow.h"
@@ -93,6 +94,7 @@ class WbIdMpcInterface final : public RobotInterface {
     bool activateJointVelocityLimits = true;
     bool activateJointTorqueLimits = true;
     bool activateLegSelfCollision = true;
+    ArmBodyCollisionConfig armSelfCollision;
 
     //! Time span from the start of the horizon in which the joint-torque rows of the
     //! inverse dynamics and the torque limits apply; < 0 for the whole horizon.

@@ -240,6 +240,9 @@ ros2 topic pub --once /humanoid/base_pose_command \
 
 Arm `joint` and `default` commands are implemented for both MPC controllers.
 `frame_relation` and `joint_frame_relation` are currently implemented for the centroidal controller only; WB-ID does not declare frame pairs or register their tracking costs.
+WB-ID also has an optional `ocs2.constraints.armSelfCollision` sphere penalty for arms versus torso, pelvis and head, enabled in the G1/H2 YAMLs.
+It does not add arm-arm or arm-leg checks, and it is a soft safeguard, not a collision-free guarantee.
+See [arm/body collision margins](./docs/humanoid_whole_body_inverse_dynamics_mpc.md#58-arm-versus-body-sphere-margins) for geometry and penalty tuning.
 
 | `command_type` | Meaning |
 |---|---|

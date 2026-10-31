@@ -286,6 +286,24 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         activate: {type: bool, default_value: true, description: "Enable joint position soft penalties using URDF lower and upper bounds"}
         mu: {type: double, default_value: 1200.0, description: "Barrier mu of the joint limits soft constraint"}
         delta: {type: double, default_value: 0.1, description: "Barrier delta of the joint limits soft constraint"}
+      armSelfCollision:
+        activate: {type: bool, default_value: false, description: "Enable arm versus torso/pelvis/head sphere soft penalties in every gait; no arm-arm or arm-leg pairs"}
+        minimumDistance: {type: double, default_value: 0.015, description: "Required sphere surface clearance [m] before the soft penalty; not a hard safety guarantee", validation: {gt_eq: [0.0]}}
+        implementation: {type: string, default_value: "polynomial", description: "Compact-support polynomial penalty, or relaxed logarithmic barrier", validation: {one_of<>: [["rbf", "polynomial"]]}}
+        mu: {type: double, default_value: 3000.0, description: "Penalty strength; log and polynomial implementations use different scales", validation: {gt: [0.0]}}
+        delta: {type: double, default_value: 0.02, description: "Relaxation distance [m]; RBF curvature inside the boundary is mu/delta^2", validation: {gt: [0.0]}}
+        arms:
+          names: {type: string_array, default_value: [], description: "Named upper-arm, forearm and hand spheres", validation: {unique<>: null}}
+          __map_names:
+            linkName: {type: string, default_value: "", description: "Pinocchio link frame for this arm sphere"}
+            center: {type: double_array, default_value: [0.0, 0.0, 0.0], description: "Sphere center in link-local coordinates [m]", validation: {fixed_size<>: [3]}}
+            radius: {type: double, default_value: 0.05, description: "Sphere radius [m]", validation: {gt: [0.0]}}
+        bodies:
+          names: {type: string_array, default_value: [], description: "Named torso, pelvis and head spheres; each arm sphere is checked against each body sphere", validation: {unique<>: null}}
+          __map_names:
+            linkName: {type: string, default_value: "", description: "Pinocchio link frame for this body sphere"}
+            center: {type: double_array, default_value: [0.0, 0.0, 0.0], description: "Sphere center in link-local coordinates [m]", validation: {fixed_size<>: [3]}}
+            radius: {type: double, default_value: 0.10, description: "Sphere radius [m]", validation: {gt: [0.0]}}
       legSelfCollision:
         activate: {type: bool, default_value: true, description: "Enable foot/knee sphere penalties outside double support and optional lateral separation in all modes"}
         minimumLateralSeparation: {type: double, default_value: 0.0, description: "Minimum signed left-minus-right foot-center separation along pelvis-heading lateral axis [m]; zero disables this extra soft penalty",
@@ -355,7 +373,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
       defaultJointState: {type: double_array, default_value: [], description: "Default (standing) joint configuration,
           index-aligned with robot.jointNames. The ARM entries are also the nominal arm posture the arms hold while
           walking: with the swing below disabled, this is the whole arm reference. Keep it inside the self-collision-free
-          envelope - the MPC has no self-collision constraint, so nothing else will."}
+          envelope - armSelfCollision is a soft approximate safeguard, not a hard collision guarantee."}
       armSwing:
         jointNames: {type: string_array, default_value: [], description: "Reference joints in order [left shoulder
             pitch, right shoulder pitch, left elbow, right elbow]. Required by model joint-index setup even
@@ -372,8 +390,8 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         maxOffset: {type: double, default_value: 0.6, description: "Hard bound on the swing offset away from the
             nominal posture [rad]. Sized from the collision-free envelope measured on the G1 model: at the shipped
             nominal (shoulder roll +-0.20, elbow 1.20) a +-0.6 rad shoulder-pitch excursion clears torso, pelvis
-            and hips with no interpenetration and no near-miss inside a 20 mm margin. Since the MPC carries no self-collision
-            constraint this clamp is the only thing keeping the arm reference inside that envelope.",
+            and hips with no interpenetration and no near-miss inside a 20 mm margin. The optional armSelfCollision
+            penalty does not replace this reference-excursion bound.",
             validation: {gt: [0.0]}}
     gait:
       phaseTransitionStanceTime: {type: double, default_value: 0.0, description: "Minimum stance time inserted at

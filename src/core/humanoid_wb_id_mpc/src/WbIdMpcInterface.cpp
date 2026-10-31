@@ -145,6 +145,12 @@ void WbIdMpcInterface::setupOptimalControlProblem() {
   if (config_.activateLegSelfCollision) {
     problemPtr_->stateSoftConstraintPtr->add("FootCollisionSoftConstraint", factory.getFootCollisionConstraint());
   }
+  if (config_.armSelfCollision.activate) {
+    const WbIdPinocchioMapping mapping(mpcRobotModelPtr_->getGenCoordinatesDim(), mpcRobotModelPtr_->getInputDim());
+    problemPtr_->stateSoftConstraintPtr->add(
+        "armSelfCollision", std::make_unique<ArmBodyCollisionSoftConstraint>(
+            *pinocchioInterfacePtr_, mapping, mpcRobotModelPtr_->getStateDim(), config_.armSelfCollision));
+  }
   if (config_.activateJointVelocityLimits) {
     // The URDF velocity limits of the MPC joints, in pinocchio's joint order (= the MPC's).
     const auto nj = static_cast<Eigen::Index>(mpcRobotModelPtr_->getJointDim());
