@@ -356,8 +356,6 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           deltaTol: 0.0001
           g_max: 0.01
           g_min: 0.000001
-          inequalityConstraintMu: 0.1
-          inequalityConstraintDelta: 5.0
           projectStateInputEqualityConstraints: true
           printSolverStatistics: true
           printSolverStatus: false
@@ -368,12 +366,6 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
 
         rollout:
           policyTimeOffset: 0.000
-          AbsTolODE: 0.00005
-          RelTolODE: 0.005
-          timeStep: 0.02
-          integratorType: ODE45
-          maxNumStepsPerSecond: 10000
-          checkNumericalStability: false
 
       costs:
         qScaling: 1.0

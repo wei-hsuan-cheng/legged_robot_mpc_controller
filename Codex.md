@@ -1,6 +1,56 @@
 # WB-ID MPC Walking Robustness Handoff
 
 
+## Package-Wide SQP-Only Cleanup (2026-10-31 Asia/Taipei)
+
+The user confirmed SQP is the only intended backend in legged MPC, expanding the preceding WB-ID-only cleanup to both controller implementations.
+Both controllers already constructed `SqpMpc` exclusively; the schemas now match those runtime guards by accepting only `sqp`.
+Removed the centroidal DDP settings container/getter/include, unused `TimeTriggeredRollout` settings/object/getter and MRT `initRollout()` call.
+Removed its six unused ODE rollout keys and global SQP `inequalityConstraintMu/Delta` keys from the schema, builder and G1 YAML.
+Removed the package's direct `ocs2_ddp` CMake/export/manifest dependency; OCS2 dependencies may still bring DDP transitively, and the shared stack was not changed.
+Kept WB-ID `solver.rollout.policyTimeOffset`, centroidal `control.policyTimeOffset`, policy interpolation/feedback evaluation and all SQP settings with real consumers.
+Inspected `dynamics_mpc_controller` and `mpc_controllers`: both support actual DDP rollout, which is why their ODE settings are meaningful there; their SQP execution paths still use `evaluatePolicy()`.
+Therefore did not restore ODE rollout settings merely because the other packages expose them; no active SQP feature was removed or newly promised by this cleanup.
+Their global SQP barrier pair is also unused by the current OCS2 implementation; per-constraint barriers remain the functional penalty controls here.
+No new solver knobs or backend implementation were added, and neither of the other two repositories was modified.
+README, WB-ID implementation guide and solver contract tests now describe the package-wide SQP-only policy.
+Verification: 37 focused contract tests plus the standalone parameter-contract script passed; YAML comparisons against HEAD confirmed all retained G1/H2 parameter values are unchanged.
+Source/config search found no remaining DDP settings, ODE rollout plumbing or unused global barrier fields in the legged implementation; `git diff --check` passed.
+No workspace rebuild, simulation, commit or push was performed.
+Rebuild the package before using the changed generated schemas/interfaces; OCP auto-generated libraries do not need regeneration because the equations are unchanged.
+The preceding WB-ID-only entry's statement about leaving centroidal untouched describes the earlier stage and is superseded by this package-wide request.
+
+```text
+REFACTOR: keep legged MPC solver configuration SQP-only
+```
+
+
+## WB-ID Solver Parameter Cleanup (2026-10-31 Asia/Taipei)
+
+User requested removing genuinely unused settings from the quoted SQP/rollout blocks, including their code paths.
+Applied only to G1/H2 WB-ID; the G1 centroidal block was verified unchanged with a structured YAML comparison.
+Removed `solver.sqp.inequalityConstraintMu` and `.inequalityConstraintDelta` from the WB-ID YAMLs, schema and builder because the linked SQP implementation never reads those settings.
+Actual friction, CoP, collision and joint-limit penalties retain their own per-term weights and barrier parameters.
+Removed six unused ODE rollout settings: `AbsTolODE`, `RelTolODE`, `timeStep`, `integratorType`, `maxNumStepsPerSecond`, `checkNumericalStability`.
+WB-ID calls MRT `evaluatePolicy()` (state interpolation and input-controller evaluation), never `rolloutPolicy()`, including its bring-up and torque fallback paths.
+Consequently removed WB-ID `TimeTriggeredRollout` construction, settings/storage/getters and MRT `initRollout()` call rather than leaving hidden unused defaults.
+Preserved `solver.rollout.policyTimeOffset` and both runtime reads; it remains the policy look-ahead, not an integration step.
+Removed the unused WB-ID DDP-settings storage/accessor; the generated schema now accepts only the already implemented `sqp` backend, matching its existing runtime guard.
+Retained all remaining SQP switches, including print flags, feedback-policy selection, line-search thresholds and equality projection, because they have real consumers.
+No retained numerical values or OCP equations changed; this cleanup is not claimed to improve steady-state solve rate.
+Updated both WB-ID documents and parameter-map references, plus existing parameter-contract coverage and a new `tests/wb_id_solver_contract_test.py`.
+Verification: 32 contract tests, 5 leg-separation tests, 9 torso-cost tests and the standalone parameter-contract script passed; `git diff --check` passed.
+An initial broad unittest discovery also tried importing the ROS simulation harness and failed because local macOS Python lacks `rclpy`; the focused non-ROS suites above exclude that harness.
+No workspace rebuild, simulation, commit or push was performed for this cleanup.
+Rebuild `legged_robot_mpc_controller` before using the new YAML/schema/interface; OCP auto-generated libraries do not need regeneration.
+External WB-ID parameter files must remove the deleted keys; the centroidal parameter contract is unchanged.
+Preserve the user's current H2 YAML edits, including MPC block placement and time-grid comments.
+
+```text
+REFACTOR: remove unused WB-ID solver and ODE rollout settings
+```
+
+
 ## Nonuniform Grid Investigation (2026-10-31 Asia/Taipei)
 
 ### Manual-Test Checkpoint

@@ -136,7 +136,8 @@ def main():
                 pass
             else:
                 raise AssertionError(f"Obsolete WB-ID parameter path remains: ocs2.{previous}")
-        assert f"p.{current}" in builder, f"Missing WB-ID builder mapping: {current}"
+        if current != "solver.rollout":  # Only policyTimeOffset remains, read directly by execution.
+            assert f"p.{current}" in builder, f"Missing WB-ID builder mapping: {current}"
         assert not re.search(rf"\bp\.{re.escape(previous)}\b", builder), f"Obsolete WB-ID builder mapping: {previous}"
     assert set(params["ocs2"]["model"]) == {
         "robotName", "fixedJointNames", "contactNames6DoF", "contactParentJointNames", "contactGeometry",
@@ -146,6 +147,8 @@ def main():
     assert "mpc" in params["ocs2"] and "mpc" not in params["ocs2"]["solver"]
     assert "policyTimeOffset" not in params["control"] and "policyTimeOffset" not in schema["control"]
     assert "policyTimeOffset" in params["ocs2"]["solver"]["rollout"]
+    assert set(params["ocs2"]["solver"]["rollout"]) == {"policyTimeOffset"}
+    assert set(schema["ocs2"]["solver"]["rollout"]) == {"policyTimeOffset"}
     controller = (folder / (NAME + ".cpp")).read_text()
     assert controller.count("parameters_.ocs2.solver.rollout.policyTimeOffset") == 2
     assert "parameters_.control.policyTimeOffset" not in controller

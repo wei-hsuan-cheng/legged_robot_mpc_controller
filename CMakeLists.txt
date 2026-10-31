@@ -18,7 +18,6 @@ set(THIS_PACKAGE_INCLUDE_DEPENDS
   nav_msgs
   ocs2_centroidal_model
   ocs2_core
-  ocs2_ddp
   ocs2_mpc
   ocs2_msgs
   ocs2_oc
@@ -110,7 +109,6 @@ ament_target_dependencies(legged_robot_humanoid_centroidal_core PUBLIC
   ament_index_cpp
   ocs2_centroidal_model
   ocs2_core
-  ocs2_ddp
   ocs2_mpc
   ocs2_oc
   ocs2_pinocchio_interface
@@ -141,7 +139,6 @@ target_include_directories(legged_robot_humanoid_wb_id_core
 ament_target_dependencies(legged_robot_humanoid_wb_id_core PUBLIC
   ament_index_cpp
   ocs2_core
-  ocs2_ddp
   ocs2_mpc
   ocs2_oc
   ocs2_pinocchio_interface

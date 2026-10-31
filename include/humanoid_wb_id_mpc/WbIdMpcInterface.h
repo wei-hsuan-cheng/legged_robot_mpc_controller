@@ -6,9 +6,7 @@
 
 #include <ocs2_core/Types.h>
 #include <ocs2_core/penalties/penalties/RelaxedBarrierPenalty.h>
-#include <ocs2_ddp/DDP_Settings.h>
 #include <ocs2_mpc/MPC_Settings.h>
-#include <ocs2_oc/rollout/TimeTriggeredRollout.h>
 #include <ocs2_pinocchio_interface/PinocchioInterface.h>
 #include <ocs2_robotic_tools/common/RobotInterface.h>
 #include <ocs2_sqp/SqpSettings.h>
@@ -67,10 +65,8 @@ class WbIdMpcInterface final : public RobotInterface {
 
     ModelSettings::Params modelParams;
 
-    ddp::Settings ddpSettings;
     mpc::Settings mpcSettings;
     sqp::Settings sqpSettings;
-    rollout::Settings rolloutSettings;
 
     ModeSchedule initialModeSchedule{{0.5}, {ModeNumber::STANCE, ModeNumber::STANCE}};
     ModeSequenceTemplate defaultModeSequenceTemplate{{0.0, 0.5}, {ModeNumber::STANCE}};
@@ -125,14 +121,11 @@ class WbIdMpcInterface final : public RobotInterface {
   const OptimalControlProblem& getOptimalControlProblem() const override { return *problemPtr_; }
 
   const ModelSettings& modelSettings() const { return modelSettings_; }
-  const ddp::Settings& ddpSettings() const { return ddpSettings_; }
   const mpc::Settings& mpcSettings() const { return mpcSettings_; }
-  const rollout::Settings& rolloutSettings() const { return rolloutSettings_; }
   const sqp::Settings& sqpSettings() const { return sqpSettings_; }
 
   const vector_t& getInitialState() const { return initialState_; }
   const vector_t& getTorqueLimits() const { return config_.torqueLimits; }
-  const RolloutBase& getRollout() const { return *rolloutPtr_; }
   PinocchioInterface& getPinocchioInterface() { return *pinocchioInterfacePtr_; }
   std::shared_ptr<SwitchedModelReferenceManager> getSwitchedModelReferenceManagerPtr() const { return referenceManagerPtr_; }
 
@@ -151,10 +144,8 @@ class WbIdMpcInterface final : public RobotInterface {
   void setupOptimalControlProblem();
 
   ModelSettings modelSettings_;
-  ddp::Settings ddpSettings_;
   mpc::Settings mpcSettings_;
   sqp::Settings sqpSettings_;
-  rollout::Settings rolloutSettings_;
 
   std::unique_ptr<PinocchioInterface> pinocchioInterfacePtr_;
   std::unique_ptr<OptimalControlProblem> problemPtr_;
@@ -163,7 +154,6 @@ class WbIdMpcInterface final : public RobotInterface {
   std::unique_ptr<WbIdMpcRobotModel<scalar_t>> mpcRobotModelPtr_;
   std::unique_ptr<WbIdMpcRobotModel<ad_scalar_t>> mpcRobotModelADPtr_;
 
-  std::unique_ptr<RolloutBase> rolloutPtr_;
   std::unique_ptr<WbIdInitializer> initializerPtr_;
 
   std::shared_ptr<WbIdTorqueWindow> torqueWindowPtr_;

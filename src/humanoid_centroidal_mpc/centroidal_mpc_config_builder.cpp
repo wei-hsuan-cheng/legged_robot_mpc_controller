@@ -3,7 +3,6 @@
 #include <stdexcept>
 #include <vector>
 
-#include <ocs2_core/integration/Integrator.h>
 #include <ocs2_core/integration/SensitivityIntegrator.h>
 
 #include "legged_robot_mpc_controller/common/config/config_builder_utils.hpp"
@@ -86,8 +85,6 @@ ocs2::humanoid::CentroidalMpcInterface::Config buildCentroidalMpcConfig(
   sqp.deltaTol = p.sqp.deltaTol;
   sqp.g_max = p.sqp.g_max;
   sqp.g_min = p.sqp.g_min;
-  sqp.inequalityConstraintMu = p.sqp.inequalityConstraintMu;
-  sqp.inequalityConstraintDelta = p.sqp.inequalityConstraintDelta;
   sqp.projectStateInputEqualityConstraints = p.sqp.projectStateInputEqualityConstraints;
   sqp.printSolverStatistics = p.sqp.printSolverStatistics;
   sqp.printSolverStatus = p.sqp.printSolverStatus;
@@ -103,16 +100,6 @@ ocs2::humanoid::CentroidalMpcInterface::Config buildCentroidalMpcConfig(
   mpc.debugPrint_ = p.mpc.debugPrint;
   mpc.mpcDesiredFrequency_ = static_cast<scalar_t>(p.mpc.mpcDesiredFrequency);
   mpc.mrtDesiredFrequency_ = static_cast<scalar_t>(p.mpc.mrtDesiredFrequency);
-
-  auto& rollout = config.rolloutSettings;
-  rollout.absTolODE = p.rollout.AbsTolODE;
-  rollout.relTolODE = p.rollout.RelTolODE;
-  rollout.timeStep = p.rollout.timeStep;
-  rollout.integratorType = ocs2::integrator_type::fromString(p.rollout.integratorType);
-  rollout.maxNumStepsPerSecond = static_cast<size_t>(p.rollout.maxNumStepsPerSecond);
-  rollout.checkNumericalStability = p.rollout.checkNumericalStability;
-
-  // ddpSettings: kept at library defaults, the centroidal MPC runs with the SQP backend.
 
   // --- gait / mode schedule ---
   config.initialModeSchedule =

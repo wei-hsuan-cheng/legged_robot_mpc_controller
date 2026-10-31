@@ -126,10 +126,6 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         deltaTol: {type: double, default_value: 0.0001, description: "Convergence tolerance on the primal step"}
         g_max: {type: double, default_value: 0.01, description: "Maximum constraint violation for linesearch acceptance"}
         g_min: {type: double, default_value: 0.000001, description: "Constraint violation treated as converged"}
-        inequalityConstraintMu: {type: double, default_value: 0.1, description: "Relaxed barrier mu for inequality
-            constraints"}
-        inequalityConstraintDelta: {type: double, default_value: 5.0, description: "Relaxed barrier delta for inequality
-            constraints"}
         projectStateInputEqualityConstraints: {type: bool, default_value: true, description: "Project state-input
             equality constraints"}
         printSolverStatistics: {type: bool, default_value: true, description: "Print solver statistics"}
@@ -142,16 +138,8 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
       rollout:
         policyTimeOffset: {type: double, default_value: 0.005, description: "Look-ahead offset when evaluating
             the MPC policy at the current observation time [s]; not the ODE integration step", validation: {gt_eq: [0.0]}}
-        AbsTolODE: {type: double, default_value: 0.00001, description: "Absolute tolerance of the ODE integrator"}
-        RelTolODE: {type: double, default_value: 0.001, description: "Relative tolerance of the ODE integrator"}
-        timeStep: {type: double, default_value: 0.015, description: "Rollout time step, should be <= solver.sqp.dt [s]",
-          validation: {gt: [0.0]}}
-        integratorType: {type: string, default_value: "ODE45", description: "Rollout integrator type"}
-        maxNumStepsPerSecond: {type: int, default_value: 10000, description: "Maximum integrator steps per second"}
-        checkNumericalStability: {type: bool, default_value: false, description: "Check numerical stability during
-            rollout"}
     mpc:
-      solverType: {type: string, default_value: "sqp", description: "Optimization backend used by WB-ID MPC", validation: {one_of<>: [["ddp", "sqp"]]}}
+      solverType: {type: string, default_value: "sqp", description: "Optimization backend used by WB-ID MPC (SQP only)", validation: {one_of<>: [["sqp"]]}}
       mpcDesiredFrequency: {type: int, default_value: 80, description: "Desired MPC update frequency in Hz",
           validation: {gt: [0]}}
       mrtDesiredFrequency: {type: int, default_value: 1000, description: "Desired controller update frequency in

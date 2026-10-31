@@ -559,16 +559,6 @@ humanoid_centroidal_mpc_controller:
         default_value: 0.000001,
         description: "Constraint violation treated as converged"
       }
-      inequalityConstraintMu: {
-        type: double,
-        default_value: 0.1,
-        description: "Relaxed barrier mu for inequality constraints"
-      }
-      inequalityConstraintDelta: {
-        type: double,
-        default_value: 5.0,
-        description: "Relaxed barrier delta for inequality constraints"
-      }
       projectStateInputEqualityConstraints: {
         type: bool,
         default_value: true,
@@ -605,46 +595,13 @@ humanoid_centroidal_mpc_controller:
         description: "Solver thread priority"
       }
 
-    rollout:
-      AbsTolODE: {
-        type: double,
-        default_value: 0.00001,
-        description: "Absolute tolerance of the ODE integrator"
-      }
-      RelTolODE: {
-        type: double,
-        default_value: 0.001,
-        description: "Relative tolerance of the ODE integrator"
-      }
-      timeStep: {
-        type: double,
-        default_value: 0.015,
-        description: "Rollout time step, should be <= sqp.dt [s]",
-        validation: { gt: [0.0] }
-      }
-      integratorType: {
-        type: string,
-        default_value: "ODE45",
-        description: "Rollout integrator type"
-      }
-      maxNumStepsPerSecond: {
-        type: int,
-        default_value: 10000,
-        description: "Maximum integrator steps per second"
-      }
-      checkNumericalStability: {
-        type: bool,
-        default_value: false,
-        description: "Check numerical stability during rollout"
-      }
-
     mpc:
       solverType: {
         type: string,
         default_value: "sqp",
-        description: "Optimization backend used by the centroidal MPC",
+        description: "Optimization backend used by the centroidal MPC (SQP only)",
         validation: {
-          one_of<>: [["ddp", "sqp"]]
+          one_of<>: [["sqp"]]
         }
       }
 

@@ -36,6 +36,7 @@
 ## MPC Formulations
 
 This repository contains examples for two MPC formulations: **whole-body inverse dynamics vs. centroidal dynamics (hierarchical)**.
+Both controllers use OCS2's SQP backend; DDP/SLQ/iLQR are not supported by this package.
 
 
 ### Whole-Body Inverse Dynamics MPC

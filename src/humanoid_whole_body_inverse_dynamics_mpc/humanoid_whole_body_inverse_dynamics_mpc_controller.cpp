@@ -1173,7 +1173,6 @@ void HumanoidWholeBodyInverseDynamicsMpcController::construct_solver(const ocs2:
     mpc_interface_->getInitializer());
   mpc_solver_->getSolverPtr()->setReferenceManager(mpc_interface_->getReferenceManagerPtr());
   mrt_interface_ = std::make_unique<ocs2::MPC_MRT_Interface>(*mpc_solver_);
-  mrt_interface_->initRollout(&mpc_interface_->getRollout());
   mpc_solver_->getSolverPtr()->addSynchronizedModule(motion_manager_);
   mpc_solver_->getSolverPtr()->addSynchronizedModule(mpc_interface_->getTorqueWindowModule());
   mrt_interface_->setCurrentObservation(initial_observation);

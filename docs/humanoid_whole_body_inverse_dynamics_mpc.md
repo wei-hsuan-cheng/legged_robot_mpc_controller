@@ -714,6 +714,8 @@ See [H2 to 2 m/s](./wb_id_running.md#h2-to-2-ms) for the trials and the [foothol
 ## 7. Policy Execution and Inner Servo
 
 The offset is configured at `ocs2.solver.rollout.policyTimeOffset`; it shifts policy evaluation rather than the ODE integration timestep.
+WB-ID executes the policy by interpolation with `evaluatePolicy()`, not by ODE rollout.
+Consequently, `solver.rollout` contains only this execution offset; the unused ODE tolerances, integrator settings and rollout object have been removed.
 The controller evaluates the policy at $t_e=t+\texttt{policyTimeOffset}$ and takes desired joint position/velocity from its planned state:
 
 $$

@@ -4,7 +4,6 @@
 #include <utility>
 #include <vector>
 
-#include <ocs2_core/integration/Integrator.h>
 #include <ocs2_core/integration/SensitivityIntegrator.h>
 
 #include "legged_robot_mpc_controller/common/config/config_builder_utils.hpp"
@@ -101,8 +100,6 @@ ocs2::humanoid::WbIdMpcInterface::Config buildWholeBodyInverseDynamicsMpcConfig(
   sqp.deltaTol = p.solver.sqp.deltaTol;
   sqp.g_max = p.solver.sqp.g_max;
   sqp.g_min = p.solver.sqp.g_min;
-  sqp.inequalityConstraintMu = p.solver.sqp.inequalityConstraintMu;
-  sqp.inequalityConstraintDelta = p.solver.sqp.inequalityConstraintDelta;
   sqp.projectStateInputEqualityConstraints = p.solver.sqp.projectStateInputEqualityConstraints;
   sqp.printSolverStatistics = p.solver.sqp.printSolverStatistics;
   sqp.printSolverStatus = p.solver.sqp.printSolverStatus;
@@ -118,16 +115,6 @@ ocs2::humanoid::WbIdMpcInterface::Config buildWholeBodyInverseDynamicsMpcConfig(
   mpc.debugPrint_ = p.mpc.debugPrint;
   mpc.mpcDesiredFrequency_ = static_cast<scalar_t>(p.mpc.mpcDesiredFrequency);
   mpc.mrtDesiredFrequency_ = static_cast<scalar_t>(p.mpc.mrtDesiredFrequency);
-
-  auto& rollout = config.rolloutSettings;
-  rollout.absTolODE = p.solver.rollout.AbsTolODE;
-  rollout.relTolODE = p.solver.rollout.RelTolODE;
-  rollout.timeStep = p.solver.rollout.timeStep;
-  rollout.integratorType = ocs2::integrator_type::fromString(p.solver.rollout.integratorType);
-  rollout.maxNumStepsPerSecond = static_cast<size_t>(p.solver.rollout.maxNumStepsPerSecond);
-  rollout.checkNumericalStability = p.solver.rollout.checkNumericalStability;
-
-  // WB-ID uses the SQP backend.
 
   // --- gait / mode schedule ---
   config.initialModeSchedule =

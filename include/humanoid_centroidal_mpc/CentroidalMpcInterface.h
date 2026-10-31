@@ -32,9 +32,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <ocs2_core/Types.h>
 #include <ocs2_core/penalties/Penalties.h>
-#include <ocs2_ddp/DDP_Settings.h>
 #include <ocs2_mpc/MPC_Settings.h>
-#include <ocs2_oc/rollout/TimeTriggeredRollout.h>
 #include <ocs2_pinocchio_interface/PinocchioEndEffectorKinematicsCppAd.h>
 #include <ocs2_pinocchio_interface/PinocchioInterface.h>
 #include <ocs2_robotic_tools/common/RobotInterface.h>
@@ -87,10 +85,8 @@ class CentroidalMpcInterface final : public RobotInterface {
 
     ModelSettings::Params modelParams;
 
-    ddp::Settings ddpSettings;
     mpc::Settings mpcSettings;
     sqp::Settings sqpSettings;
-    rollout::Settings rolloutSettings;
 
     CentroidalModelType centroidalModelType = CentroidalModelType::SingleRigidBodyDynamics;
     vector_t referenceJointState;  // default joint state used to build the centroidal model info
@@ -142,13 +138,10 @@ class CentroidalMpcInterface final : public RobotInterface {
   OptimalControlProblem& getOptimalControlProblemRef() const { return *problemPtr_; }
 
   const ModelSettings& modelSettings() const { return modelSettings_; }
-  const ddp::Settings& ddpSettings() const { return ddpSettings_; }
   const mpc::Settings& mpcSettings() const { return mpcSettings_; }
-  const rollout::Settings& rolloutSettings() const { return rolloutSettings_; }
   const sqp::Settings& sqpSettings() const { return sqpSettings_; }
 
   const vector_t& getInitialState() const { return initialState_; }
-  const RolloutBase& getRollout() const { return *rolloutPtr_; }
   PinocchioInterface& getPinocchioInterface() { return *pinocchioInterfacePtr_; }
   const CentroidalModelInfo& getCentroidalModelInfo() const { return centroidalModelInfo_; }
   std::shared_ptr<SwitchedModelReferenceManager> getSwitchedModelReferenceManagerPtr() const { return referenceManagerPtr_; }
@@ -178,7 +171,6 @@ class CentroidalMpcInterface final : public RobotInterface {
                                    const PinocchioEndEffectorKinematicsCppAd::update_pinocchio_interface_callback& velocityUpdateCallback);
 
   ModelSettings modelSettings_;
-  ddp::Settings ddpSettings_;
   mpc::Settings mpcSettings_;
   sqp::Settings sqpSettings_;
 
@@ -191,8 +183,6 @@ class CentroidalMpcInterface final : public RobotInterface {
   std::unique_ptr<CentroidalMpcRobotModel<scalar_t>> mpcRobotModelPtr_;
   std::unique_ptr<CentroidalMpcRobotModel<ad_scalar_t>> mpcRobotModelADPtr_;
 
-  rollout::Settings rolloutSettings_;
-  std::unique_ptr<RolloutBase> rolloutPtr_;
   std::unique_ptr<CentroidalWeightCompInitializer> initializerPtr_;
 
   vector_t initialState_;

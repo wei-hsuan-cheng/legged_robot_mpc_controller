@@ -10,15 +10,15 @@ Links use repository-relative paths with line anchors, which may shift as the so
 | --- | --- |
 | Lifecycle, observations and actuation | [humanoid_whole_body_inverse_dynamics_mpc_controller.cpp](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp) |
 | Standalone parameter schema | [humanoid_whole_body_inverse_dynamics_mpc_controller_parameter.yaml](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller_parameter.yaml) |
-| Current G1 values | [ros2_controllers.yaml:709](../config/g1/ros2_controllers.yaml#L709) |
+| Current G1 values | [ros2_controllers.yaml:192](../config/g1/ros2_controllers.yaml#L192) |
 | Config translation | [whole_body_inverse_dynamics_mpc_config_builder.cpp](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp) |
-| OCP assembly | [WbIdMpcInterface.cpp:106](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L106) |
+| OCP assembly | [WbIdMpcInterface.cpp:104](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L104) |
 | G1 model and mesh paths | [g1_29dof.xml:16](../description/mujoco/robots/g1/g1_29dof.xml#L16), [g1_29dof.urdf:16](../description/urdf/robots/g1/g1_29dof.urdf#L16) |
 | Simulation scene composition | [G1 scene.xml:3](../description/mujoco/robots/g1/scene.xml#L3), [H2 scene.xml:3](../description/mujoco/robots/h2/scene.xml#L3), [shared module layout](../description/mujoco/README.md) |
 | Hardware interface description | [g1.ros2_control.xacro:17](../description/urdf/robots/g1/g1.ros2_control.xacro#L17) |
 
 WB-ID has its own generated parameter schema rather than loading the centroidal controller schema.
-The builder maps solver settings at [line 88](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L88), gait settings at [line 124](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L124) and costs at [line 172](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L172).
+The builder maps solver settings at [line 87](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L87), gait settings at [line 119](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L119) and costs at [line 167](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L167).
 The interface validates the Translation + SphericalZYX dimensions at [WbIdMpcInterface.cpp:46](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L46).
 The common launch selects the robot URDF at [line 43](../launch/robot.launch.py#L43), the separate RViz environment at [line 47](../launch/robot.launch.py#L47), and the robot-local MuJoCo scene at [line 165](../launch/robot.launch.py#L165).
 The selected controller YAML supplies both MPC and GUI height through [the parameter resolver](../launch/robot.launch.py#L234-L259); `refBaseHeight` remains an optional override of both.
@@ -52,7 +52,7 @@ When `inverseDynamics.activate` is enabled, base rows span the horizon while joi
 
 ### 3.2 Torque window
 
-The builder converts `torqueConstraintNodes` into $`(N_\tau-0.5)\Delta t`$ at [line 159](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L159).
+The builder converts `torqueConstraintNodes` into $`(N_\tau-0.5)\Delta t`$ at [line 154](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L154).
 [WbIdTorqueWindow.h:32](../include/humanoid_wb_id_mpc/constraint/WbIdTorqueWindow.h#L32) implements time-based constraint activation.
 The synchronized module updates the horizon start at [line 68](../include/humanoid_wb_id_mpc/constraint/WbIdTorqueWindow.h#L68).
 The runtime policy check uses the policy's own interpolation timestamps at [line 43](../include/humanoid_wb_id_mpc/constraint/WbIdTorqueWindow.h#L43).
@@ -100,8 +100,8 @@ The running quadratic cost instead gets its nominal input from [DynamicsHelperFu
 
 ### 4.1 Weight partitioning and base errors
 
-[whole_body_inverse_dynamics_mpc_config_builder.cpp:176](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L176) partitions Q/Q-final into generic, base-motion and arm-position evaluators without double counting.
-R is assembled in $`[W_L,W_R,a_B,a_j,\tau_j]`$ order at [line 198](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L198).
+[whole_body_inverse_dynamics_mpc_config_builder.cpp:183](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L183) partitions Q/Q-final into generic, base-motion and arm-position evaluators without double counting.
+R is assembled in $`[W_L,W_R,a_B,a_j,\tau_j]`$ order at [line 194](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L194).
 [StateInputQuadraticCost.cpp:67](../src/core/humanoid_common_mpc/src/cost/StateInputQuadraticCost.cpp#L67) defines generic deviations and the supporting-force nominal input.
 [BaseMotionTrackingCost.cpp:50](../src/core/humanoid_common_mpc/src/cost/BaseMotionTrackingCost.cpp#L50) suppresses planar position/yaw errors in relative-twist mode.
 The heading-frame horizontal velocity residual is at [line 74](../src/core/humanoid_common_mpc/src/cost/BaseMotionTrackingCost.cpp#L74), and its $`J^{\mathsf T}QJ`$ quadratic approximation is at [line 100](../src/core/humanoid_common_mpc/src/cost/BaseMotionTrackingCost.cpp#L100).
@@ -207,9 +207,9 @@ The target is computed once per solve on the solver thread and is read by the fo
 | Step | Implementation |
 | --- | --- |
 | Settings and defaults (all off) | [SwitchedModelReferenceManager.h:84](../include/humanoid_common_mpc/reference_manager/SwitchedModelReferenceManager.h#L84); the running additions `stanceTimeGain` at [line 145](../include/humanoid_common_mpc/reference_manager/SwitchedModelReferenceManager.h#L145) and `currentSwingOnly` at [line 149](../include/humanoid_common_mpc/reference_manager/SwitchedModelReferenceManager.h#L149) |
-| WB-ID schema, `enabled` default false | [parameter YAML:202](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller_parameter.yaml#L202) |
-| YAML to settings | [Builder:258](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L258) maps every field |
-| Settings to the reference manager | [WbIdMpcInterface.cpp:88](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L88) |
+| WB-ID schema, `enabled` default false | [parameter YAML:195](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller_parameter.yaml#L195) |
+| YAML to settings | [Builder:253](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L253) maps every field |
+| Settings to the reference manager | [WbIdMpcInterface.cpp:86](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L86) |
 | Per-solve update | `preSolverRun` calls `updateCaptureFootholds` at [line 326](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L326), after the solve's mode schedule is stored |
 | Disabled path | [line 335](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L335) returns with no valid target, so the lookup below never supplies one |
 | Capture point $\xi$ | [line 352](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L352); $v$ is the state's world-frame base velocity ([WbIdMpcRobotModel.h:89](../include/humanoid_wb_id_mpc/common/WbIdMpcRobotModel.h#L89)) |
@@ -221,7 +221,7 @@ The target is computed once per solve on the solver thread and is read by the fo
 | Store $r_j$ and $t_{\mathrm{TD},j}$ | [line 477](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L477) and [line 480](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L480) |
 | Lookup, precedence and window | [getSwingFootholdReference:503](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L503) returns the target only without a stair plan or `terrain_walk`; [line 512](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L512) ends it at $t_{\mathrm{TD},j}$ when `currentSwingOnly` is set |
 | Cost term $\ell^{\mathrm{fh}}_j$ | [Foot cost:145](../src/core/humanoid_centroidal_mpc/src/cost/CentroidalMpcEndEffectorFootCost.cpp#L145) queries the target per node, replaces the $x/y$ position weights with $\sqrt{w_{\mathrm{tr}}}$ at [line 148](../src/core/humanoid_centroidal_mpc/src/cost/CentroidalMpcEndEffectorFootCost.cpp#L148) and sets the reference at [line 154](../src/core/humanoid_centroidal_mpc/src/cost/CentroidalMpcEndEffectorFootCost.cpp#L154); weights and reference are CppAD parameters, so no code regeneration is needed |
-| H2 values | [config/h2/ros2_controllers.yaml:424](../config/h2/ros2_controllers.yaml#L424) |
+| H2 values | [config/h2/ros2_controllers.yaml:449](../config/h2/ros2_controllers.yaml#L449) |
 | Static check | `test_h2_running_foothold_reference` in [tests/test_wb_id_running.py](../tests/test_wb_id_running.py) |
 
 The same code serves the centroidal MPC, whose G1 configuration enables the target with `currentSwingOnly` false and `stanceTimeGain` 0.
@@ -247,8 +247,8 @@ Implementing frame relations requires schema/builder frame-pair declarations and
 
 ## 7. Solver, Policy and Actuation
 
-[construct_solver():1163](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1163) accepts only `sqp`, constructs `SqpMpc`, connects MRT and installs the synchronized modules.
-The asynchronous worker starts at [line 1193](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1193).
+[construct_solver():1165](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1165) accepts only `sqp`, constructs `SqpMpc`, connects MRT and installs the synchronized modules.
+The asynchronous worker starts at [line 1194](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1194).
 The control loop forwards each valid observation through OCS2's existing `setCurrentObservation()` before policy checks or bring-up dispatch at [line 526](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L526).
 After construction, the worker waits for a new control-loop observation before its first solve at [line 1156](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1156).
 Policy handover checks finite timestamps and requires the evaluation time to lie inside the plan, with two control periods remaining, at [line 538](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L538).
@@ -256,8 +256,10 @@ An unusable policy requests `resetMpcNode()` on the solver worker, following the
 Startup keeps holding the standing posture and retries; loss of a valid policy during the startup blend returns to `StartingMpc`, while loss after entering estimator-driven `Locomotion` latches the existing `Fault` state.
 The ground-truth feedback path holds the last commanded posture while awaiting a valid replacement policy.
 No additional age-limit parameter or alternative observation interface is introduced.
-[compute_mpc_joint_action():1347](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1347) evaluates the policy using `ocs2.solver.rollout.policyTimeOffset`.
+[compute_mpc_joint_action():1348](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1348) evaluates the policy using `ocs2.solver.rollout.policyTimeOffset`.
 The same offset is used by policy-interval validation, so the accepted interval and execution time remain consistent; it is a runtime policy look-ahead, not an ODE timestep.
+`MRT_BASE::evaluatePolicy()` interpolates the planned state and evaluates its input controller without calling `rolloutPolicy()`.
+WB-ID therefore has no `TimeTriggeredRollout` object or MRT `initRollout()` call; its obsolete ODE settings and unused DDP settings storage were removed.
 Planned joint position/velocity extraction is at [line 1364](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1364).
 The torque-window check and planned-state inverse-dynamics fallback are at [line 1382](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1382).
 The alternative measured-state inverse dynamics is at [line 1399](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1399).
@@ -287,7 +289,7 @@ The walking harness sets the launch working directory to the workspace root so g
 | `floatingBase.source`, `floatingBase.estimator` | Body state feeding the MPC |
 | `control.observationVelocityFilterCutoffHz` | Observation generalized velocity filter |
 | `ocs2.mpc` | MPC backend selection, horizon, rates, warm-start and policy window |
-| `ocs2.solver.sqp`, `ocs2.solver.rollout` | SQP numerics and rollout integration/execution settings |
+| `ocs2.solver.sqp`, `ocs2.solver.rollout` | SQP numerics and policy execution offset only; no ODE rollout settings |
 | `ocs2.codegen` | CppAD generation verbosity and forced regeneration |
 | `ocs2.model.contactGeometry` | Physical contact-frame offset and sole rectangle |
 | `ocs2.constraints.inverseDynamics.torqueConstraintNodes` | Initial inverse-dynamics/torque-limit window |
@@ -315,6 +317,14 @@ The walking harness sets the launch working directory to the workspace root so g
 | `control.jointEffortPd.kp`, `kd` | Inner servo gains |
 
 Read these from the `humanoid_whole_body_inverse_dynamics_mpc_controller` YAML block rather than the similarly named centroidal settings.
+The unused SQP `inequalityConstraintMu` and `inequalityConstraintDelta` parameters have been removed from WB-ID; the linked SQP implementation does not read them.
+Actual inequality soft penalties retain their per-term `constraints.<name>.mu` and `.delta` settings.
+`printSolverStatistics` is retained because it prints a summary at solver destruction; the other SQP switches remain functional even when their configured value is false.
+The schema now lists only the implemented `sqp` backend rather than accepting an unsupported `ddp` selection.
+Run [wb_id_solver_contract_test.py](../tests/wb_id_solver_contract_test.py) to check G1/H2 WB-ID schema coverage and removed dead paths.
+The centroidal controller is also SQP-only; its unused DDP/ODE rollout settings and objects have been removed, while its existing `control.policyTimeOffset` remains functional.
+The package no longer declares a direct `ocs2_ddp` dependency; the shared OCS2 stack may still depend on DDP transitively.
+Run [sqp_only_contract_test.py](../tests/sqp_only_contract_test.py) to check both controllers' supported backends, parameter schemas, execution paths and direct build dependencies.
 The startup regression checks above are static and do not constitute runtime validation.
 
 

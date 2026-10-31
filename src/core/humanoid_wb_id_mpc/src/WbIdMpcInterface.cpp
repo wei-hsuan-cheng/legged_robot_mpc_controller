@@ -31,10 +31,8 @@ WbIdMpcInterface::WbIdMpcInterface(Config config, bool setupOCP)
     // they are cached by model NAME only, and several terms here share their name with
     // a centroidal one built for different state/input dimensions.
     : modelSettings_(config.modelParams, config.urdfFile, "wb_id_mpc_", config.verbose),
-      ddpSettings_(config.ddpSettings),
       mpcSettings_(config.mpcSettings),
       sqpSettings_(config.sqpSettings),
-      rolloutSettings_(config.rolloutSettings),
       config_(std::move(config)),
       verbose_(config_.verbose) {
   std::ifstream urdfStream(config_.urdfFile);
@@ -217,8 +215,6 @@ void WbIdMpcInterface::setupOptimalControlProblem() {
 
   problemPtr_->preComputationPtr =
       std::make_unique<HumanoidPreComputation>(*pinocchioInterfacePtr_, *referenceManagerPtr_->getSwingTrajectoryPlanner(), *mpcRobotModelPtr_);
-
-  rolloutPtr_ = std::make_unique<TimeTriggeredRollout>(*problemPtr_->dynamicsPtr, rolloutSettings_);
 
   initializerPtr_ = std::make_unique<WbIdInitializer>(*pinocchioInterfacePtr_, *referenceManagerPtr_, *mpcRobotModelPtr_);
 }

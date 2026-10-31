@@ -68,10 +68,8 @@ namespace ocs2::humanoid {
 
 CentroidalMpcInterface::CentroidalMpcInterface(Config config, bool setupOCP)
     : modelSettings_(config.modelParams, config.urdfFile, "centroidal_mpc_", config.verbose),
-      ddpSettings_(config.ddpSettings),
       mpcSettings_(config.mpcSettings),
       sqpSettings_(config.sqpSettings),
-      rolloutSettings_(config.rolloutSettings),
       config_(std::move(config)),
       verbose_(config_.verbose) {
   // check that urdf file exists
@@ -230,7 +228,6 @@ void CentroidalMpcInterface::setupOptimalControlProblem() {
       new HumanoidPreComputation(*pinocchioInterfacePtr_, *referenceManagerPtr_->getSwingTrajectoryPlanner(), *mpcRobotModelPtr_));
 
   // Rollout
-  rolloutPtr_.reset(new TimeTriggeredRollout(*problemPtr_->dynamicsPtr, rolloutSettings_));
 
   // Initialization
   constexpr bool extendNormalizedMomentum = true;
