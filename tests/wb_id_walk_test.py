@@ -12,6 +12,8 @@ import json
 import math
 import os
 from pathlib import Path
+import re
+import shutil
 import signal
 import subprocess
 import sys
@@ -58,6 +60,8 @@ class Probe(Node):
         self.wrenches = []
         self.tracking_names = []
         self.tracking_rows = []
+        self.solver_names = []
+        self.solver_rows = []
         qos = QoSProfile(depth=50, reliability=ReliabilityPolicy.BEST_EFFORT)
         self.publisher = self.create_publisher(WalkingVelocityCommand, "/humanoid/walking_velocity_command", qos)
         self.create_subscription(Odometry, "/mujoco/ground_truth/odom", self.observe, qos)
@@ -71,6 +75,8 @@ class Probe(Node):
                                    durability=DurabilityPolicy.TRANSIENT_LOCAL)
             self.create_subscription(String, "/" + CONTROLLER + "/tracking_names", self.observe_tracking_names, names_qos)
             self.create_subscription(Float64MultiArray, "/" + CONTROLLER + "/tracking", self.observe_tracking, qos)
+            self.create_subscription(String, "/" + CONTROLLER + "/solver_names", self.observe_solver_names, names_qos)
+            self.create_subscription(Float64MultiArray, "/" + CONTROLLER + "/solver", self.observe_solver, qos)
 
     def observe_tracking_names(self, msg):
         self.tracking_names = msg.data.split(",")
@@ -78,6 +84,13 @@ class Probe(Node):
     def observe_tracking(self, msg):
         if self.tracking_names and len(msg.data) == len(self.tracking_names):
             self.tracking_rows.append((self.phase, *msg.data))
+
+    def observe_solver_names(self, msg):
+        self.solver_names = msg.data.split(",")
+
+    def observe_solver(self, msg):
+        if self.solver_names and len(msg.data) == len(self.solver_names):
+            self.solver_rows.append((self.phase, *msg.data))
 
     def observe_wrench(self, msg):
         f, t = msg.wrench.force, msg.wrench.torque
@@ -371,6 +384,11 @@ def main():
                 writer = csv.writer(file)
                 writer.writerow(["test_phase", *probe.tracking_names])
                 writer.writerows(probe.tracking_rows)
+        if probe is not None and probe.solver_rows:
+            with Path(str(prefix) + "_solver.csv").open("w") as file:
+                writer = csv.writer(file)
+                writer.writerow(["test_phase", *probe.solver_names])
+                writer.writerows(probe.solver_rows)
         if process is not None and process.poll() is None:
             os.killpg(process.pid, signal.SIGINT)
             try:
@@ -378,6 +396,10 @@ def main():
             except subprocess.TimeoutExpired:
                 os.killpg(process.pid, signal.SIGKILL)
                 process.wait()
+        if log_path.exists():
+            sqp_logs = re.findall(r"\[SqpSolver\] Log written to '([^']+)'", log_path.read_text())
+            if sqp_logs and Path(sqp_logs[-1]).is_file():
+                shutil.copyfile(sqp_logs[-1], str(prefix) + "_sqp.csv")
         if probe is not None:
             probe.destroy_node()
         if rclpy.ok():

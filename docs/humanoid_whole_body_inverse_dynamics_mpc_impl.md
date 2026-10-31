@@ -19,7 +19,7 @@ Links use repository-relative paths with line anchors, which may shift as the so
 | Hardware interface description | [g1.ros2_control.xacro:17](../description/urdf/robots/g1/g1.ros2_control.xacro#L17) |
 
 WB-ID has its own generated parameter schema rather than loading the centroidal controller schema.
-The builder maps solver settings at [line 88](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L88), gait settings at [line 124](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L124) and costs at [line 172](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L172).
+The builder maps solver settings at [line 90](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L90), swing settings at [line 133](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L133) and costs at [line 176](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L176).
 The interface validates the selected Translation + SphericalZYX/Spherical dimensions at [WbIdMpcInterface.cpp:52](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L52).
 The common launch selects the robot URDF at [line 43](../launch/robot.launch.py#L43), the separate RViz environment at [line 47](../launch/robot.launch.py#L47), and the robot-local MuJoCo scene at [line 165](../launch/robot.launch.py#L165).
 The selected controller YAML supplies both MPC and GUI height through [the parameter resolver](../launch/robot.launch.py#L234-L259); `refBaseHeight` remains an optional override of both.
@@ -33,7 +33,8 @@ The optional measured-anchor orientation path is documented in [Tangent-Space Or
 The tangent decoder in [WbIdMpcRobotModel.h](../include/humanoid_wb_id_mpc/common/WbIdMpcRobotModel.h) reconstructs a quaternion for Pinocchio's spherical joint from the three-component increment and fixed measured anchor.
 [WbIdTangentDynamics.h](../include/humanoid_wb_id_mpc/dynamics/WbIdTangentDynamics.h) supplies auto-generated chart dynamics, and [WbIdBaseMotionCost.cpp](../src/core/humanoid_wb_id_mpc/src/cost/WbIdBaseMotionCost.cpp) supplies a three-component orientation-log residual.
 The controller registers an optional OCS2 SQP warm-start transform at [line 1193](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1193) to preserve physical poses across chart changes, and rebases observations into the active policy at [line 1382](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1382).
-Both robot YAML files retain Euler as the default; the tangent experiment's native tests, repeated 80 Hz results and limitations are recorded in its dedicated document.
+G1 and H2 currently retain Euler as the default; tangent and its tested walking-clearance candidate remain experimental alternatives.
+Native tests, the original unchanged-parameter comparison and the later checkpoint results are recorded in the dedicated document.
 The Euler-coordinate descriptions and line anchors below refer to the retained baseline path unless explicitly stated otherwise.
 
 [WbIdMpcRobotModel.h:17](../include/humanoid_wb_id_mpc/common/WbIdMpcRobotModel.h#L17) defines the two state layouts and $`u=[W_L,W_R,a,\tau_j]`$.
@@ -194,7 +195,7 @@ In ordinary `base_twist`, there is no independent foot-XY or touchdown-position 
 | Behavior | Current implementation |
 | --- | --- |
 | Whole-body configuration is an optimized state | [WbIdMpcRobotModel.h:37](../include/humanoid_wb_id_mpc/common/WbIdMpcRobotModel.h#L37) defines the state/input dimensions; [line 65](../include/humanoid_wb_id_mpc/common/WbIdMpcRobotModel.h#L65) extracts generalized coordinates; [WbIdDynamics.cpp:18](../src/core/humanoid_wb_id_mpc/src/dynamics/WbIdDynamics.cpp#L18) integrates velocity/acceleration |
-| Optional flat-ground foothold target (off by default; on for H2) | [Builder:258](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L258) maps `captureFootPlacement`; when enabled, each swing foot gets an xy target `stanceTimeGain * v * T_stance` ahead of the predicted base until its touchdown, tracked with `trackingWeight` (see [Section 5.4](#54-flat-ground-foothold-target-capturefootplacement)) |
+| Optional flat-ground foothold target (off by default; on for H2) | [Builder:270](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L270) maps `captureFootPlacement`; when enabled, each swing foot gets an xy target `stanceTimeGain * v * T_stance` ahead of the predicted base until its touchdown, tracked with `trackingWeight` (see [Section 5.4](#54-flat-ground-foothold-target-capturefootplacement)) |
 | Ordinary walking generates height references only | [Reference manager:316](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L316) selects the normal ground-height/swing-planner path; [SwingTrajectoryPlanner.cpp:144](../src/core/humanoid_common_mpc/src/swing_foot_planner/SwingTrajectoryPlanner.cpp#L144) builds the vertical spline |
 | Swing equality leaves XY motion free of a prescribed path | [WbIdFootAccelerationConstraintCppAd.cpp:107](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdFootAccelerationConstraintCppAd.cpp#L107) returns only the vertical acceleration/velocity/position residual during swing |
 | Stance stabilizes XY velocity, not XY position | [Constraint:115](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdFootAccelerationConstraintCppAd.cpp#L115) uses horizontal acceleration plus velocity, without an XY position-reference term |
@@ -256,22 +257,33 @@ Implementing frame relations requires schema/builder frame-pair declarations and
 
 ## 7. Solver, Policy and Actuation
 
-[construct_solver():1163](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1163) accepts only `sqp`, constructs `SqpMpc`, connects MRT and installs the synchronized modules.
-The asynchronous worker starts at [line 1193](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1193).
+[construct_solver():1182](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1182) accepts only `sqp`, constructs `SqpMpc`, connects MRT and installs the synchronized modules.
+The asynchronous worker starts at [line 1221](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1221).
 The control loop forwards each valid observation through OCS2's existing `setCurrentObservation()` before policy checks or bring-up dispatch at [line 526](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L526).
-After construction, the worker waits for a new control-loop observation before its first solve at [line 1156](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1156).
+After construction, the worker waits for a new control-loop observation before its first solve at [line 1172](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1172).
 Policy handover checks finite timestamps and requires the evaluation time to lie inside the plan, with two control periods remaining, at [line 538](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L538).
 An unusable policy requests `resetMpcNode()` on the solver worker, following the atomic warm-start reset pattern in `dynamics_mpc_controller`, rather than resetting the solver from the control thread.
 Startup keeps holding the standing posture and retries; loss of a valid policy during the startup blend returns to `StartingMpc`, while loss after entering estimator-driven `Locomotion` latches the existing `Fault` state.
 The ground-truth feedback path holds the last commanded posture while awaiting a valid replacement policy.
 No additional age-limit parameter or alternative observation interface is introduced.
-[compute_mpc_joint_action():1347](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1347) evaluates the policy using `ocs2.solver.rollout.policyTimeOffset`.
+[compute_mpc_joint_action():1375](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1375) evaluates the policy using `ocs2.solver.rollout.policyTimeOffset`.
 The same offset is used by policy-interval validation, so the accepted interval and execution time remain consistent; it is a runtime policy look-ahead, not an ODE timestep.
-Planned joint position/velocity extraction is at [line 1364](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1364).
-The torque-window check and planned-state inverse-dynamics fallback are at [line 1382](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1382).
-The alternative measured-state inverse dynamics is at [line 1399](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1399).
-Feedforward clipping is [clamp_torque():1339](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1339).
-Joint position/velocity/effort and optional gain interface writes are at [line 1666](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1666).
+Planned joint position/velocity extraction is at [line 1395](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1395).
+The torque-window check and planned-state inverse-dynamics fallback are at [line 1408](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1408).
+The alternative measured-state inverse dynamics is at [line 1430](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1430).
+Feedforward clipping is [clamp_torque():1367](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1367).
+Joint position/velocity/effort and optional gain interface writes are at [line 1757](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1757).
+
+When tracking diagnostics are enabled, [publish_solver_metrics():1553](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1553) publishes first-node state/input and full-plan finiteness, mesh, anchor, torque and acceleration checks on best-effort `~/solver`.
+Its column names are latched on `~/solver_names`; the walking harness records matching rows and saves the SQP ring log after shutdown.
+See [the numerical investigation](./wb_id_tangent_orientation.md#uneven-terrain-numerical-investigation) for the analysis command and measurement limitations.
+The initial-state pinning experiment was removed; the controller uses the original OCS2 measured initial-state constraint and warm-start handling.
+The experimental `ocs2.constraints.jointTorqueLimits.hardBounds` defaults false in the [parameter schema:316](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller_parameter.yaml#L316), is forwarded by the [builder:169](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp#L169) and adds `jointTorqueHardBounds` at [WbIdMpcInterface.cpp:194](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp#L194).
+It retains the existing soft torque penalty, requires inverse dynamics and the supported equality-projected SQP path, and has native regression coverage but no robot validation.
+Hard bounds remain off in the manual-test checkpoint; the parameter-only investigation tested existing penalties before any other tuning.
+The latest H2 parameter-only comparison and selected results are in [Response-Priority Tuning](./wb_id_tangent_orientation.md#response-priority-tuning).
+The current user-selected [1.0 s horizon:370](../config/h2/ros2_controllers.yaml#L370), [walking height 0.10 m:667](../config/h2/ros2_controllers.yaml#L667) and [gait-switch fraction 0.3:711](../config/h2/ros2_controllers.yaml#L711) retain the 20 ms grid, one SQP iteration and original cost/penalty weights.
+The documented 0.8 s/0.20 m tangent profile is a historical tested candidate, not the current configuration.
 
 `python3 tests/wb_id_startup_contract_test.py -v` checks the startup observation flow, policy bounds, reset ownership and bring-up guards without a ROS build.
 These are static regression checks, not a substitute for repeated startup tests in the simulator.

@@ -1,6 +1,237 @@
 # WB-ID MPC Walking Robustness Handoff
 
 
+## Current Commit Snapshot (2026-10-31 Asia/Taipei)
+
+User requested committing and pushing both repositories without building or testing.
+Preserve the current user-selected YAML: G1 and H2 both use `euler_zyx`, a 1.0 s horizon, a 0.02 s SQP grid and one SQP iteration.
+Walking swing heights are G1 0.08 m and H2 0.10 m; gait-switch horizon fraction is 0.3.
+H2 retains torqueConstraintNodes 10, torque barrier mu 0.5/delta 1.0 and friction barrier mu 0.2/delta 5.0.
+`hardBounds` is omitted and defaults false; `keepInitialStateFixed` has been removed.
+The earlier tangent/0.8 s/0.20 m candidate and its benchmark results below are historical, not the current YAML.
+Do not automatically restore that candidate or present its measurements as validation of this snapshot.
+No new build or tests were run for this commit; the initial-state-option removal has not been rebuilt.
+Push OCS2 on `jazzy` and the controller on `feat/tangent_space_orientation` together because the optional hard-bound integration depends on the matching stack.
+Matching OCS2 commit: `ff9823188` (`FEAT: add opt-in SQP hard inequality constraints`).
+
+```text
+FEAT: add opt-in SQP hard inequality constraints
+```
+
+```text
+FEAT: add optional WB-ID torque bounds and solver diagnostics
+```
+
+
+## Initial-State Experiment Removed (2026-10-31 Asia/Taipei)
+
+User explicitly requested reverting `keepInitialStateFixed` after comparing standard solver behavior.
+Removed its OCS2 setting/loader/first-state override, controller schema/builder/H2 YAML entry, and dedicated native test/CMake target.
+Preserved the original measured initial-state constraint, tangent warm-start rebasing, AD fixes and the separate disabled hard-inequality path.
+The experiment had been false in all selected-profile trials, so removing it does not intentionally change the saved formulation or tuned numerical values.
+Do not reintroduce it from chronological instructions below. Their pin-option settings/test counts describe historical experiments only.
+CasADi distinguishes `subject_to` constraints from `set_initial` guesses; underlying solver globalization determines intermediate feasibility ([official docs](https://web.casadi.org/docs/)).
+Crocoddyl DDP rolls out from the problem's supplied x0; FDDP can retain gaps in partial infeasible steps ([DDP source](https://github.com/loco-3d/crocoddyl/blob/master/src/core/solvers/ddp.cpp), [FDDP source](https://github.com/loco-3d/crocoddyl/blob/master/src/core/solvers/fddp.cpp)).
+Thus pre-pinning every intermediate iterate is not a universal solver requirement, and its absence is not evidence that OCS2 forgot the initial-state constraint.
+The general hard-constraint approach is standard, but our optional equality-projected HPIPM bridge remains a limited experimental extension, not a claim to reproduce every CasADi backend or Crocoddyl solver.
+No rebuild or simulator test was started for this cleanup; rebuild matching OCS2/controller consumers before deployment because a settings/header and generated parameter schema changed.
+Verification passed:8 activation checks,6 startup checks and the standalone parameter-contract script. Updated that script's stale model-key expectation to include the already-supported orientationRepresentation and asserted that the removed option is absent from schema/config/builder.
+
+```text
+CLEANUP: remove experimental initial-state pinning
+```
+
+
+## Saved Response-Priority Candidate (2026-10-31 Asia/Taipei)
+
+After the user-requested two-hour wait, tested existing penalties first, then parameter-only timing/clearance changes.
+Selected H2 candidate passed3/3 rough-field and3/3 bounded default-scene/ramp-entry trials, MPC80/MRT1000, InEKF, headless, GUI false.
+Achieved75.53-76.66 Hz across those6 runs versus about68-70 Hz with the original1 s horizon.
+Saved only three numerical changes from the start of this resumed session:
+
+| H2 setting | Before | Saved | Reason |
+| --- | --- | --- | --- |
+| `ocs2.mpc.timeHorizon` |1.0|0.8|Fewer nodes, faster solves; preserve dt0.02 and one SQP iteration |
+| `ocs2.gait.transitions.switchDelayHorizonFraction` |0.3|0.375|Keep the same physical0.3 s switch delay with the shorter horizon |
+| `ocs2.gait.templates.walk.swingHeight` |0.10|0.20|Scaled apex0.15 m clears the first~8.6 cm tile; fallback0.10 and trot/run settings unchanged |
+
+The source YAML at session start really had walk0.10, despite the older checkpoint describing0.20.
+No new controller/OCS2 implementation or cost-weight edits in this resumed session; both experimental solver options remain false, torque window10 nodes/0.19 s, and all penalty values remain baseline.
+Saved-YAML flat walk/vy/yaw/run regression PASSED4/4 in `/tmp/tangent_penalty_1031_saved`: rates76.48/76.10/78.17/76.88 Hz; mean advances11.92/12.16/11.56/11.90 ms.
+Pose-derived tracking: vx0.256 for0.2 command, vy0.228 for0.25 (with forward drift0.083), yaw0.559 for0.6, running vx1.020 for1.0. Exact tracking is not claimed; the user prioritizes robustness and response.
+Ten selected-profile trials completed with zero logged solver exceptions and torque-window overruns. Automated simulations are now stopped; no new commit/push or controller rebuild in this parameter-only round.
+Do not claim hard feasibility, general terrain robustness, or reliable recovery from the default ramp's~35 cm end drop.
+These are small sequential batches on the VM; timing below is headless and does not establish the same rate with RViz/MuJoCo rendering.
+Raw selected terrain records: `/tmp/tangent_penalty_1031_horizon08_clearance020`; rejected profiles and limitations follow below.
+All50 completed trials from this round are copied under local ignored `tuning_results/tangent_penalty_1031`; the separate ENOSPC-interrupted run is excluded.
+Verified504 copied files against the12 remote trial directories by size, then replaced those owned Docker `/tmp/tangent_penalty_1031_*` directories with symlinks to the shared local copies to recover disk space and retain existing artifact paths.
+Three additional older trial directories are preserved in `previous_trials_archive_3.tar.gz` before removing their Docker copies. The installed H2 config was checked and sees0.8/0.375/0.20 through symlink install; restart launch, no rebuild needed for these parameter changes.
+Selected rough replay had zero crossing/opposite-leg overlap samples, min signed foot width0.133 m and final stagger0.011 m (latest-sample pose replay, not force truth).
+Selected rough/ramp curves still show near torque/limit peaks1.90/2.13 and generalized accelerations2142/2291 over5-26 s; the ramp sample has a small planned negative world-z force down to-20.9 N. Soft feasibility is improved in these samples, not guaranteed.
+Both anchors remain unit/constant; no new numerical orientation defect identified. Estimator height/tilt errors and rough-ground overspeed remain visible; no estimator tuning was performed here.
+
+```text
+TUNE: improve H2 tangent MPC update rate and walking clearance
+```
+
+
+## Resumed Penalty/Rate Investigation (2026-10-31 Asia/Taipei)
+
+User manually reports current locomotion is good enough but achieved solve rate falls to about60 Hz; prioritize faster response rather than more SQP iterations/accuracy.
+Waited the requested two hours before resuming; no user simulator was running at the initial process check.
+Start with isolated existing penalty tuning and diagnostic-overhead measurement, not new solver/manifold implementations.
+IMPORTANT: current on-disk H2 walk.swingHeight is0.10, matching HEAD, despite the previous handoff's0.20 statement; preserve current user settings as the new baseline.
+H2 remains tangent, one SQP iteration, horizon1, dt0.02, nThreads5; hardBounds and keepInitialStateFixed remain false.
+Default diagnostics.trackingRate is0; benchmark --record-tracking temporarily enables100 Hz tracking AND per-solve diagnostic cost/trajectory evaluation on the solver worker.
+Printing solver statistics occurs only at solver destruction, not every solve; do not blame that flag for steady-state console overhead.
+First baseline: `/tmp/tangent_penalty_1031_baseline`, two flat walk and two rough trials, MPC80/MRT1000, InEKF, headless, GUI false.
+Baseline completed: flat2/2 at69.69/68.40 Hz; rough1/2 success at67.44/68.20 Hz (first fell9.97 s).
+Flat LQ~5.77-6.00 ms and QP~8.03-8.08 ms dominate the budget; line search~0.34 ms, not extra SQP iterations.
+Failed rough replay/curves show first tile-entry destabilization followed by excessive requests (near torque ratio33.32, acceleration37333, min planned world-z force-2660 N), finite plans and unit anchors; screenshots under local ignored `tuning_results/tangent_penalty_1031`.
+At first node across ramp-in/walk samples, flat torque-ratio p95~0.589; rough failure p95~1.87. These are different from the maximum over first3 nodes.
+Relaxed barrier h<=delta: gradient=mu*(h-2delta)/delta^2, curvature=mu/delta^2; outside that region gradient=-mu/h, curvature=mu/h^2.
+Current torque mu0.5/delta1 gives boundary gradient-1 and curvature0.5; candidate mu0.75/delta1 gives-1.5/0.75; candidate mu1/delta2 preserves boundary gradient-1 with curvature0.25.
+Current friction mu0.2/delta5 gives boundary gradient-0.08 and curvature0.008; candidate mu0.4/delta5 doubles both. Friction residual is in N, torque residual in Nm; numerical magnitudes are not interchangeable.
+Queued serial diagnostic-off repeats, then isolated torque0.75, torque1/delta2 and friction0.4 profiles, initially one flat/rough trial each.
+Do not save a penalty profile based on one successful trial. No controller or OCS2 implementation changes in this resumed session.
+Diagnostic-off completed flat2/2 at66.82/68.28 Hz and rough2/2 at69.85/70.00 Hz; no consistent speed gain versus diagnostic-on, so do not claim diagnostics explains the user's60 Hz.
+Storage interruption: the first torque0.75 rough run reached the end upright but could not save results (`ENOSPC`); exclude it as a completed trial. Stopped only its owned process group236147.
+Archived older owned trial directories from Docker `/tmp` into verified local ignored `tuning_results/tangent_penalty_1031/previous_trials_archive{,_2}.tar.gz`, then removed only those archived originals to free space. Old raw-artifact `/tmp` links may now require extraction from these archives.
+The retried torque0.75 rough run stayed upright but NO_TRACKING (pose-body vx0.497 for0.2 command), achieved60.84 Hz. Archive transfer overlapped part of this repeat, so its timing is not a clean penalty-only measurement.
+Torque mu1/delta2 completed flat/rough at67.97/69.32 Hz, but rough mean vx0.339 for0.2 command. Friction-only mu0.4/delta5 completed both, rough70.07 Hz and vx0.241. No material speed gain from these isolated barrier changes.
+Next existing-parameter tests: dt0.025/torqueNodes8 and dt0.03/torqueNodes7, all other parameters baseline. These retain horizon1 and one SQP iteration, with torque windows0.1875/0.195 s versus baseline0.19 s.
+Do not extend the torque window inadvertently when comparing dt, since duration=(nodes-0.5)*dt. Rollout and gait timing are unchanged.
+Initial mesh comparison: dt0.025/nodes8 passed flat and rough,75.50-76.17 Hz,12.12-12.20 ms, QP~6.36 ms versus baseline~8 ms. dt0.03/nodes7 passed flat but fell rough9.28 s,76.91-77.62 Hz; reject for saving.
+Repeating dt0.025 on rough/ramp_entry, then comparing only friction mu0.4 with that mesh. No YAML values saved yet; all experiments are temporary harness overrides.
+Completed bare dt0.025 repeats: rough1/3 success, ramp_entry1/3 success; reject as a standalone saved change despite speed gain. This corrects the earlier partial-log0/3 statement; completed JSON is authoritative.
+dt0.025 plus friction mu0.4: rough1 success/1 upright NO_TRACKING, ramp_entry2/2 falls; also not promoted.
+Next parameter-only pilots: horizon0.8 with dt0.02, torqueNodes10, switchDelayHorizonFraction0.375 (retain physical0.3 s switch delay); and dt0.025/nodes8 with only walk.swingHeight0.16 (scaled apex0.12 m, above first8.6 cm tile). Baseline penalties in both.
+Horizon0.8 pilot passed flat, rough and ramp_entry at76.45/77.47/77.29 Hz, mean advance11.98/11.70/11.76 ms. Ramp-entry mean pose-body vx0.206 for command0.2; rough0.324. QP~6.2 ms, LQ~5.1 ms.
+The clearance0.16/coarse-grid pilot still fell on ramp_entry11.46 s, so leave walking height unchanged.
+Repeating horizon0.8 to three rough and three ramp-entry runs, then vy/yaw/run regressions, before saving any profile. Hardbounds/pinx0 and all cost/penalty weights remain baseline/off.
+Horizon0.8 repeats are NOT uniformly successful: rough2/3 completed, ramp repeat2 fell. Keep those failures; do not promote based on the three pilot successes alone.
+Next candidate retains dt0.02/horizon0.8 and tests the previously documented walk.swingHeight0.20 (scaled apex0.15), versus on-disk baseline0.10. This is a separate clearance comparison, not an orientation or solver implementation change.
+
+
+## Stopped Checkpoint (2026-10-30, 15:52 UTC)
+
+User requested stopping experiments and leaving a buildable checkpoint for manual testing.
+The single-job Jazzy controller build passed (5 min 31 s); native inequality/filter tests passed 3/3, fixed-initial-state regression 1/1 and existing SQP regressions 8/8.
+No owned simulator, RViz or test harness was running at the final process check; do not interfere with the user's subsequent manual tests.
+No new commit or push was made for this unfinished investigation.
+
+**Next session: fine-tune existing penalty parameters FIRST, rather than trying new implementations.**
+Isolate torque and friction `mu`/`delta`, inspect residual units and gradient/curvature scales, change one group at a time and repeat matched Euler/tangent trials.
+The prior combined stronger-barrier experiment caused early stance falls; it is not a systematic sweep or evidence that sensible penalty tuning cannot help.
+Polynomial torque penalties have not been compared; do not add a new selector, hard-bound implementation or anchor redesign before exhausting the requested existing-parameter work.
+Keep `jointTorqueLimits.hardBounds: false` and `solver.sqp.keepInitialStateFixed: false` unless the user explicitly redirects this priority.
+
+Saved H2 candidate: `tangent_space`, walk swing height 0.20 m (0.15 m scaled apex), one SQP iteration, 1 s horizon, torque window 10 nodes, requested MPC80/MRT1000.
+Fallback swing height remains 0.10 m; G1 and saved Q/R, friction/torque penalties, scenes, launch and estimator parameters are unchanged.
+Best batch completed 3/3 isolated rough, 3/3 default-scene and four flat-motion cases; one surviving rough trial dipped to GT z=0.589 m.
+Later saved-YAML long traversal fell at 30.41 s after the ramp-end drop; shorter ramp trials were Euler 3/3 versus tangent 2/3 plus a severe-collapse tracking failure.
+Therefore this is a testable experimental checkpoint, NOT a reliable terrain fix or proof tangent outperforms Euler.
+Actual instrumented solve rates were roughly tangent 67-70 Hz versus Euler 73-74 Hz at requested 80 Hz.
+
+### Uncommitted Changes Versus HEAD
+
+| Repository / HEAD | Current changes |
+| --- | --- |
+| Legged `feat/tangent_space_orientation`, `5e088ef` | H2 Euler-to-tangent default and walk height 0.10-to-0.20; plan/first-node diagnostics and capture/analysis tooling; native generated-constraint derivative regression; benchmark cases; optional hard-torque-bound wiring; documentation |
+| OCS2 `jazzy`, `b4954f7a4` | Optional measured-x0 pinning; optional projected inequalities passed to HPIPM; inequality-aware filter/convergence; native regressions |
+
+Both new solver options default off; hard bounds retain the existing torque RBF but have NOT been robot-tested.
+The supported experimental hard path requires state/input equality projection; unprojected mixed constraints and state-only equalities are rejected explicitly.
+Native tests do not establish nonlinear feasibility or recovery robustness after partial SQP updates.
+Current uncommitted changes do not replace the tangent orientation math already committed in `3186b85`, change G1, or alter the estimator/launch/terrain.
+Preserve the user's external `.gitignore` commit and OCS2 metadata commits.
+
+Confirmed observations: generated RNEA/foot derivatives agree with independent checks (worst scaled error about 1.40e-7); failing plans remain finite with valid anchors but can request excessive torques/accelerations and negative contact forces.
+Execution clips feedforward torque, creating plan/execution mismatch; Euler can also exhibit these violations and terrain falls.
+No new current SO(3) singularity/NaN defect was identified by these checks.
+Earlier sections below are chronological and contain superseded running/next statements; this stopped checkpoint takes precedence.
+
+Possible later commit subjects, only after validation:
+
+```text
+FEAT: add opt-in WB-ID feasibility diagnostics and torque bounds
+FEAT: support opt-in projected SQP inequalities
+```
+
+
+## Current H2 Checkpoint (2026-10-30, 15:04 UTC)
+
+Saved H2 now selects `tangent_space` and `gait.templates.walk.swingHeight: 0.20` (15 cm reference apex after duration scaling).
+G1 is unchanged and retains Euler; H2's fallback swing height remains 0.10, trot/run heights and all cost/gain/constraint values are unchanged.
+Keep one SQP iteration, H2 torque window 10 (0.19 s) and `solver.sqp.keepInitialStateFixed: false`.
+The clearance-only tangent profile completed six terrain trials (3 rough + 3 default scene) and four flat trials (vx=0.2, vy=0.25, yaw=0.6, run vx=1.0), requested MPC80/MRT1000, InEKF, GUI false/headless.
+One rough trial recovered from a deep crouch (min GT z=0.589 m), and soft torque/friction penalties still permit infeasible optimized inputs. Do not claim the numerical/actuation-feasibility problem is solved or all runs are smooth.
+Same-clearance Euler completed rough 3/3 and default 1/3; two late falls were in stopping after the ramp edge, which drops ~0.35 m at x=5.5, not first terrain entry. Both scenes remain unmodified.
+Tangent achieved about 67-70 Hz with detailed diagnostics, versus Euler about 73-74 Hz; it is not faster on this VM.
+Final no-override saved-YAML smoke `/tmp/tangent_numerical_saved_checkpoint` FELL at 30.41 s, x=6.956 m after walking off the ramp end during ramp-out. It did not repeat the early entry failure, but invalidates any claim that the long default-scene traversal is reliably solved.
+The log still had walk active before this fall; no decreasing-to-stance event was logged, so do not blame premature stance without evidence.
+The selected profile is a candidate checkpoint, not a fully robust terrain solution. A separately named `ramp_entry` case (vx=0.2, hold=10 s) is running three A/B repeats in `/tmp/tangent_numerical_ramp_entry` to isolate ramp ascent/stopping before the 0.35 m end drop. Do not replace or omit the failed long-traversal result.
+Completed short-ramp matrix: Euler 3/3 success, tangent 2/3 success plus one NO_TRACKING with a large brief collapse (min GT z=0.383 m, pitch >1 rad). This invalidates promoting the clearance-only profile as reliably robust even before the ramp end.
+Next compute-budget ablation `/tmp/tangent_numerical_short_rti`: horizon0.5, two SQP iterations, switchDelayHorizonFraction0.6 (keeps the old 0.3 s gait-switch delay), same clearance/gains, two repeats each of rough, short-ramp and long default. All requested80Hz. Do not confuse this with the rejected two-iteration/full-1s-horizon experiment.
+Completed short-RTI profile: rough 2/2, short-ramp 2/2, long default 1/2; final long trial fell during overspeed. Actual rate ~65-67 Hz and hold speeds often 0.28-0.47 m/s for command0.2; do not promote unchanged.
+New `/tmp/tangent_numerical_short_rti_vx60` repeats that profile with only running/terminal forward-velocity weights raised from30 to60, retaining every other weight. This tests braking/tracking without increasing lateral/yaw stiffness.
+Pose-derived GT/estimated forward speeds agreed in sampled successful and failed records (RMS errors ~0.012-0.021 m/s), so the observed overspeed is not explained by a large estimator velocity bias in those records. The plotter now includes pose-derived GT vx.
+The vx60 profile also had terrain falls, so it is not promoted. Current work is no longer assuming more gain tuning alone will close the gap.
+
+Opt-in hard-torque-bound work is now in progress, NOT robot validated: `constraints.jointTorqueLimits.hardBounds` defaults false, adds the same torque-window constraint to the OCP inequality collection while retaining the existing relaxed-barrier penalty, and enables the new OCS2 SQP inequality path.
+Reference `wb-mpc-locoman` uses hard torque bounds plus ordinary quadratic effort regularization, hard contact-force inequalities, and skips initial-node foot velocity constraints to avoid conflicting with the measured initial state. It does not use the same torque-limit RBF. Fatrop example allows up to10 iterations; our original path uses one SQP iteration.
+Primary upstream references: [OCS2 issue30](https://github.com/leggedrobotics/ocs2/issues/30), [issue120](https://github.com/leggedrobotics/ocs2/issues/120), and [HPIPM example](https://github.com/giaf/hpipm/blob/master/examples/c/example_d_ocp_qp.c). SQP previously stored inequality linearizations but did not forward them to HPIPM; the existing line-search norm also ignored inequality SSE.
+The new path uses existing equality projection, transformed state/input inequalities, HPIPM lower bounds with upper masks disabled, initial-state elimination, and opt-in inequality-aware line search/convergence. Legacy settings remain off.
+Initial low-level bound/mask-reset and projected-SQP bounds tests pass. Unprojected mixed equalities/inequalities failed convergence; that unsupported combination is now rejected explicitly rather than advertised as supported. A trial of HPIPM equality metadata did not fix it and was removed.
+Native tests also cover terminal bounds, rejection of the unsupported mode and opt-in filter behavior; the latter fixture needed merit as well as cost initialized (the filter compares merit). Final native regression and controller rebuild are running before any robot hard-bound experiment.
+Hard bounds may expose genuinely incompatible contact/RNEA/actuator requirements; they do not make infeasibility impossible or guarantee nonlinear feasibility after partial SQP updates. Both a penalty and a hard bound can coexist, but the penalty does not enlarge the hard feasible set.
+Detailed original and new tables, native validation, rejected ablations and limitations are in `docs/wb_id_tangent_orientation.md`.
+To reproduce the original Euler baseline rather than the current profile, select Euler AND restore H2 walk.swingHeight to 0.10; selecting the flag alone does not undo tuning.
+
+
+## Uneven-Terrain Numerical Investigation (2026-10-30)
+
+Latest user report: H2 often falls violently just after starting uneven-terrain walking; investigate implementation/numerical/optimization errors, not only gain tuning.
+User authorizes communication with Claude through the ignored `chore/agent_chat_box.md`; read it periodically and before ending, append ACKs/results, and do not disturb Claude's read-only workflow.
+Existing user `.gitignore` edits are unrelated and must be preserved.
+OCS2 local `jazzy` is behind origin by two metadata/VCS commits, with no runtime source difference; do not conflate those with this investigation.
+Later status check: OCS2 HEAD is now `b4954f7a4`, matching origin/jazzy and including those metadata commits; local runtime investigation edits remain uncommitted. Preserve the externally updated metadata.
+
+Initial actions: walking harness now saves `~/solver` per-solve named cost/equality metrics to `<prefix>_solver.csv` and copies the existing SQP ring log to `<prefix>_sqp.csv` after shutdown.
+Fresh original-setting 80 Hz baseline (`/tmp/tangent_numerical_investigation_baseline`) completed rough Euler/tangent and default-scene Euler; default-scene tangent stayed upright but failed tracking (heading deviation), so it is not counted as a success.
+Pointwise near-horizon RNEA residual SSE can exceed 1e6 even in surviving runs; time-integrated global SSE alone is insufficient, especially near tiny event intervals.
+Existing OCS2 SQP ring logs show frequent half/quarter steps near failure with only one SQP iteration; no evidence of a thrown QP failure, and zero-step rejection was not present in the sampled old failures.
+Do not yet call underconvergence or the measured-state boundary a confirmed root cause.
+
+New native `wb_id_tangent_constraint_test.cpp` checks generated base/joint RNEA values against native Pinocchio and every state/input Jacobian column against independent perturbations.
+The initial RNEA-only regression passed at phi=0, 1e-8 and 0.2, absolute pitch 0 and 1.2 rad, nonzero velocities/accelerations/contact wrenches; worst scaled derivative error 1.40e-7.
+The regression is being expanded to stance/swing foot acceleration equalities.
+Solver diagnostics are being extended with first-node full state/input, anchor norm/drift, maximum chart magnitude, minimum node interval and acceleration/torque/velocity extrema, without changing the OCP or gains.
+Expanded stance/swing foot derivative checks also passed at all six native cases.
+Three current tangent default-scene diagnostic trials (`/tmp/tangent_numerical_plan_diagnostics`) gave NO_TRACKING, SUCCESS and FALL (12.29 s).
+The failing plan stayed finite, with unit/constant anchors to 2.3e-16 and chart norm below 1.1 rad, but requested generalized acceleration up to 17746, near torque/limit ratio 9.0, and negative normal force down to -2019 N.
+The first planned joints differed by as much as 0.45 rad from interpolated same-time observations before 12 s; observation sampling/very high joint speeds also contribute, so native fixed-boundary regression is needed.
+Two-iteration SQP ablation (`/tmp/tangent_numerical_two_sqp`) fell in all three trials and reduced achieved rate to about 32-34 Hz; reject this as a robustness fix.
+Terrain inspection: near x=0.26, right/left y=-/+0.1 tile tops are 0.085964/0.053727 m above the clear floor. The 2-5 cm adjacent-tile bound explicitly excludes clear-patch edges. Current walking swing apex is only 0.075 m after duration scaling.
+An opt-in OCS2 `sqp.keepInitialStateFixed` experiment now pins x0 to the measurement before linearization; legacy defaults remain false. This prevents a partial SQP step from diluting the initial-state correction, but does not by itself enforce nonlinear dynamics/contact/actuator feasibility.
+Rebuild and compare that option before promoting it; no successful fix is claimed yet.
+The deterministic SQP boundary regression now passes on a bilinear system with a nonlinear Gauss-Newton objective: the legacy path demonstrably returns x0 different from the new measurement under backtracking, while `keepInitialStateFixed=true` retains the measured x0 to 1e-12.
+The 8 pre-existing SQP tests pass, and the Release rebuild with the opt-in option passed (controller 5 min).
+Unchanged-gain 80 Hz tangent trials with only `keepInitialStateFixed=true` are running in `/tmp/tangent_numerical_fixed_initial` (three default-scene and three isolated rough-field repetitions).
+Completed: fixed-initial-state default-scene trials fell 3/3; rough trials stayed upright 3/3 but only one passed tracking, with overspeed in the others. This option fixes the initial-boundary property, not terrain robustness; leave it false.
+Removing only stance height/orientation restoration (`positionErrorGain_z=0`, `orientationErrorGain=0`) passed one default-scene run but fell on isolated rough ground; do not save this ablation.
+Increasing torque/friction relaxed-barrier strength (`jointTorqueLimits.mu=10, delta=1`, `frictionCone.mu=2, delta=1`) caused six early stance falls, before walking. Reject it; stronger penalties are not automatically a feasibility/conditioning improvement.
+A clearance-only ablation with `ocs2.gait.templates.walk.swingHeight=0.20` is running in `/tmp/tangent_numerical_clearance_020`; first three default-scene runs completed 36 s with progress, but rough-ground repeats and replay inspection are still needed before promotion.
+All saved gains, terrain geometry and initial-state option remain unchanged at this point.
+Completed clearance-only matrix: tangent 6/6 completed (three default scene, three isolated rough); one rough run recovered from a deep crouch (minimum GT base height 0.589 m), so do not describe all six as smooth.
+Euler with the same clearance completed 3/3 isolated rough and 1/3 default-scene runs, with two late falls. This corrects the earlier live-tail reading that missed repeat 2's fall; the completed comparison JSON is authoritative. These small, sequential batches do not prove tangent is intrinsically superior.
+Before the first 12 s, a representative successful tangent run reduced initial attitude/joint mismatch to 0.0011/0.0112 rad and avoided negative planned world-z force, compared with the original failed run's 0.043/0.449 rad and -2019 N.
+However, the recovering rough run still produced near-term torque/limit ratio 20.27 and negative force later; clearance prevents many first strikes but does not enforce feasible plans.
+An existing-parameter ablation with full-horizon joint RNEA (`torqueConstraintNodes=0`) plus 0.20 m clearance is running in `/tmp/tangent_numerical_full_rnea` (two rough and two default repetitions). First rough succeeded; second stayed upright but stalled/NO_TRACKING. Leave the saved H2 window at 10 (0.19 s); the diagnostic first-three-node metrics are not the torque-window length.
+Completed full-horizon ablation: one success and one NO_TRACKING in each scene; the second default run barely advanced. Reject for promotion despite a smaller/faster projected QP.
+Final clearance-only tangent flat regression is running in `/tmp/tangent_numerical_clearance_020_flat`: walk vx=0.2, vy=0.25, yaw=0.6 and run vx=1.0, all requested 80 Hz. The new `walk` benchmark case distinguishes low-speed walking from the existing `vx=0.5` trot case.
+
+
 ## Tangent-Space Orientation Experiment (2026-10-30, Opt-In Checkpoint)
 
 Work on the existing `feat/tangent_space_orientation` branch; quaternion decision-variable experiments are explicitly deferred.

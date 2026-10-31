@@ -191,6 +191,15 @@ void WbIdMpcInterface::setupOptimalControlProblem() {
                                                                       *mpcRobotModelADPtr_, modelSettings_, torqueWindowPtr_));
   }
   if (config_.activateJointTorqueLimits) {
+    if (config_.hardJointTorqueLimits) {
+      if (!config_.activateInverseDynamics) {
+        throw std::invalid_argument("[WbIdMpcInterface] hard joint-torque bounds require inverseDynamics.activate");
+      }
+      sqpSettings_.enforceInequalityConstraints = true;
+      problemPtr_->inequalityConstraintPtr->add(
+          "jointTorqueHardBounds",
+          std::make_unique<WbIdJointTorqueLimitConstraint>(*mpcRobotModelPtr_, config_.torqueLimits, torqueWindowPtr_));
+    }
     problemPtr_->softConstraintPtr->add(
         "jointTorqueLimits",
         std::make_unique<StateInputSoftConstraint>(

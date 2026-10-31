@@ -139,8 +139,12 @@ def main():
         assert f"p.{current}" in builder, f"Missing WB-ID builder mapping: {current}"
         assert not re.search(rf"\bp\.{re.escape(previous)}\b", builder), f"Obsolete WB-ID builder mapping: {previous}"
     assert set(params["ocs2"]["model"]) == {
-        "robotName", "fixedJointNames", "contactNames6DoF", "contactParentJointNames", "contactGeometry",
+        "robotName", "orientationRepresentation", "fixedJointNames", "contactNames6DoF", "contactParentJointNames", "contactGeometry",
     }
+    assert params["ocs2"]["model"]["orientationRepresentation"] in {"euler_zyx", "tangent_space"}
+    for tree in (params["ocs2"], schema["ocs2"]):
+        assert "keepInitialStateFixed" not in tree["solver"]["sqp"]
+    assert "keepInitialStateFixed" not in builder
     assert len(params["ocs2"]["reference"]["armSwing"]["jointNames"]) == 4
     assert set(params["ocs2"]["solver"]) == {"sqp", "rollout"}
     assert "mpc" in params["ocs2"] and "mpc" not in params["ocs2"]["solver"]

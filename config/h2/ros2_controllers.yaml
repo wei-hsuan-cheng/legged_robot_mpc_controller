@@ -316,10 +316,9 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
 
       model:
         robotName: h2
-        # tangent_space: local rotation increments and body XYZ angular velocity.
         # euler_zyx: absolute ZYX angles and their Euler rates.
-        # Keep the tested baseline by default; tangent terrain reliability is still experimental.
-        orientationRepresentation: euler_zyx # tangent_space | euler_zyx
+        # tangent_space: local rotation increments and body XYZ angular velocity.
+        orientationRepresentation: euler_zyx # euler_zyx | tangent_space
 
         fixedJointNames:
           - left_wrist_roll_joint
@@ -644,7 +643,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         swingTrajectory:
           liftOffVelocity: 0.05
           touchDownVelocity: -0.0
-          swingHeight: 0.10 # default fallback for templates that omit swingHeight; 0.10 [m] is the walk value.
+          swingHeight: 0.10 # default fallback; walk, trot and run override below.
           touchDownHeightOffset: -0.001
           swingTimeScale: 0.4
           impactProximityFactorLiftOffVelocity: -0.15
@@ -653,7 +652,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
 
         # Gait templates: N modes and N+1 switching times [s], repeated with period last - first.
         # STANCE = both feet in contact, LF = left foot in contact (right swings), RF = right, FLY = none.
-        # H2 uses slow_walk then a shorter walk with double support; faster/flight templates are not selected.
+        # Walk includes double support; trot and run are selected at higher commands.
         templates:
           # Optional swingHeight [m] per gait; omitted or -1 uses swingTrajectory.swingHeight.
           # The existing swingTimeScale still reduces clearance for short swings.

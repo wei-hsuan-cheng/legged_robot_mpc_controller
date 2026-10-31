@@ -166,6 +166,7 @@ ocs2::humanoid::WbIdMpcInterface::Config buildWholeBodyInverseDynamicsMpcConfig(
     config.torqueLimits = toVector(p.constraints.jointTorqueLimits.limits);
   }
   config.torqueLimitBarrierConfig.mu = p.constraints.jointTorqueLimits.mu;
+  config.hardJointTorqueLimits = p.constraints.jointTorqueLimits.hardBounds;
   config.torqueLimitBarrierConfig.delta = p.constraints.jointTorqueLimits.delta;
   config.torqueScaling = p.constraints.jointTorqueLimits.torqueScaling;
   config.velocityScaling = p.constraints.jointVelocityLimits.velocityScaling;

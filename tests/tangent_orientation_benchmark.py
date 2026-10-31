@@ -20,12 +20,14 @@ from mujoco_scene import write_scene
 
 
 CASES = {
+    "walk": ("vx", 0.2, 20.0),
     "vx": ("vx", 0.5, 25.0),
     "vy": ("vy", 0.25, 25.0),
     "yaw": ("yaw", 0.6, 30.0),
     "run": ("vx", 1.0, 30.0),
     "rough": ("vx", 0.2, 20.0),
     "default_scene": ("vx", 0.2, 20.0),
+    "ramp_entry": ("vx", 0.2, 10.0),
     "push": ("vx", 0.3, 25.0),
 }
 
@@ -128,7 +130,7 @@ def main():
                 if case == "rough":
                     scene = write_scene(Path(str(prefix) + "_scene.xml"), args.robot_name, "rough")
                     command += ["--scene", str(scene)]
-                elif case == "default_scene":
+                elif case in ("default_scene", "ramp_entry"):
                     command += ["--scene", "scene.xml"]
                 elif case == "push":
                     # Reuse the first (pelvis, 50 N lateral, 0.5 s) existing pulse.

@@ -108,6 +108,7 @@ class WbIdMpcInterface final : public RobotInterface {
     //! Shared by the OCP torque-window penalty and runtime feedforward clipping.
     vector_t torqueLimits;
     scalar_t torqueScaling = 1.0;
+    bool hardJointTorqueLimits = false;
     RelaxedBarrierPenalty::Config torqueLimitBarrierConfig{0.1, 5.0};
 
     //! |qd_j| <= velocityScaling * the URDF velocity limit on every node.

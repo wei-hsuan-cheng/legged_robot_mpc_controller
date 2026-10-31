@@ -81,6 +81,17 @@ class ConstraintActivationContractTest(unittest.TestCase):
         self.assertIn("clamp_torque(command.feedforward);", action)
         self.assertNotIn("constraints.jointTorqueLimits.activate", action)
 
+    def test_hard_torque_bounds_are_opt_in_and_use_the_same_constraint(self):
+        entry = SCHEMA["ocs2"]["constraints"]["jointTorqueLimits"]["hardBounds"]
+        self.assertEqual(entry["type"], "bool")
+        self.assertIs(entry["default_value"], False)
+        self.assertIn("config.hardJointTorqueLimits = p.constraints.jointTorqueLimits.hardBounds;", BUILDER)
+        guard = block(INTERFACE, "if (config_.hardJointTorqueLimits)")
+        self.assertIn("sqpSettings_.enforceInequalityConstraints = true;", guard)
+        self.assertIn("inequalityConstraintPtr->add", guard)
+        self.assertIn("WbIdJointTorqueLimitConstraint", guard)
+        self.assertIn("!config_.activateInverseDynamics", guard)
+
     def test_scaling_names_defaults_validation_and_shared_torque_bounds(self):
         self.assertNotIn("scale", SCHEMA["ocs2"]["constraints"]["jointVelocityLimits"])
         for group, name in (("jointVelocityLimits", "velocityScaling"), ("jointTorqueLimits", "torqueScaling")):

@@ -313,6 +313,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         mu: {type: double, default_value: 30000.0, description: "Barrier mu of the collision soft constraint"}
         delta: {type: double, default_value: 0.05, description: "Barrier delta of the collision soft constraint"}
       jointTorqueLimits:
+        hardBounds: {type: bool, default_value: false, description: "Also enforce the torque-window bounds in HPIPM QP inequalities; retains the soft penalty. Experimental, may expose infeasible contact/RNEA constraints."}
         activate: {type: bool, default_value: true, description: "Enable OCP torque-limit soft penalties inside the torque window; does not disable runtime feedforward clipping"}
         torqueScaling: {type: double, default_value: 1.0, description: "Fraction of URDF or override torque limits used by both the OCP penalty and runtime feedforward clipping",
             validation: {gt: [0.0], lt_eq: [1.0]}}

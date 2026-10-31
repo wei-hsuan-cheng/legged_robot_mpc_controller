@@ -50,7 +50,8 @@ After estimator-driven locomotion has begun, losing a valid policy latches the b
 
 WB-ID supports `ocs2.model.orientationRepresentation` values `euler_zyx` and `tangent_space`.
 The equations immediately below describe the Euler baseline; the measured-anchor tangent model, body-angular-velocity convention and changed stored dimension are described in [Tangent-Space Orientation](./wb_id_tangent_orientation.md).
-Both robots retain Euler by default; H2's tangent experiment and its uneven-terrain limitations are documented in the comparison.
+G1 retains Euler by default; H2 selects tangent with the tested higher walking clearance on this feature branch.
+The comparison records the original baseline, current checkpoint and remaining uneven-terrain/feasibility limitations.
 
 Let $n_j$ be the number of MPC joints and $n_v=6+n_j$.
 The generalized configuration and velocity are:

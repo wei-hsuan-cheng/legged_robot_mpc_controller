@@ -1532,8 +1532,15 @@ void HumanoidWholeBodyInverseDynamicsMpcController::configure_tracking()
   for (const auto& name : solver_state_cost_terms_) solver_names.push_back("state_cost/" + name);
   for (const auto& name : solver_soft_terms_) solver_names.push_back("soft/" + name);
   for (const auto& name : solver_state_soft_terms_) solver_names.push_back("state_soft/" + name);
+  for (const char* name : {"finite", "min_positive_dt", "zero_dt_count", "chart_norm_max", "anchor_norm_error_max",
+                          "anchor_drift_max", "acceleration_max", "near_acceleration_max", "near_torque_ratio_max",
+                          "joint_velocity_max", "base_height_min", "normal_force_min"}) {
+    solver_names.push_back(std::string("plan/") + name);
+  }
+  for (std::size_t i = 0; i < control_model_->getStateDim(); ++i) solver_names.push_back("x0/" + std::to_string(i));
+  for (std::size_t i = 0; i < control_model_->getInputDim(); ++i) solver_names.push_back("u0/" + std::to_string(i));
   solver_row_.data.assign(solver_names.size(), std::numeric_limits<double>::quiet_NaN());
-  solver_publisher_ = get_node()->create_publisher<std_msgs::msg::Float64MultiArray>("~/solver", rclcpp::QoS(200));
+  solver_publisher_ = get_node()->create_publisher<std_msgs::msg::Float64MultiArray>("~/solver", rclcpp::QoS(200).best_effort());
   solver_names_publisher_ =
     get_node()->create_publisher<std_msgs::msg::String>("~/solver_names", rclcpp::QoS(1).transient_local().reliable());
   std_msgs::msg::String solver_header;
@@ -1611,6 +1618,58 @@ void HumanoidWholeBodyInverseDynamicsMpcController::publish_solver_metrics(doubl
       }
     }
   } catch (const std::exception&) {
+  }
+  // Inspect the returned trajectory, not just its integrated performance index.
+  // Tiny event intervals can hide a large pointwise residual in the integral.
+  const auto nx = control_model_->getStateDim(), nu = control_model_->getInputDim();
+  k = row.size() - 12 - nx - nu;
+  const auto& states = solver_primal_.stateTrajectory_;
+  const auto& inputs = solver_primal_.inputTrajectory_;
+  const auto& times = solver_primal_.timeTrajectory_;
+  if (!states.empty() && !inputs.empty()) {
+    bool finite = true;
+    double min_dt = std::numeric_limits<double>::infinity(), zero_dt = 0.0;
+    double chart = 0.0, anchor_norm = 0.0, anchor_drift = 0.0, acceleration = 0.0, near_acceleration = 0.0;
+    double torque_ratio = 0.0, joint_velocity = 0.0, height = std::numeric_limits<double>::infinity();
+    double normal_force = std::numeric_limits<double>::infinity();
+    for (std::size_t n = 0; n < states.size(); ++n) {
+      const auto& x = states[n];
+      finite = finite && x.allFinite();
+      height = std::min(height, control_model_->getBasePosition(x)(2));
+      joint_velocity = std::max(joint_velocity, x.segment(control_model_->getJointVelocitiesStartindex(),
+                                                       control_model_->getJointDim()).cwiseAbs().maxCoeff());
+      if (control_model_->usesTangentSpace()) {
+        chart = std::max(chart, x.segment<3>(3).norm());
+        anchor_norm = std::max(anchor_norm, std::abs(x.tail<4>().norm() - 1.0));
+        anchor_drift = std::max(anchor_drift, (x.tail<4>() - states.front().tail<4>()).norm());
+      }
+      if (n > 0) {
+        const double dt = times[n] - times[n - 1];
+        if (dt > 0.0) min_dt = std::min(min_dt, dt);
+        else zero_dt += 1.0;
+      }
+    }
+    for (std::size_t n = 0; n < inputs.size(); ++n) {
+      const auto& u = inputs[n];
+      if (u.size() != static_cast<Eigen::Index>(nu)) continue;
+      finite = finite && u.allFinite();
+      const double a = control_model_->getGeneralizedAccelerations(u).cwiseAbs().maxCoeff();
+      acceleration = std::max(acceleration, a);
+      if (n < kNearNodes) {
+        near_acceleration = std::max(near_acceleration, a);
+        if (torque_limit_.size() > 0) {
+          torque_ratio = std::max(torque_ratio,
+            (control_model_->getJointTorques(u).cwiseAbs().array() / torque_limit_.array()).maxCoeff());
+        }
+      }
+      for (std::size_t foot = 0; foot < 2; ++foot) {
+        normal_force = std::min(normal_force, control_model_->getContactForce(u, foot)(2));
+      }
+    }
+    for (double value : {finite ? 1.0 : 0.0, min_dt, zero_dt, chart, anchor_norm, anchor_drift,
+                         acceleration, near_acceleration, torque_ratio, joint_velocity, height, normal_force}) put(value);
+    for (Eigen::Index i = 0; i < states.front().size(); ++i) put(states.front()(i));
+    for (Eigen::Index i = 0; i < inputs.front().size(); ++i) put(inputs.front()(i));
   }
   solver_publisher_->publish(solver_row_);
 }
