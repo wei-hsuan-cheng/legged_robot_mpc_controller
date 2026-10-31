@@ -1,6 +1,114 @@
 # WB-ID MPC Walking Robustness Handoff
 
 
+## Nonuniform Grid Investigation (2026-10-31 Asia/Taipei)
+
+### Manual-Test Checkpoint
+
+Post-push numerical review of OCS2 `ca33b4dd8` found an event-preservation edge case in `TimeDiscretization.cpp`, fixed and pushed to OCS2 `origin/jazzy` as `2513e83ed`.
+An event just before the fine-window boundary can lose its `PreEvent` marker when the subsequent boundary node overwrites it under the existing `dt_min` merge rule (default 10 microseconds).
+Example: `fineHorizon: 0.2`, contact event at relative 0.199995 s, `dt: 0.02`, `maxStep: 0.035`, `growthFactor: 1.4`.
+A small Python reproduction first demonstrated the issue; a subsequent native GTest also failed on the old implementation and passed after the fix.
+The constructor now omits the artificial fine-window boundary when it is within `dt_min` of the preceding node, retaining the exact contact timestamp and pre/post-event pair.
+The API comment documents that tolerance; no torque-window behavior, parameters, or contact timing was changed.
+Native tests compiled directly from the current C++ sources in Docker `ros_jazzy` passed 9/9, including 21 boundary-offset/origin combinations in the new regression test.
+Coverage includes events before, exactly at and after the boundary and horizon starts at 0, 2 and 1e6 seconds, with positive ordinary interval durations.
+No full workspace rebuild or simulation was run for this fix; installed controller binaries still require rebuilding to include it.
+This edge case has not been established as the cause of any recorded fall.
+
+```text
+FIX: preserve contact events near the fine-grid boundary
+```
+
+Follow-up: removed the builder restriction requiring `fineHorizon` to cover the torque window, at the user's request.
+Both durations are now independent; coarse nodes inside the torque window still activate joint RNEA and enabled torque-limit penalties by timestamp.
+Nonpositive `torqueConstraintNodes` may also use the nonuniform grid with joint torque constraints active over the whole horizon.
+No numerical values or OCS2 code changed in this follow-up; the previous simulation results used the unchanged 0.2 s fine / 0.19 s torque windows, not a shortened fine window.
+Focused static contract tests were updated; no rebuild or simulation was performed for this follow-up.
+
+All owned simulations and builds are stopped; the user can test now.
+The user explicitly excluded further high-speed uneven-terrain running tests.
+The user subsequently requested committing and pushing this checkpoint on `jazzy`, including the current H2 grid values and linear-KF launch default.
+OCS2 `jazzy` must include `ca33b4dd8` (grid support) and `2513e83ed` (boundary fix); rebuild matching OCS2 and controller binaries before using the latest source changes.
+Selected H2 settings are `timeGrid: {activate: true, maxStep: 0.035, growthFactor: 1.4, fineHorizon: 0.2}` with unchanged `dt: 0.02`, RK4, one SQP iteration and 1.0 s horizon.
+Costs, barriers, gait parameters, actuator gains and torque-window duration were not tuned in this investigation.
+G1 YAML is unchanged; OCS2's nonuniform path is opt-in.
+The user's launch default `humanoid_linear_kf` is preserved, not introduced by this work.
+
+| Comparison or final smoke test | Result | Timing and caveat |
+| --- | --- | --- |
+| Matched InEKF, uniform, uneven vx 0.2 m/s, three repeats | Upright 1/3 | Reported actual rate about 71-77 Hz. |
+| Matched InEKF, selected 35 ms cap, same uneven protocol | Successful 3/3 | About 93-96 Hz; roughly 42 grid nodes versus 57 uniform. |
+| Selected grid, current linear-KF default, flat 1 m/s | Successful, mean vx 1.008 m/s | About 92 Hz mean; startup, 20 s hold and stop included. |
+| Selected grid, current linear-KF default, flat 2 m/s | Successful, mean vx 1.912 m/s | About 93 Hz mean; one trial with 15 s hold, including a deep transient height dip to 0.770 m. |
+| Selected grid, current linear-KF default, uneven vx 0.2 m/s | Successful, mean vx 0.280 m/s | About 93 Hz mean; one 21 s entry/walk/stop trial. |
+
+These are small simulation batches, not a guaranteed stability envelope or hard-real-time 100 Hz result.
+Final smoke tests reported peaks around 97-98 Hz; VM/solver timing outliers remain.
+Paired grid comparisons used InEKF; final default-config smoke tests used linear KF, so do not attribute differences across those groups solely to the grid.
+The 50/60 ms caps were faster on flat ground but fell in rough-field trials and were rejected.
+Earlier flat 2 m/s trials with InEKF and other grid profiles fell; the final single linear-KF success does not invalidate those failures.
+Rough tests used the uneven field without the ramp and no supplied terrain geometry; the combined default ramp/field scene is not certified by them.
+Short high-speed rough command pulses did not reach their commanded speed because of command slew limits and are not sustained rough-running evidence.
+Visual replays and motion/timing/residual curves were inspected; selected rough repeat 3 and final flat 2 m/s replay had no sampled leg crossing or opposite-leg overlap.
+Large nonlinear residuals can still occur; successful balance does not certify full actuator feasibility.
+
+The fine grid and torque window are separate: H2's `torqueConstraintNodes: 10` gives `(10 - 0.5) * 0.02 = 0.19` s.
+Joint RNEA equalities and configured torque-limit soft penalties apply inside this window, while base RNEA remains active over the full horizon.
+The 0.2 s fine grid covers the 0.19 s torque window; the coarse tail reduces preview computation without guaranteeing distant joint-torque feasibility.
+
+Build of `ocs2_oc`, `ocs2_sqp` and the controller passed; native grid tests passed 8/8 and the focused static/parameter checks passed.
+Artifacts are under ignored `tuning_results/nonuniform_1031/{paired,high_speed,conservative,final_linear,final_linear2}`.
+Useful plots include `conservative/balanced_rough_3_time_grid.png` and its rendered pose frames.
+Generated libraries remain in `/root/ocs2_ros2_ws/auto_generated`, not the symlinked source repository.
+
+Suggested separate commit messages, for later use only:
+
+```text
+FEAT: add opt-in event-aligned nonuniform SQP grids
+```
+
+```text
+FEAT: configure and validate H2 nonuniform prediction grid
+```
+
+
+### Investigation History
+
+User requested nonuniform-grid implementation and real H2 flat/uneven comparisons, targeting 100 Hz and preferably 125 Hz.
+Work is on `jazzy` in both repositories; preserve the user's uncommitted launch default `humanoid_linear_kf`.
+Initial paired tests explicitly select InEKF, state-estimator feedback, headless simulation and GUI false; no terrain shape is supplied to the MPC.
+Current Jazzy H2 baseline is Euler, horizon 1.0 s, dt 0.02, RK4, one SQP iteration, torque window 0.19 s.
+Do not silently shorten the horizon or change costs/barriers/estimator while comparing grids.
+Added optional OCS2 geometric event-aligned grid and WB-ID `solver.sqp.timeGrid` (activate/maxStep/growthFactor/fineHorizon).
+Uniform remains the schema default; initial candidate keeps 0.2 s fine, then grows by 1.2 toward 0.05 s.
+Contact-event pre/post nodes are retained, cost/dynamics transcription uses actual interval durations, and the existing physical-time torque window is unchanged.
+The initial builder rejected a fine horizon that did not cover that torque window; this restriction was subsequently removed at the user's request.
+Native mesh tests passed 8/8, including legacy event tests, geometric fine/tail bounds, close contact events and invalid inputs; parameter-contract script passed.
+The first baseline attempt was interrupted during code generation because the harness was launched from the source directory.
+Moved only its new `auto_generated` folder to `/root/ocs2_ros2_ws/auto_generated/nonuniform_1031_recovered`; no generated files remain in the source checkout.
+Harness now launches with workspace-root cwd inferred from its install prefix, so relative generated caches stay in the workspace.
+Successful prebuild baseline: 35 s flat vx 0.3, no fall, measured vx 0.325, min z 0.994 m, max roll/pitch 0.0075/0.0339 rad.
+Matching OCS2 OC/SQP and controller build passed in 3 min 5 s; only existing warnings were emitted.
+Postbuild uniform flat trial passed: mean walking advance 13.16 ms, reported mean actual rate 75.73 Hz, about 57 nodes, vx 0.327, height sd 9.18 mm.
+First geometric flat trial passed: about 35.5 nodes, vx 0.321, height sd 9.12 mm, max tilt 0.0277 rad versus uniform 0.0345.
+Some intervals reached 113-121 Hz, but full-run mean was only 96.27 Hz with 11.01 ms mean advance, p95 21.16 ms and large VM/solver timing spikes.
+Do not quote the fastest intervals as an achieved steady 125 Hz result.
+Geometric whole-horizon equality residual grew substantially; first-three-node residual mean was similar (24.9 versus 28.8), so inspect terrain/repeats before promoting.
+Measured-pose replay: zero crossing and opposite-leg-overlap samples, min signed width 0.180 m; still latest-sample paired, not synchronized force truth.
+Initial paired batch completed 12 trials: all 6 flat runs passed; uniform rough stayed upright 1/2 (tracking failure accepted as a balance survival) and fell 1/2; both 50/60 ms profiles fell 2/2.
+One 50 ms fall was at x 5.96 after leaving the 10 m field; the other fell at x 0.88 during entry, so the latter is a genuine in-field failure.
+Repeated 50 ms flat run achieved mean actual 117.12 Hz, mean walking advance 7.54 ms, p95 9.71 ms, but whole-horizon equality SSE was much larger than uniform.
+Do not promote the 50/60 ms profiles as robust terrain improvements. The user explicitly accepts speed error and prioritizes balance and steady ~100 Hz.
+Failure replay and residual plots are under `paired/geometric_rough_1_*`; residuals explode while solve times remain mostly below 10 ms, so latency alone does not explain the fall.
+Current foot damping 50/s makes a coarse-tail collocation effect plausible; test 35/40 ms caps before changing costs/gains.
+High-speed batch completed at requested 100 Hz: uniform, 50 ms and 40 ms profiles, flat 1/2 m/s plus short original-field entry/stop trials.
+The rough high-speed cases use 1 s ramp / 1 s hold / 1 s ramp down to avoid exiting the 10 m field; these are entry tests, not sustained high-speed rough-terrain validation.
+Artifacts: ignored `tuning_results/nonuniform_1031`; runners `tests/nonuniform_grid_benchmark.py`, `tests/tuning/analyze_time_grid.py`.
+Final paired results and pose replays were inspected; use the bounded conclusions in the manual-test checkpoint above rather than the initial fast-flat results alone.
+No commit or push requested for this investigation.
+
+
 ## Unified RViz Environment (2026-10-26)
 
 - `description/urdf/env.urdf.xacro` is the RViz counterpart of a robot's MuJoCo `scene.xml`: one `world` link plus `<xacro:include>`s of `terrains/stairs`, `terrains/ramp`, `terrains/uneven_terrain` and `objects/boxes` `.urdf.xacro`; comment or uncomment to match the scene (default uneven terrain + ramp, as in H2's committed scene; G1's scene has no terrain).

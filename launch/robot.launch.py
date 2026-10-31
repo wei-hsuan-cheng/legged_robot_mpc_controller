@@ -113,7 +113,7 @@ def generate_launch_description():
             description="Output path prefix for the diagnostics CSVs; '_state.csv'/'_cost.csv' are appended and '%t' expands to the run start time",
         ),
         DeclareLaunchArgument(
-            "floatingBaseEstimator", default_value="humanoid_inekf",
+            "floatingBaseEstimator", default_value="humanoid_linear_kf",
             choices=["none", "humanoid_inekf", "humanoid_linear_kf"],
             description="Floating-base estimator the MPC controller runs, first in every "
                         "control tick. With floatingBaseSource:=state_estimator it drives "

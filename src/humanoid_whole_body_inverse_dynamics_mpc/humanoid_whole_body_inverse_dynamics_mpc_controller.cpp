@@ -1502,8 +1502,9 @@ void HumanoidWholeBodyInverseDynamicsMpcController::configure_tracking()
   for (const auto& name : solver_state_cost_terms_) solver_names.push_back("state_cost/" + name);
   for (const auto& name : solver_soft_terms_) solver_names.push_back("soft/" + name);
   for (const auto& name : solver_state_soft_terms_) solver_names.push_back("state_soft/" + name);
+  for (const auto* name : {"grid_nodes", "grid_min_dt", "grid_max_dt", "grid_fine_max_dt"}) solver_names.push_back(name);
   solver_row_.data.assign(solver_names.size(), std::numeric_limits<double>::quiet_NaN());
-  solver_publisher_ = get_node()->create_publisher<std_msgs::msg::Float64MultiArray>("~/solver", rclcpp::QoS(200));
+  solver_publisher_ = get_node()->create_publisher<std_msgs::msg::Float64MultiArray>("~/solver", rclcpp::QoS(200).best_effort());
   solver_names_publisher_ =
     get_node()->create_publisher<std_msgs::msg::String>("~/solver_names", rclcpp::QoS(1).transient_local().reliable());
   std_msgs::msg::String solver_header;
@@ -1582,6 +1583,22 @@ void HumanoidWholeBodyInverseDynamicsMpcController::publish_solver_metrics(doubl
     }
   } catch (const std::exception&) {
   }
+  // Append mesh diagnostics independently of optional cost-evaluation failures.
+  k = row.size() - 4;
+  put(static_cast<double>(solver_primal_.timeTrajectory_.size()));
+  double min_dt = std::numeric_limits<double>::infinity(), max_dt = 0.0, fine_max_dt = 0.0;
+  const auto& times = solver_primal_.timeTrajectory_;
+  const double fine = parameters_.ocs2.solver.sqp.timeGrid.fineHorizon;
+  for (std::size_t i = 1; i < times.size(); ++i) {
+    const double dt = times[i] - times[i - 1];
+    if (dt <= 1e-9) continue;
+    min_dt = std::min(min_dt, dt);
+    max_dt = std::max(max_dt, dt);
+    if (times[i - 1] < times.front() + fine - 1e-9) fine_max_dt = std::max(fine_max_dt, dt);
+  }
+  put(std::isfinite(min_dt) ? min_dt : 0.0);
+  put(max_dt);
+  put(fine_max_dt);
   solver_publisher_->publish(solver_row_);
 }
 

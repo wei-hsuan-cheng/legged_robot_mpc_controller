@@ -116,6 +116,11 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         nThreads: {type: int, default_value: 4, description: "Number of solver threads", validation: {gt: [0]}}
         dt: {type: double, default_value: 0.02, description: "Multiple-shooting discretization step [s]",
             validation: {gt: [0.0]}}
+        timeGrid:
+          activate: {type: bool, default_value: false, description: "Use fine near-term and geometrically coarser far-term prediction steps"}
+          maxStep: {type: double, default_value: 0.05, description: "Largest prediction step [s]; must be >= dt", validation: {gt: [0.0]}}
+          growthFactor: {type: double, default_value: 1.2, description: "Step growth after the fine horizon", validation: {gt_eq: [1.0]}}
+          fineHorizon: {type: double, default_value: 0.2, description: "Keep dt through this duration [s]; independent of the torque window", validation: {gt_eq: [0.0]}}
         sqpIteration: {type: int, default_value: 1, description: "SQP iterations per MPC solve", validation: {gt: [
               0]}}
         deltaTol: {type: double, default_value: 0.0001, description: "Convergence tolerance on the primal step"}

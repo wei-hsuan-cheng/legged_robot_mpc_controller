@@ -270,6 +270,17 @@ These are static regression checks, not a substitute for repeated startup tests 
 
 ## 8. Parameter Map
 
+The optional WB-ID `ocs2.solver.sqp.timeGrid` is declared in [the parameter schema](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller_parameter.yaml) and mapped/validated in [the configuration builder](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp).
+Its `activate` flag defaults false; only enabled WB-ID configurations populate the new OCS2 `dtMax`, `dtGrowth` and `dtFineHorizon` settings.
+The builder does not require `fineHorizon` to cover the torque window; joint inverse dynamics and torque-limit penalties retain their time-based activation on either fine or coarse nodes.
+OCS2 implements `timeDiscretizationWithGeometricSteps()` in `core/ocs2_oc/src/oc_data/TimeDiscretization.cpp`; `mpc/ocs2_sqp/ocs2_sqp/src/SqpSolver.cpp` selects it only when `dtMax > 0`.
+Other controllers retain uniform spacing unless they explicitly opt in.
+The native `testTimeDiscretization.cpp` covers fine-window spacing, capped tail growth, contact-event preservation and legacy behavior.
+Diagnostics append `grid_nodes`, `grid_min_dt`, `grid_max_dt` and `grid_fine_max_dt` to the best-effort solver topic when tracking diagnostics are enabled.
+Run [nonuniform_grid_benchmark.py](../tests/nonuniform_grid_benchmark.py) in the sourced workspace, then [analyze_time_grid.py](../tests/tuning/analyze_time_grid.py) locally for timing/residual/motion plots.
+The walking harness sets the launch working directory to the workspace root so generated libraries remain in `ocs2_ros2_ws/auto_generated`, including with a Mac-shared source checkout.
+
+
 | Path inside the WB-ID controller block | Role |
 | --- | --- |
 | `robot.jointNames`, `ocs2.model` | Reduced model, contact frames and array ordering |

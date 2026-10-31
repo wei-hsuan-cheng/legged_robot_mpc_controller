@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from mujoco_scene import temporary_scene
 
 
-def analyze(prefix, scene, render, robot_name="h2"):
+def analyze(prefix, scene, render, robot_name="h2", frames=()):
     samples = json.loads(Path(str(prefix) + "_replay.json").read_text())
     samples = [s for s in samples if s["phase"] != "startup"]
     if not samples:
@@ -180,8 +180,10 @@ def analyze(prefix, scene, render, robot_name="h2"):
         model.vis.global_.offwidth = 1000
         model.vis.global_.offheight = 850
         with mujoco.Renderer(model, height=850, width=1000) as renderer:
-            for label, index in (("narrowest", int(values[:, 1].argmin())),
-                                 ("before_failure", max(0, len(samples)-15))):
+            chosen = [("narrowest", int(values[:, 1].argmin())),
+                      ("before_failure", max(0, len(samples)-15))]
+            chosen += [(f"time_{time:.2f}", int(np.abs(values[:, 0] - time).argmin())) for time in frames]
+            for label, index in chosen:
                 pose(samples[index])
                 camera = mujoco.MjvCamera()
                 camera.lookat[:] = data.qpos[:3] + [0, 0, -.3]
@@ -199,6 +201,7 @@ if __name__ == "__main__":
     parser.add_argument("--robot-name", choices=["g1", "h2"], default="h2")
     parser.add_argument("--scene", type=Path)
     parser.add_argument("--render", action="store_true")
+    parser.add_argument("--frame", type=float, action="append", default=[], help="Additional replay time after takeover [s]")
     args = parser.parse_args()
     for prefix in args.prefixes:
-        analyze(prefix, args.scene, args.render, args.robot_name)
+        analyze(prefix, args.scene, args.render, args.robot_name, args.frame)

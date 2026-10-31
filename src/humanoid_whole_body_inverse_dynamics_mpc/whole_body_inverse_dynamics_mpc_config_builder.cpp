@@ -89,6 +89,14 @@ ocs2::humanoid::WbIdMpcInterface::Config buildWholeBodyInverseDynamicsMpcConfig(
   auto& sqp = config.sqpSettings;
   sqp.nThreads = static_cast<size_t>(p.solver.sqp.nThreads);
   sqp.dt = p.solver.sqp.dt;
+  if (p.solver.sqp.timeGrid.activate) {
+    if (p.solver.sqp.timeGrid.maxStep < sqp.dt) {
+      throw std::invalid_argument("solver.sqp.timeGrid.maxStep must be >= solver.sqp.dt");
+    }
+    sqp.dtMax = p.solver.sqp.timeGrid.maxStep;
+    sqp.dtGrowth = p.solver.sqp.timeGrid.growthFactor;
+    sqp.dtFineHorizon = p.solver.sqp.timeGrid.fineHorizon;
+  }
   sqp.sqpIteration = static_cast<size_t>(p.solver.sqp.sqpIteration);
   sqp.deltaTol = p.solver.sqp.deltaTol;
   sqp.g_max = p.solver.sqp.g_max;

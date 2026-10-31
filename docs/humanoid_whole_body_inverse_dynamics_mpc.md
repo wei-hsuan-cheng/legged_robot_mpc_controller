@@ -163,6 +163,33 @@ The current YAML specifies a 1.0 s horizon, nominal 0.02 s SQP spacing and one S
 One SQP iteration is an online computation choice, not a guarantee that every returned policy is fully converged.
 
 
+### 3.4 Optional nonuniform prediction grid
+
+`ocs2.solver.sqp.timeGrid.activate` selects a geometric coarse tail, inspired by [Molnar et al., Section IV-C](https://arxiv.org/html/2511.19709v1#S4.SS3).
+It changes prediction resolution, not the simulator timestep, control-loop frequency or gait timing.
+The grid keeps `dt` through `fineHorizon`, then multiplies the nominal interval by `growthFactor` up to `maxStep`.
+
+$$
+\Delta t_k=\Delta t_0\quad(t_k-t_0<t_{\mathrm{fine}}),\qquad
+\Delta t_{k+1}=\min(\Delta t_{\max},\gamma\Delta t_k)\quad(t_{k+1}-t_0\geq t_{\mathrm{fine}}).
+$$
+
+Contact events split intervals and retain the existing pre/post-event nodes; the fine-window boundary and horizon endpoint are also respected.
+Costs and dynamics use the actual interval duration, not a uniform-step approximation.
+The fine window is independent of the physical-time joint-torque window, whose duration remains `(torqueConstraintNodes - 0.5) * dt`.
+If the torque window extends beyond `fineHorizon`, joint RNEA equalities and enabled torque-limit penalties remain active at the coarser prediction nodes inside that window.
+This is allowed without a configuration error; fewer nodes may reduce the accuracy of torque predictions between them.
+A nonpositive `torqueConstraintNodes` still enables those terms over the whole horizon, including any coarse tail.
+This is a prescribed nonuniform mesh, not online mesh-error optimization or terrain-aware planning.
+With `activate: false`, the original uniform grid with contact-event splits is retained and the other grid settings are ignored by optimization.
+Coarser distant predictions may reduce preview accuracy; faster solves alone do not establish better balance or terrain robustness.
+The current H2 checkpoint uses a 0.2 s fine window, growth factor 1.4 and a 0.035 s maximum interval over the unchanged 1.0 s horizon.
+This covers H2's separate 0.19 s joint-torque window; beyond that window, base dynamics remain constrained but joint RNEA equalities and torque-limit penalties are inactive.
+Small repeated low-speed uneven-field tests favored this grid over uniform spacing, with reported actual rates around 93-96 Hz rather than a guaranteed 100 Hz.
+High-speed uneven-terrain running is outside the requested validation scope.
+See the latest [handoff](../Codex.md) for measured comparisons and limitations.
+
+
 ## 4. Implemented Costs
 
 ### 4.1 One configured Q/R, separate evaluators

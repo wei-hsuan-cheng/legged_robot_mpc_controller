@@ -24,6 +24,7 @@ from nav_msgs.msg import Odometry
 from sensor_msgs.msg import JointState
 from ocs2_msgs.msg import WalkingVelocityCommand
 import yaml
+from ament_index_python.packages import get_package_prefix
 from mujoco_scene import write_scene
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "launch"))
@@ -58,6 +59,8 @@ class Probe(Node):
         self.wrenches = []
         self.tracking_names = []
         self.tracking_rows = []
+        self.solver_names = []
+        self.solver_rows = []
         qos = QoSProfile(depth=50, reliability=ReliabilityPolicy.BEST_EFFORT)
         self.publisher = self.create_publisher(WalkingVelocityCommand, "/humanoid/walking_velocity_command", qos)
         self.create_subscription(Odometry, "/mujoco/ground_truth/odom", self.observe, qos)
@@ -71,6 +74,15 @@ class Probe(Node):
                                    durability=DurabilityPolicy.TRANSIENT_LOCAL)
             self.create_subscription(String, "/" + CONTROLLER + "/tracking_names", self.observe_tracking_names, names_qos)
             self.create_subscription(Float64MultiArray, "/" + CONTROLLER + "/tracking", self.observe_tracking, qos)
+            self.create_subscription(String, "/" + CONTROLLER + "/solver_names", self.observe_solver_names, names_qos)
+            self.create_subscription(Float64MultiArray, "/" + CONTROLLER + "/solver", self.observe_solver, qos)
+
+    def observe_solver_names(self, msg):
+        self.solver_names = msg.data.split(",")
+
+    def observe_solver(self, msg):
+        if self.solver_names and len(msg.data) == len(self.solver_names):
+            self.solver_rows.append((self.phase, *msg.data))
 
     def observe_tracking_names(self, msg):
         self.tracking_names = msg.data.split(",")
@@ -225,13 +237,16 @@ def main():
     sender = None
     rclpy.init()
     log_path = Path(str(prefix) + ".log")
+    package_prefix = Path(get_package_prefix("legged_robot_mpc_controller"))
+    install = next((p for p in (package_prefix, *package_prefix.parents) if p.name == "install"), None)
+    launch_cwd = install.parent if install is not None else Path.cwd()
     try:
         with log_path.open("w") as log, Path(str(prefix) + ".csv").open("w") as csv_file:
             writer = csv.writer(csv_file)
             writer.writerow(["phase", "time", "x", "y", "z", "roll", "pitch", "yaw", "vx_body", "vy_body", "vz_body", "wz_body"])
             probe = Probe(writer, args.record_joints, args.record_tracking)
             sender = WrenchPublisher(probe, sequence) if sequence else None
-            process = subprocess.Popen(launch_cmd, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+            process = subprocess.Popen(launch_cmd, cwd=launch_cwd, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
             deadline = time.monotonic() + args.startup_timeout
             start = None
             movement_start = None
@@ -370,6 +385,11 @@ def main():
                 writer = csv.writer(file)
                 writer.writerow(["test_phase", *probe.tracking_names])
                 writer.writerows(probe.tracking_rows)
+        if probe is not None and probe.solver_rows:
+            with Path(str(prefix) + "_solver.csv").open("w") as file:
+                writer = csv.writer(file)
+                writer.writerow(["test_phase", *probe.solver_names])
+                writer.writerows(probe.solver_rows)
         if process is not None and process.poll() is None:
             os.killpg(process.pid, signal.SIGINT)
             try:
@@ -381,6 +401,7 @@ def main():
             probe.destroy_node()
         rclpy.shutdown()
         result["verdict"] = verdict
+        result["balance_survived"] = verdict in ("SUCCESS", "NO_TRACKING")
         Path(str(prefix) + ".json").write_text(json.dumps(result, indent=2) + "\n")
         print(json.dumps(result, indent=2), flush=True)
     return 0 if verdict == "SUCCESS" else 1
