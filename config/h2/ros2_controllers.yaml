@@ -333,6 +333,15 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           frameTranslation: [0.035, 0.0, -0.058]
           rectangle: [0.105, -0.105, 0.03, -0.03]
 
+      mpc:
+        solverType: sqp
+        mpcDesiredFrequency: $(var mpcFreq)
+        mrtDesiredFrequency: $(var mrtFreq)
+        timeHorizon: 1.0
+        solutionTimeWindow: -1.0
+        coldStart: false
+        debugPrint: false
+
       solver:
         sqp:
           nThreads: 5
@@ -365,15 +374,6 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           integratorType: ODE45
           maxNumStepsPerSecond: 10000
           checkNumericalStability: false
-
-      mpc:
-        solverType: sqp
-        mpcDesiredFrequency: $(var mpcFreq)
-        mrtDesiredFrequency: $(var mrtFreq)
-        timeHorizon: 1.0
-        solutionTimeWindow: -1.0
-        coldStart: false
-        debugPrint: false
 
       costs:
         qScaling: 1.0
