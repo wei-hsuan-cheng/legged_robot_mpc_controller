@@ -36,9 +36,11 @@ class RunningGaitTest(unittest.TestCase):
                 durations = [b-a for a, b in zip(run["switchingTimes"], run["switchingTimes"][1:])]
                 for actual, expected in zip(durations, (support, flight, support, flight)):
                     self.assertAlmostEqual(actual, expected)
-                expected_ladder = ["stance", "walk", "trot", "run"]
-                self.assertEqual(gait["transitions"]["ladder"], expected_ladder)
-                expected_bands = {"stance": [-.1, .03], "walk": [.02, .45], "trot": [.40, .75], "run": [.70, 10.]}
+                expected_bands = {
+                    "g1": {"stance": [-.1, .03], "walk": [.02, .45], "trot": [.40, .75], "run": [.70, 10.]},
+                    "h2": {"stance": [-.1, .03], "trot": [.02, .75], "run": [.70, 10.]},
+                }[robot]
+                self.assertEqual(gait["transitions"]["ladder"], list(expected_bands))
                 for name, band in expected_bands.items():
                     self.assertEqual(gait["transitions"][name]["linearVelocity"], band)
                 self.assertNotIn("slower_trot", gait["transitions"])
@@ -62,8 +64,8 @@ class RunningGaitTest(unittest.TestCase):
                     self.assertLess(following[0], previous[1])
                     self.assertGreater(following[1], previous[1])
                 self.assertGreater(transition["run"]["linearVelocity"][1], 1.0)
-                self.assertGreater(transition["walk"]["yawRate"][1], params["ocs2"]["reference"]["maxRotationVelocity"])
                 first_moving = transition[transition["ladder"][1]]
+                self.assertGreater(first_moving["yawRate"][1], params["ocs2"]["reference"]["maxRotationVelocity"])
                 self.assertLess(first_moving["yawRate"][0], transition["stance"]["yawRate"][1])
                 self.assertGreater(params["ocs2"]["constraints"]["legSelfCollision"]["minimumLateralSeparation"], 0)
 

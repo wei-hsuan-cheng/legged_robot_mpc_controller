@@ -760,7 +760,6 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
 
         # Gait templates: N modes and N+1 switching times [s], repeated with period last - first.
         # STANCE = both feet in contact, LF = left foot in contact (right swings), RF = right, FLY = none.
-        # H2 uses slow_walk then a shorter walk with double support; faster/flight templates are not selected.
         templates:
           # Optional swingHeight [m] per gait; omitted or -1 uses swingTrajectory.swingHeight.
           # The existing swingTimeScale still reduces clearance for short swings.
@@ -820,13 +819,16 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           # initTime + switchDelayHorizonFraction * horizon (0.3 of a 1.0 s horizon = 0.3 s).
           # Earlier stepping handles lateral command steps without reducing command slew limits.
           switchDelayHorizonFraction: 0.3
-          # Supported walking first, then the tuned flight gait at higher planar commands.
-          ladder: [stance, walk, trot, run]
+          # Trot (no double support) from the first step, then the tuned flight gait at higher planar commands.
+          ladder: [stance, trot, run]
           #             linearVelocity [m/s]          yawRate [rad/s]        measuredMargin [lin, yaw]
-          # Start walking above 0.03 m/s, return to stance below 0.02 m/s.
+          # Overlaps: stance/trot 0.02-0.03 m/s and 0.05-0.10 rad/s, trot/run 0.70-0.75 m/s.
+          # Start trotting above 0.03 m/s or 0.1 rad/s; return to stance only when the command is below
+          # 0.02 m/s and 0.05 rad/s AND the measured speed is below 0.07 m/s and 0.10 rad/s (stance takes no
+          # recovery step). The same 0.05 margin gates running: trot -> run needs a measured speed above 0.70 m/s.
+          # Trot never escalates on yaw (max 10.0), so pure turning stays in trot.
           stance:       {linearVelocity: [-0.1, 0.03], yawRate: [-0.1, 0.1],  measuredMargin: [10.0, 10.0]}
-          walk:         {linearVelocity: [0.02, 0.45], yawRate: [0.05, 10.0], measuredMargin: [0.05, 0.05]}
-          trot:         {linearVelocity: [0.40, 0.75], yawRate: [0.65, 10.0], measuredMargin: [0.2, 0.2]}
+          trot:         {linearVelocity: [0.02, 0.75], yawRate: [0.05, 10.0], measuredMargin: [0.05, 0.05]}
           run:          {linearVelocity: [0.70, 10.0], yawRate: [10.0, 10.0], measuredMargin: [0.05, 0.05]}
 
     visualization:
