@@ -60,15 +60,23 @@ void GaitScheduleUpdater::updateGaitSchedule(std::shared_ptr<GaitSchedule>& gait
   scalar_t nextEventTime;
   if (it == modeSchedule.eventTimes.end()) {
     nextEventTime = finalTime;
+  } else if (modeSchedule.modeAtTime(*it) == LF && it != modeSchedule.eventTimes.begin() && *(it - 1) > initTime) {
+    nextEventTime = *(it - 1);
   } else {
-    if (modeSchedule.modeAtTime(*it) == LF) {
-      nextEventTime = *(it - 1);
-    } else {
-      nextEventTime = *it;
+    // Never step back to an event at or before initTime: the new gait would then
+    // start in the past and rewrite the phase in progress, turning a foot that is
+    // mid-swing into a stance foot. getModeSchedule() keeps one event before
+    // initTime, so this happens whenever the next event is further away than the
+    // switch delay, e.g. 0.5 s trot steps with a 0.3 s delay.
+    if (modeSchedule.modeAtTime(*it) == LF && it != modeSchedule.eventTimes.begin()) {
+      std::cerr << "[GaitScheduleUpdater]: Previous event " << *(it - 1) << " is not after time " << initTime
+                << "; switching at " << *it << " instead\n";
     }
+    nextEventTime = *it;
   }
 
-  gaitSchedulePtr->insertModeSequenceTemplate(updatedGait, nextEventTime, 1.5 * timeHorizon);
+  // The third argument is an absolute time.
+  gaitSchedulePtr->insertModeSequenceTemplate(updatedGait, nextEventTime, initTime + 1.5 * timeHorizon);
 }
 
 /******************************************************************************************************/
