@@ -1,7 +1,9 @@
 #ifndef LEGGED_ROBOT_MPC_CONTROLLER__HUMANOID_WHOLE_BODY_INVERSE_DYNAMICS_MPC__HUMANOID_WHOLE_BODY_INVERSE_DYNAMICS_MPC_CONTROLLER_HPP_
 #define LEGGED_ROBOT_MPC_CONTROLLER__HUMANOID_WHOLE_BODY_INVERSE_DYNAMICS_MPC__HUMANOID_WHOLE_BODY_INVERSE_DYNAMICS_MPC_CONTROLLER_HPP_
 
+#include <array>
 #include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -81,7 +83,13 @@ public:
     const rclcpp::Duration& period) override;
 
 protected:
-  std::vector<hardware_interface::CommandInterface> on_export_reference_interfaces() override;
+  //! <name>/status.* and <name>/plan.* (see exported_state_names()): what an upstream
+  //! controller, e.g. a lockstep training bridge, observes of this one.
+  std::vector<hardware_interface::StateInterface::SharedPtr> on_export_state_interfaces_list() override;
+  //! <name>/walking_velocity_command.*: the walking-velocity topic's fields, for an upstream
+  //! controller to command this one without a topic. Read only in chained mode, and only
+  //! once all four are finite; until then the topic drives as before.
+  std::vector<hardware_interface::CommandInterface::SharedPtr> on_export_reference_interfaces_list() override;
 
 private:
   using vector_t = ocs2::vector_t;
@@ -114,6 +122,16 @@ private:
   void construct_solver(const ocs2::SystemObservation& initial_observation);
   void stop_solver_thread();
   void solver_worker();
+  //! One MPC iteration (warm-start reset if requested, advanceMpc, health bookkeeping) on
+  //! whichever thread solves: the worker, or update() in synchronous mode. Returns its wall time.
+  double run_solver_iteration();
+  void log_solver_stats(double latest_advance_ms, double sim_time);
+  //! mpcExecution.mode synchronous: build the solver, solve on the MPC grid and swap the plan
+  //! in policyDelay later, all inside update(); returns whether a new policy went live.
+  bool run_synchronous_solver(int64_t tick, bool observation_valid);
+  void apply_command_references();
+  void write_exported_state(double time);
+  static const std::vector<std::string>& exported_state_names();
   vector_t compute_weight_compensating_torque(const ocs2::SystemObservation& observation);
   JointActionCommand compute_mpc_joint_action(const ocs2::SystemObservation& observation);
   void clamp_torque(vector_t& tau) const;
@@ -215,6 +233,50 @@ private:
 
   std::jthread solver_thread_;
   std::atomic_bool terminate_solver_thread_{false};
+
+  //! Solver timing and health over diagnostics.statusLogPeriod of wall time, kept by the thread
+  //! that solves (only one does in either mode). Health: does the returned plan actually satisfy
+  //! the dynamics and the equality constraints (RNEA, contact), and how slow is the worst solve?
+  //! A converged-but-infeasible plan and a falling robot look alike otherwise.
+  struct SolverStats
+  {
+    std::chrono::steady_clock::time_point next_log{};
+    std::chrono::steady_clock::time_point previous_start{};
+    double accumulated_period_ms{0.0};
+    std::size_t period_samples{0};
+    double accumulated_advance_ms{0.0};
+    std::size_t advance_samples{0};
+    double max_advance_ms{0.0};
+    double max_equality_sse{0.0};
+    double max_dynamics_sse{0.0};
+    double accumulated_equality_sse{0.0};
+    std::size_t solver_exceptions{0};
+    //! The same violation per equality term (RNEA rows, stance/swing feet, zero wrench).
+    std::vector<std::pair<std::string, std::size_t>> equality_terms;
+    std::vector<double> max_term_sse;
+    bool first_solve{true};
+    double log_start_sim_time{-1.0};  //!< synchronous: simulation time at the start of the log period
+  };
+  SolverStats solver_stats_;
+  void reset_solver_stats();
+
+  bool synchronous_solver_{false};
+  int64_t solver_decimation_{1};    //!< control ticks per MPC period (synchronous)
+  int64_t policy_delay_ticks_{0};
+  int64_t pending_policy_tick_{-1};  //!< tick the latest synchronous plan goes live; -1: none pending
+  bool synchronous_first_solve_{false};
+  bool synchronous_construction_failed_{false};
+
+  //! Read by write_exported_state() on the control thread, written by whichever thread solves.
+  std::atomic<uint64_t> solve_count_{0};
+  std::atomic<uint64_t> solver_exception_count_{0};
+  std::atomic<double> latest_observation_time_{0.0};  //!< time of the observation last handed to the MRT
+  std::atomic<double> last_solve_time_{0.0};
+  std::atomic<double> last_advance_ms_{0.0};
+  std::vector<hardware_interface::StateInterface::SharedPtr> exported_state_handles_;
+  std::vector<double> exported_state_values_;
+  std::vector<hardware_interface::CommandInterface::SharedPtr> reference_handles_;
+  std::array<double, 4> applied_command_reference_{};  //!< last reference handed to the motion manager
 
   std::atomic<BringUpPhase> bring_up_phase_{BringUpPhase::Passive};
   std::atomic_bool at_rest_{false};

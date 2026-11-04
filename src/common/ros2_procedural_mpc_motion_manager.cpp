@@ -15,16 +15,24 @@ namespace legged_robot_mpc_controller
 namespace
 {
 
+/// The bounded internal command consumed by the MPC, from the topic's fields.
+ocs2::humanoid::WalkingVelocityCommand boundedCommand(
+  double linear_velocity_x, double linear_velocity_y, double desired_pelvis_height, double angular_velocity_z)
+{
+  ocs2::humanoid::WalkingVelocityCommand command;
+  command.linear_velocity_x = std::clamp(linear_velocity_x, -1.0, 1.0);
+  command.linear_velocity_y = std::clamp(linear_velocity_y, -1.0, 1.0);
+  command.desired_pelvis_height = std::clamp(desired_pelvis_height, 0.2, 1.0);
+  command.angular_velocity_z = std::clamp(angular_velocity_z, -1.0, 1.0);
+  return command;
+}
+
 /// Convert the ROS command into the bounded internal command consumed by the MPC.
 ocs2::humanoid::WalkingVelocityCommand boundedCommandFromMessage(
   const ocs2_msgs::msg::WalkingVelocityCommand& message)
 {
-  ocs2::humanoid::WalkingVelocityCommand command;
-  command.linear_velocity_x = std::clamp(message.linear_velocity_x, -1.0, 1.0);
-  command.linear_velocity_y = std::clamp(message.linear_velocity_y, -1.0, 1.0);
-  command.desired_pelvis_height = std::clamp(message.desired_pelvis_height, 0.2, 1.0);
-  command.angular_velocity_z = std::clamp(message.angular_velocity_z, -1.0, 1.0);
-  return command;
+  return boundedCommand(
+    message.linear_velocity_x, message.linear_velocity_y, message.desired_pelvis_height, message.angular_velocity_z);
 }
 
 ocs2::humanoid::BasePoseCommand basePoseCommandFromMessage(
@@ -95,6 +103,12 @@ Ros2ProceduralMpcMotionManager::Ros2ProceduralMpcMotionManager(
   setVelocityCommand(
     ocs2::humanoid::WalkingVelocityCommand(0.0, 0.0, reference_config.defaultBaseHeight, 0.0));
   setTargetMode(targetModeFromString(default_target_mode));
+}
+
+void Ros2ProceduralMpcMotionManager::setWalkingVelocityCommand(
+  double linear_velocity_x, double linear_velocity_y, double desired_pelvis_height, double angular_velocity_z)
+{
+  setVelocityCommand(boundedCommand(linear_velocity_x, linear_velocity_y, desired_pelvis_height, angular_velocity_z));
 }
 
 void Ros2ProceduralMpcMotionManager::subscribe(

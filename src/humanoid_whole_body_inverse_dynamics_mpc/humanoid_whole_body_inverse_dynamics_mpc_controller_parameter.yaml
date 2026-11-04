@@ -91,6 +91,18 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
     tiltLimit: {type: double, default_value: 0.8, description: "Trunk tilt (angle between its vertical axis and
         the world's, from the IMU) past which the robot is treated as falling: the controller switches to joint
         damping and stays there [rad].", validation: {gt: [0.0]}}
+  mpcExecution:
+    mode: {type: string, default_value: "asynchronous", description: "asynchronous: the MPC solves on its own
+        thread, paced by the wall clock at ocs2.mpc.mpcDesiredFrequency, and the control loop takes each plan when
+        it is ready - deployment, where a plan's latency is whatever its solve took. synchronous: the solve runs
+        inside the control tick, every update_rate / mpcDesiredFrequency ticks of controller time, so a simulation
+        waits for it and the latency is fixed (policyDelay) however loaded the machine is - lockstep training and
+        parallel simulations. On hardware a synchronous solve would overrun the control period.", validation: {
+          one_of<>: [["asynchronous", "synchronous"]]}}
+    policyDelay: {type: double, default_value: 0.0, description: "synchronous only: controller time from the
+        observation a plan is solved from to the tick it is applied [s], rounded to control ticks, at most one MPC
+        period. Set it to the solve time on the target computer to train against that latency.", validation: {
+          gt_eq: [0.0]}}
   ocs2:
     interface:
       verbose: {type: bool, default_value: false, description: "Print the loaded MPC interface parameters"}

@@ -35,6 +35,11 @@ public:
     BasePoseTargetToTargetTrajectories base_pose_target_to_target_trajectories,
     const std::string& default_target_mode);
 
+  /// The walking velocity command from a source other than the topic, e.g. a chained
+  /// controller's reference interfaces; same fields and bounds as the topic's message.
+  void setWalkingVelocityCommand(
+    double linear_velocity_x, double linear_velocity_y, double desired_pelvis_height, double angular_velocity_z);
+
   void subscribe(
     const rclcpp_lifecycle::LifecycleNode::SharedPtr& node,
     const rclcpp::QoS& qos,
