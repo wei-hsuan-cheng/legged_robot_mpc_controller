@@ -104,13 +104,17 @@ class ControllerSequencer(Node):
                 return False
         return True
 
-    def activate(self, name):
+    def activate(self, names):
+        """Activate one controller, or several in a single switch (e.g. a chain)."""
+        names = [names] if isinstance(names, str) else list(names)
         controllers = self.list_controllers()
-        if controllers.get(name) == 'active':
+        names = [name for name in names if controllers.get(name) != 'active']
+        if not names:
             return True
+        name = ', '.join(names)
 
         req = SwitchController.Request()
-        req.activate_controllers = [name]
+        req.activate_controllers = names
         req.deactivate_controllers = []
         if hasattr(req, 'start_controllers'):
             req.start_controllers = []
@@ -228,6 +232,10 @@ def main():
     parser.add_argument(
         '--estimator-name', default='none',
         help='Estimator controller the MPC reads; brought up first, since the MPC claims its exported state.')
+    parser.add_argument(
+        '--lockstep-bridge', default='',
+        help='Lockstep bridge controller claiming the MPC controller\'s references; activated in the same '
+             'switch as the MPC, so the MPC starts in chained mode instead of being restarted into it.')
     parser.add_argument('--timeout', type=float, default=120.0)
     parser.add_argument(
         '--configure-timeout', type=float, default=3600.0,
@@ -278,12 +286,16 @@ def main():
     inactive_controller_list = [
     ]
     
+    bridge = args.lockstep_bridge.strip()
     if active_controller_list:
         # Load + configure builds the MPC problem (CppAD codegen happens here).
-        if not start_ros2_controllers(node, active_controller_list, activate=False):
+        if not start_ros2_controllers(node, active_controller_list + ([bridge] if bridge else []), activate=False):
             rclpy.shutdown()
             return 1
-        for name in active_controller_list:
+        switches = [[name] for name in active_controller_list]
+        if bridge:
+            switches[-1].append(bridge)
+        for name in switches:
             if not node.activate(name):
                 node.get_logger().error(
                     f'Controller {name} failed activation; refusing to start MuJoCo without it')

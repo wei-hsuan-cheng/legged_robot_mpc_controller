@@ -1,0 +1,147 @@
+# Lockstep training overlay for H2 (robot.launch.py controllersOverlay:=...): the shipped
+# ros2_controllers.yaml, unchanged, plus what a parallel training environment needs. Use with
+# lockstepBridge:=lockstep_bridge and one lockstepShmName per simulation; the multi-environment
+# launcher in mujoco_ros2_control_multienv does both (tests/lockstep_multi_env_test.py).
+controller_manager:
+  ros__parameters:
+    lockstep_bridge:
+      type: mujoco_ros2_control_multienv/LockstepBridgeController
+
+# Joint states only feed robot_state_publisher -> /tf, which nothing reads in training; at the
+# control rate every TF listener in the process would pay for 1000 messages a second.
+joint_state_broadcaster:
+  ros__parameters:
+    update_rate: 50
+
+humanoid_whole_body_inverse_dynamics_mpc_controller:
+  ros__parameters:
+    # Solve inside the control tick on the controller-time grid: the plan's latency is fixed
+    # (policyDelay) instead of depending on how many simulations share the CPU.
+    mpcExecution:
+      mode: synchronous
+      policyDelay: 0.0
+    ocs2:
+      solver:
+        sqp:
+          # Parallelism comes from running many simulations, one core each.
+          nThreads: 1
+
+lockstep_bridge:
+  ros__parameters:
+    update_rate: $(var mrtFreq)
+    shm_name: $(var lockstepShmName)
+    # One RL step per MPC solve, as in RL-augmented MPC (Kamohara et al. 2025).
+    step_period: 0.01
+    order_probe: humanoid_whole_body_inverse_dynamics_mpc_controller/status.update_time
+    # The MPC's walking-velocity references: vx, vy normalized to [-1, 1], pelvis height [m],
+    # yaw rate normalized to [-1, 1]. NaN leaves the topic / default command in place.
+    command_interfaces:
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/walking_velocity_command.linear_velocity_x
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/walking_velocity_command.linear_velocity_y
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/walking_velocity_command.desired_pelvis_height
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/walking_velocity_command.angular_velocity_z
+    state_interfaces:
+      # Deployable - what the robot itself has: the estimator, the IMU, the encoders, the MPC.
+      - $(var floatingBaseEstimator)/position.x
+      - $(var floatingBaseEstimator)/position.y
+      - $(var floatingBaseEstimator)/position.z
+      - $(var floatingBaseEstimator)/orientation.w
+      - $(var floatingBaseEstimator)/orientation.x
+      - $(var floatingBaseEstimator)/orientation.y
+      - $(var floatingBaseEstimator)/orientation.z
+      - $(var floatingBaseEstimator)/linear_velocity_world.x
+      - $(var floatingBaseEstimator)/linear_velocity_world.y
+      - $(var floatingBaseEstimator)/linear_velocity_world.z
+      - $(var floatingBaseEstimator)/angular_velocity.x
+      - $(var floatingBaseEstimator)/angular_velocity.y
+      - $(var floatingBaseEstimator)/angular_velocity.z
+      - $(var floatingBaseEstimator)/valid
+      - $(var floatingBaseEstimator)/status.ready
+      - pelvis_imu/orientation.w
+      - pelvis_imu/orientation.x
+      - pelvis_imu/orientation.y
+      - pelvis_imu/orientation.z
+      - pelvis_imu/angular_velocity.x
+      - pelvis_imu/angular_velocity.y
+      - pelvis_imu/angular_velocity.z
+      - pelvis_imu/linear_acceleration.x
+      - pelvis_imu/linear_acceleration.y
+      - pelvis_imu/linear_acceleration.z
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/status.update_time
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/status.bring_up_phase
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/status.policy_ready
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/status.solve_count
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/status.last_solve_time
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/status.last_solve_wall_ms
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/status.solver_exceptions
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/plan.mode
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/plan.contact.left
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/plan.contact.right
+      - left_hip_pitch_joint/position
+      - left_hip_roll_joint/position
+      - left_hip_yaw_joint/position
+      - left_knee_joint/position
+      - left_ankle_roll_joint/position
+      - left_ankle_pitch_joint/position
+      - right_hip_pitch_joint/position
+      - right_hip_roll_joint/position
+      - right_hip_yaw_joint/position
+      - right_knee_joint/position
+      - right_ankle_roll_joint/position
+      - right_ankle_pitch_joint/position
+      - waist_yaw_joint/position
+      - waist_roll_joint/position
+      - waist_pitch_joint/position
+      - head_pitch_joint/position
+      - head_yaw_joint/position
+      - left_shoulder_pitch_joint/position
+      - left_shoulder_roll_joint/position
+      - left_shoulder_yaw_joint/position
+      - left_elbow_joint/position
+      - right_shoulder_pitch_joint/position
+      - right_shoulder_roll_joint/position
+      - right_shoulder_yaw_joint/position
+      - right_elbow_joint/position
+      - left_hip_pitch_joint/velocity
+      - left_hip_roll_joint/velocity
+      - left_hip_yaw_joint/velocity
+      - left_knee_joint/velocity
+      - left_ankle_roll_joint/velocity
+      - left_ankle_pitch_joint/velocity
+      - right_hip_pitch_joint/velocity
+      - right_hip_roll_joint/velocity
+      - right_hip_yaw_joint/velocity
+      - right_knee_joint/velocity
+      - right_ankle_roll_joint/velocity
+      - right_ankle_pitch_joint/velocity
+      - waist_yaw_joint/velocity
+      - waist_roll_joint/velocity
+      - waist_pitch_joint/velocity
+      - head_pitch_joint/velocity
+      - head_yaw_joint/velocity
+      - left_shoulder_pitch_joint/velocity
+      - left_shoulder_roll_joint/velocity
+      - left_shoulder_yaw_joint/velocity
+      - left_elbow_joint/velocity
+      - right_shoulder_pitch_joint/velocity
+      - right_shoulder_roll_joint/velocity
+      - right_shoulder_yaw_joint/velocity
+      - right_elbow_joint/velocity
+      # Privileged, simulation only: ground truth and contact for rewards, termination, a critic.
+      - pelvis/position.x
+      - pelvis/position.y
+      - pelvis/position.z
+      - pelvis/orientation.w
+      - pelvis/orientation.x
+      - pelvis/orientation.y
+      - pelvis/orientation.z
+      - pelvis/linear_velocity.x
+      - pelvis/linear_velocity.y
+      - pelvis/linear_velocity.z
+      - pelvis/angular_velocity.x
+      - pelvis/angular_velocity.y
+      - pelvis/angular_velocity.z
+      - left_foot_contact/normal_force
+      - left_foot_contact/contact
+      - right_foot_contact/normal_force
+      - right_foot_contact/contact

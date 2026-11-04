@@ -441,6 +441,65 @@ markers for planning and rviz).
 - Not changed yet: the MPC's markers and targets still use `globalFrame: world` while the
   MPC state is the estimate, i.e. `odom`. Identical while `world -> odom` is identity.
 
+## Parallel lockstep simulations for RL-augmented MPC (branch `feat/arm_swing`)
+
+This is the training substrate for an RL-augmented MPC (Kamohara et al. 2025): N copies of
+the unchanged `robot.launch.py`, each the full ros2_control stack (MuJoCo, estimator
+controller, WB-ID MPC). Each is stepped in lockstep with a trainer through shared memory,
+CPU only.
+
+- **Isolation:** one `ROS_DOMAIN_ID` per copy, so nothing is namespaced. Copy `i` is
+  inspectable with `ROS_DOMAIN_ID=<100+i> ros2 topic list`.
+- **No topics in the loop:**
+  - estimator <-> MPC: the existing chained interfaces;
+  - MPC solve: `mpcExecution.mode: synchronous` solves inside the control tick on the
+    controller-time grid, so the latency is `policyDelay`, not load;
+  - MPC <-> trainer: the `LockstepBridgeController` (package
+    `mujoco_ros2_control_multienv`) copies the claimed state interfaces into
+    `/dev/shm/<name>`, blocks the controller manager until the client answers, and writes
+    the answer to the MPC's new `walking_velocity_command.*` reference interfaces.
+- **Ordering:** the MPC exports `status.*` and `plan.*`, and `status.update_time` is the
+  bridge's order probe. The controller manager runs the MPC before the bridge, so the bridge
+  exchanges one tick before each solve tick: the observation is 1 ms old and the action
+  drives that solve.
+- **How to run it:** `config/h2/lockstep_training.yaml` is the overlay (`controllersOverlay`,
+  `lockstepBridge`, `lockstepShmName`), and `tests/lockstep_multi_env_test.py` is the test.
+
+Measured, H2, `humanoid_linear_kf` driving control, flat scene. Each env runs the whole
+bring-up, then stand / walk 0.1-0.4 m/s / stop / turn +-0.3 rad/s / stop, 28 s of controller
+time:
+
+| envs | survived | sync violations | solves per step | aggregate RTF | per-env RTF | solve ms | sims PSS |
+|---|---|---|---|---|---|---|---|
+| 1 | 1/1 | 0 | exactly 1 | 0.50 | 0.50 | 20 | 173 MB |
+| 4 | 4/4 | 0 | exactly 1 | 1.53 | 0.38 | 21 | 545 MB |
+| 8 | 8/8 | 0 | exactly 1 | 2.02 | 0.25 | 27 | 1041 MB |
+| 16 | 16/16 | 0 | exactly 1 | 1.98 | 0.12 | 55 | 2034 MB |
+
+Envs with the same commands come out bit-identical, so the runs are deterministic.
+Throughput saturates at about 8 envs on this 8-vCPU VM. The async default (5 threads, real
+time, topic commands) is unchanged: it survives the same sequence at 97 Hz with 8 ms solves.
+
+**What made 16 fit in 7 GB.** One H2 env had been 1.4 GB RSS.
+- **CppAD Pinocchio copies.** Ten CppAD cost/constraint terms kept a full CppAD Pinocchio
+  (`toCppAd()`, nv^3 AD tensors, about 15 MB each). Every OCP clone copied it, i.e. one per
+  SQP thread, although only the taping inside `initialize()` reads it. It is now released
+  after `initialize()`: the default async env dropped from 1.4 GB to 455 MB.
+- **MJCF loading.** Loading the MJCF retained about 230 MB per process (asset cache plus
+  compiler state). The new `mujoco_compile_model` turns the scene into a `.mjb` once.
+- **Joint state rate.** The training overlay drops `joint_state_broadcaster` to 50 Hz.
+
+**A mujoco_ros2_control timing bug this exposed.** `mj_data->time` was truncated to
+nanoseconds. The float sum 0.001 read 999999 ns, short of the control period, so that tick
+slipped one physics step and came out 1.5 ms long. The fix rounds instead. The lockstep test
+counted 3 such irregular steps in 28 s before the fix and 0 after.
+
+Not done yet:
+- the RL adaptation parameters as MPC references (swing height, step duration, foothold
+  residual, dynamics residual);
+- per-episode reset without relaunching;
+- the centroidal MPC has no synchronous mode.
+
 ## State estimator: in the controller, two separate filters, InEKF by default
 
 **Structure.** `HumanoidInEkf` and `HumanoidLinearKf` are two separate classes

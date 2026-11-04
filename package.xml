@@ -45,6 +45,8 @@
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
   <exec_depend>mujoco_ros2_control</exec_depend>
+  <!-- Lockstep bridge controller and multi-simulation launcher (config/<robot>/lockstep_training.yaml). -->
+  <exec_depend>mujoco_ros2_control_multienv</exec_depend>
   <exec_depend>rclpy</exec_depend>
   <exec_depend>robot_state_publisher</exec_depend>
   <exec_depend>rviz2</exec_depend>

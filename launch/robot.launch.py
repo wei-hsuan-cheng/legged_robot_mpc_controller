@@ -4,6 +4,7 @@ Robot configuration, scenes and CppAD caches are selected together. The selected
 controller YAML owns the reference height used by both MPC and the command GUI.
 """
 
+import atexit
 import math
 import os
 import yaml
@@ -23,6 +24,16 @@ from launch.substitutions import (
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterFile, ParameterValue
 from launch_ros.substitutions import FindPackageShare
+
+
+def deep_merge(base, overlay):
+    """Merge overlay into base in place: mappings key by key, anything else replaced."""
+    for key, value in overlay.items():
+        if isinstance(value, dict) and isinstance(base.get(key), dict):
+            deep_merge(base[key], value)
+        else:
+            base[key] = value
+    return base
 
 
 def generate_launch_description():
@@ -122,6 +133,29 @@ def generate_launch_description():
         DeclareLaunchArgument("mpcFreq", default_value="100", description="MPC update frequency (should be integer)"),
         DeclareLaunchArgument("mrtFreq", default_value="1000", description="MRT update frequency (should be integer)"),
         DeclareLaunchArgument("controllersFile", default_value=controllers_file_default),
+        DeclareLaunchArgument(
+            "controllersOverlay",
+            default_value="",
+            description="Optional YAML deep-merged over controllersFile (after both are substituted): e.g. "
+                        "config/<robot>/lockstep_training.yaml for lockstep training. Mappings merge key by key; "
+                        "any other value replaces the original.",
+        ),
+        DeclareLaunchArgument(
+            "lockstepBridge",
+            default_value="",
+            description="Name of a lockstep bridge controller (declared by controllersOverlay) to activate "
+                        "together with the MPC controller, whose references it claims. Empty: none.",
+        ),
+        DeclareLaunchArgument(
+            "lockstepShmName",
+            default_value="legged_env",
+            description="Shared-memory channel name, for $(var lockstepShmName) in controllersOverlay.",
+        ),
+        DeclareLaunchArgument(
+            "visualizationNodes",
+            default_value="true",
+            description="The world -> odom static transform and the environment description, both only for RViz.",
+        ),
         DeclareLaunchArgument(
             "refBaseHeight",
             default_value="",
@@ -229,6 +263,12 @@ def generate_launch_description():
         path = controllers_params.evaluate(context)
         with open(path) as stream:
             config = yaml.safe_load(stream)
+        overlay_file = LaunchConfiguration("controllersOverlay").perform(context)
+        if overlay_file:
+            # Held while reading: the ParameterFile deletes its substituted copy when collected.
+            overlay_params = ParameterFile(overlay_file, allow_substs=True)
+            with open(overlay_params.evaluate(context)) as stream:
+                deep_merge(config, yaml.safe_load(stream) or {})
         controller = LaunchConfiguration("mpcControllerName").perform(context)
         if controller not in config:
             raise ValueError(f"Controller '{controller}' is not configured in {LaunchConfiguration('controllersFile').perform(context)}")
@@ -241,11 +281,21 @@ def generate_launch_description():
             raise ValueError("Reference base height must be finite and positive.")
         if height_override:
             reference["defaultBaseHeight"] = height
+        if height_override or overlay_file:
             # allow_substs=True always creates a temporary copy; never rewrite the source YAML.
             with open(path, "w") as stream:
                 yaml.safe_dump(config, stream, sort_keys=False)
+        # Controllers read only <name>.params_file, which the controller manager must carry:
+        # one for every controller the file declares, including any the overlay adds.
+        declared = [name for name, value in config["controller_manager"]["ros__parameters"].items()
+                    if isinstance(value, dict) and "type" in value]
+        params_files = f"{path}.params_files.yaml"
+        with open(params_files, "w") as stream:
+            yaml.safe_dump({"/**": {"ros__parameters": {f"{name}.params_file": str(path) for name in declared}}}, stream)
+        atexit.register(lambda: os.path.exists(params_files) and os.remove(params_files))
         return [
             SetLaunchConfiguration("controllersParamsFile", str(path)),
+            SetLaunchConfiguration("controllerParamsFiles", params_files),
             SetLaunchConfiguration("guiRefBaseHeight", str(height)),
             SetLaunchConfiguration("guiMaxVx", str(reference["maxDisplacementVelocityX"])),
             SetLaunchConfiguration("guiMaxVy", str(reference["maxDisplacementVelocityY"])),
@@ -265,6 +315,7 @@ def generate_launch_description():
             robot_description,
             LaunchConfiguration("controllersParamsFile"),
             mpc_params_file,
+            LaunchConfiguration("controllerParamsFiles"),
             {"use_sim_time": use_sim_time},
         ],
         condition=UnlessCondition(use_mujoco_sim),
@@ -278,6 +329,7 @@ def generate_launch_description():
             robot_description,
             LaunchConfiguration("controllersParamsFile"),
             mpc_params_file,
+            LaunchConfiguration("controllerParamsFiles"),
             {"mujoco_model_path": mujoco_model_path},
             {"mujoco_headless": ParameterValue(LaunchConfiguration("mujoco_headless"), value_type=bool)},
             {
@@ -333,6 +385,7 @@ def generate_launch_description():
             LaunchConfiguration("floatingBaseEstimator"),
             "--timeout",
             "120",
+            ["--lockstep-bridge=", LaunchConfiguration("lockstepBridge")],
         ],
         output="screen",
         condition=UnlessCondition(use_mujoco_sim),
@@ -351,6 +404,7 @@ def generate_launch_description():
             LaunchConfiguration("floatingBaseEstimator"),
             "--timeout",
             "120",
+            ["--lockstep-bridge=", LaunchConfiguration("lockstepBridge")],
             "--use-mujoco-sim",
             "--use-sim-time",
         ],
@@ -375,6 +429,7 @@ def generate_launch_description():
         output="screen",
         arguments=["--frame-id", "world", "--child-frame-id", "odom"],
         parameters=[{"use_sim_time": use_sim_time}],
+        condition=IfCondition(LaunchConfiguration("visualizationNodes")),
     )
 
     environment_state_publisher_node = Node(
@@ -383,6 +438,7 @@ def generate_launch_description():
         namespace="environment",
         output="screen",
         parameters=[environment_description, {"use_sim_time": use_sim_time}],
+        condition=IfCondition(LaunchConfiguration("visualizationNodes")),
     )
 
     base_command_gui_node = Node(
