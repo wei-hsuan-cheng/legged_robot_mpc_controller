@@ -30,6 +30,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #pragma once
 
+#include <memory>
+
 #include <ocs2_core/constraint/StateInputConstraintCppAd.h>
 #include <ocs2_pinocchio_interface/PinocchioInterface.h>
 
@@ -76,7 +78,8 @@ class ContactMomentXYConstraintCppAd final : public StateInputConstraintCppAd {
   const MpcRobotModelBase<ad_scalar_t>* mpcRobotModelPtr_;
   const ContactRectangle contactRectangle_;
   const size_t contactPointIndex_;
-  mutable PinocchioInterfaceCppAd pinocchioInterfaceCppAd_;
+  //! For taping in the constructor only; null afterwards and in clones.
+  mutable std::unique_ptr<PinocchioInterfaceCppAd> pinocchioInterfaceCppAd_;
 
   const static size_t numConstraints_ = 4;
   bool isActive_ = true;

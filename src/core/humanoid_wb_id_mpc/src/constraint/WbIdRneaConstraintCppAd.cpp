@@ -17,7 +17,7 @@ WbIdRneaConstraintCppAd::WbIdRneaConstraintCppAd(Rows rows,
                                                  std::shared_ptr<const WbIdTorqueWindow> torqueWindow)
     : StateInputConstraintCppAd(ConstraintOrder::Linear),
       rows_(rows),
-      pinocchioInterfaceCppAd_(pinocchioInterface.toCppAd()),
+      pinocchioInterfaceCppAd_(std::make_unique<PinocchioInterfaceCppAd>(pinocchioInterface.toCppAd())),
       mpcRobotModelADPtr_(mpcRobotModelAD.clone()),
       numConstraints_(rows == Rows::Base ? 6 : mpcRobotModelAD.getJointDim()),
       torqueWindow_(std::move(torqueWindow)) {
@@ -40,12 +40,14 @@ WbIdRneaConstraintCppAd::WbIdRneaConstraintCppAd(Rows rows,
   initialize(mpcRobotModelAD.getStateDim(), mpcRobotModelAD.getInputDim(), 0,
              rows_ == Rows::Base ? "wb_id_rnea_base" : "wb_id_rnea_joint", modelSettings.modelFolderCppAd,
              modelSettings.recompileLibrariesCppAd, modelSettings.verboseCppAd);
+  // Only the taped function reads it, and initialize() has taped or loaded the model: free it
+  // rather than copy it into every clone (one per SQP thread).
+  pinocchioInterfaceCppAd_.reset();
 }
 
 WbIdRneaConstraintCppAd::WbIdRneaConstraintCppAd(const WbIdRneaConstraintCppAd& rhs)
     : StateInputConstraintCppAd(rhs),
       rows_(rhs.rows_),
-      pinocchioInterfaceCppAd_(rhs.pinocchioInterfaceCppAd_),
       mpcRobotModelADPtr_(rhs.mpcRobotModelADPtr_->clone()),
       contactFrameIds_(rhs.contactFrameIds_),
       numConstraints_(rhs.numConstraints_),
@@ -59,8 +61,8 @@ ad_vector_t WbIdRneaConstraintCppAd::constraintFunction(ad_scalar_t /*time*/,
                                                         const ad_vector_t& state,
                                                         const ad_vector_t& input,
                                                         const ad_vector_t& /*parameters*/) const {
-  const auto& model = pinocchioInterfaceCppAd_.getModel();
-  auto data = pinocchioInterfaceCppAd_.getData();  // const method: record on a copy
+  const auto& model = pinocchioInterfaceCppAd_->getModel();
+  auto data = pinocchioInterfaceCppAd_->getData();  // const method: record on a copy
 
   const ad_vector_t q = mpcRobotModelADPtr_->getGeneralizedCoordinates(state);
   const ad_vector_t v = mpcRobotModelADPtr_->getGeneralizedVelocities(state);

@@ -45,7 +45,7 @@ EndEffectorKinematicsQuadraticCost::EndEffectorKinematicsQuadraticCost(EndEffect
     : StateInputCostGaussNewtonAd(),
       sqrtWeights_(weights.toVector().cwiseSqrt()),
       endEffectorKinematicsPtr_(endEffectorKinematics.clone()),
-      pinocchioInterfaceCppAd_(pinocchioInterface.toCppAd()),
+      pinocchioInterfaceCppAd_(std::make_unique<PinocchioInterfaceCppAd>(pinocchioInterface.toCppAd())),
       mpcRobotModelADPtr(mpcRobotModelAD.clone()) {
   std::cout << "Initialized EndEffectorKinematicsQuadraticCost with weights: " << weights.toVector().transpose() << std::endl;
   std::cout << "Frame name: " << endEffectorName << std::endl;
@@ -58,6 +58,9 @@ EndEffectorKinematicsQuadraticCost::EndEffectorKinematicsQuadraticCost(EndEffect
   initialize(mpcRobotModelADPtr->getStateDim(), mpcRobotModelADPtr->getInputDim(), n_parameters_,
              endEffectorName + "_KinematicsQuadraticCost", modelSettings.modelFolderCppAd, modelSettings.recompileLibrariesCppAd,
              modelSettings.verboseCppAd);
+  // Only the taped function reads it, and initialize() has taped or loaded the model: free it
+  // rather than copy it into every clone (one per SQP thread).
+  pinocchioInterfaceCppAd_.reset();
 }
 
 /******************************************************************************************************/
@@ -69,7 +72,6 @@ EndEffectorKinematicsQuadraticCost::EndEffectorKinematicsQuadraticCost(const End
       sqrtWeights_(other.sqrtWeights_),
       n_parameters_(other.n_parameters_),
       frameID_(other.frameID_),
-      pinocchioInterfaceCppAd_(other.pinocchioInterfaceCppAd_),
       endEffectorKinematicsPtr_(other.endEffectorKinematicsPtr_->clone()),
       mpcRobotModelADPtr(other.mpcRobotModelADPtr->clone()) {}
 
@@ -113,8 +115,8 @@ ad_vector_t EndEffectorKinematicsQuadraticCost::costVectorFunction(ad_scalar_t t
                                                                    const ad_vector_t& parameters) const {
   const pinocchio::ReferenceFrame rf = pinocchio::ReferenceFrame::LOCAL_WORLD_ALIGNED;
 
-  const auto& model = pinocchioInterfaceCppAd_.getModel();
-  auto& data = pinocchioInterfaceCppAd_.getData();
+  const auto& model = pinocchioInterfaceCppAd_->getModel();
+  auto& data = pinocchioInterfaceCppAd_->getData();
 
   const ad_vector_t q = mpcRobotModelADPtr->getGeneralizedCoordinates(state);
   const ad_vector_t v = mpcRobotModelADPtr->getGeneralizedVelocities(state, input);

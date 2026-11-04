@@ -55,9 +55,12 @@ ContactMomentXYConstraintCppAd::ContactMomentXYConstraintCppAd(const SwitchedMod
       mpcRobotModelPtr_(&mpcRobotModel),
       contactRectangle_(contactRectangle),
       contactPointIndex_(contactPointIndex),
-      pinocchioInterfaceCppAd_(pinocchioInterface.toCppAd()) {
+      pinocchioInterfaceCppAd_(std::make_unique<PinocchioInterfaceCppAd>(pinocchioInterface.toCppAd())) {
   initialize(mpcRobotModelPtr_->getStateDim(), mpcRobotModelPtr_->getInputDim(), 0, costName, modelSettings.modelFolderCppAd,
              modelSettings.recompileLibrariesCppAd, modelSettings.verboseCppAd);
+  // Only the taped function reads it, and initialize() has taped or loaded the model: free it
+  // rather than copy it into every clone (one per SQP thread).
+  pinocchioInterfaceCppAd_.reset();
 }
 /******************************************************************************************************/
 /******************************************************************************************************/
@@ -68,8 +71,7 @@ ContactMomentXYConstraintCppAd::ContactMomentXYConstraintCppAd(const ContactMome
       referenceManagerPtr_(other.referenceManagerPtr_),
       mpcRobotModelPtr_(other.mpcRobotModelPtr_),
       contactRectangle_(other.contactRectangle_),
-      contactPointIndex_(other.contactPointIndex_),
-      pinocchioInterfaceCppAd_(other.pinocchioInterfaceCppAd_) {}
+      contactPointIndex_(other.contactPointIndex_) {}
 
 /******************************************************************************************************/
 /******************************************************************************************************/
@@ -87,10 +89,10 @@ ad_vector_t ContactMomentXYConstraintCppAd::constraintFunction(ad_scalar_t time,
                                                                const ad_vector_t& state,
                                                                const ad_vector_t& input,
                                                                const ad_vector_t& parameters) const {
-  const auto& model = pinocchioInterfaceCppAd_.getModel();
-  auto data = pinocchioInterfaceCppAd_.getData();  // make copy of model since method is const
+  const auto& model = pinocchioInterfaceCppAd_->getModel();
+  auto data = pinocchioInterfaceCppAd_->getData();  // make copy of model since method is const
   updateFramePlacements(mpcRobotModelPtr_->getGeneralizedCoordinates(state), model, data);
-  pinocchio::FrameIndex frameID = getContactFrameIndex(pinocchioInterfaceCppAd_, *mpcRobotModelPtr_, contactPointIndex_);
+  pinocchio::FrameIndex frameID = getContactFrameIndex(*pinocchioInterfaceCppAd_, *mpcRobotModelPtr_, contactPointIndex_);
 
   const ad_vector3_t localForce = rotateVectorWorldToLocal(mpcRobotModelPtr_->getContactForce(input, contactPointIndex_), data, frameID);
   const ad_vector3_t localMoments = rotateVectorWorldToLocal(mpcRobotModelPtr_->getContactMoment(input, contactPointIndex_), data, frameID);

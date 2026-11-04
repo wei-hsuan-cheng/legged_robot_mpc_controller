@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+
 #include <string>
 #include <vector>
 
@@ -54,7 +55,8 @@ class WbIdRneaConstraintCppAd final : public StateInputConstraintCppAd {
                                  const ad_vector_t& parameters) const override;
 
   Rows rows_;
-  PinocchioInterfaceCppAd pinocchioInterfaceCppAd_;
+  //! For taping in the constructor only; null afterwards and in clones.
+  std::unique_ptr<PinocchioInterfaceCppAd> pinocchioInterfaceCppAd_;
   std::unique_ptr<WbIdMpcRobotModel<ad_scalar_t>> mpcRobotModelADPtr_;
   std::vector<size_t> contactFrameIds_;
   size_t numConstraints_;

@@ -63,11 +63,14 @@ CentroidalMpcEndEffectorFootCost::CentroidalMpcEndEffectorFootCost(const Switche
       referenceManagerPtr_(&referenceManager),
       sqrtWeights_(weights.toVector().cwiseSqrt()),
       frameID_(pinocchioInterface.getModel().getFrameId(modelSettings.contactNames[contactIndex])),
-      pinocchioInterfaceCppAd_(pinocchioInterface.toCppAd()),
+      pinocchioInterfaceCppAd_(std::make_unique<PinocchioInterfaceCppAd>(pinocchioInterface.toCppAd())),
       mpcRobotModelAdPtr_(mpcRobotModelAD.clone()),
       contactIndex_(contactIndex) {
   initialize(mpcRobotModelAD.getStateDim(), mpcRobotModelAD.getInputDim(), 25, costName, modelSettings.modelFolderCppAd,
              modelSettings.recompileLibrariesCppAd);
+  // Only the taped function reads it, and initialize() has taped or loaded the model: free it
+  // rather than copy it into every clone (one per SQP thread).
+  pinocchioInterfaceCppAd_.reset();
   std::cout << "Frame ID: " << frameID_ << std::endl;
   std::cout << "Initialized CentroidalMpcEndEffectorFootCost with weights: " << weights.toVector().transpose() << std::endl;
 }
@@ -82,7 +85,6 @@ CentroidalMpcEndEffectorFootCost::CentroidalMpcEndEffectorFootCost(const Centroi
       sqrtWeights_(other.sqrtWeights_),
       frameID_(other.frameID_),
       contactIndex_(other.contactIndex_),
-      pinocchioInterfaceCppAd_(other.pinocchioInterfaceCppAd_),
       mpcRobotModelAdPtr_(other.mpcRobotModelAdPtr_->clone()) {}
 
 /******************************************************************************************************/
@@ -99,8 +101,8 @@ ad_vector_t CentroidalMpcEndEffectorFootCost::costVectorFunction(ad_scalar_t tim
   const ad_vector_t sqrtWeightParams = parameters.segment(12, 12);  // EndEffectorKinematicsWeights vector element
   const ad_scalar_t impactProximityScaler = parameters[24];
 
-  const auto& model = pinocchioInterfaceCppAd_.getModel();
-  auto& data = pinocchioInterfaceCppAd_.getData();
+  const auto& model = pinocchioInterfaceCppAd_->getModel();
+  auto& data = pinocchioInterfaceCppAd_->getData();
 
   const ad_vector_t q = mpcRobotModelAdPtr_->getGeneralizedCoordinates(state);
   const ad_vector_t v = mpcRobotModelAdPtr_->getGeneralizedVelocities(state, input);

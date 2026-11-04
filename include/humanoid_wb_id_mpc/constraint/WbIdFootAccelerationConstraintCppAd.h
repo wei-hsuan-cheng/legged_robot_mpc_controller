@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+
 #include <string>
 
 #include <ocs2_core/constraint/StateInputConstraintCppAd.h>
@@ -78,7 +79,8 @@ class WbIdFootAccelerationConstraintCppAd final : public StateInputConstraintCpp
 
   Type type_;
   const SwitchedModelReferenceManager* referenceManagerPtr_;
-  PinocchioInterfaceCppAd pinocchioInterfaceCppAd_;
+  //! For taping in the constructor only; null afterwards and in clones.
+  std::unique_ptr<PinocchioInterfaceCppAd> pinocchioInterfaceCppAd_;
   std::unique_ptr<WbIdMpcRobotModel<ad_scalar_t>> mpcRobotModelADPtr_;
   size_t contactIndex_;
   size_t frameId_;

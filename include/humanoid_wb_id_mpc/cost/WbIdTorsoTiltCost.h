@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <memory>
+
 #include <string>
 
 #include <ocs2_core/cost/StateInputGaussNewtonCostAd.h>
@@ -44,7 +45,8 @@ class WbIdTorsoTiltCost final : public StateInputCostGaussNewtonAd {
                                  const ad_vector_t& input,
                                  const ad_vector_t& parameters) const override;
 
-  PinocchioInterfaceCppAd pinocchioInterfaceCppAd_;
+  //! For taping in the constructor only; null afterwards and in clones.
+  std::unique_ptr<PinocchioInterfaceCppAd> pinocchioInterfaceCppAd_;
   std::unique_ptr<WbIdMpcRobotModel<ad_scalar_t>> mpcRobotModelADPtr_;
   std::size_t frameId_;
   vector_t parameters_;

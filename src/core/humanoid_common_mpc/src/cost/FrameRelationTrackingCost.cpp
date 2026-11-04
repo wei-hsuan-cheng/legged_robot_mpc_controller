@@ -20,7 +20,7 @@ FrameRelationTrackingCost::FrameRelationTrackingCost(
   target_frame_(target_frame),
   source_is_global_(isGlobalFrameName(source_frame)),
   default_sqrt_weights_(default_weights.toVector().cwiseSqrt()),
-  pinocchio_interface_cppad_(pinocchio_interface.toCppAd()),
+  pinocchio_interface_cppad_(std::make_unique<PinocchioInterfaceCppAd>(pinocchio_interface.toCppAd())),
   mpc_robot_model_ad_ptr_(mpc_robot_model_ad.clone()),
   reference_manager_ptr_(&reference_manager)
 {
@@ -46,6 +46,9 @@ FrameRelationTrackingCost::FrameRelationTrackingCost(
     source_frame_ + "_to_" + target_frame_ + "_FrameRelationTrackingCost",
     model_settings.modelFolderCppAd, model_settings.recompileLibrariesCppAd,
     model_settings.verboseCppAd);
+  // Only the taped function reads it, and initialize() has taped or loaded the model: free it
+  // rather than copy it into every clone (one per SQP thread).
+  pinocchio_interface_cppad_.reset();
 }
 
 FrameRelationTrackingCost::FrameRelationTrackingCost(const FrameRelationTrackingCost& other)
@@ -56,7 +59,6 @@ FrameRelationTrackingCost::FrameRelationTrackingCost(const FrameRelationTracking
   source_frame_id_(other.source_frame_id_),
   target_frame_id_(other.target_frame_id_),
   default_sqrt_weights_(other.default_sqrt_weights_),
-  pinocchio_interface_cppad_(other.pinocchio_interface_cppad_),
   mpc_robot_model_ad_ptr_(other.mpc_robot_model_ad_ptr_->clone()),
   reference_manager_ptr_(other.reference_manager_ptr_)
 {
@@ -123,8 +125,8 @@ ad_vector_t FrameRelationTrackingCost::costVectorFunction(
   const ad_vector_t& parameters) const
 {
   const pinocchio::ReferenceFrame rf = pinocchio::ReferenceFrame::LOCAL_WORLD_ALIGNED;
-  const auto& model = pinocchio_interface_cppad_.getModel();
-  auto& data = pinocchio_interface_cppad_.getData();
+  const auto& model = pinocchio_interface_cppad_->getModel();
+  auto& data = pinocchio_interface_cppad_->getData();
 
   const ad_vector_t q = mpc_robot_model_ad_ptr_->getGeneralizedCoordinates(state);
   const ad_vector_t v = mpc_robot_model_ad_ptr_->getGeneralizedVelocities(state, input);

@@ -52,7 +52,7 @@ FootCollisionConstraint::FootCollisionConstraint(const SwitchedModelReferenceMan
                                                  const ModelSettings& modelSettings)
     : StateConstraintCppAd(ConstraintOrder::Linear),
       referenceManagerPtr_(&referenceManager),
-      pinocchioInterfaceCppAd_(pinocchioInterface.toCppAd()),
+      pinocchioInterfaceCppAd_(std::make_unique<PinocchioInterfaceCppAd>(pinocchioInterface.toCppAd())),
       mpcRobotModelPtr_(&mpcRobotModel),
       cfg_(std::move(config)) {
   const bool lateralSeparation = cfg_.minimumLateralSeparation > 0.0;
@@ -61,6 +61,9 @@ FootCollisionConstraint::FootCollisionConstraint(const SwitchedModelReferenceMan
   if (lateralSeparation) costName += "_lateral_v1";
   initialize(mpcRobotModelPtr_->getStateDim(), lateralSeparation ? 4 : 2, costName, modelSettings.modelFolderCppAd, modelSettings.recompileLibrariesCppAd,
              modelSettings.verboseCppAd);
+  // Only the taped function reads it, and initialize() has taped or loaded the model: free it
+  // rather than copy it into every clone (one per SQP thread).
+  pinocchioInterfaceCppAd_.reset();
 }
 
 /******************************************************************************************************/
@@ -70,7 +73,6 @@ FootCollisionConstraint::FootCollisionConstraint(const SwitchedModelReferenceMan
 FootCollisionConstraint::FootCollisionConstraint(const FootCollisionConstraint& other)
     : StateConstraintCppAd(other),
       referenceManagerPtr_(other.referenceManagerPtr_),
-      pinocchioInterfaceCppAd_(other.pinocchioInterfaceCppAd_),
       mpcRobotModelPtr_(other.mpcRobotModelPtr_),
       cfg_(other.cfg_),
       numConstraints_(other.numConstraints_),
@@ -95,8 +97,8 @@ bool FootCollisionConstraint::isActive(scalar_t time) const {
 ad_vector_t FootCollisionConstraint::constraintFunction(ad_scalar_t time, const ad_vector_t& state, const ad_vector_t& parameters) const {
   const pinocchio::ReferenceFrame rf = pinocchio::ReferenceFrame::LOCAL_WORLD_ALIGNED;
 
-  const auto& model = pinocchioInterfaceCppAd_.getModel();
-  auto data = pinocchioInterfaceCppAd_.getData();
+  const auto& model = pinocchioInterfaceCppAd_->getModel();
+  auto data = pinocchioInterfaceCppAd_->getData();
 
   const ad_vector_t q = mpcRobotModelPtr_->getGeneralizedCoordinates(state);
   pinocchio::forwardKinematics(model, data, q);

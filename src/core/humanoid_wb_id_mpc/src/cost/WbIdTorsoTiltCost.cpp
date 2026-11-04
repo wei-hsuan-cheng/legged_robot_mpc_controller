@@ -15,7 +15,7 @@ WbIdTorsoTiltCost::WbIdTorsoTiltCost(const Config& config,
                                    const WbIdMpcRobotModel<ad_scalar_t>& mpcRobotModelAD,
                                    const ModelSettings& modelSettings)
     : StateInputCostGaussNewtonAd(),
-      pinocchioInterfaceCppAd_(pinocchioInterface.toCppAd()),
+      pinocchioInterfaceCppAd_(std::make_unique<PinocchioInterfaceCppAd>(pinocchioInterface.toCppAd())),
       mpcRobotModelADPtr_(mpcRobotModelAD.clone()),
       frameId_(pinocchioInterface.getModel().getFrameId(config.linkName)),
       parameters_(7) {
@@ -41,11 +41,13 @@ WbIdTorsoTiltCost::WbIdTorsoTiltCost(const Config& config,
   initialize(mpcRobotModelAD.getStateDim(), mpcRobotModelAD.getInputDim(), parameters_.size(),
              "wb_id_torso_tilt_v1_" + config.linkName, modelSettings.modelFolderCppAd,
              modelSettings.recompileLibrariesCppAd, modelSettings.verboseCppAd);
+  // Only the taped function reads it, and initialize() has taped or loaded the model: free it
+  // rather than copy it into every clone (one per SQP thread).
+  pinocchioInterfaceCppAd_.reset();
 }
 
 WbIdTorsoTiltCost::WbIdTorsoTiltCost(const WbIdTorsoTiltCost& other)
     : StateInputCostGaussNewtonAd(other),
-      pinocchioInterfaceCppAd_(other.pinocchioInterfaceCppAd_),
       mpcRobotModelADPtr_(other.mpcRobotModelADPtr_->clone()),
       frameId_(other.frameId_),
       parameters_(other.parameters_) {}
@@ -61,8 +63,8 @@ ad_vector_t WbIdTorsoTiltCost::costVectorFunction(ad_scalar_t /*time*/,
                                                  const ad_vector_t& /*input*/,
                                                  const ad_vector_t& parameters) const {
   using std::acos;
-  const auto& model = pinocchioInterfaceCppAd_.getModel();
-  auto data = pinocchioInterfaceCppAd_.getData();
+  const auto& model = pinocchioInterfaceCppAd_->getModel();
+  auto data = pinocchioInterfaceCppAd_->getData();
   const ad_vector_t q = mpcRobotModelADPtr_->getGeneralizedCoordinates(state);
   const ad_vector_t v = mpcRobotModelADPtr_->getGeneralizedVelocities(state);
   pinocchio::forwardKinematics(model, data, q, v);

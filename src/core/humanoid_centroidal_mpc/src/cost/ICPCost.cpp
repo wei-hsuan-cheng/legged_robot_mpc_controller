@@ -63,7 +63,7 @@ ICPCost::ICPCost(const SwitchedModelReferenceManager& referenceManager,
     : StateInputCostGaussNewtonAd(),
       referenceManagerPtr_(&referenceManager),
       sqrtWeights_(weights.cwiseSqrt()),
-      pinocchioInterfaceCppAd_(pinocchioInterface.toCppAd()),
+      pinocchioInterfaceCppAd_(std::make_unique<PinocchioInterfaceCppAd>(pinocchioInterface.toCppAd())),
       mpcRobotModelAdPtr_(mpcRobotModelAD.clone()) {
   // 5 parameters: 2 sqrt weights, the per-foot stance flags, and omega. All three
   // are resolved on the host at the real query time: the contact schedule cannot
@@ -72,6 +72,9 @@ ICPCost::ICPCost(const SwitchedModelReferenceManager& referenceManager,
   // and code-generated.
   initialize(mpcRobotModelAD.getStateDim(), mpcRobotModelAD.getInputDim(), 5, costName, modelSettings.modelFolderCppAd,
              modelSettings.recompileLibrariesCppAd);
+  // Only the taped function reads it, and initialize() has taped or loaded the model: free it
+  // rather than copy it into every clone (one per SQP thread).
+  pinocchioInterfaceCppAd_.reset();
   std::cout << "Initialized ICPCost with weights: " << weights.transpose() << std::endl;
 }
 
@@ -83,7 +86,6 @@ ICPCost::ICPCost(const ICPCost& other)
     : StateInputCostGaussNewtonAd(other),
       referenceManagerPtr_(other.referenceManagerPtr_),
       sqrtWeights_(other.sqrtWeights_),
-      pinocchioInterfaceCppAd_(other.pinocchioInterfaceCppAd_),
       mpcRobotModelAdPtr_(other.mpcRobotModelAdPtr_->clone()) {}
 
 /******************************************************************************************************/
@@ -105,8 +107,8 @@ ad_vector_t ICPCost::costVectorFunction(ad_scalar_t time,
   // any division by a variable.
   const ad_scalar_t inverseOmega = parameters[4];
 
-  const auto& model = pinocchioInterfaceCppAd_.getModel();
-  auto& data = pinocchioInterfaceCppAd_.getData();
+  const auto& model = pinocchioInterfaceCppAd_->getModel();
+  auto& data = pinocchioInterfaceCppAd_->getData();
 
   const ad_vector_t q = mpcRobotModelAdPtr_->getGeneralizedCoordinates(state);
 
@@ -114,7 +116,7 @@ ad_vector_t ICPCost::costVectorFunction(ad_scalar_t time,
   const ad_vector2_t com = data.com[0].head(2);
 
   pinocchio::updateFramePlacements(model, data);
-  const auto contactPositions = getContactPositions<ad_scalar_t>(pinocchioInterfaceCppAd_, *mpcRobotModelAdPtr_);
+  const auto contactPositions = getContactPositions<ad_scalar_t>(*pinocchioInterfaceCppAd_, *mpcRobotModelAdPtr_);
 
   // Support reference: the centroid of the feet ACTUALLY IN CONTACT. Averaging
   // both feet unconditionally (as this used to) places the target half way

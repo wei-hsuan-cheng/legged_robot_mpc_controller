@@ -29,6 +29,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #pragma once
 
+#include <memory>
+
 #include <ocs2_core/cost/StateInputGaussNewtonCostAd.h>
 #include <ocs2_pinocchio_interface/PinocchioInterface.h>
 #include <ocs2_robotic_tools/end_effector/EndEffectorKinematics.h>
@@ -84,7 +86,8 @@ class ExternalTorqueQuadraticCostAD : public ocs2::StateInputCostGaussNewtonAd {
   vector_t sqrtWeights_;
   const std::vector<std::string> activeJointNames_;
   const SwitchedModelReferenceManager* referenceManagerPtr_;
-  mutable PinocchioInterfaceCppAd pinocchioInterfaceCppAd_;
+  //! For taping in the constructor only; null afterwards and in clones.
+  mutable std::unique_ptr<PinocchioInterfaceCppAd> pinocchioInterfaceCppAd_;
   const std::unique_ptr<MpcRobotModelBase<ad_scalar_t>> mpcRobotModelADPtr;
   bool isActive_ = true;
 };

@@ -32,6 +32,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <pinocchio/fwd.hpp>
 
+#include <memory>
+
 #include <ocs2_core/constraint/StateConstraintCppAd.h>
 #include <ocs2_core/cost/StateCost.h>
 #include <ocs2_pinocchio_interface/PinocchioInterface.h>
@@ -119,7 +121,8 @@ class FootCollisionConstraint final : public StateConstraintCppAd {
   FootCollisionConstraint(const FootCollisionConstraint& other);
 
   const SwitchedModelReferenceManager* referenceManagerPtr_;
-  mutable PinocchioInterfaceCppAd pinocchioInterfaceCppAd_;
+  //! For taping in the constructor only; null afterwards and in clones.
+  mutable std::unique_ptr<PinocchioInterfaceCppAd> pinocchioInterfaceCppAd_;
   const MpcRobotModelBase<ad_scalar_t>* const mpcRobotModelPtr_;
   Config cfg_;
 

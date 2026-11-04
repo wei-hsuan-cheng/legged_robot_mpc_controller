@@ -2,6 +2,7 @@
 #define HUMANOID_COMMON_MPC__COST__FRAME_RELATION_TRACKING_COST_H_
 
 #include <memory>
+
 #include <string>
 
 #include <ocs2_core/cost/StateInputGaussNewtonCostAd.h>
@@ -81,7 +82,8 @@ private:
   pinocchio::FrameIndex source_frame_id_{0};
   pinocchio::FrameIndex target_frame_id_{0};
   vector12_t default_sqrt_weights_;
-  mutable PinocchioInterfaceCppAd pinocchio_interface_cppad_;
+  //! For taping in the constructor only; null afterwards and in clones.
+  mutable std::unique_ptr<PinocchioInterfaceCppAd> pinocchio_interface_cppad_;
   std::unique_ptr<MpcRobotModelBase<ad_scalar_t>> mpc_robot_model_ad_ptr_;
   const SwitchedModelReferenceManager* reference_manager_ptr_;
 };
