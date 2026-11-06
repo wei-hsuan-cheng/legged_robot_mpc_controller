@@ -172,6 +172,7 @@ add_library(${PROJECT_NAME} SHARED
   src/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller.cpp
   src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp
   src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp
+  src/humanoid_whole_body_inverse_dynamics_mpc/gait_adaptation_policy.cpp
   src/visualization/optimized_state_trajectory_visualization.cpp
   src/visualization/future_robot_model_visualization.cpp
   src/visualization/collision_sphere_visualization.cpp

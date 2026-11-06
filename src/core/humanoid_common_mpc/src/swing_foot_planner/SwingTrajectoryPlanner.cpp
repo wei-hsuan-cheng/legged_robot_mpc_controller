@@ -31,6 +31,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "humanoid_common_mpc/swing_foot_planner/SwingTrajectoryPlanner.h"
 
+#include <algorithm>
 #include <cmath>
 #include <stdexcept>
 
@@ -86,14 +87,17 @@ scalar_t SwingTrajectoryPlanner::getImpactProximityFactor(size_t leg, scalar_t t
 /******************************************************************************************************/
 
 void SwingTrajectoryPlanner::update(const ModeSchedule& modeSchedule, scalar_t terrainHeight,
-                                    const scalar_array_t& swingHeightSequence) {
+                                    const scalar_array_t& swingHeightSequence,
+                                    const scalar_array_t& swingHeightOffsetSequence,
+                                    const scalar_array_t& apexShiftSequence) {
   const scalar_array_t terrainHeightSequence(modeSchedule.modeSequence.size(), terrainHeight);
   const scalar_array_t touchDownTerrainHeightSequence(modeSchedule.modeSequence.size(), terrainHeight + config_.touchDownHeightOffset);
   feet_array_t<scalar_array_t> liftOffHeightSequence;
   liftOffHeightSequence.fill(terrainHeightSequence);
   feet_array_t<scalar_array_t> touchDownHeightSequence;
   touchDownHeightSequence.fill(touchDownTerrainHeightSequence);
-  update(modeSchedule, liftOffHeightSequence, touchDownHeightSequence, swingHeightSequence);
+  update(modeSchedule, liftOffHeightSequence, touchDownHeightSequence, swingHeightSequence, swingHeightOffsetSequence,
+         apexShiftSequence);
 }
 
 /******************************************************************************************************/
@@ -103,11 +107,17 @@ void SwingTrajectoryPlanner::update(const ModeSchedule& modeSchedule, scalar_t t
 void SwingTrajectoryPlanner::update(const ModeSchedule& modeSchedule,
                                     const feet_array_t<scalar_array_t>& liftOffHeightSequence,
                                     const feet_array_t<scalar_array_t>& touchDownHeightSequence,
-                                    const scalar_array_t& swingHeightSequence) {
+                                    const scalar_array_t& swingHeightSequence,
+                                    const scalar_array_t& swingHeightOffsetSequence,
+                                    const scalar_array_t& apexShiftSequence) {
   const auto& modeSequence = modeSchedule.modeSequence;
   const auto& eventTimes = modeSchedule.eventTimes;
   if (!swingHeightSequence.empty() && swingHeightSequence.size() != modeSequence.size()) {
     throw std::invalid_argument("Swing heights must match the mode sequence length.");
+  }
+  if ((!swingHeightOffsetSequence.empty() && swingHeightOffsetSequence.size() != modeSequence.size()) ||
+      (!apexShiftSequence.empty() && apexShiftSequence.size() != modeSequence.size())) {
+    throw std::invalid_argument("Swing adaptation sequences must match the mode sequence length.");
   }
   for (const scalar_t height : swingHeightSequence) {
     if (!std::isfinite(height) || (height < 0.0 && height != -1.0)) {
@@ -143,9 +153,13 @@ void SwingTrajectoryPlanner::update(const ModeSchedule& modeSchedule,
         const CubicSpline::Node touchDownHeight{swingFinalTime, touchDownZ, scaling * config_.touchDownVelocity};
         // Select at lift-off, not at the current phase: flight modes and gait splices share one spline.
         const scalar_t gaitHeight = swingHeightSequence.empty() ? -1.0 : swingHeightSequence[swingStartIndex + 1];
-        const scalar_t swingHeight = gaitHeight < 0.0 ? config_.swingHeight : gaitHeight;
+        const scalar_t heightOffset = swingHeightOffsetSequence.empty() ? 0.0 : swingHeightOffsetSequence[swingStartIndex + 1];
+        const scalar_t apexShift = apexShiftSequence.empty() ? 0.0 : apexShiftSequence[swingStartIndex + 1];
+        // An adapted apex keeps some clearance and stays inside the swing.
+        const scalar_t baseSwingHeight = gaitHeight < 0.0 ? config_.swingHeight : gaitHeight;
+        const scalar_t swingHeight = heightOffset == 0.0 ? baseSwingHeight : std::max(baseSwingHeight + heightOffset, 0.02);
         const scalar_t midHeight = std::max(liftOffZ, touchDownZ) + scaling * swingHeight;
-        feetHeightTrajectories_[j].emplace_back(liftOffHeight, midHeight, touchDownHeight);
+        feetHeightTrajectories_[j].emplace_back(liftOffHeight, midHeight, touchDownHeight, std::clamp(0.5 + apexShift, 0.2, 0.8));
 
         const CubicSpline::Node impactProximityLiftOff{swingStartTime, 1.0, scaling * config_.impactProximityFactorLiftOffVelocity};
         const CubicSpline::Node impactProximityTouchDown{swingFinalTime, 1.0, scaling * config_.impactProximityFactorTouchDownVelocity};

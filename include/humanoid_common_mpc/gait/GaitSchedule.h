@@ -30,6 +30,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #pragma once
 
+#include <limits>
 #include <mutex>
 
 #include <ocs2_core/reference/ModeSchedule.h>
@@ -39,8 +40,32 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 namespace ocs2::humanoid {
 
+/**
+ * Online gait adaptation, e.g. from a learned policy (RL-augmented MPC, Kamohara et al. 2025):
+ * every phase that has not started yet runs period-scale times its template duration, with
+ * its swing apex raised by swingHeightOffset and placed at (0.5 + apexShift) of the swing.
+ * The default is the template unchanged.
+ */
+struct GaitAdaptation {
+  scalar_t periodScale = 1.0;
+  scalar_t swingHeightOffset = 0.0;  // [m]
+  scalar_t apexShift = 0.0;          // fraction of the swing duration
+
+  bool operator==(const GaitAdaptation& other) const {
+    return periodScale == other.periodScale && swingHeightOffset == other.swingHeightOffset && apexShift == other.apexShift;
+  }
+  bool operator!=(const GaitAdaptation& other) const { return !(*this == other); }
+};
+
 class GaitSchedule {
  public:
+  /** The adaptation a phase was scheduled with. periodScale 0: a fixed duration, never retimed. */
+  struct PhaseAdaptation {
+    scalar_t periodScale = 0.0;
+    scalar_t swingHeightOffset = 0.0;
+    scalar_t apexShift = 0.0;
+  };
+
   GaitSchedule(ModeSchedule initModeSchedule, ModeSequenceTemplate initModeSequenceTemplate, scalar_t phaseTransitionStanceTime);
 
   /**
@@ -53,6 +78,22 @@ class GaitSchedule {
 
   /** Per-phase swing clearance, aligned with the current mode sequence. */
   const scalar_array_t& getSwingHeightSequence() const { return swingHeightSequence_; }
+
+  /** Per-phase adaptation, aligned with the current mode sequence. */
+  const std::vector<PhaseAdaptation>& getPhaseAdaptations() const { return phaseAdaptations_; }
+
+  /**
+   * Adapts every phase that starts after the one in progress at `time`: their durations are
+   * rescaled in place (the contact sequence is unchanged, and so is the end of the current
+   * phase) and they take the new swing offsets; phases tiled later inherit the adaptation.
+   * Takes effect once per phase, at the first call after that phase started; calls later in the
+   * same phase are ignored. Retiming the horizon at every solve moved its contact switches
+   * under the warm start faster than one SQP iteration could follow.
+   */
+  void setAdaptation(const GaitAdaptation& adaptation, scalar_t time);
+
+  /** Back to stance from `time` on, with the default template and no adaptation, as at start-up. */
+  void reset(scalar_t time);
 
   /**
    * Used to insert a new user defined logic in the given time period.
@@ -82,7 +123,11 @@ class GaitSchedule {
  private:
   ModeSchedule modeSchedule_;
   scalar_array_t swingHeightSequence_;
-  ModeSequenceTemplate modeSequenceTemplate_;
+  std::vector<PhaseAdaptation> phaseAdaptations_;
+  ModeSequenceTemplate modeSequenceTemplate_;  //!< as inserted; tiling applies adaptation_
+  const ModeSequenceTemplate defaultModeSequenceTemplate_;
+  GaitAdaptation adaptation_;
+  scalar_t adaptedPhaseStart_ = std::numeric_limits<scalar_t>::quiet_NaN();  //!< start of the phase adapted last
   scalar_t phaseTransitionStanceTime_;
 };
 

@@ -131,6 +131,12 @@ class ProceduralMpcMotionManager : public SolverSynchronizedModule {
   /// Store the latest bounded walking command; conditioning happens in preSolverRun. Thread-safe.
   void setVelocityCommand(const WalkingVelocityCommand& command);
 
+  /** The latest raw walking-velocity command (normalized, as set). Thread-safe. */
+  WalkingVelocityCommand getVelocityCommand() const { return walkingVelocityTarget_.getCommand(); }
+
+  /** At the next solve the gait FSM restarts in stance and the command filter from rest (an episode reset). Thread-safe. */
+  void requestReset() { resetRequested_.store(true); }
+
   /// Reset walking-command filter history on the next solver update. Thread-safe.
   void requestVelocityTargetFilterReset();
 
@@ -156,6 +162,7 @@ class ProceduralMpcMotionManager : public SolverSynchronizedModule {
   const scalar_t gaitSwitchDelayHorizonFraction_;
 
   size_t currentGaitMode_{0};
+  std::atomic_bool resetRequested_{false};
 
   std::shared_ptr<SwitchedModelReferenceManager> switchedModelReferenceManagerPtr_;
   std::shared_ptr<GaitSchedule> gaitSchedulePtr_;

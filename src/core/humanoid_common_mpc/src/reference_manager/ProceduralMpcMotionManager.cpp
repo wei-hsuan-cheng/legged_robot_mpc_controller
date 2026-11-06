@@ -177,6 +177,13 @@ void ProceduralMpcMotionManager::preSolverRun(scalar_t initTime,
                                               scalar_t finalTime,
                                               const vector_t& initState,
                                               const ReferenceManagerInterface& referenceManager) {
+  if (resetRequested_.exchange(false)) {
+    // The reference manager reset the gait schedule to stance earlier in this solve.
+    currentGaitMode_ = 0;
+    currentGaitCommand_ = lastGaitCommand_ = "stance";
+    lastGaitChangeTime_ = initTime;
+    walkingVelocityTarget_.requestFilterReset();
+  }
   const TargetMode targetMode = getTargetMode();
   switchedModelReferenceManagerPtr_->setBaseTrackingMode(
       targetMode == TargetMode::BasePose ? SwitchedModelReferenceManager::BaseTrackingMode::AbsolutePose

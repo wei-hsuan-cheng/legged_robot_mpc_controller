@@ -59,7 +59,7 @@
     </sensor>
   </xacro:macro>
   
-  <xacro:macro name="h2_ros2_control" params="       use_fake_hardware       use_mujoco_sim       joint_init       system_name:=H2System       command_interface:=effort       effort_pd_kp:=1200.0       effort_pd_kd:=10.0       mujoco_position_kp:=10000       mujoco_position_ki:=50       mujoco_position_kd:=500       mujoco_position_i_max:=10000       mujoco_position_i_min:=-10000       mujoco_effort_command_mode:=actuator       use_lidar:=false       use_contact_sensors:=true       base_height:=''">
+  <xacro:macro name="h2_ros2_control" params="       use_fake_hardware       use_mujoco_sim       joint_init       system_name:=H2System       command_interface:=effort       effort_pd_kp:=1200.0       effort_pd_kd:=10.0       mujoco_position_kp:=10000       mujoco_position_ki:=50       mujoco_position_kd:=500       mujoco_position_i_max:=10000       mujoco_position_i_min:=-10000       mujoco_effort_command_mode:=actuator       use_lidar:=false       use_contact_sensors:=true       use_episode_control:=false       base_height:=''">
     <ros2_control name="${system_name}" type="system">
       <hardware>
         <xacro:if value="${use_mujoco_sim}">
@@ -116,6 +116,44 @@
         <xacro:if value="${use_contact_sensors}">
           <xacro:foot_contact_sensor name="left_foot_contact" body="left_ankle_pitch_link" />
           <xacro:foot_contact_sensor name="right_foot_contact" body="right_ankle_pitch_link" />
+        </xacro:if>
+        <!-- Simulation-only episode control for RL training (mujoco_system EpisodeControl):
+             snapshot / reset the physics state, with spawn pose, state noise, base twist,
+             friction / mass / inertia / payload randomization per reset, and base pushes. -->
+        <xacro:if value="${use_episode_control}">
+          <gpio name="episode">
+            <param name="mujoco_episode_control">true</param>
+            <param name="payload_body">torso_link</param>
+            <command_interface name="snapshot" />
+            <command_interface name="reset" />
+            <command_interface name="position.x" />
+            <command_interface name="position.y" />
+            <command_interface name="position.z" />
+            <command_interface name="yaw" />
+            <command_interface name="linear_velocity.x" />
+            <command_interface name="linear_velocity.y" />
+            <command_interface name="linear_velocity.z" />
+            <command_interface name="angular_velocity.x" />
+            <command_interface name="angular_velocity.y" />
+            <command_interface name="angular_velocity.z" />
+            <command_interface name="friction_scale" />
+            <command_interface name="seed" />
+            <command_interface name="joint_position_noise" />
+            <command_interface name="joint_velocity_noise" />
+            <command_interface name="link_mass_scale" />
+            <command_interface name="payload_mass" />
+            <command_interface name="payload_com.x" />
+            <command_interface name="payload_com.y" />
+            <command_interface name="payload_com.z" />
+            <command_interface name="push" />
+            <command_interface name="push_force.x" />
+            <command_interface name="push_force.y" />
+            <command_interface name="push_force.z" />
+            <command_interface name="push_duration" />
+            <state_interface name="snapshot" />
+            <state_interface name="reset" />
+            <state_interface name="push" />
+          </gpio>
         </xacro:if>
         <xacro:if value="${use_lidar}">
           <sensor name="mid360_lidar">

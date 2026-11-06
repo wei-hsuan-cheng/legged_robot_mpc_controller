@@ -36,7 +36,8 @@ namespace ocs2::humanoid {
 
 class SplineCpg {
  public:
-  SplineCpg(CubicSpline::Node liftOff, scalar_t midHeight, CubicSpline::Node touchDown);
+  /** apexFraction: where the apex (midHeight, zero vertical velocity) falls in [liftOff, touchDown]. */
+  SplineCpg(CubicSpline::Node liftOff, scalar_t midHeight, CubicSpline::Node touchDown, scalar_t apexFraction = 0.5);
 
   scalar_t position(scalar_t time) const;
 

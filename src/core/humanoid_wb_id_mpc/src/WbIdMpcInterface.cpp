@@ -167,7 +167,8 @@ void WbIdMpcInterface::setupOptimalControlProblem() {
   if (config_.activateInverseDynamics) {
     problemPtr_->equalityConstraintPtr->add(
         "rneaBaseDynamics", std::make_unique<WbIdRneaConstraintCppAd>(WbIdRneaConstraintCppAd::Rows::Base, *pinocchioInterfacePtr_,
-                                                                      *mpcRobotModelADPtr_, modelSettings_));
+                                                                      *mpcRobotModelADPtr_, modelSettings_, nullptr,
+                                                                      referenceManagerPtr_.get()));
     problemPtr_->equalityConstraintPtr->add(
         "rneaJointTorques", std::make_unique<WbIdRneaConstraintCppAd>(WbIdRneaConstraintCppAd::Rows::Joint, *pinocchioInterfacePtr_,
                                                                       *mpcRobotModelADPtr_, modelSettings_, torqueWindowPtr_));

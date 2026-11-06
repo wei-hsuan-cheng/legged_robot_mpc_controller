@@ -53,12 +53,19 @@ class SwingTrajectoryPlanner {
 
   SwingTrajectoryPlanner(Config config, size_t numFeet);
 
-  void update(const ModeSchedule& modeSchedule, scalar_t terrainHeight, const scalar_array_t& swingHeightSequence = {});
+  /**
+   * swingHeightOffsetSequence / apexShiftSequence: per mode, like swingHeightSequence (empty = none). The
+   * apex is raised by the offset and placed at (0.5 + shift) of the swing - online gait adaptation.
+   */
+  void update(const ModeSchedule& modeSchedule, scalar_t terrainHeight, const scalar_array_t& swingHeightSequence = {},
+              const scalar_array_t& swingHeightOffsetSequence = {}, const scalar_array_t& apexShiftSequence = {});
 
   void update(const ModeSchedule& modeSchedule,
               const feet_array_t<scalar_array_t>& liftOffHeightSequence,
               const feet_array_t<scalar_array_t>& touchDownHeightSequence,
-              const scalar_array_t& swingHeightSequence = {});
+              const scalar_array_t& swingHeightSequence = {},
+              const scalar_array_t& swingHeightOffsetSequence = {},
+              const scalar_array_t& apexShiftSequence = {});
 
   scalar_t getZaccelerationConstraint(size_t leg, scalar_t time) const;
 

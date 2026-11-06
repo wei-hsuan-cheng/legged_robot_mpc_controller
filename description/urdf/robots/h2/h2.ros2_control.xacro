@@ -14,6 +14,7 @@
   <xacro:arg name="mujoco_position_i_min" default="-10000"/>
   <xacro:arg name="mujoco_effort_command_mode" default="actuator"/>
   <xacro:arg name="use_lidar" default="false"/>
+  <xacro:arg name="use_episode_control" default="false"/>
   <xacro:arg name="robot_urdf_file" default="$(find legged_robot_mpc_controller)/description/urdf/robots/h2/h2_31dof.urdf"/>
 
   <xacro:property name="use_fake_hardware" value="$(arg use_fake_hardware)"/>
@@ -44,6 +45,7 @@
     mujoco_position_i_min="$(arg mujoco_position_i_min)"
     mujoco_effort_command_mode="$(arg mujoco_effort_command_mode)"
     use_lidar="$(arg use_lidar)"
+    use_episode_control="$(arg use_episode_control)"
     base_height="${initial_pose['h2_base']['z'] if 'h2_base' in initial_pose else ''}"/>
 
 </robot>

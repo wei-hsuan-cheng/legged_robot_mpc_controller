@@ -30,6 +30,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #pragma once
 
+#include <atomic>
+
 #include <ocs2_core/thread_support/BufferedValue.h>
 #include <ocs2_core/thread_support/Synchronized.h>
 #include <ocs2_oc/synchronized_module/ReferenceManager.h>
@@ -252,6 +254,30 @@ class SwitchedModelReferenceManager : public ReferenceManager {
    * world-frame pose tracking for explicit base-pose commands.
    */
   void setBaseTrackingMode(BaseTrackingMode mode) { baseTrackingMode_.setBuffer(mode); }
+
+  /** Thread-safe; takes effect at the next solve, on the phases that have not started (GaitSchedule::setAdaptation). */
+  void setGaitAdaptation(const GaitAdaptation& adaptation) { gaitAdaptation_.setBuffer(adaptation); }
+
+  /** Thread-safe; at the next solve the gait schedule restarts in stance, unadapted (an episode reset). */
+  void requestGaitReset() { gaitResetRequested_.store(true); }
+
+  /**
+   * Thread-safe; takes effect at the next solve. (forward, lateral) [m] in the heading frame, added
+   * to the capture foothold of every swinging foot, the swing in progress included (the RL foothold
+   * residual). Zero leaves the foothold as configured.
+   */
+  void setFootholdOffset(const vector2_t& offset) { footholdOffset_.setBuffer(offset); }
+
+  /**
+   * Residual dynamics (RL-augmented MPC, Kamohara et al. 2025), 12 values in the heading frame:
+   * linear acceleration [m/s^2] (3), angular acceleration [rad/s^2] (3), and the gains on the
+   * total contact force (3) and moment about the base (3). WbIdRneaConstraintCppAd adds them to the
+   * base dynamics as a wrench m a + gF * sum F, I alpha + gM * sum M. Thread-safe; takes effect at
+   * the next solve and holds over its horizon. Zero is the nominal model.
+   */
+  void setDynamicsResidual(const vector_t& residual) { dynamicsResidual_.setBuffer(residual); }
+  const vector_t& getDynamicsResidual() const { return dynamicsResidual_.get(); }
+  static constexpr size_t kDynamicsResidualDim = 12;
   BaseTrackingMode getBaseTrackingMode() const { return baseTrackingMode_.get(); }
   bool usesRelativeBaseTwistTracking() const {
     return getBaseTrackingMode() == BaseTrackingMode::RelativeTwist;
@@ -380,6 +406,10 @@ class SwitchedModelReferenceManager : public ReferenceManager {
   // thread, pre-solve); read-only during the solve, same pattern as the swing planner.
   std::shared_ptr<TerrainFootholdPlanner> terrainFootholdPlannerPtr_;
   BufferedValue<bool> terrainWalkActive_{false};
+  BufferedValue<GaitAdaptation> gaitAdaptation_{GaitAdaptation{}};
+  BufferedValue<vector2_t> footholdOffset_{vector2_t::Zero()};
+  BufferedValue<vector_t> dynamicsResidual_{vector_t::Zero(kDynamicsResidualDim)};
+  std::atomic_bool gaitResetRequested_{false};
 
   /// Measured feet (contact frame) world positions from FK of the current state.
   feet_array_t<vector3_t> computeFeetPositions(const vector_t& initState);

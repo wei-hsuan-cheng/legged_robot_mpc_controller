@@ -225,6 +225,16 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
       urdfFile: $(var urdfFile)
       libFolder: $(var libFolder)
 
+    # RL residual dynamics (docs/rl_gait_adaptation.md): a quarter of the paper's ranges. The paper's
+    # (2, 2, 4) m/s^2 is a 151-302 N phantom push on this 75.6 kg robot: a constant +2 m/s^2 forward
+    # residual fell 210 of 210 episodes on flat ground, +0.5 m/s^2 fell 7/31 and slowed it 0.15 m/s,
+    # and N(0, 0.5) actions at this range fell 1/29 (the MPC alone 0/28).
+    gaitAdaptation:
+      residualLinearAccelerationRange: [0.5, 0.5, 1.0]
+      residualAngularAccelerationRange: [0.25, 0.25, 0.25]
+      residualForceGainRange: 0.05
+      residualMomentGainRange: 0.05
+
     target:
       walkingVelocityTopic: /humanoid/walking_velocity_command
       basePoseTopic: /humanoid/base_pose_command

@@ -1,0 +1,199 @@
+# RL gait-adaptation training overlay for H2 (docs/rl_gait_adaptation.md): the lockstep setup
+# of lockstep_training.yaml plus the gait-adaptation actions, episode resets and the on-board
+# reward signals. Launch with episodeControl:=true lockstepBridge:=lockstep_bridge and one
+# lockstepShmName per simulation (rl/train.py does all of it).
+controller_manager:
+  ros__parameters:
+    lockstep_bridge:
+      type: mujoco_ros2_control_multienv/LockstepBridgeController
+
+joint_state_broadcaster:
+  ros__parameters:
+    update_rate: 50
+
+humanoid_whole_body_inverse_dynamics_mpc_controller:
+  ros__parameters:
+    mpcExecution:
+      mode: synchronous
+      policyDelay: 0.0
+    gaitAdaptation:
+      source: reference
+    ocs2:
+      solver:
+        sqp:
+          nThreads: 1
+
+lockstep_bridge:
+  ros__parameters:
+    update_rate: $(var mrtFreq)
+    shm_name: $(var lockstepShmName)
+    step_period: 0.01  # one exchange per MPC solve; rl/h2_gait_env.py holds each decision for action_repeat of them
+    order_probe: humanoid_whole_body_inverse_dynamics_mpc_controller/status.update_time
+    # Walking command (vx, vy normalized; height [m]; yaw rate normalized), the gait action in
+    # [-1, 1], the MPC's episode counter, and the simulator's episode control (spawn pose, state
+    # noise, dynamics randomization, pushes; mujoco_system EpisodeControl).
+    command_interfaces:
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/walking_velocity_command.linear_velocity_x
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/walking_velocity_command.linear_velocity_y
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/walking_velocity_command.desired_pelvis_height
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/walking_velocity_command.angular_velocity_z
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/gait_adaptation.period_scale
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/gait_adaptation.swing_height
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/gait_adaptation.apex_shift
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/gait_adaptation.foothold_x
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/gait_adaptation.foothold_y
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/dynamics_residual.linear_acceleration_x
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/dynamics_residual.linear_acceleration_y
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/dynamics_residual.linear_acceleration_z
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/dynamics_residual.angular_acceleration_x
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/dynamics_residual.angular_acceleration_y
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/dynamics_residual.angular_acceleration_z
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/dynamics_residual.force_gain_x
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/dynamics_residual.force_gain_y
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/dynamics_residual.force_gain_z
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/dynamics_residual.moment_gain_x
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/dynamics_residual.moment_gain_y
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/dynamics_residual.moment_gain_z
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/episode.reset
+      - episode/snapshot
+      - episode/reset
+      - episode/position.x
+      - episode/position.y
+      - episode/position.z
+      - episode/yaw
+      - episode/linear_velocity.x
+      - episode/linear_velocity.y
+      - episode/linear_velocity.z
+      - episode/angular_velocity.x
+      - episode/angular_velocity.y
+      - episode/angular_velocity.z
+      - episode/friction_scale
+      - episode/seed
+      - episode/joint_position_noise
+      - episode/joint_velocity_noise
+      - episode/link_mass_scale
+      - episode/payload_mass
+      - episode/payload_com.x
+      - episode/payload_com.y
+      - episode/payload_com.z
+      - episode/push
+      - episode/push_force.x
+      - episode/push_force.y
+      - episode/push_force.z
+      - episode/push_duration
+    command_defaults: [0.0, 0.0, 1.02, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.1]
+    state_interfaces:
+      # On-board: the policy observation, the reward signals and the MPC status.
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.00
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.01
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.02
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.03
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.04
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.05
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.06
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.07
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.08
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.09
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.10
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.11
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.12
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.13
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.14
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.15
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.16
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.17
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.18
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.19
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.20
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.21
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.22
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.23
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.24
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.25
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.26
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.27
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.28
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.29
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.30
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.31
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.32
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.33
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.34
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.35
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.36
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.37
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.38
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.39
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.40
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.41
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.42
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.43
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.44
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.45
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.46
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.47
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.48
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.49
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.50
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.51
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.52
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.53
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.54
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.55
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.56
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.57
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.58
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.59
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.60
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.61
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.62
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.63
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.64
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.65
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.66
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.67
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.68
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.69
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.70
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.71
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.72
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.73
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.74
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.75
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.76
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.77
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.78
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.79
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.80
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.81
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.82
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.83
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.obs.84
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.reward.heading_velocity.x
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.reward.heading_velocity.y
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.reward.velocity.z
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.reward.yaw_rate
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.reward.left_foot_velocity.x
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.reward.left_foot_velocity.y
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.reward.left_foot_velocity.z
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.reward.right_foot_velocity.x
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.reward.right_foot_velocity.y
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/rl.reward.right_foot_velocity.z
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/status.bring_up_phase
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/status.policy_ready
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/status.solve_count
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/status.solver_exceptions
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/status.episode
+      - humanoid_whole_body_inverse_dynamics_mpc_controller/status.update_time
+      # Simulation only, for ending episodes and the terrain curriculum - never for rewards or as
+      # an input: ground-truth pelvis position and attitude; the simulator's episode counters.
+      - pelvis/position.x
+      - pelvis/position.y
+      - pelvis/position.z
+      - pelvis/orientation.w
+      - pelvis/orientation.x
+      - pelvis/orientation.y
+      - pelvis/orientation.z
+      - episode/snapshot
+      - episode/reset
+      - episode/push

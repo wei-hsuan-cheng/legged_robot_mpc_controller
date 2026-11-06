@@ -103,6 +103,36 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         observation a plan is solved from to the tick it is applied [s], rounded to control ticks, at most one MPC
         period. Set it to the solve time on the target computer to train against that latency.", validation: {
           gt_eq: [0.0]}}
+  gaitAdaptation:
+    source: {type: string, default_value: "none", description: "Online gait adaptation (RL-augmented MPC):
+        none = the gait templates as configured; reference = actions from the gait_adaptation.* reference interfaces
+        (a training bridge); policy = actions from the policy in policyFile, evaluated in this controller at the MPC
+        rate (deployment). Actions are in [-1, 1] and apply to the phases that have not started.", validation: {
+          one_of<>: [["none", "reference", "policy"]]}}
+    policyFile: {type: string, default_value: "", description: "source policy: the exported actor
+        (rl/export_policy.py)."}
+    periodScaleRange: {type: double, default_value: 0.3, description: "Step durations x (1 + this * action[0])",
+        validation: {bounds<>: [0.0, 0.9]}}
+    swingHeightRange: {type: double, default_value: 0.05, description: "Swing apex + this * action[1] [m]",
+        validation: {gt_eq: [0.0]}}
+    apexShiftRange: {type: double, default_value: 0.2, description: "Swing apex at (0.5 + this * action[2]) of the
+        swing", validation: {bounds<>: [0.0, 0.3]}}
+    footholdRange: {type: double, default_value: 0.15, description: "Swing-foot landing target + this * (action[3],
+        action[4]) [m], forward and lateral in the heading frame; applies to the swing in progress", validation: {
+          gt_eq: [0.0]}}
+    residualLinearAccelerationRange: {type: double_array, default_value: [2.0, 2.0, 4.0], description: "Residual
+        dynamics: base linear acceleration offset this * action[5:8] [m/s^2], heading frame (the paper's range)",
+        validation: {fixed_size<>: [3]}}
+    residualAngularAccelerationRange: {type: double_array, default_value: [1.0, 1.0, 1.0], description: "Residual
+        dynamics: base angular acceleration offset this * action[8:11] [rad/s^2], heading frame", validation: {
+          fixed_size<>: [3]}}
+    residualForceGainRange: {type: double, default_value: 0.2, description: "Residual dynamics: the total contact
+        force's effect x (1 + this * action[11:14]) per heading axis", validation: {gt_eq: [0.0]}}
+    residualMomentGainRange: {type: double, default_value: 0.2, description: "Residual dynamics: the total contact
+        moment's effect x (1 + this * action[14:17]) per heading axis", validation: {gt_eq: [0.0]}}
+    policyDecisionTicks: {type: int, default_value: 1, description: "source policy: evaluate the policy every this
+        many MPC ticks and hold its action in between (the decision rate it was trained at)", validation: {
+          gt_eq: [1]}}
   ocs2:
     interface:
       verbose: {type: bool, default_value: false, description: "Print the loaded MPC interface parameters"}

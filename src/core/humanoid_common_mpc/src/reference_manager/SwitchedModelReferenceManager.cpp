@@ -233,10 +233,26 @@ void SwitchedModelReferenceManager::modifyReferences(scalar_t initTime,
   stairClimbingPlan_.updateFromBuffer();
   terrainWalkActive_.updateFromBuffer();
   baseTrackingMode_.updateFromBuffer();
+  gaitAdaptation_.updateFromBuffer();
+  footholdOffset_.updateFromBuffer();
+  dynamicsResidual_.updateFromBuffer();
+
+  // Before the schedule is read, so this solve already plans with them.
+  if (gaitResetRequested_.exchange(false)) {
+    gaitSchedulePtr_->reset(initTime);
+  }
+  gaitSchedulePtr_->setAdaptation(gaitAdaptation_.get(), initTime);
 
   const auto timeHorizon = finalTime - initTime;
   modeSchedule = gaitSchedulePtr_->getModeSchedule(initTime - timeHorizon, finalTime + timeHorizon);
   const auto& swingHeights = gaitSchedulePtr_->getSwingHeightSequence();
+  scalar_array_t swingHeightOffsets, apexShifts;
+  swingHeightOffsets.reserve(swingHeights.size());
+  apexShifts.reserve(swingHeights.size());
+  for (const auto& phase : gaitSchedulePtr_->getPhaseAdaptations()) {
+    swingHeightOffsets.push_back(phase.swingHeightOffset);
+    apexShifts.push_back(phase.apexShift);
+  }
 
   const auto& stairPlan = stairClimbingPlan_.get();
   if (stairPlan) {
@@ -245,7 +261,7 @@ void SwitchedModelReferenceManager::modifyReferences(scalar_t initTime,
     feet_array_t<scalar_array_t> liftOffHeightSequence;
     feet_array_t<scalar_array_t> touchDownHeightSequence;
     stairPlan->getHeightSequences(modeSchedule, liftOffHeightSequence, touchDownHeightSequence);
-    swingTrajectoryPtr_->update(modeSchedule, liftOffHeightSequence, touchDownHeightSequence, swingHeights);
+    swingTrajectoryPtr_->update(modeSchedule, liftOffHeightSequence, touchDownHeightSequence, swingHeights, swingHeightOffsets, apexShifts);
   } else if (isTerrainWalkActive()) {
     // Terrain-aware walking: re-plan the footsteps over the ground-truth
     // terrain for the current window, terrain-adapt the base height reference,
@@ -312,10 +328,10 @@ void SwitchedModelReferenceManager::modifyReferences(scalar_t initTime,
     feet_array_t<scalar_array_t> liftOffHeightSequence;
     feet_array_t<scalar_array_t> touchDownHeightSequence;
     planner.getHeightSequences(modeSchedule, liftOffHeightSequence, touchDownHeightSequence);
-    swingTrajectoryPtr_->update(modeSchedule, liftOffHeightSequence, touchDownHeightSequence, swingHeights);
+    swingTrajectoryPtr_->update(modeSchedule, liftOffHeightSequence, touchDownHeightSequence, swingHeights, swingHeightOffsets, apexShifts);
   } else {
     scalar_t terrainHeight = adaptToCurrentGroundHeight(targetTrajectories, initState, initMode);
-    swingTrajectoryPtr_->update(modeSchedule, terrainHeight, swingHeights);
+    swingTrajectoryPtr_->update(modeSchedule, terrainHeight, swingHeights, swingHeightOffsets, apexShifts);
   }
 
   modeSchedule_ = modeSchedule;
@@ -474,7 +490,8 @@ void SwitchedModelReferenceManager::updateCaptureFootholds(scalar_t initTime, co
     correction.x() = std::clamp(correction.x(), -limit, limit);
     correction.y() = std::clamp(correction.y(), -limit, limit);
 
-    captureFoothold_[foot].head<2>() = nominal + correction;
+    const vector2_t& offset = footholdOffset_.get();
+    captureFoothold_[foot].head<2>() = nominal + correction + offset.x() * forwardDirection + offset.y() * lateralDirection;
     captureFoothold_[foot](2) = 0.0;  // flat ground
     captureFootholdValid_[foot] = true;
     captureFootholdTouchdownTime_[foot] = footTouchdown;

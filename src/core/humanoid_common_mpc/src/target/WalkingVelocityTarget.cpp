@@ -56,6 +56,11 @@ void WalkingVelocityTarget::setCommand(const WalkingVelocityCommand& command) {
   command_ = command;
 }
 
+WalkingVelocityCommand WalkingVelocityTarget::getCommand() const {
+  std::lock_guard<std::mutex> lock(commandMutex_);
+  return command_;
+}
+
 /******************************************************************************************************/
 /******************************************************************************************************/
 /******************************************************************************************************/

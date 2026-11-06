@@ -35,8 +35,8 @@ namespace ocs2::humanoid {
 /******************************************************************************************************/
 /******************************************************************************************************/
 /******************************************************************************************************/
-SplineCpg::SplineCpg(CubicSpline::Node liftOff, scalar_t midHeight, CubicSpline::Node touchDown)
-    : midTime_((liftOff.time + touchDown.time) / 2),
+SplineCpg::SplineCpg(CubicSpline::Node liftOff, scalar_t midHeight, CubicSpline::Node touchDown, scalar_t apexFraction)
+    : midTime_(liftOff.time + apexFraction * (touchDown.time - liftOff.time)),
       leftSpline_(liftOff, CubicSpline::Node{midTime_, midHeight, 0.0}),
       rightSpline_(CubicSpline::Node{midTime_, midHeight, 0.0}, touchDown) {}
 

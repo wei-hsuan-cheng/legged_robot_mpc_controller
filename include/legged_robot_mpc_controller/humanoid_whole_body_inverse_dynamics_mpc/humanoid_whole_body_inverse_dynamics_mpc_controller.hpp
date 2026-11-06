@@ -6,6 +6,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -41,6 +42,7 @@
 #include "legged_robot_mpc_controller/common/ros2_procedural_mpc_motion_manager.hpp"
 #include "legged_robot_mpc_controller/common/yaw_unwrapper.hpp"
 #include "legged_robot_mpc_controller/humanoid_state_estimation/estimator_state_interfaces.hpp"
+#include "legged_robot_mpc_controller/humanoid_whole_body_inverse_dynamics_mpc/gait_adaptation_policy.hpp"
 #include "legged_robot_mpc_controller/humanoid_whole_body_inverse_dynamics_mpc_controller_parameters.hpp"
 #include "legged_robot_mpc_controller/visualization/performance_visualization.hpp"
 
@@ -130,8 +132,31 @@ private:
   //! in policyDelay later, all inside update(); returns whether a new policy went live.
   bool run_synchronous_solver(int64_t tick, bool observation_valid);
   void apply_command_references();
+
+  // RL gait adaptation (RL-augmented MPC, Kamohara et al. 2025) and episode resets for training.
+  //! period scale, swing height, apex shift, foothold forward, foothold lateral (5), then the residual
+  //! dynamics: linear acceleration (3), angular acceleration (3), force gain (3), moment gain (3).
+  static constexpr std::size_t kGaitActionDim = 17;
+  static constexpr std::size_t kResidualAction = 5;
+  //! Reference interfaces: walking command (4), the gait action, then episode.reset.
+  static constexpr std::size_t kEpisodeResetReference = 4 + kGaitActionDim;
+  static constexpr std::size_t kRewardSignalDim = 10;
+  //! The policy observation from the MPC's own (on-board) observation: exported as rl.obs.* for
+  //! training and fed to the in-controller policy at deployment - one definition for both.
+  void compute_policy_observation(const ocs2::SystemObservation& observation);
+  //! On-board quantities for training rewards (rl.reward.*): heading-frame velocity, yaw rate,
+  //! foot velocities from the estimate and the joint encoders.
+  void compute_reward_signals(const ocs2::SystemObservation& observation);
+  //! On the MPC-rate grid: the action from the references or the policy, to the reference manager.
+  void update_gait_adaptation(int64_t tick);
+  void apply_gait_action(const std::array<double, kGaitActionDim>& action);
+  //! An episode.reset reference change after the first bring-up: re-initialize the estimator and restart the MPC.
+  void check_episode_reset();
+  std::array<double, 2> swing_phases_at(double time);
   void write_exported_state(double time);
-  static const std::vector<std::string>& exported_state_names();
+  //! status.*, plan.*, rl.reward.*, rl.obs.* - built in on_configure (rl.obs depends on the joint count).
+  void build_exported_state_names();
+  std::vector<std::string> exported_state_names_;
   vector_t compute_weight_compensating_torque(const ocs2::SystemObservation& observation);
   JointActionCommand compute_mpc_joint_action(const ocs2::SystemObservation& observation);
   void clamp_torque(vector_t& tau) const;
@@ -139,7 +164,8 @@ private:
   // Bring-up: identical to HumanoidCentroidalMpcController (see there), so the two
   // controllers start a robot the same way: Passive -> StandUp -> Settle -> Converge
   // -> StartingMpc -> Blend -> Locomotion, Fault on excessive tilt.
-  enum class BringUpPhase { Passive, StandUp, Settle, Converge, StartingMpc, Blend, Locomotion, Fault };
+  // Restart (an episode reset, after the first bring-up) is last so the exported numbers stay put.
+  enum class BringUpPhase { Passive, StandUp, Settle, Converge, StartingMpc, Blend, Locomotion, Fault, Restart };
   JointActionCommand run_bring_up(const rclcpp::Time& time, const ocs2::SystemObservation& observation);
   JointActionCommand hold_command(const vector_t& q_target, const vector_t& q_measured,
                                   const std::optional<Eigen::Quaterniond>& imu_orientation);
@@ -277,6 +303,29 @@ private:
   std::vector<double> exported_state_values_;
   std::vector<hardware_interface::CommandInterface::SharedPtr> reference_handles_;
   std::array<double, 4> applied_command_reference_{};  //!< last reference handed to the motion manager
+
+  enum class AdaptationSource { None, Reference, Policy };
+  AdaptationSource adaptation_source_{AdaptationSource::None};
+  std::unique_ptr<GaitAdaptationPolicy> adaptation_policy_;
+  std::array<double, kGaitActionDim> gait_action_{};  //!< normalized action in effect
+  //! [gravity(3), v_base(3), w_base(3), command vx vy yaw-rate height-offset(4), height offset, joint q - stand,
+  //!  joint v, previous action(17), swing phase(2), planned contact(2)]: 18 + 17 + 2 * joints.
+  std::vector<double> policy_observation_;
+  std::vector<double> policy_action_;
+  //! A policy trained with fewer actions (3: before the footholds, 5: before the residual dynamics): its
+  //! observation, i.e. ours with only its own previous actions. Empty for a current policy.
+  std::vector<double> legacy_observation_;
+  std::size_t policy_action_dim_{kGaitActionDim};
+  std::array<double, kRewardSignalDim> reward_signals_{};
+  int64_t adaptation_decimation_{10};  //!< control ticks per MPC period
+  int64_t policy_decision_count_{0};   //!< MPC ticks since locomotion began, for policyDecisionTicks
+  double last_episode_reset_{std::numeric_limits<double>::quiet_NaN()};
+  double episode_count_{0.0};
+  bool bring_up_completed_{false};
+  bool restart_mpc_reset_done_{false};
+  std::atomic_bool restart_reset_requested_{false};  //!< consumed by run_solver_iteration()
+  ocs2::TargetTrajectories restart_target_;
+  std::vector<std::size_t> foot_frame_ids_;
 
   std::atomic<BringUpPhase> bring_up_phase_{BringUpPhase::Passive};
   std::atomic_bool at_rest_{false};

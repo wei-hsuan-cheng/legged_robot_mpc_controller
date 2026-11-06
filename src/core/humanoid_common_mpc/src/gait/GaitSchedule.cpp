@@ -30,6 +30,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "humanoid_common_mpc/gait/GaitSchedule.h"
 
+#include <algorithm>
+#include <stdexcept>
+
 #include <ocs2_core/misc/Lookup.h>
 
 #include <ocs2_core/misc/LoadData.h>
@@ -42,7 +45,9 @@ namespace ocs2::humanoid {
 GaitSchedule::GaitSchedule(ModeSchedule initModeSchedule, ModeSequenceTemplate initModeSequenceTemplate, scalar_t phaseTransitionStanceTime)
     : modeSchedule_(std::move(initModeSchedule)),
       swingHeightSequence_(modeSchedule_.modeSequence.size(), initModeSequenceTemplate.swingHeight),
-      modeSequenceTemplate_(std::move(initModeSequenceTemplate)),
+      phaseAdaptations_(modeSchedule_.modeSequence.size()),
+      modeSequenceTemplate_(initModeSequenceTemplate),
+      defaultModeSequenceTemplate_(std::move(initModeSequenceTemplate)),
       phaseTransitionStanceTime_(phaseTransitionStanceTime) {}
 
 /******************************************************************************************************/
@@ -62,6 +67,7 @@ void GaitSchedule::insertModeSequenceTemplate(const ModeSequenceTemplate& modeSe
     eventTimes.erase(eventTimes.begin() + index, eventTimes.end());
     modeSequence.erase(modeSequence.begin() + index + 1, modeSequence.end());
     swingHeightSequence_.erase(swingHeightSequence_.begin() + index + 1, swingHeightSequence_.end());
+    phaseAdaptations_.erase(phaseAdaptations_.begin() + index + 1, phaseAdaptations_.end());
   }
 
   // add an intermediate stance phase
@@ -74,6 +80,7 @@ void GaitSchedule::insertModeSequenceTemplate(const ModeSequenceTemplate& modeSe
     eventTimes.push_back(startTime);
     modeSequence.push_back(ModeNumber::STANCE);
     swingHeightSequence_.push_back(-1.0);
+    phaseAdaptations_.push_back({});
   }
 
   // tile the mode sequence template from startTime+phaseTransitionStanceTime to finalTime.
@@ -94,6 +101,7 @@ ModeSchedule GaitSchedule::getModeSchedule(scalar_t lowerBoundTime, scalar_t upp
                      eventTimes.begin() + index - 1);  // keep the one before the last to make it stance
     modeSequence.erase(modeSequence.begin(), modeSequence.begin() + index - 1);
     swingHeightSequence_.erase(swingHeightSequence_.begin(), swingHeightSequence_.begin() + index - 1);
+    phaseAdaptations_.erase(phaseAdaptations_.begin(), phaseAdaptations_.begin() + index - 1);
 
     // set the default initial phase
     modeSequence.front() = ModeNumber::STANCE;
@@ -106,6 +114,7 @@ ModeSchedule GaitSchedule::getModeSchedule(scalar_t lowerBoundTime, scalar_t upp
   eventTimes.erase(eventTimes.end() - 1, eventTimes.end());
   modeSequence.erase(modeSequence.end() - 1, modeSequence.end());
   swingHeightSequence_.pop_back();
+  phaseAdaptations_.pop_back();
 
   // tile the template logic
   tileModeSequenceTemplate(tilingStartTime, upperBoundTime);
@@ -139,7 +148,8 @@ void GaitSchedule::tileModeSequenceTemplate(scalar_t startTime, scalar_t finalTi
     for (size_t i = 0; i < templateModeSequence.size(); i++) {
       modeSequence.push_back(templateModeSequence[i]);
       swingHeightSequence_.push_back(modeSequenceTemplate_.swingHeight);
-      scalar_t deltaTime = templateTimes[i + 1] - templateTimes[i];
+      phaseAdaptations_.push_back({adaptation_.periodScale, adaptation_.swingHeightOffset, adaptation_.apexShift});
+      scalar_t deltaTime = adaptation_.periodScale * (templateTimes[i + 1] - templateTimes[i]);
       eventTimes.push_back(eventTimes.back() + deltaTime);
     }  // end of i loop
   }  // end of while loop
@@ -147,6 +157,56 @@ void GaitSchedule::tileModeSequenceTemplate(scalar_t startTime, scalar_t finalTi
   // default final phase
   modeSequence.push_back(ModeNumber::STANCE);
   swingHeightSequence_.push_back(-1.0);
+  phaseAdaptations_.push_back({});
+}
+
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+void GaitSchedule::setAdaptation(const GaitAdaptation& adaptation, scalar_t time) {
+  if (adaptation.periodScale <= 0.0) {
+    throw std::invalid_argument("[GaitSchedule] periodScale must be positive");
+  }
+  auto& eventTimes = modeSchedule_.eventTimes;
+  // Mode i is active over [eventTimes[i-1], eventTimes[i]); the one at `time` and its end stay as
+  // they are, every later phase is retimed from its template duration.
+  const size_t current = std::upper_bound(eventTimes.begin(), eventTimes.end(), time) - eventTimes.begin();
+  const scalar_t phaseStart = current > 0 ? eventTimes[current - 1] : -std::numeric_limits<scalar_t>::infinity();
+  if (phaseStart == adaptedPhaseStart_) {
+    return;
+  }
+  adaptedPhaseStart_ = phaseStart;
+  if (adaptation == adaptation_) {
+    return;
+  }
+  adaptation_ = adaptation;
+  scalar_t previousOldEnd = current < eventTimes.size() ? eventTimes[current] : 0.0;
+  for (size_t i = current + 1; i < phaseAdaptations_.size(); ++i) {
+    auto& phase = phaseAdaptations_[i];
+    if (i < eventTimes.size()) {
+      const scalar_t oldDuration = eventTimes[i] - previousOldEnd;
+      previousOldEnd = eventTimes[i];
+      const scalar_t duration = phase.periodScale > 0.0 ? oldDuration / phase.periodScale * adaptation.periodScale : oldDuration;
+      eventTimes[i] = eventTimes[i - 1] + duration;
+    }
+    if (phase.periodScale > 0.0) {
+      phase.periodScale = adaptation.periodScale;
+    }
+    phase.swingHeightOffset = adaptation.swingHeightOffset;
+    phase.apexShift = adaptation.apexShift;
+  }
+}
+
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+void GaitSchedule::reset(scalar_t time) {
+  modeSchedule_ = ModeSchedule({time}, {ModeNumber::STANCE, ModeNumber::STANCE});
+  swingHeightSequence_.assign(modeSchedule_.modeSequence.size(), -1.0);
+  phaseAdaptations_.assign(modeSchedule_.modeSequence.size(), {});
+  modeSequenceTemplate_ = defaultModeSequenceTemplate_;
+  adaptation_ = GaitAdaptation{};
+  adaptedPhaseStart_ = std::numeric_limits<scalar_t>::quiet_NaN();
 }
 
 /******************************************************************************************************/
@@ -187,6 +247,7 @@ std::shared_ptr<GaitSchedule> GaitSchedule::createGaitSchedule(const ModeSchedul
 void GaitSchedule::updateModeSchedule(const ModeSchedule& modeSchedule) {
   modeSchedule_ = modeSchedule;
   swingHeightSequence_.assign(modeSchedule_.modeSequence.size(), -1.0);
+  phaseAdaptations_.assign(modeSchedule_.modeSequence.size(), {});
 }
 
 }  // namespace ocs2::humanoid

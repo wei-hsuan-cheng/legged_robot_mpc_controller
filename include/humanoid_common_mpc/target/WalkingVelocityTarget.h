@@ -71,6 +71,9 @@ class WalkingVelocityTarget {
   /// Store the latest bounded command. Thread-safe (called from the ROS callback thread).
   void setCommand(const WalkingVelocityCommand& command);
 
+  /** The latest raw (unfiltered, normalized) command. Thread-safe. */
+  WalkingVelocityCommand getCommand() const;
+
   /// Scale + filter the latest command and build the reference trajectory.
   /// Must only be called from the solver thread (owns the filter state).
   Output evaluate(scalar_t initTime, scalar_t finalTime, const vector_t& initState);

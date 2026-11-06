@@ -152,6 +152,11 @@ def generate_launch_description():
             description="Shared-memory channel name, for $(var lockstepShmName) in controllersOverlay.",
         ),
         DeclareLaunchArgument(
+            "episodeControl",
+            default_value="false",
+            description="Simulation-only episode snapshot/reset interfaces (the 'episode' GPIO) for RL training. H2 only.",
+        ),
+        DeclareLaunchArgument(
             "visualizationNodes",
             default_value="true",
             description="The world -> odom static transform and the environment description, both only for RViz.",
@@ -227,6 +232,9 @@ def generate_launch_description():
             " ",
             "use_lidar:=",
             LaunchConfiguration("enableLidar"),
+            " ",
+            "use_episode_control:=",
+            LaunchConfiguration("episodeControl"),
             " ",
             "robot_urdf_file:=",
             LaunchConfiguration("urdfFile"),

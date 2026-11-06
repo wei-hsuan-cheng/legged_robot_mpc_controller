@@ -248,6 +248,50 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
     configure_stage = "setting up the tracking debug topic";
     configure_tracking();
 
+    configure_stage = "setting up gait adaptation";
+    const auto& adaptation = parameters_.gaitAdaptation;
+    adaptation_source_ = adaptation.source == "reference" ? AdaptationSource::Reference :
+                         adaptation.source == "policy" ? AdaptationSource::Policy : AdaptationSource::None;
+    policy_observation_.assign(18 + kGaitActionDim + 2 * static_cast<std::size_t>(joint_dim), 0.0);
+    adaptation_policy_.reset();
+    legacy_observation_.clear();
+    policy_action_dim_ = kGaitActionDim;
+    if (adaptation_source_ == AdaptationSource::Policy) {
+      // Current policies first, then those trained with fewer actions (5: before the residual dynamics,
+      // 3: before the footholds). Those see only their own previous actions; the rest stay at zero.
+      std::string first_error;
+      for (const std::size_t dim : {kGaitActionDim, kResidualAction, std::size_t{3}}) {
+        const std::size_t obs_dim = policy_observation_.size() - (kGaitActionDim - dim);
+        try {
+          adaptation_policy_ = std::make_unique<GaitAdaptationPolicy>(adaptation.policyFile, obs_dim, dim);
+          policy_action_dim_ = dim;
+          if (dim != kGaitActionDim) {
+            legacy_observation_.assign(obs_dim, 0.0);
+          }
+          break;
+        } catch (const std::runtime_error& error) {
+          if (first_error.empty()) {
+            first_error = error.what();
+          }
+        }
+      }
+      if (!adaptation_policy_) {
+        throw std::runtime_error(first_error);
+      }
+    }
+    adaptation_decimation_ = std::max<int64_t>(1, std::llround(static_cast<double>(get_update_rate()) /
+                                                               static_cast<double>(parameters_.ocs2.mpc.mpcDesiredFrequency)));
+    foot_frame_ids_.clear();
+    for (const auto& frame : parameters_.ocs2.model.contactNames6DoF) {
+      foot_frame_ids_.push_back(control_pinocchio_->getModel().getFrameId(frame));
+    }
+    build_exported_state_names();
+    RCLCPP_INFO(get_node()->get_logger(), "%s gait adaptation: %s%s | %zu policy observations%s", kTag,
+                adaptation.source.c_str(), adaptation_source_ == AdaptationSource::Policy ?
+                  (" from " + adaptation.policyFile).c_str() : "", policy_observation_.size(),
+                legacy_observation_.empty() ? "" : (" (a " + std::to_string(policy_action_dim_) +
+                                                     "-action policy: the other actions held at zero)").c_str());
+
     configure_stage = "connecting to the estimator controller";
     if (uses_state_estimator(parameters_.floatingBase.source) && !has_estimator()) {
       throw std::runtime_error(
@@ -391,6 +435,12 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
   synchronous_first_solve_ = false;
   synchronous_construction_failed_ = false;
   applied_command_reference_.fill(std::numeric_limits<double>::quiet_NaN());
+  last_episode_reset_ = std::numeric_limits<double>::quiet_NaN();
+  episode_count_ = 0.0;
+  bring_up_completed_ = false;
+  restart_mpc_reset_done_ = false;
+  restart_reset_requested_.store(false);
+  apply_gait_action({});
   solve_count_.store(0);
   solver_exception_count_.store(0);
   last_solve_time_.store(std::numeric_limits<double>::quiet_NaN());
@@ -584,8 +634,11 @@ controller_interface::return_type HumanoidWholeBodyInverseDynamicsMpcController:
 
   read_state_estimator();
   apply_command_references();
+  check_episode_reset();
 
   const auto observation = build_observation(time);
+  compute_policy_observation(observation);
+  compute_reward_signals(observation);
   // A zero period is the controller manager stepping without time passing (MuJoCo waiting to
   // start); the synchronous solver only runs on real ticks.
   const bool real_tick = period.seconds() > 0.0;
@@ -618,6 +671,9 @@ controller_interface::return_type HumanoidWholeBodyInverseDynamicsMpcController:
   }
   // The worker only fills the MRT buffer. Swap the active policy here so evaluation
   // and visualization cannot read a policy being replaced by the solver thread.
+  if (solver_ready && real_tick) {
+    update_gait_adaptation(tick);  // before the solve, which applies it
+  }
   bool policy_updated = false;
   if (synchronous_solver_) {
     policy_updated = solver_ready && real_tick && run_synchronous_solver(tick, observation_valid);
@@ -633,9 +689,12 @@ controller_interface::return_type HumanoidWholeBodyInverseDynamicsMpcController:
     const auto& times = mrt_interface_->getPolicy().timeTrajectory_;
     const double evaluation_time = observation.time + parameters_.ocs2.solver.rollout.policyTimeOffset;
     const double margin = 2.0 / std::max(1.0, static_cast<double>(get_update_rate()));
+    // A contact switch within OCS2's minimum step (~10 us) of the initial time becomes the plan's
+    // first node, so a valid plan can start a few microseconds after the observation.
+    constexpr double kStartTolerance = 1e-4;
     active_policy_ready_ = observation_from_hardware_ && times.size() >= 2 &&
       std::isfinite(evaluation_time) && std::isfinite(times.front()) && std::isfinite(times.back()) &&
-      evaluation_time >= times.front() && evaluation_time + margin < times.back();
+      evaluation_time >= times.front() - kStartTolerance && evaluation_time + margin < times.back();
     if (!active_policy_ready_) {
       // Match dynamics_mpc_controller: request reset here, execute it on the worker.
       // Request once per rejected plan, not every hold tick while a new solve runs.
@@ -693,7 +752,7 @@ controller_interface::return_type HumanoidWholeBodyInverseDynamicsMpcController:
 
 void HumanoidWholeBodyInverseDynamicsMpcController::apply_command_references()
 {
-  if (!is_in_chained_mode() || reference_handles_.size() != applied_command_reference_.size()) {
+  if (!is_in_chained_mode() || reference_handles_.size() < applied_command_reference_.size()) {
     return;
   }
   std::array<double, 4> value{};
@@ -710,31 +769,224 @@ void HumanoidWholeBodyInverseDynamicsMpcController::apply_command_references()
   }
 }
 
-const std::vector<std::string>& HumanoidWholeBodyInverseDynamicsMpcController::exported_state_names()
+void HumanoidWholeBodyInverseDynamicsMpcController::check_episode_reset()
 {
-  static const std::vector<std::string> names = {
+  if (!is_in_chained_mode() || reference_handles_.size() <= kEpisodeResetReference) {
+    return;
+  }
+  const auto value = reference_handles_[kEpisodeResetReference]->get_optional();
+  if (!value || !std::isfinite(*value) || *value == last_episode_reset_) {
+    return;
+  }
+  last_episode_reset_ = *value;
+  if (!bring_up_completed_ || !mpc_ready_.load(std::memory_order_acquire)) {
+    // The first value arrives during the bring-up: recorded, nothing to restart.
+    return;
+  }
+  episode_count_ = *value;
+  if (has_estimator() && uses_state_estimator(parameters_.floatingBase.source)) {
+    request_estimator_initialization();
+  }
+  yaw_unwrapper_.reset();
+  filtered_generalized_velocity_.resize(0);
+  apply_gait_action({});
+  has_active_policy_ = false;
+  active_policy_ready_ = false;
+  pending_policy_tick_ = -1;
+  estimator_driving_control_ = false;
+  restart_mpc_reset_done_ = false;
+  enter_bring_up_phase(BringUpPhase::Restart, get_node()->now().seconds());
+}
+
+void HumanoidWholeBodyInverseDynamicsMpcController::apply_gait_action(const std::array<double, kGaitActionDim>& action)
+{
+  gait_action_ = action;
+  const auto& range = parameters_.gaitAdaptation;
+  ocs2::humanoid::GaitAdaptation adaptation;
+  adaptation.periodScale = 1.0 + range.periodScaleRange * action[0];
+  adaptation.swingHeightOffset = range.swingHeightRange * action[1];
+  adaptation.apexShift = range.apexShiftRange * action[2];
+  mpc_interface_->getSwitchedModelReferenceManagerPtr()->setGaitAdaptation(adaptation);
+  mpc_interface_->getSwitchedModelReferenceManagerPtr()->setFootholdOffset(
+    range.footholdRange * Eigen::Vector2d(action[3], action[4]));
+  ocs2::vector_t residual(ocs2::humanoid::SwitchedModelReferenceManager::kDynamicsResidualDim);
+  for (std::size_t i = 0; i < 3; ++i) {
+    residual(i) = range.residualLinearAccelerationRange[i] * action[kResidualAction + i];
+    residual(3 + i) = range.residualAngularAccelerationRange[i] * action[kResidualAction + 3 + i];
+    residual(6 + i) = range.residualForceGainRange * action[kResidualAction + 6 + i];
+    residual(9 + i) = range.residualMomentGainRange * action[kResidualAction + 9 + i];
+  }
+  mpc_interface_->getSwitchedModelReferenceManagerPtr()->setDynamicsResidual(residual);
+}
+
+void HumanoidWholeBodyInverseDynamicsMpcController::update_gait_adaptation(int64_t tick)
+{
+  if (adaptation_source_ == AdaptationSource::None || tick % adaptation_decimation_ != 0) {
+    return;
+  }
+  std::array<double, kGaitActionDim> action{};  // outside locomotion: the gait as configured
+  if (bring_up_phase_.load() == BringUpPhase::Locomotion) {
+    if (adaptation_source_ == AdaptationSource::Reference) {
+      for (std::size_t i = 0; i < kGaitActionDim; ++i) {
+        const auto value = reference_handles_[4 + i]->get_optional();
+        action[i] = value && std::isfinite(*value) ? std::clamp(*value, -1.0, 1.0) : 0.0;
+      }
+    } else if (adaptation_policy_) {
+      const auto& range = parameters_.gaitAdaptation;
+      // One decision every policyDecisionTicks MPC ticks, held in between: the training decision rate.
+      if (policy_decision_count_++ % std::max<int64_t>(1, range.policyDecisionTicks) == 0) {
+        if (legacy_observation_.empty()) {
+          adaptation_policy_->evaluate(policy_observation_, policy_action_);
+        } else {
+          // Ours ends with previous action (17), swing phase (2), contact (2): keep the policy's own actions.
+          const auto previous = policy_observation_.end() - 4 - kGaitActionDim;
+          auto out = std::copy(policy_observation_.begin(), previous + policy_action_dim_, legacy_observation_.begin());
+          std::copy(policy_observation_.end() - 4, policy_observation_.end(), out);
+          adaptation_policy_->evaluate(legacy_observation_, policy_action_);
+        }
+      }
+      std::copy(policy_action_.begin(), policy_action_.end(), action.begin());
+      RCLCPP_INFO_THROTTLE(get_node()->get_logger(), *get_node()->get_clock(), 2000,
+                           "%s gait adaptation (policy): period x%.3f, swing height %+.3f m, apex shift %+.3f, "
+                           "foothold %+.3f %+.3f m, residual acceleration %+.2f %+.2f %+.2f m/s^2", kTag,
+                           1.0 + range.periodScaleRange * action[0], range.swingHeightRange * action[1],
+                           range.apexShiftRange * action[2], range.footholdRange * action[3],
+                           range.footholdRange * action[4],
+                           range.residualLinearAccelerationRange[0] * action[kResidualAction],
+                           range.residualLinearAccelerationRange[1] * action[kResidualAction + 1],
+                           range.residualLinearAccelerationRange[2] * action[kResidualAction + 2]);
+    }
+  } else {
+    policy_decision_count_ = 0;
+  }
+  apply_gait_action(action);
+}
+
+std::array<double, 2> HumanoidWholeBodyInverseDynamicsMpcController::swing_phases_at(double time)
+{
+  std::array<double, 2> phases{0.0, 0.0};
+  const auto* schedule = mode_schedule_buffer_.readFromRT();
+  if (schedule == nullptr || schedule->modeSequence.empty()) {
+    return phases;
+  }
+  const auto& events = schedule->eventTimes;
+  const auto& modes = schedule->modeSequence;
+  const std::size_t current = static_cast<std::size_t>(std::upper_bound(events.begin(), events.end(), time) - events.begin());
+  for (std::size_t foot = 0; foot < 2; ++foot) {
+    const auto swinging = [&](std::size_t i) { return !ocs2::humanoid::modeNumber2StanceLeg(modes[i])[foot]; };
+    if (current >= modes.size() || !swinging(current)) {
+      continue;
+    }
+    std::size_t first = current, last = current;
+    while (first > 0 && swinging(first - 1)) --first;
+    while (last + 1 < modes.size() && swinging(last + 1)) ++last;
+    if (first == 0 || last >= events.size()) {
+      continue;  // a swing without a known lift-off or touch-down
+    }
+    const double lift_off = events[first - 1], touch_down = events[last];
+    phases[foot] = touch_down > lift_off ? std::clamp((time - lift_off) / (touch_down - lift_off), 0.0, 1.0) : 0.0;
+  }
+  return phases;
+}
+
+void HumanoidWholeBodyInverseDynamicsMpcController::compute_policy_observation(const ocs2::SystemObservation& observation)
+{
+  if (!observation_from_hardware_) {
+    return;  // keep the last one
+  }
+  const auto nj = static_cast<Eigen::Index>(control_model_->getJointDim());
+  const vector_t q = control_model_->getGeneralizedCoordinates(observation.state);
+  const vector_t v = control_model_->getGeneralizedVelocities(observation.state);
+  const ocs2::vector3_t euler = q.segment<3>(3);
+  const Eigen::Matrix3d rotation = ocs2::getRotationMatrixFromZyxEulerAngles(euler);
+  const Eigen::Vector3d gravity = rotation.transpose() * Eigen::Vector3d(0.0, 0.0, -1.0);
+  const Eigen::Vector3d linear_velocity = rotation.transpose() * v.head<3>();
+  const Eigen::Vector3d angular_velocity =
+    ocs2::getLocalAngularVelocityFromEulerAnglesZyxDerivatives<ocs2::scalar_t>(euler, v.segment<3>(3));
+  const auto command = motion_manager_->getVelocityCommand();
+  const auto& reference = parameters_.ocs2.reference;
+  const auto phases = swing_phases_at(observation.time);
+  const auto contact = contact_flags_at(observation.time);
+
+  auto* o = policy_observation_.data();
+  for (int i = 0; i < 3; ++i) *o++ = gravity[i];
+  for (int i = 0; i < 3; ++i) *o++ = linear_velocity[i];
+  for (int i = 0; i < 3; ++i) *o++ = angular_velocity[i];
+  *o++ = command.linear_velocity_x * reference.maxDisplacementVelocityX;
+  *o++ = command.linear_velocity_y * reference.maxDisplacementVelocityY;
+  *o++ = command.angular_velocity_z * reference.maxRotationVelocity;
+  *o++ = command.desired_pelvis_height - reference.defaultBaseHeight;
+  *o++ = q(2) - reference.defaultBaseHeight;
+  for (Eigen::Index j = 0; j < nj; ++j) *o++ = q(6 + j) - stand_nominal_joints_(j);
+  for (Eigen::Index j = 0; j < nj; ++j) *o++ = v(6 + j);
+  for (const double a : gait_action_) *o++ = a;
+  *o++ = phases[0];
+  *o++ = phases[1];
+  *o++ = contact[0] ? 1.0 : 0.0;
+  *o++ = contact[1] ? 1.0 : 0.0;
+}
+
+void HumanoidWholeBodyInverseDynamicsMpcController::compute_reward_signals(const ocs2::SystemObservation& observation)
+{
+  if (!observation_from_hardware_) {
+    return;
+  }
+  const vector_t q = control_model_->getGeneralizedCoordinates(observation.state);
+  const vector_t v = control_model_->getGeneralizedVelocities(observation.state);
+  const ocs2::vector3_t euler = q.segment<3>(3);
+  const double yaw = euler(0);
+  const Eigen::Vector3d angular_velocity_world = ocs2::getRotationMatrixFromZyxEulerAngles(euler) *
+    ocs2::getLocalAngularVelocityFromEulerAnglesZyxDerivatives<ocs2::scalar_t>(euler, v.segment<3>(3));
+  reward_signals_[0] = std::cos(yaw) * v(0) + std::sin(yaw) * v(1);
+  reward_signals_[1] = -std::sin(yaw) * v(0) + std::cos(yaw) * v(1);
+  reward_signals_[2] = v(2);
+  reward_signals_[3] = angular_velocity_world.z();
+  // Foot velocities by forward kinematics of the same (estimated) state: what the robot knows.
+  const auto& model = control_pinocchio_->getModel();
+  auto& data = control_pinocchio_->getData();
+  pinocchio::forwardKinematics(model, data, q, v);
+  for (std::size_t foot = 0; foot < foot_frame_ids_.size() && foot < 2; ++foot) {
+    const auto velocity = pinocchio::getFrameVelocity(model, data, foot_frame_ids_[foot], pinocchio::LOCAL_WORLD_ALIGNED);
+    for (int i = 0; i < 3; ++i) {
+      reward_signals_[4 + 3 * foot + i] = velocity.linear()[i];
+    }
+  }
+}
+
+void HumanoidWholeBodyInverseDynamicsMpcController::build_exported_state_names()
+{
+  exported_state_names_ = {
     "status.update_time",         // controller time of this controller's latest update [s]
-    "status.bring_up_phase",      // BringUpPhase: 0 passive ... 5 blend, 6 locomotion, 7 fault
+    "status.bring_up_phase",      // BringUpPhase: 0 passive ... 6 locomotion, 7 fault, 8 episode restart
     "status.policy_ready",        // 1 while an MPC plan drives the joints
     "status.solve_count",         // solves since activation
     "status.last_solve_time",     // observation time of the latest solve [s]
     "status.last_solve_wall_ms",  // wall time of the latest solve [ms]
     "status.solver_exceptions",   // solves that threw since activation
+    "status.episode",             // the latest episode.reset acted on
     "plan.mode",                  // planned contact mode at this time (MotionPhaseDefinition)
     "plan.contact.left",          // planned stance at this time: 1 stance, 0 swing
     "plan.contact.right",
+    // On-board quantities for training rewards: from the estimate and the joint encoders.
+    "rl.reward.heading_velocity.x", "rl.reward.heading_velocity.y", "rl.reward.velocity.z", "rl.reward.yaw_rate",
+    "rl.reward.left_foot_velocity.x", "rl.reward.left_foot_velocity.y", "rl.reward.left_foot_velocity.z",
+    "rl.reward.right_foot_velocity.x", "rl.reward.right_foot_velocity.y", "rl.reward.right_foot_velocity.z",
   };
-  return names;
+  char name[32];
+  for (std::size_t i = 0; i < policy_observation_.size(); ++i) {
+    std::snprintf(name, sizeof(name), "rl.obs.%02zu", i);
+    exported_state_names_.emplace_back(name);
+  }
 }
 
 void HumanoidWholeBodyInverseDynamicsMpcController::write_exported_state(double time)
 {
-  if (exported_state_handles_.size() != exported_state_names().size()) {
+  if (exported_state_handles_.size() != exported_state_names_.size()) {
     return;
   }
   const size_t mode = std::isfinite(time) ? mode_at(time) : static_cast<size_t>(ocs2::humanoid::STANCE);
   const auto contact = ocs2::humanoid::modeNumber2StanceLeg(mode);
-  const std::array<double, 10> values = {
+  const std::array<double, 11> values = {
     time,
     static_cast<double>(static_cast<int>(bring_up_phase_.load())),
     active_policy_ready_ ? 1.0 : 0.0,
@@ -742,12 +994,20 @@ void HumanoidWholeBodyInverseDynamicsMpcController::write_exported_state(double 
     last_solve_time_.load(std::memory_order_relaxed),
     last_advance_ms_.load(std::memory_order_relaxed),
     static_cast<double>(solver_exception_count_.load(std::memory_order_relaxed)),
+    episode_count_,
     static_cast<double>(mode),
     contact[0] ? 1.0 : 0.0,
     contact[1] ? 1.0 : 0.0,
   };
-  for (std::size_t i = 0; i < values.size(); ++i) {
-    (void)exported_state_handles_[i]->set_value(values[i]);
+  std::size_t k = 0;
+  for (const double value : values) {
+    (void)exported_state_handles_[k++]->set_value(value);
+  }
+  for (const double value : reward_signals_) {
+    (void)exported_state_handles_[k++]->set_value(value);
+  }
+  for (const double value : policy_observation_) {
+    (void)exported_state_handles_[k++]->set_value(value);
   }
 }
 
@@ -770,6 +1030,8 @@ const char* HumanoidWholeBodyInverseDynamicsMpcController::to_string(BringUpPhas
       return "locomotion";
     case BringUpPhase::Fault:
       return "FAULT (damping)";
+    case BringUpPhase::Restart:
+      return "episode restart";
   }
   return "unknown";
 }
@@ -977,6 +1239,7 @@ HumanoidWholeBodyInverseDynamicsMpcController::run_bring_up(
       blended.feedforward = (1.0 - a) * stand.feedforward + a * mpc.feedforward;
       if (a >= 1.0) {
         enter_bring_up_phase(BringUpPhase::Locomotion, t);
+        bring_up_completed_ = true;
       }
       return blended;
     }
@@ -992,6 +1255,28 @@ HumanoidWholeBodyInverseDynamicsMpcController::run_bring_up(
 
     case BringUpPhase::Fault:
       return damping_command(q);
+
+    case BringUpPhase::Restart: {
+      // An episode reset: the simulator restored a standing state, the estimator was asked
+      // to re-initialize. Hold the stand until the new estimate is in, reset the gait and the
+      // MPC on it, and hand straight over to the first plan: the MPC takes over.
+      const bool estimate_in = !uses_state_estimator(parameters_.floatingBase.source) ||
+        (estimator_initialized_for_request() && last_estimate_.valid);
+      if (!restart_mpc_reset_done_ && estimate_in && observation_from_hardware_) {
+        mpc_interface_->getSwitchedModelReferenceManagerPtr()->requestGaitReset();
+        motion_manager_->requestReset();
+        restart_target_ = current_observation_to_reset_trajectory(observation);
+        restart_reset_requested_.store(true, std::memory_order_release);
+        synchronous_first_solve_ = true;
+        restart_mpc_reset_done_ = true;
+      }
+      if (restart_mpc_reset_done_ && active_policy_ready_) {
+        estimator_driving_control_ = true;
+        enter_bring_up_phase(BringUpPhase::Locomotion, t);
+        return compute_mpc_joint_action(observation);
+      }
+      return hold_command(stand_nominal_joints_, q, imu);
+    }
   }
   return damping_command(q);
 }
@@ -1000,7 +1285,7 @@ std::vector<hardware_interface::StateInterface::SharedPtr>
 HumanoidWholeBodyInverseDynamicsMpcController::on_export_state_interfaces_list()
 {
   exported_state_handles_.clear();
-  for (const auto& name : exported_state_names()) {
+  for (const auto& name : exported_state_names_) {
     hardware_interface::InterfaceInfo info;
     info.name = name;
     info.data_type = "double";
@@ -1014,11 +1299,21 @@ HumanoidWholeBodyInverseDynamicsMpcController::on_export_state_interfaces_list()
 std::vector<hardware_interface::CommandInterface::SharedPtr>
 HumanoidWholeBodyInverseDynamicsMpcController::on_export_reference_interfaces_list()
 {
-  // The fields of ocs2_msgs/WalkingVelocityCommand, in the order setWalkingVelocityCommand takes them.
+  // The fields of ocs2_msgs/WalkingVelocityCommand, in the order setWalkingVelocityCommand takes them;
+  // then the gait adaptation action (gaitAdaptation.source reference) and the episode-reset counter.
   reference_handles_.clear();
-  for (const char* field : {"linear_velocity_x", "linear_velocity_y", "desired_pelvis_height", "angular_velocity_z"}) {
+  for (const char* name : {"walking_velocity_command.linear_velocity_x", "walking_velocity_command.linear_velocity_y",
+                           "walking_velocity_command.desired_pelvis_height", "walking_velocity_command.angular_velocity_z",
+                           "gait_adaptation.period_scale", "gait_adaptation.swing_height", "gait_adaptation.apex_shift",
+                           "gait_adaptation.foothold_x", "gait_adaptation.foothold_y",
+                           "dynamics_residual.linear_acceleration_x", "dynamics_residual.linear_acceleration_y",
+                           "dynamics_residual.linear_acceleration_z", "dynamics_residual.angular_acceleration_x",
+                           "dynamics_residual.angular_acceleration_y", "dynamics_residual.angular_acceleration_z",
+                           "dynamics_residual.force_gain_x", "dynamics_residual.force_gain_y", "dynamics_residual.force_gain_z",
+                           "dynamics_residual.moment_gain_x", "dynamics_residual.moment_gain_y", "dynamics_residual.moment_gain_z",
+                           "episode.reset"}) {
     hardware_interface::InterfaceInfo info;
-    info.name = std::string("walking_velocity_command.") + field;
+    info.name = name;
     info.data_type = "double";  // no initial value: NaN until an upstream controller writes it
     reference_handles_.push_back(std::make_shared<hardware_interface::CommandInterface>(
       hardware_interface::InterfaceDescription(get_node()->get_name(), info)));
@@ -1383,6 +1678,10 @@ void HumanoidWholeBodyInverseDynamicsMpcController::solver_worker()
 
 bool HumanoidWholeBodyInverseDynamicsMpcController::run_synchronous_solver(int64_t tick, bool observation_valid)
 {
+  // An episode restart: no plan from the pre-reset state, and none until the MPC is reset.
+  if (bring_up_phase_.load() == BringUpPhase::Restart && !restart_mpc_reset_done_) {
+    return false;
+  }
   bool updated = false;
   // A plan still pending goes live before the next one is solved, so a policyDelay of one MPC
   // period swaps it in exactly as the next solve starts.
@@ -1430,6 +1729,10 @@ double HumanoidWholeBodyInverseDynamicsMpcController::run_solver_iteration()
 
   double advance_ms = 0.0;
   try {
+    if (restart_reset_requested_.exchange(false, std::memory_order_acq_rel)) {
+      mrt_interface_->resetMpcNode(restart_target_);
+      reset_mpc_warm_start_requested_.store(false, std::memory_order_release);
+    }
     if (reset_mpc_warm_start_requested_.exchange(false, std::memory_order_acq_rel)) {
       RCLCPP_WARN_THROTTLE(
         get_node()->get_logger(), *get_node()->get_clock(), 2000,
