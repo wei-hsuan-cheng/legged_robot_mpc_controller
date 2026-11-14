@@ -5,6 +5,8 @@ It complements the [humanoid formulation](humanoid_whole_body_inverse_dynamics_m
 The current configuration is [config/upkie/ros2_controllers.yaml](../config/upkie/ros2_controllers.yaml).
 Build commands, manual tests, measured results and outstanding work are in the [wheeled-biped handoff](wheeled_biped_handoff.md).
 The [initial checklist](design_notes/wheeled_biped/wheeled_biped_first_step.md) and [survey](design_notes/wheeled_biped/wheeled_biped_wb_id_mpc_survey.md) are preserved under `docs/design_notes/wheeled_biped/` and describe the motivation, not the current validation status.
+References below identify the supporting method and its exact location, not a claim that this branch reproduces each paper or takes its numerical gains.
+The [traceability table](#9-design-traceability-and-parameter-selection) separates published principles, library conventions, simulator parameters and local adaptations.
 
 
 ## 1. Architecture and Model
@@ -69,12 +71,39 @@ a=\dot v\in\mathbb R^{12},
 $$
 
 Each wrench is expressed in world-aligned axes about the tire-center frame, not about a fixed ground point.
+This is Pinocchio `LOCAL_WORLD_ALIGNED`, not a body-axis wrench and not Pinocchio `WORLD`, whose origin is the world origin.
 The six wrench components per wheel are retained for compatibility, but three moment equalities restrict the wrench to a point force at the instantaneous tread contact.
 The tire-center frames are `left_tire_center` and `right_tire_center`, attached to the wheel joints with local translation $[0,0,-0.0312]^{\mathsf T}\ \mathrm{m}$.
 Their orientations spin with the wheels, while their centers do not move merely because of wheel spin.
 
 
-### 2.3 Observation
+### 2.3 Wrench coordinates: source and rationale
+
+The coordinate convention follows the existing controller and [Pinocchio's force-reference transformations](https://gepettoweb.laas.fr/doc/stack-of-tasks/pinocchio/devel/doxygen-html/algorithm_2utils_2force_8hpp_source.html), rather than a paper requirement to use body-frame forces.
+The [RNEA implementation](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdRneaConstraintCppAd.cpp#L88) explicitly requests the matching world-aligned Jacobian.
+At the same tire-center origin, a body-axis wrench $W_i^{h_i}$ and the implemented wrench $W_i^W$ are related by:
+
+$$
+W_i^W=\mathcal R_iW_i^{h_i},
+\qquad
+\mathcal R_i=\begin{bmatrix}R_{Wh,i}&0\\0&R_{Wh,i}\end{bmatrix},
+\qquad
+J_i^W=\mathcal R_iJ_i^{h_i},
+$$
+
+$$
+(J_i^W)^{\mathsf T}W_i^W=(J_i^{h_i})^{\mathsf T}W_i^{h_i}.
+$$
+
+Thus either basis can represent the same generalized force if every quantity is transformed consistently; there is no established performance advantage from this basis choice alone.
+World-aligned axes simplify comparison with world-frame gravity, normals and force costs, without making force components rotate merely because the tire spins.
+Changing the reference origin is different from changing axes: the moment about the world origin would be $m_O^W=m_{h,i}^W+p_{h,i}^W\times f_i^W$.
+For the corresponding wrench-translation and power-invariance principles, see [Lynch and Park, Modern Robotics, Section 3.4](https://modernrobotics.northwestern.edu/nu-gm-book-resource/3-4-wrenches/).
+That reference orders moment before force, whereas this code orders force before moment; comparisons must account for this permutation.
+Retaining six wrench entries and constraining $m=\rho\times f$ is a local compatibility choice, not a claim that the cited wheel papers optimize six independent contact-force/moment entries.
+
+
+### 2.4 Observation
 
 At each control update, the initial state combines the floating-base observation with measured joint positions and velocities:
 
@@ -110,6 +139,7 @@ $$
 
 The configured RK4 discretization reproduces this constant-input flow.
 Rigid-body dynamics are imposed as path equalities, rather than used as forward-dynamics state propagation.
+For this separation, see [Molnar et al., Section IV-B1, Eqs. (4)-(5)](https://arxiv.org/html/2511.19709v1#S4.SS2.SSS1); that paper uses a tangent increment and explicit Euler, not this branch's absolute Euler-ZYX coordinates and RK4.
 
 
 ### 3.2 Full-body inverse dynamics
@@ -144,6 +174,11 @@ The six floating-base rows and six joint rows are registered separately, but bot
 This differs from H2 configurations that keep joint RNEA and torque penalties only inside a near-term torque window.
 The joint friction is an additional torque in the actuated rows, not a base friction force or wheel-ground friction coefficient.
 The smooth model satisfies $\tau_f(0)=0$, so it does not reproduce MuJoCo's set-valued static friction exactly.
+The motivation is consistent with [Molnar et al., Section VI-D](https://arxiv.org/html/2511.19709v1#S6.SS4), which identifies omitted motor friction and rotor inertia as model discrepancies; that paper does not supply this branch's tanh law or its parameter values.
+For an explicit differentiable joint-friction model, see [Pyrhonen, Mikkola and Naets, Section 2.1, Eq. (10)](https://link.springer.com/article/10.1007/s11044-024-10017-1#Equ10).
+Their law contains Coulomb and viscous terms and uses $\tanh(4\dot q/v_s^{\mathrm{paper}})$; the present Coulomb-only law corresponds to $v_s^{\mathrm{paper}}=4v_s^{\mathrm{here}}$, not the same numerical transition parameter.
+They write the opposing physical friction torque, whereas the positive $\tau_f$ on the left of our inverse-dynamics residual is the extra motor torque required to compensate it.
+See [parameter provenance](#92-friction-and-armature-parameter-provenance) for which values come from the MJCF and which are local numerical choices.
 
 
 ### 3.3 Optimization problem
@@ -185,6 +220,14 @@ p_{c,i}=p_{h,i}+\rho_i.
 $$
 
 This is the lowest point of a rigid thin disk, not a finite-width tire contact-patch model.
+The closest wheel-geometry reference is [Xin and Vijayakumar, Section IV-B3, Fig. 5 and the paragraph after Eq. (20), PDF page 5](https://arxiv.org/pdf/2003.03678#page=5), which constructs the contact direction from the wheel axle and ground normal.
+The normalized projection used here is a local geometric derivation, implemented in [contactOffset](../include/humanoid_wb_id_mpc/common/WheelContactKinematics.h#L43):
+
+$$
+\rho_i=\underset{\|\rho\|=r,\ e_i^{\mathsf T}\rho=0}{\operatorname{arg\,min}}\ n^{\mathsf T}\rho.
+$$
+
+Projecting $n$ into the disk plane and taking the opposite normalized direction solves this problem, preserving $\|\rho_i\|=r$ for a tilted axle.
 The flat-ground checkpoint uses $n=[0,0,1]^{\mathsf T}$ and ground height zero.
 The implementation divides by $\|w_i\|$, so an axle parallel to the ground normal is outside its valid geometry.
 No special fallback is implemented for a wheel lying flat on its side.
@@ -223,6 +266,10 @@ $$
 Here $a_{c,i}=d v_{c,i}(q,v)/dt$ follows the instantaneous contact evaluation, rather than the acceleration of one permanently marked tread particle.
 This derivative assumes a fixed ground normal; there is no $\dot n$ term.
 Pinocchio supplies the center's classical acceleration in world-aligned axes.
+For wheel-center/contact velocity, see [Xin and Vijayakumar, Section IV-B3, Eqs. (16)-(17), PDF page 5](https://arxiv.org/pdf/2003.03678#page=5).
+Their acceleration development continues in Eqs. (18)-(20), but this implementation is not a literal copy: it differentiates the currently selected lowest-point offset using [contactOffsetRate](../include/humanoid_wb_id_mpc/common/WheelContactKinematics.h#L50), then forms [aContact](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdWheelContactConstraintCppAd.cpp#L205).
+In particular, $\dot\rho$ is not generally $\omega\times\rho$; wheel spin leaves the selected lowest point unchanged for an upright wheel.
+This distinction must be checked through kinematic differentiation, not by assuming that the paper's acceleration expression and the code have identical meanings.
 
 
 ### 4.3 Five rolling rows per supporting wheel
@@ -253,6 +300,17 @@ These gains belong to equality constraints, not soft objective weights.
 Finite gains correct nonzero slip/gap over time; they do not impose the separate algebraic conditions $v_c=0$ and $g=0$ at every state.
 The normal row reads the swing planner's position reference, but does not subtract desired normal velocity or acceleration in its rolling branch.
 Those desired derivatives are zero for the present flat, fixed-support checkpoint.
+The gap position/velocity feedback is a Baumgarte-style stabilization choice; see [Baumgarte, 1972](https://doi.org/10.1016/0045-7825(72)90018-7) for the constraint-drift stabilization principle, not for these gains.
+For constant ground height and normal, the normal row has the form $k_{a,n}\ddot g+k_{v,n}\dot g+k_{p,n}g=0$.
+The values $50,50,1$ are local settings, not values taken from the wheel papers.
+For a rotating rolling direction, note the distinction:
+
+$$
+\frac{d}{dt}(t_i^{\mathsf T}v_{c,i})=t_i^{\mathsf T}a_{c,i}+\dot t_i^{\mathsf T}v_{c,i}.
+$$
+
+The code projects $a_c$ but does not add the $\dot t_i^{\mathsf T}v_c$ term, which vanishes at exact zero tread slip but need not vanish during recovery; the analogous distinction applies to the lateral projection.
+Consequently its error dynamics away from the no-slip manifold are not an exact scalar-slip derivative copied from a paper.
 
 The moment relation makes the retained six-dimensional wrench equivalent to a point force:
 
@@ -263,6 +321,7 @@ J_{h,i}^{\mathsf T}\begin{bmatrix}f_i\\\rho_i\times f_i\end{bmatrix}=J_{c,i}^{\m
 $$
 
 Unlike a planted humanoid sole, this model cannot choose an independent wheel-center couple or a center of pressure inside a rectangle.
+The moment-shift identity is standard spatial-force algebra; see [Modern Robotics, Section 3.4](https://modernrobotics.northwestern.edu/nu-gm-book-resource/3-4-wrenches/).
 
 
 ### 4.4 One shared lateral row
@@ -281,6 +340,7 @@ It constrains the signed mean, not each wheel's lateral slip individually, so op
 Each lateral direction comes directly from that wheel's axle without an additional common-sign alignment.
 Individual wheel lateral slip and the projected equality rank therefore still require inspection, especially with mirrored axle signs, turning, asymmetry or different contact normals.
 There are eleven wheel-contact equality rows in double support: five per wheel and one shared lateral row, in addition to the twelve RNEA rows.
+No cited paper is evidence for this shared signed-average replacement; it is a local projection/rank workaround with the limitations above, not an established equivalent of two per-wheel no-slip constraints.
 
 
 ### 4.5 Swing and flight support
@@ -298,6 +358,8 @@ This branch approximates tire-bottom height as center height minus radius, rathe
 It does not prescribe swing-wheel XY position or touchdown wheel spin.
 During flight both wrenches are zero and the shared lateral row is inactive, but full-body inverse dynamics remains active.
 These code paths exist, but the shipped Upkie gait library contains only double-support `stance`; hopping and alternating support are not established capabilities.
+For moving-wheel support and zero-force/vertical-motion swing constraints, compare [Bjelonic et al., Section III-A4, Eqs. (5)-(6), PDF page 4](https://arxiv.org/pdf/2010.06322#page=4).
+Their optimizer uses a fixed wheel angle and moving contact with kinodynamic prediction; this branch instead retains wheel spin and full-body inverse dynamics, so the state and constraint formulas are not interchangeable.
 
 
 ## 5. Tracking Costs and References
@@ -402,6 +464,7 @@ The builder partitions Q/Qf among base and generic evaluators without double cou
 Soft path-limit penalties are running terms; no separate terminal joint-limit barrier is registered by this setup.
 Foot task-space tracking, named torso tracking, gravity-relative torso tilt, capture-foot placement, external leg-load regularization and arm swing are disabled or absent in the current Upkie YAML.
 They are not hidden additions to the equations above.
+The state/velocity/contact-force tracking principle is comparable to [Khazoom et al., Section II-B2, Eq. (3)](https://arxiv.org/html/2407.10789v1#S2.SS2.SSS2), but the Upkie weights, base-frame residuals and acceleration/torque regularizers are implementation choices rather than copied paper parameters.
 
 
 ### 5.5 Command conditioning
@@ -507,6 +570,7 @@ $$
 These per-term penalty scales are not multiplied by `rScaling` or `qScaling`.
 Both functions remain finite outside the feasible region, so they steer the optimizer but do not guarantee bounded torques, bounded speeds or collision-free execution.
 There are no active arm/leg self-collision costs, environment-avoidance terms, humanoid sole CoP bounds, or hard torque inequalities in the current Upkie setup.
+The hard bounds in [Molnar et al., Section IV-B4, Eq. (8)](https://arxiv.org/html/2511.19709v1#S4.SS2.SSS4) must not be confused with this branch's finite soft penalties.
 
 
 ## 7. Gait, Initialization and Execution
@@ -566,6 +630,7 @@ $$
 
 Wheel feedback tracks planned spin speed with zero angle stiffness; hips and knees track both position and velocity.
 This inner servo is distinct from the optional SQP feedback policy, which is disabled here.
+For the feedforward-plus-PD architecture, see [Khazoom et al., Section II-D3, Eq. (15)](https://arxiv.org/html/2407.10789v1#S2.SS4.SSS3); their hardware rates and gains are not the Upkie values.
 The scene uses a $0.0005\ \mathrm{s}$ physics step and `implicitfast`, so the hardware PD is evaluated at $2\ \mathrm{kHz}$ while controller targets update at $1\ \mathrm{kHz}$.
 The simulator calls hardware `write()` every physics step, outside the rate-limited controller-manager `read()`/`update()` block, and the PD reads live MuJoCo positions and velocities on each call.
 Between MRT ticks, the targets, feedforward and gains are held, but the feedback torque is recomputed; this is the same `effort_pd` path used by H2.
@@ -580,6 +645,43 @@ An optional trajectory-file path implements idle hold, planned stand-up playback
 The height command filter resets to the measured base height at handover rather than stepping immediately to the nominal $0.30\ \mathrm{m}$ height.
 This playback is not a stand-up trajectory optimized online by the MPC.
 It is implemented but has not yet been validated in the complete controller/simulator stack; the default configuration leaves it disabled.
+
+
+### 7.5 Rolling-contact state estimation: required future adaptation
+
+The present checkpoint uses simulator ground-truth base feedback; the rolling-contact estimator described here is a future requirement, not an implemented or validated capability.
+The primary feedback remains the floating-base pose and linear/angular velocity, as for H2, but a planted-foot measurement model cannot be reused unchanged for a moving wheel.
+The existing [linear KF model](../include/legged_robot_mpc_controller/humanoid_state_estimation/linear_kf_floating_base_estimator.hpp#L36) assumes stationary contact landmarks, $\dot d_i=0$.
+A wheel center and the instantaneous geometric contact location move during driving, even under ideal no-slip rolling.
+Instead, the material tread point currently touching the ground satisfies the approximate measurement relation:
+
+$$
+0\simeq v_{c,i}^{W}
+=v_{h,i}^{W}+\omega_i^{W}\times\rho_i^{W}.
+$$
+
+Here $v_{h,i}^{W}$ is the tire-center velocity, $\omega_i^{W}$ is the wheel link's full angular velocity including spin, and $\rho_i^{W}$ is the center-to-contact offset from Section 4.1.
+With IMU attitude/gyro and joint encoder measurements, this relation supplies information about unknown base velocity through the leg and wheel kinematics.
+Ground-relative height updates must also account for tire radius and axle orientation rather than treating the tire-center frame as a ground-level planted foot.
+This requires changing the estimator's contact model, not merely selecting H2's estimator through a launch argument.
+
+The direct reference is [Hosseini, Rodriguez and Behnke, State Estimation for Hybrid Locomotion of Driving-Stepping Quadrupeds, IRC 2022, Fig. 1 and its wheel-aware state-estimation formulation](https://www.ais.uni-bonn.de/~hosseini/se-dsq/IEEE_IRC_22_StateEstimationForDrivingSteppingQuadrupeds.pdf).
+Their method incorporates wheel geometry and rolling motion into a legged Kalman filter; this motivates the adaptation but does not establish that our current estimator already implements their equations or has their validation results.
+
+| Quantity | Proposed first implementation |
+| --- | --- |
+| Base orientation and angular velocity | Retain an IMU-based attitude/gyro path with the correct sensor-to-base transform |
+| Base linear velocity | Fuse IMU acceleration with rolling-contact kinematic measurements |
+| Base height | Use leg geometry, wheel radius and the assumed local support surface |
+| Contact and slip reliability | Gate or downweight rolling measurements during contact loss or slip; a separate observer may supply this reliability |
+| Radius, axle and contact offset | Initially use configured geometry and forward kinematics, not additional filter states |
+| Slip, effective radius, terrain normal and sensor biases | Consider later if required and observable; these are not all mandatory extra states |
+
+Contact forces need not become filter states, and simulator contact flags or ground-truth terrain are not substitutes for deployable contact detection.
+Official Upkie likewise exposes separate base-orientation, wheel-contact and wheel-odometry observations; see [Upkie observations](https://upkie.github.io/upkie/observations.html).
+Proprioceptive estimation alone does not provide drift-free global horizontal position or heading, and unknown ground height cannot be separated arbitrarily from base height without additional assumptions or measurements.
+Acceptance should first compare estimated and simulator base states during balance, drive, braking and pushes, then repeat those scenarios with estimated state driving the MPC.
+No estimator adaptation or estimated-state closed-loop test was performed for this documentation checkpoint.
 
 
 ## 8. Implementation Map and Validation Boundary
@@ -607,3 +709,104 @@ Repeated acceptance trials, turning and height sweeps, full-stack kneeling stand
 Logging includes base motion, planned wrenches, feedforward/applied joint effort, measured wheel contacts/normal forces, contact gaps, tread slip and solver residuals.
 The slip/gap diagnostics currently assume a horizontal zero-height plane; they are not a generic arbitrary-terrain contact estimator.
 Documented equations describe the implementation, not a guarantee that a one-iteration SQP policy satisfies every equality or that soft limits remain unviolated.
+
+
+## 9. Design Traceability and Parameter Selection
+
+
+### 9.1 Source-to-implementation map
+
+This map distinguishes a supporting reference from an exact implementation match.
+Paper locations refer to the linked arXiv versions; PDF page numbers are viewer page numbers, with the title page counted as page 1.
+
+| Choice | Primary reference and exact location | Actual implementation and important difference |
+| --- | --- | --- |
+| Configuration/velocity state and inverse-dynamics path equalities | [Molnar et al., Whole-Body Inverse Dynamics MPC for Legged Loco-Manipulation, IV-B1, Eqs. (4)-(5)](https://arxiv.org/html/2511.19709v1#S4.SS2.SSS1) | [RNEA rows](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdRneaConstraintCppAd.cpp#L81); this branch keeps absolute Euler coordinates, not the paper's tangent increment |
+| World-aligned wrench at a moving tire center | [Pinocchio, force reference conversion, LOCAL versus LOCAL_WORLD_ALIGNED](https://gepettoweb.laas.fr/doc/stack-of-tasks/pinocchio/devel/doxygen-html/algorithm_2utils_2force_8hpp_source.html) | [Jacobian/wrench product](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdRneaConstraintCppAd.cpp#L88); a library/interface convention, not a claim of body-axis wrench optimization |
+| Six-component wrench restricted to a tire point force | [Lynch and Park, Modern Robotics, Section 3.4, wrench transformations and power](https://modernrobotics.northwestern.edu/nu-gm-book-resource/3-4-wrenches/) | [Moment equality](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdWheelContactConstraintCppAd.cpp#L238); six entries retained locally for compatibility |
+| Wheel contact direction and no-slip velocity | [Xin and Vijayakumar, Online Dynamic Motion Planning and Control for Wheeled Biped Robots, IV-B3, Fig. 5, Eqs. (16)-(20), PDF page 5](https://arxiv.org/pdf/2003.03678#page=5) | [Disk geometry](../include/humanoid_wb_id_mpc/common/WheelContactKinematics.h#L43), [slip and its derivative](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdWheelContactConstraintCppAd.cpp#L193); lowest-point normalization and offset differentiation are explicit local derivations |
+| Gap/slip error feedback in acceleration constraints | [Baumgarte, Stabilization of constraints and integrals of motion in dynamical systems, 1972, pp. 1-16](https://doi.org/10.1016/0045-7825(72)90018-7) | [Stabilized rows](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdWheelContactConstraintCppAd.cpp#L235); principle only, no paper-sourced gain values |
+| One shared lateral equality | No exact reference established | [Signed average](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdWheelContactConstraintCppAd.cpp#L211); local workaround requiring rank and per-wheel-slip validation |
+| Supporting versus swinging wheels | [Bjelonic et al., Whole-Body MPC and Online Gait Sequence Generation for Wheeled-Legged Robots, III-A4, Eqs. (5)-(6), PDF page 4](https://arxiv.org/pdf/2010.06322#page=4) | [Mode activation](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdWheelContactConstraintCppAd.cpp#L108); full spin dynamics retained here rather than their fixed-angle moving-contact simplification |
+| Tracking objective and fast inner servo | [Khazoom et al., Tailoring Solution Accuracy for Fast Whole-body Model Predictive Control of Legged Robots, II-B2 Eq. (3) and II-D3 Eq. (15)](https://arxiv.org/html/2407.10789v1) | [Configured costs/gains](../config/upkie/ros2_controllers.yaml#L36); Upkie weights and servo rates are local, and the QP solver here is HPIPM rather than their OSQP/ADMM |
+| Accounting for motor friction and rotor inertia | [Molnar et al., VI-D, sim-to-real discrepancies](https://arxiv.org/html/2511.19709v1#S6.SS4) and [MuJoCo joint armature semantics](https://mujoco.readthedocs.io/en/3.3.2/XMLreference.html#body-joint-armature) | [Model parameters](../config/upkie/ros2_controllers.yaml#L90); amplitudes match the imported simulator model, not identified hardware |
+| Differentiable Coulomb friction | [Pyrhonen, Mikkola and Naets, System identification and force estimation of robotic manipulator using semirecursive multibody formulation, Section 2.1 Eq. (10), published online 2024](https://link.springer.com/article/10.1007/s11044-024-10017-1#Equ10) | [CppAD tanh term](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdRneaConstraintCppAd.cpp#L98); no viscous term here and a different transition-scale convention |
+
+
+### 9.2 Friction and armature parameter provenance
+
+The upstream [mjlab_upkie MJCF at d789578, joint defaults](https://github.com/MarcDcls/mjlab_upkie/blob/d7895789a601943f78b3b9bcdc4def7b444f9913/src/mjlab_upkie/robot/upkie/robot.xml#L13) specifies `frictionloss="0.1"` and `armature="0.005"`.
+These values are preserved in the [local MJCF](../description/mujoco/robots/upkie/upkie.xml#L10) and copied into the MPC model parameters.
+They are properties of this simulation example, not measured Upkie hardware constants or tuning results from a cited MPC paper.
+MuJoCo treats [joint friction loss as a bounded dry-friction constraint](https://mujoco.readthedocs.io/en/3.3.2/computation/#friction-loss), which can resist motion at zero speed; tanh is a differentiable approximation, not the same static-friction law.
+
+| Parameter | Current value | Origin and selection status |
+| --- | --- | --- |
+| `model.jointArmature` | $0.005\ \mathrm{kg\,m^2}$ per actuator | Copied from MJCF; not swept for balance performance |
+| `model.jointFriction` | $0.1\ \mathrm{Nm}$ per actuator | Matches MJCF dry-friction magnitude; not a wheel-ground coefficient |
+| `model.jointFrictionVelocity` | $v_s=0.05\ \mathrm{rad/s}$ | Local differentiability/transition-width choice; no completed parameter sweep establishing an optimum is recorded |
+| Wheel `jointEffortPd.kd` | $0.05\ \mathrm{Nm\,s/rad}$ | Current light speed feedback; the proposed $0.3$ comparison remains unfinished |
+
+The handoff's motivation was zero-command creep of roughly $0.018\ \mathrm{m/s}$ before compensation, while planned wheel torques near $0.09\ \mathrm{Nm}$ were comparable to the simulator's friction magnitude.
+That supported adding the missing model term; it did not identify the best smoothing width or prove elimination of steady drift.
+The friction-model-only drive trial completed and its push trial survived the four pulses, but the other proposed friction-versus-damping variants were not completed.
+No comparative optimum is claimed for the retained parameters.
+
+The numerical role of the smoothing width follows directly from the implemented law:
+
+$$
+\frac{\partial\tau_f}{\partial\dot q}=\frac{f_c}{v_s}\operatorname{sech}^2\left(\frac{\dot q}{v_s}\right),
+\qquad
+\left.\frac{\partial\tau_f}{\partial\dot q}\right|_{0}=\frac{f_c}{v_s}=2\ \mathrm{Nm\,s/rad}.
+$$
+
+Thus the modeled friction behaves like a slope of $2\ \mathrm{Nm\,s/rad}$ near zero velocity, but this is not an additional low-level damping gain.
+At $|\dot q|=v_s$, the modeled torque is about $0.7616f_c$; at $2v_s$, it is about $0.9640f_c$.
+For a $55\ \mathrm{mm}$ wheel, $rv_s=0.00275\ \mathrm{m/s}$ is the corresponding circumferential speed scale for pure wheel spin, not a guaranteed base-speed deadband.
+Smaller $v_s$ approaches the discontinuous sign law more sharply but increases derivatives near zero; larger $v_s$ smooths optimization while undercompensating friction over a broader low-speed range.
+The present choice is an engineering compromise, not an identified Stribeck velocity or a published universal constant.
+
+
+### 9.3 How to calibrate and tune without hiding model error
+
+The following is a recommended future procedure, not an experiment already performed in this branch.
+Keep simulator `frictionloss` and armature fixed when assessing the controller, so making the simulated joint artificially frictionless does not count as a compensation improvement.
+For hardware, use calibrated motor effort/current and measured joint motion under known loads; do not assume the simulator's $0.1\ \mathrm{Nm}$ matches the real actuator.
+Prefer contact-free joint sweeps or reliable contact-force measurements, because unmodeled contact loads, acceleration noise and incorrect inertia can be mistaken for friction.
+
+For a fixed candidate $v_s$, a simple nonnegative fit for each joint is:
+
+$$
+y_{j,k}=\tau_{\mathrm{motor},j,k}^{\mathrm{meas}}-\tau_{\mathrm{ID},j,k},
+\qquad
+\hat f_{c,j}=\underset{f\geq0}{\operatorname{arg\,min}}\sum_k w_k
+\left[y_{j,k}-f\tanh\left(\frac{\dot q_{j,k}}{v_s}\right)\right]^2.
+$$
+
+Here $\tau_{\mathrm{ID}}$ must already include the chosen armature, gravity, acceleration and known external loads, but exclude the friction term being fitted.
+Use actual total motor torque, including servo feedback, rather than only the MPC feedforward command.
+Asymmetric residuals or speed-dependent residuals can motivate a richer model, but asymmetry, viscous friction and Stribeck terms are not implemented by the current six-amplitude tanh configuration.
+Fit on one set of motions and validate on separate motions; do not absorb a wrong contact or rotor-inertia model into the fitted friction magnitude.
+
+After matching $f_c$, compare a small log-spaced set of $v_s$ values, for example $[0.02,0.05,0.1]\ \mathrm{rad/s}$, with all other settings fixed.
+First assess zero-command drift and reversal behavior, then repeated $0.2\ \mathrm{m/s}$ roll/brake tests and the existing pitch-push sequence.
+Track per-wheel slip, base pitch, recovery time, torque saturation, planned/applied torque mismatch, equality residuals, solver failures and solve time.
+Only after selecting the friction-model width should wheel speed damping be compared, so the contributions of model compensation and feedback remain distinguishable.
+The current scalar $v_s$ is shared by all six joints; per-joint widths would require an implementation extension and are not silently supported by YAML arrays.
+
+
+### 9.4 Other numerical settings are not paper constants
+
+The present Q/Qf/R weights, barrier strengths, $50$ contact-feedback gains and leg/wheel PD gains are local starting settings, not validated transfers from the cited robots.
+For the normal-gap equality, the second-order interpretation is:
+
+$$
+\omega_n=\sqrt{\frac{k_{p,n}}{k_{a,n}}},
+\qquad
+\zeta=\frac{k_{v,n}}{2\sqrt{k_{a,n}k_{p,n}}}.
+$$
+
+The current $k_{p,n}=50$, $k_{v,n}=50$, $k_{a,n}=1$ gives $\omega_n\approx7.07\ \mathrm{rad/s}$ and $\zeta\approx3.54$, so it is not a critically damped $50\ \mathrm{rad/s}$ controller.
+This interpretation explains the gains but does not establish the best discrete-time correction at the configured prediction step.
+Increasing equality gains, friction slopes or barrier curvature can make the numerical problem harder; selecting them requires matched repeated tests rather than citing a paper as evidence for their values.
+The shared lateral-row workaround, rotating-direction acceleration treatment, thin-disk contact approximation and untested contact transitions remain explicit review items even when a short wheel-drive trial succeeds.

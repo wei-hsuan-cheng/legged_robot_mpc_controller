@@ -17,8 +17,8 @@ See description/urdf/robots/upkie/MODEL_SOURCE.md for the changes.
     </default>
   </default>
 
-  <!-- Additional no_slip.xml -->
-  <option noslip_iterations="4"/>
+  <!-- Robot integration/contact settings; scene.xml owns the simulation timestep. -->
+  <option integrator="implicitfast" noslip_iterations="4"/>
 
   <worldbody>
     <!-- Link trunk -->

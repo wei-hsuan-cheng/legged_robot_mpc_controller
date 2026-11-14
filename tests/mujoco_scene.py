@@ -27,7 +27,8 @@ def write_scene(output, robot="g1", terrain="none", package=ROOT):
         if path.parent == robot_dir:
             robot_compiler = ET.parse(path).find("compiler")
         if path.name.startswith("background_"):
-            path = scenes / "common/backgrounds" / ("background_day.xml" if terrain == "none" else "background_night.xml")
+            background = "background_night_upkie.xml" if robot == "upkie" else "background_night.xml"
+            path = scenes / "common/backgrounds" / ("background_day.xml" if terrain == "none" else background)
         element.set("file", str(path))
     if robot_compiler is None:
         raise ValueError("scene.xml must include its robot model with compiler directories")

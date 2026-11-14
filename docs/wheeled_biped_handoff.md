@@ -17,14 +17,48 @@ No new build or simulator test was run for the documentation and commit/push ste
 Outstanding work remains the friction/damping comparison, repeated acceptance suite, full-stack stand-up, hop/single-support development, rolling-contact estimation and G1/H2 regressions.
 
 
+## Scene Style Alignment (2026-11-14)
+
+Upkie's `scene.xml` now follows H2's short composition layout: timestep, background, optional terrain/object includes, then robot.
+The new `common/backgrounds/background_night_upkie.xml` reuses the humanoid night appearance, textures, lighting strengths and floor properties, but aims lights at `base` and uses smaller viewer framing.
+The existing G1/H2 backgrounds are unchanged, and Upkie's original robot colors and material definitions remain intact.
+Ramp and uneven-field includes are present as comments, so the default Upkie scene remains flat and does not imply newly validated terrain locomotion.
+`implicitfast` moved into `upkie.xml` beside its existing four no-slip iterations, while the scene retains the 0.0005 s timestep and therefore 2 kHz physics-rate PD.
+No controller code, gains, actuator caps, inertias, contact geometry or friction parameters were changed.
+Local MuJoCo 4.0.1 compilation compared 38 physical arrays/options against the prior scene, all exactly unchanged, including joint/body parameters, contact settings and actuator limits.
+A static render at the configured standing pose was visually inspected; the temporary preview is `/tmp/codex_upkie_night.png` on the Mac.
+Updated scene-layout tests cover Upkie's assets, night-style/light targets, common floor physics, and flat/ramp/rough fixtures.
+Four focused scene tests passed; the complete layout suite passed 14 of 15 tests, with the remaining pre-existing xacro ramp test failing on last-digit vertex-string formatting in the local environment.
+The same ramp failure was reproduced from HEAD without the test changes; no terrain files were regenerated to hide it.
+These checks compile/render scenes, not closed-loop MPC validation or a ROS build; no robot-controller simulation was launched.
+
+
 ## Formulation Documentation (2026-11-14)
 
+Expanded the formulation with a source-to-code traceability table, exact paper sections/equations/pages and links next to the relevant formulas.
+The notes distinguish world-aligned tire-center wrenches from body-axis or world-origin wrenches, and identify the six-wrench layout and shared lateral row as local adaptations.
+Friction references support a differentiable model family, not the current numeric values: 0.1 Nm friction and 0.005 kg m^2 armature come from the MJCF, while 0.05 rad/s is an unoptimized local smoothing choice.
+Documented the different tanh scale/sign conventions in Pyrhonen et al. Eq. (10), the actual partial-test evidence, and a proposed future calibration protocol clearly separated from completed tests.
+No new tuning, runtime validation or controller changes were performed for the reference update.
 Added the implementation-specific math document linked above after reading the current controller, configuration builder, contact kinematics, cost evaluators and OCS2 penalty functions.
 It uses the existing humanoid document's dollar-delimited inline/display LaTeX and one-sentence-per-line prose, with two blank lines before headings.
 It distinguishes the 24-state/30-input Euler-coordinate OCP, full-horizon RNEA, armature and smoothed Coulomb friction, eleven double-support wheel-contact rows, tracking costs, soft inequalities and final actuator clipping.
 The document records the shared friction cone's default regularization of 25 N^2, whose zero-tangential-force nonnegative-residual threshold is about 8.33 N at coefficient 0.6.
 It also records that the shared lateral equality is a signed average without axle-sign alignment, so it is not a proof of individual-wheel lateral no-slip; cancellation and equality rank need checking in future tests.
 No controller code, parameters, model assets, build or simulation were changed or run for this documentation update.
+
+
+## Rolling-contact Estimator Scope (2026-11-14)
+
+Documented the need for rolling-contact estimation and its primary reference in [formulation Section 7.5](wheeled_biped_whole_body_inverse_dynamics_mpc.md#75-rolling-contact-state-estimation-required-future-adaptation).
+[Hosseini, Rodriguez and Behnke, State Estimation for Hybrid Locomotion of Driving-Stepping Quadrupeds, IRC 2022](https://www.ais.uni-bonn.de/~hosseini/se-dsq/IEEE_IRC_22_StateEstimationForDrivingSteppingQuadrupeds.pdf), Fig. 1 and its wheel-aware state-estimation formulation, is a direct reference for adapting legged Kalman-filter measurements to wheel geometry and rolling motion.
+Source inspection confirms that our current linear KF assumes stationary planted-contact landmarks; selecting it unchanged is not a validated wheel-drive estimator.
+The required main output remains floating-base pose and velocity, but tire-center motion must be distinguished from the approximately zero material tread velocity under no slip.
+First adapt velocity and ground-relative height measurements using IMU, leg/wheel encoders and configured tire geometry, with contact/slip reliability gating.
+Slip, effective radius, terrain normal and additional biases are optional extensions rather than automatically required extra states; contact forces can remain outside the estimator state.
+Proprioception does not supply drift-free global XY/yaw, and arbitrary terrain elevation is not independently observable without assumptions or additional sensing.
+Current Upkie runtime evidence still uses ground truth; no rolling estimator implementation, build or estimated-state closed-loop validation was added in this checkpoint.
+The next estimator milestone is an estimated-versus-simulator comparison followed by closed-loop balance, drive, braking and push acceptance on estimated state.
 
 
 ## Status (2026-11-14)
@@ -211,8 +245,10 @@ ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=upkie \
 ros2 topic pub -r 20 /humanoid/walking_velocity_command ocs2_msgs/msg/WalkingVelocityCommand \
   "{linear_velocity_x: 0.2, linear_velocity_y: 0.0, desired_pelvis_height: 0.30, angular_velocity_z: 0.0}"
 
-# 3. Push the base (MuJoCo external wrench): launch/push_recovery_test.py with
-#    config/tests/upkie_pitch_push.yaml, or run the scripted push test below.
+# 3. Push the base from another terminal after MPC takeover.
+SHARE="$(ros2 pkg prefix --share legged_robot_mpc_controller)"
+ros2 run legged_robot_mpc_controller push_recovery_test.py \
+  --sequence "$SHARE/config/tests/upkie_pitch_push.yaml" --delay 5
 
 # 4. Scripted, headless, logged (one roll+brake and one push run, verdicts printed):
 bash src/legged_robot_mpc_controller/tests/tuning/upkie_acceptance_suite.sh mine 1

@@ -14,6 +14,7 @@ description/
     common/materials/
     robots/g1/{g1_29dof.xml,scene.xml}
     robots/h2/{h2_31dof.xml,scene.xml}
+    robots/upkie/{upkie.xml,scene.xml}
     terrains/
     objects/
     textures/
@@ -37,8 +38,10 @@ The RViz staircase belongs to `description/urdf/terrains/`, and its format-neutr
 | --- | --- |
 | `robots/g1/g1_29dof.xml` | Robot bodies, joints, actuators and sensors; meshes live in `description/meshes/robots/g1/` |
 | `robots/h2/h2_31dof.xml` | Official Unitree H2 with matching URDF pelvis inertia and sole frames; meshes live in `description/meshes/robots/h2/` |
+| `robots/upkie/upkie.xml` | Six-actuator wheeled biped, torque motors, sensors and robot-specific integration/contact settings; meshes live in `description/meshes/robots/upkie/` |
 | `common/backgrounds/background_day.xml` | Original daytime sky, lighting, camera and physical floor |
 | `common/backgrounds/background_night.xml` | Studio lighting, camera, satin floor and robot finish |
+| `common/backgrounds/background_night_upkie.xml` | The same night appearance and floor physics, with lights targeting `base` instead of `pelvis` and viewer framing scaled for Upkie |
 | `common/materials/terrain_materials.xml` | Shared matte material using `textures/studio_terrain.png` |
 | `terrains/stairs.xml` | Stair geometry generated from `stairs.xml.xacro` using `../../config/terrains/stairs_params.yaml` |
 | `../urdf/terrains/stairs.urdf.xacro` | Matching RViz environment geometry using the same staircase parameters |
@@ -50,7 +53,7 @@ The RViz staircase belongs to `description/urdf/terrains/`, and its format-neutr
 | `objects/boxes.xml` | Movable boxes generated from `boxes.xml.xacro` using per-box entries in `../../config/objects/boxes_params.yaml` (name, pose, size, mass, inertia, color, friction) |
 | `../urdf/objects/boxes.urdf.xacro` | Matching RViz boxes at their spawn poses from the same parameters |
 
-Both backgrounds include `../materials/terrain_materials.xml` once, so multiple terrains can coexist without duplicate material definitions.
+Each background includes `../materials/terrain_materials.xml` once, so multiple terrains can coexist without duplicate material definitions.
 Terrain modules assign `material="studio_terrain"` to their geoms; they do not copy lighting or texture assets.
 The robot module contains no background or terrain definitions.
 
@@ -73,13 +76,19 @@ These paths also work in the installed package because CMake installs both the `
 The floor's size, friction and priority are identical in both backgrounds.
 Terrain dimensions, contact properties, inertias and actuator settings are independent of the background choice.
 
-The only shipped entry point for either robot is `scene.xml`; flat, ramp and uneven variants are no longer separate files.
+The only shipped entry point for each robot is `scene.xml`; flat, ramp and uneven variants are no longer separate files.
 Select it through `robot.launch.py robotName:=g1 mujocoModelFile:=scene.xml`, or use `robotName:=h2` with the same scene name.
 For flat ground, keep only robot and background includes; for ramp or uneven terrain, add `../../terrains/ramp.xml` or `../../terrains/uneven_terrain.xml`.
 Remove any other terrain/object includes if you want to test only the selected module.
 `mujocoModelFile` remains unrestricted: another robot-local filename or an absolute custom scene path can still be supplied.
 The launch keeps the selected robot's scene, URDF and controller configuration together; an absolute scene path remains available as an explicit override.
 Switch day/night by changing the scene's background include; separate scene files for each appearance are unnecessary.
+
+Upkie's scene follows the same composition order as H2: timestep, background, optional terrain/object modules, then robot.
+Its default is flat ground, with ramp and uneven-field includes commented out rather than enabled before wheel-drive validation.
+It retains a 0.0005 s timestep (2 kHz physics-rate PD), while `upkie.xml` owns `implicitfast` and the original four no-slip iterations.
+Use `background_night_upkie.xml` for Upkie, since the humanoid night preset targets a body named `pelvis` that Upkie does not have.
+The existing scene-generator CLI still selects G1/H2; edit Upkie's small include list directly, or use the test-fixture helper for isolated scenes.
 
 From the package root, the generator can compose scenes and regenerate night appearance assets:
 

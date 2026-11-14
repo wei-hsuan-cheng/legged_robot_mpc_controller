@@ -1,35 +1,11 @@
 <mujoco model="upkie_scene">
   <!-- sim rate: effort_pd runs every physics step; 2 kHz with the 1 kHz controller -->
-  <option timestep="0.0005" integrator="implicitfast" />
-
-  <!-- Flat floor and lighting. The shared backgrounds aim their lights at a body named
-       pelvis, so this scene carries its own copy aimed at the Upkie base. -->
-  <include file="../../common/materials/terrain_materials.xml" />
-
-  <visual>
-    <headlight ambient="0.3 0.3 0.3" diffuse="0.4 0.4 0.4" specular="0.1 0.1 0.1" />
-    <quality shadowsize="4096" offsamples="8" />
-    <global azimuth="-120" elevation="-15" offwidth="1920" offheight="1080" />
-  </visual>
-
-  <statistic center="0 0 0.25" extent="0.8" />
-
-  <asset>
-    <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="512" height="3072" />
-    <texture type="2d" name="studio_floor" file="textures/studio_floor.png" />
-    <material name="studio_floor" texture="studio_floor" texuniform="true" texrepeat="2 2" rgba="1 1 1 1"
-              reflectance="0.08" specular="0.15" shininess="0.2" />
-  </asset>
-
-  <worldbody>
-    <light name="main_light" mode="targetbodycom" target="base" pos="-0.9 1.6 3.0"
-           diffuse="0.5 0.5 0.5" specular="0.2 0.2 0.2" directional="true" castshadow="true" />
-    <light name="fill_light" mode="targetbodycom" target="base" pos="-0.8 -3.0 2.0"
-           diffuse="0.4 0.4 0.4" specular="0.1 0.1 0.1" directional="true" castshadow="false" />
-    <geom name="floor" size="0 0 0.05" type="plane" material="studio_floor"
-          priority="1" friction="0.8 0.1 0.001" />
-  </worldbody>
-
+  <option timestep="0.0005" />
+  <!-- background: H2 night style, with lights aimed at Upkie's base -->
+  <include file="../../common/backgrounds/background_night_upkie.xml" />
+  <!-- terrain/object: optional; keep flat ground for the current wheel-drive checkpoint -->
+  <!-- <include file="../../terrains/uneven_terrain.xml" /> -->
+  <!-- <include file="../../terrains/ramp.xml" /> -->
   <!-- robot -->
   <include file="upkie.xml" />
 </mujoco>

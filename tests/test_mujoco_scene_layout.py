@@ -41,7 +41,7 @@ class SceneLayoutTest(unittest.TestCase):
         launch = (ROOT / "launch/robot.launch.py").read_text()
         ast.parse(launch)
         self.assertIn('"robots", robot_name', launch)
-        for robot in ("g1", "h2"):
+        for robot in ("g1", "h2", "upkie"):
             self.assertTrue((SCENES / "robots" / robot / "scene.xml").is_file())
             self.assertTrue((ROOT / "config" / robot / "ros2_controllers.yaml").is_file())
             self.assertFalse((ROOT / "launch" / f"{robot}.launch.py").exists())
@@ -54,9 +54,9 @@ class SceneLayoutTest(unittest.TestCase):
                     self.assertTrue((path.parent / include.get("file")).is_file())
                 for texture in root.findall(".//texture[@file]"):
                     self.assertTrue((SCENES / texture.get("file")).is_file())
-        for name in ("g1", "h2"):
+        for name, filename in (("g1", "g1_29dof.xml"), ("h2", "h2_31dof.xml"), ("upkie", "upkie.xml")):
             directory = SCENES / "robots" / name
-            robot = ET.parse(directory / ("g1_29dof.xml" if name == "g1" else "h2_31dof.xml"))
+            robot = ET.parse(directory / filename)
             mesh_dir = directory / robot.find("compiler").get("meshdir")
             for mesh in robot.findall("./asset/mesh"):
                 self.assertTrue((mesh_dir / mesh.get("file")).is_file())
@@ -71,9 +71,29 @@ class SceneLayoutTest(unittest.TestCase):
 
     def test_background_floor_physics_match(self):
         floors = [ET.parse(SCENES / "common" / "backgrounds" / f"background_{name}.xml")
-                  .find("./worldbody/geom") for name in ("day", "night")]
+                  .find("./worldbody/geom") for name in ("day", "night", "night_upkie")]
         physics = lambda geom: {key: value for key, value in geom.attrib.items() if key != "material"}
-        self.assertEqual(physics(floors[0]), physics(floors[1]))
+        for floor in floors[1:]:
+            self.assertEqual(physics(floors[0]), physics(floor))
+
+    def test_upkie_night_style_and_light_target(self):
+        humanoid = ET.parse(SCENES / "common/backgrounds/background_night.xml")
+        upkie = ET.parse(SCENES / "common/backgrounds/background_night_upkie.xml")
+        self.assertEqual(ET.tostring(humanoid.find("./visual")), ET.tostring(upkie.find("./visual")))
+        for name in ("studio_floor", "studio_finish"):
+            query = f"./asset/material[@name='{name}']"
+            self.assertEqual(humanoid.find(query).attrib, upkie.find(query).attrib)
+        original_lights = humanoid.findall("./worldbody/light")
+        upkie_lights = upkie.findall("./worldbody/light")
+        self.assertEqual(len(original_lights), len(upkie_lights))
+        for original, light in zip(original_lights, upkie_lights):
+            self.assertEqual(light.get("target"), "base")
+            self.assertEqual({**original.attrib, "target": "base"}, light.attrib)
+        scene = ET.parse(SCENES / "robots/upkie/scene.xml")
+        includes = [element.get("file") for element in scene.findall("./include")]
+        self.assertEqual(includes, ["../../common/backgrounds/background_night_upkie.xml", "upkie.xml"])
+        self.assertIsNone(scene.find("./worldbody"))
+        self.assertIsNone(scene.find("./asset"))
 
     def test_none_removes_every_environment_module(self):
         for name, module in creator.TERRAIN_FILES.items():
@@ -87,20 +107,22 @@ class SceneLayoutTest(unittest.TestCase):
                                                  None, ["none"], "test")
                 includes = [elem.get("file") for elem in result.findall("include")]
                 self.assertNotIn(Path(module).name, [Path(p).name for p in includes])
-                self.assertEqual(includes[0], "g1_29dof.xml")
-                self.assertEqual((reference.parent / includes[1]).resolve(),
+                self.assertIn("g1_29dof.xml", includes)
+                background = next(path for path in includes if Path(path).name.startswith("background_"))
+                self.assertEqual((reference.parent / background).resolve(),
                                  SCENES / "common/backgrounds/background_day.xml")
 
     @unittest.skipIf(mujoco is None, "mujoco Python package is not installed")
     def test_all_scenes_and_generated_terrains_compile(self):
         scenes = list(SCENES.glob("robots/*/scene*.xml"))
-        self.assertEqual(len(scenes), 2)
+        self.assertEqual(len(scenes), 3)
         self.assertTrue(all(path.name == "scene.xml" for path in scenes))
         for path in scenes:
             with self.subTest(scene=path.name):
                 model = mujoco.MjModel.from_xml_path(str(path))
-                self.assertEqual(model.opt.timestep, 0.0001)
-                self.assertEqual(model.nu, 31 if path.parent.name == "h2" else 29)
+                robot = path.parent.name
+                self.assertEqual(model.opt.timestep, 0.0005 if robot == "upkie" else 0.0001)
+                self.assertEqual(model.nu, {"g1": 29, "h2": 31, "upkie": 6}[robot])
         for background in ("day", "night"):
             for terrain in ["none", *creator.TERRAIN_FILES]:
                 with self.subTest(background=background, terrain=terrain):
@@ -109,6 +131,15 @@ class SceneLayoutTest(unittest.TestCase):
                     entry = str(G1_SCENES / "layout_test.xml")
                     model = mujoco.MjModel.from_xml_path(entry, {entry: ET.tostring(tree.getroot())})
                     self.assertEqual(model.opt.timestep, 0.0001)
+
+    @unittest.skipIf(mujoco is None, "mujoco Python package is not installed")
+    def test_upkie_flat_and_terrain_fixtures_compile(self):
+        for terrain in ("none", "ramp", "rough"):
+            with self.subTest(terrain=terrain), temporary_scene("upkie", terrain) as scene:
+                model = mujoco.MjModel.from_xml_path(str(scene))
+                self.assertEqual((model.nq, model.nv, model.nu), (13, 12, 6))
+                self.assertEqual(model.opt.timestep, 0.0005)
+                self.assertEqual(model.opt.integrator, mujoco.mjtIntegrator.mjINT_IMPLICITFAST)
 
     @unittest.skipIf(mujoco is None, "mujoco Python package is not installed")
     def test_generator_cli_in_relocated_description(self):

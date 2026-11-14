@@ -24,7 +24,9 @@ The MJCF is the simulation reference, so the MPC URDF is generated from it rathe
 | Sensors `imu_quat`, `imu_gyro`, `imu_acc` at the upstream `imu` site | The names the ros2_control IMU sensor reads, as for G1/H2 |
 
 Joint armature (0.005 kg m^2), friction loss (0.1 N m), joint ranges, inertias, the 55 mm x 44 mm tire cylinders and `noslip_iterations=4` are unchanged.
-[`scene.xml`](../../../mujoco/robots/upkie/scene.xml) adds a flat floor, lighting aimed at `base`, a 0.5 ms timestep and the implicit-fast integrator.
+[`scene.xml`](../../../mujoco/robots/upkie/scene.xml) selects a 0.5 ms timestep, the [Upkie night background](../../../mujoco/common/backgrounds/background_night_upkie.xml) and the robot module, in the same composition style as H2.
+The background provides the unchanged flat-floor physics and H2-style studio appearance with lights aimed at `base`; `upkie.xml` owns the implicit-fast integrator and four no-slip iterations.
+Optional ramp/uneven includes remain commented out, so the default wheel-drive checkpoint is still flat.
 
 
 ## Generated URDF
