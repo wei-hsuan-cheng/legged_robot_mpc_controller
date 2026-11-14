@@ -36,6 +36,27 @@ ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=upkie \
   rviz:=true mujoco_headless:=false baseCommandGui:=true
 ```
 
+For a scripted pass/fail run instead, the harness launches the simulator itself, drives the command profile and writes `PREFIX.json` (verdict, max roll/pitch, mean speeds) plus tracking/solver CSVs.
+These are the arguments of the 2026-11-14 regression (GT base, MPC 200 Hz); generate each scene first as above:
+
+```bash
+H=src/legged_robot_mpc_controller/tests/wb_id_walk_test.py
+COMMON="--robot-name upkie --source ground_truth_state --mpc-rate 200 --minimum-height 0.15 --record-joints --record-tracking"
+# ramp (scene: --terrain upkie_ramp)
+python3 $H $COMMON --axis vx --speed 0.2 --hold 10 --ramp 2 --settle 4 --rest 5 \
+  --scene /tmp/upkie_ramp_scene.xml --prefix /tmp/upkie_ramp
+# 10 mm one-sided strip with height steps (scene: --terrain split_height --split-height 0.01)
+python3 $H $COMMON --axis vx --speed 0.15 --hold 12 --ramp 2 --settle 4 --rest 5 \
+  --height-sequence '[[12,0.34],[19,0.30]]' --scene /tmp/upkie_split10_scene.xml --prefix /tmp/upkie_split10
+# 20 mm one-sided strip (scene: --terrain split_height --split-height 0.02); currently falls after climbing
+python3 $H $COMMON --axis vx --speed 0.2 --hold 10 --ramp 2 --settle 4 --rest 5 \
+  --scene /tmp/upkie_split20_scene.xml --prefix /tmp/upkie_split20
+# uneven field (scene: --terrain upkie_rough)
+python3 $H $COMMON --axis vx --speed 0.3 --hold 9 --ramp 2 --settle 4 --rest 5 \
+  --scene /tmp/upkie_rough_scene.xml --prefix /tmp/upkie_rough
+python3 src/legged_robot_mpc_controller/tests/tuning/analyze_wheeled_biped.py /tmp/upkie_ramp --plot
+```
+
 Choose `--terrain upkie_rough` for the uneven field, or `--terrain split_height --split-height 0.01` for a raised left-wheel strip starting at x = 0.6 m.
 The split strip is 0.28 m wide, centered at y = 0.2 m, and ends at x = 3.4 m; the right wheel stays on the background floor.
 Use only one simulator at a time.
