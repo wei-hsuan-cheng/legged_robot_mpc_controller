@@ -33,6 +33,12 @@ Optional ramp/uneven includes remain commented out, so the default wheel-drive c
 
 [`upkie.urdf`](upkie.urdf) is written by [`generate_upkie_urdf.py`](generate_upkie_urdf.py) from the MJCF: link frames, joint axes, masses, centres of mass and inertia tensors are copied unchanged, visuals keep the MJCF mesh placements, and collisions are the MJCF primitives.
 Rerun the script after any MJCF change.
+The quaternion-to-RPY conversion explicitly handles pitch at +/-90 degrees by choosing zero yaw and preserving the remaining roll/yaw combination.
+The earlier conversion evaluated ambiguous zero-over-zero angle formulas at these orientations, misrotating six visual meshes and four collision primitives and making the leg parts appear disconnected in RViz.
+The fix changes only those geometry rotations; all seven joint definitions and seven inertial blocks are exactly unchanged, as are the MJCF and controller parameters.
+This is an asset-conversion issue, not a change to the MPC's runtime orientation representation.
+The singular-angle convention is the same kind of nonunique-angle handling described in [SciPy's Euler conversion documentation](https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.transform.Rotation.as_euler.html); the generator itself uses only Python's standard library.
+Regression coverage in [`test_upkie_urdf.py`](../../../../tests/test_upkie_urdf.py) checks exact/near-singular rotations, every source quaternion and all generated visual, collision, joint and IMU poses.
 
 - Wheels are scalar `revolute` joints with a +/-1e4 rad placeholder bound, so nq = nv = 12 with the MPC's Translation + SphericalZYX base. URDF `continuous` would give nq = 14.
 - The MPC masks wheel angles out of position limits and posture costs; the placeholder never acts as a bound.

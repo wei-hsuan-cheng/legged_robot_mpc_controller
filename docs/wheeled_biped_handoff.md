@@ -33,6 +33,28 @@ The same ramp failure was reproduced from HEAD without the test changes; no terr
 These checks compile/render scenes, not closed-loop MPC validation or a ROS build; no robot-controller simulation was launched.
 
 
+## URDF Visualization Fix and Rate Headroom (2026-11-14)
+
+The user reported correct MJCF rendering but disconnected leg meshes in RViz.
+The generator's quaternion-to-RPY conversion lost the coupled roll/yaw rotation at exactly +/-90-degree pitch, producing rotation-matrix entry errors as large as 1.0 for ten geometries.
+Added an explicit singular branch, regenerated the URDF and corrected six visual meshes plus four collision primitives.
+All seven joint definitions and seven inertial blocks remain byte-for-byte identical as parsed XML; no MJCF, controller gains, contact equalities or MPC settings changed.
+Three local regression tests pass: exact/near-singular rotations, all source quaternions and generated geometry/joint/IMU pose agreement.
+An offline MuJoCo import/render of the old and corrected URDF reproduced the user's visual defect and confirmed that the corrected model matches the MJCF assembly.
+The temporary three-panel comparison is `/tmp/codex_upkie_urdf_comparison.png` on the Mac; it is a static asset check, not an RViz or closed-loop runtime test.
+No ROS nodes, builds or closed-loop tests were started, and the user's separate `description/urdf/env.urdf.xacro` edit was left untouched.
+Relaunch the robot-state publisher and visualization to reload the corrected URDF; the generator fix does not require new CppAD libraries because the rigid-body model is unchanged.
+
+The user's runtime logs request 100 Hz and measure about 97.7-98.0 Hz, with average MPC advances around 1.8-2.0 ms and observed interval peaks up to 4.9 ms.
+The worker deliberately sleeps until its target period, so these logs do not imply a 100 Hz computation ceiling.
+The measured advance excludes some post-solve diagnostics/publication and does not bound future worst-case latency.
+Recommend 150 Hz as the next trial (6.67 ms period), or 125 Hz (8 ms) for more scheduling margin; neither rate has been validated here.
+Do not claim stable 200 Hz from this evidence: its 5 ms budget leaves only about 0.1 ms beyond the observed 4.9 ms solve peak, before other work and scheduling jitter.
+Keep the current controller parameters unchanged until the user requests a rate change or benchmark.
+The reported zero solver exceptions and zero torque-window overruns are useful health evidence, but the logged equality residuals are not a physical stability guarantee.
+Per-term maximum SSE is an unweighted sum over intermediate nodes in the diagnostic loop, whereas the aggregate solver metric uses its own accumulation; do not interpret their different numerical scales as a logging contradiction or a per-joint torque error.
+
+
 ## Formulation Documentation (2026-11-14)
 
 Expanded the formulation with a source-to-code traceability table, exact paper sections/equations/pages and links next to the relevant formulas.

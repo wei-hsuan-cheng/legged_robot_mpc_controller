@@ -53,7 +53,7 @@
       </material>
     </visual>
     <visual>
-      <origin xyz="-0.0552 -0.03 0.125246" rpy="0 1.57079633 0" />
+      <origin xyz="-0.0552 -0.03 0.125246" rpy="1.57079633 1.57079633 0" />
       <geometry>
         <mesh filename="package://legged_robot_mpc_controller/description/meshes/robots/upkie/power_dist.stl" />
       </geometry>
@@ -77,7 +77,7 @@
       </material>
     </visual>
     <visual>
-      <origin xyz="-0.035 -0.085 0.1572" rpy="0 -1.57079633 0" />
+      <origin xyz="-0.035 -0.085 0.1572" rpy="1.57079633 -1.57079633 0" />
       <geometry>
         <mesh filename="package://legged_robot_mpc_controller/description/meshes/robots/upkie/switch.stl" />
       </geometry>
@@ -95,7 +95,7 @@
       </material>
     </visual>
     <collision name="trunk_collision2">
-      <origin xyz="1.68912e-16 0.09935 0.0602" rpy="0 1.57079633 0" />
+      <origin xyz="1.68912e-16 0.09935 0.0602" rpy="1.57079633 1.57079633 0" />
       <geometry>
         <cylinder radius="0.05" length="0.0287" />
       </geometry>
@@ -119,7 +119,7 @@
       </material>
     </visual>
     <collision name="trunk_collision3">
-      <origin xyz="-5.90135e-18 -0.09935 0.0602" rpy="0 1.57079633 0" />
+      <origin xyz="-5.90135e-18 -0.09935 0.0602" rpy="-1.57079633 1.57079633 0" />
       <geometry>
         <cylinder radius="0.05" length="0.0287" />
       </geometry>
@@ -183,7 +183,7 @@
       </geometry>
     </collision>
     <collision name="left_femur_collision2">
-      <origin xyz="-1.71706e-14 -0.17015 0.0252487" rpy="0 1.57079633 0" />
+      <origin xyz="-1.71706e-14 -0.17015 0.0252487" rpy="-1.57079633 1.57079633 0" />
       <geometry>
         <cylinder radius="0.02" length="0.06" />
       </geometry>
@@ -198,7 +198,7 @@
       </material>
     </visual>
     <visual>
-      <origin xyz="-1.99482e-14 -0.2 0.0261244" rpy="0 -1.57079633 0" />
+      <origin xyz="-1.99482e-14 -0.2 0.0261244" rpy="-1.57079633 -1.57079633 0" />
       <geometry>
         <mesh filename="package://legged_robot_mpc_controller/description/meshes/robots/upkie/femur.stl" />
       </geometry>
@@ -305,7 +305,7 @@
       </material>
     </visual>
     <visual>
-      <origin xyz="3.35448e-15 -0.2 -0.0261244" rpy="0 -1.57079633 0" />
+      <origin xyz="3.35448e-15 -0.2 -0.0261244" rpy="-1.57079633 -1.57079633 0" />
       <geometry>
         <mesh filename="package://legged_robot_mpc_controller/description/meshes/robots/upkie/tibia.stl" />
       </geometry>
@@ -414,7 +414,7 @@
       </geometry>
     </collision>
     <collision name="right_femur_collision2">
-      <origin xyz="-3.5027e-15 -0.17015 0.0252487" rpy="0 1.57079633 0" />
+      <origin xyz="-3.5027e-15 -0.17015 0.0252487" rpy="-1.57079633 1.57079633 0" />
       <geometry>
         <cylinder radius="0.02" length="0.06" />
       </geometry>
@@ -429,7 +429,7 @@
       </material>
     </visual>
     <visual>
-      <origin xyz="-4.58159e-15 -0.2 0.0261244" rpy="0 -1.57079633 0" />
+      <origin xyz="-4.58159e-15 -0.2 0.0261244" rpy="-1.57079633 -1.57079633 0" />
       <geometry>
         <mesh filename="package://legged_robot_mpc_controller/description/meshes/robots/upkie/femur.stl" />
       </geometry>
@@ -536,7 +536,7 @@
       </material>
     </visual>
     <visual>
-      <origin xyz="1.24225e-14 -0.2 -0.0261244" rpy="0 -1.57079633 0" />
+      <origin xyz="1.24225e-14 -0.2 -0.0261244" rpy="-1.57079633 -1.57079633 0" />
       <geometry>
         <mesh filename="package://legged_robot_mpc_controller/description/meshes/robots/upkie/tibia.stl" />
       </geometry>

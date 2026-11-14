@@ -15,8 +15,7 @@ position bounds are a large symmetric placeholder; the MPC masks wheel angles ou
 position limits and posture costs explicitly, so the value never acts as a bound.
 
 Joint armature and friction loss are MuJoCo joint properties with no URDF field; the MPC takes
-the armature from ocs2.model.jointArmature (it is in Pinocchio's RNEA), and the friction loss
-remains an unmodelled disturbance.
+the armature from ocs2.model.jointArmature and smoothed friction from ocs2.model.jointFriction.
 """
 
 import math
@@ -46,9 +45,17 @@ def quat_to_rpy(q):
     w, x, y, z = q
     norm = math.sqrt(w * w + x * x + y * y + z * z)
     w, x, y, z = w / norm, x / norm, y / norm, z / norm
-    roll = math.atan2(2 * (w * x + y * z), 1 - 2 * (x * x + y * y))
-    pitch = math.asin(max(-1.0, min(1.0, 2 * (w * y - z * x))))
-    yaw = math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))
+    r00 = 1 - 2 * (y * y + z * z)
+    r10 = 2 * (x * y + w * z)
+    cos_pitch = math.hypot(r00, r10)
+    pitch = math.atan2(2 * (w * y - z * x), cos_pitch)
+    if cos_pitch > 1.0e-12:
+        roll = math.atan2(2 * (y * z + w * x), 1 - 2 * (x * x + y * y))
+        yaw = math.atan2(r10, r00)
+    else:
+        # At gimbal lock only a roll/yaw combination is determined; preserve it with yaw = 0.
+        roll = math.atan2(2 * (w * x - y * z), 1 - 2 * (x * x + z * z))
+        yaw = 0.0
     return roll, pitch, yaw
 
 
