@@ -128,7 +128,8 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "refBaseHeight",
             default_value="",
-            description="Optional nominal pelvis height override [m] for both MPC and GUI. "
+            description="Optional nominal pelvis height override [m] for both MPC and GUI, inside "
+                        "ocs2.reference.minBaseHeight/maxBaseHeight. "
                         "Empty uses ocs2.reference.defaultBaseHeight from the selected controller YAML.",
         ),
         DeclareLaunchArgument("stairClimbingFile", default_value=stair_climbing_file_default),
@@ -242,6 +243,10 @@ def generate_launch_description():
         height = float(height_override or reference["defaultBaseHeight"])
         if not math.isfinite(height) or height <= 0.0:
             raise ValueError("Reference base height must be finite and positive.")
+        minimum_height, maximum_height = float(reference["minBaseHeight"]), float(reference["maxBaseHeight"])
+        if not minimum_height <= height <= maximum_height:
+            raise ValueError(f"Reference base height {height} is outside ocs2.reference.minBaseHeight/maxBaseHeight "
+                             f"[{minimum_height}, {maximum_height}].")
         if height_override:
             reference["defaultBaseHeight"] = height
             # allow_substs=True always creates a temporary copy; never rewrite the source YAML.
@@ -250,7 +255,8 @@ def generate_launch_description():
         return [
             SetLaunchConfiguration("controllersParamsFile", str(path)),
             SetLaunchConfiguration("guiRefBaseHeight", str(height)),
-            SetLaunchConfiguration("guiMaxHeightDelta", str(reference["maxDeltaPelvisHeight"])),
+            SetLaunchConfiguration("guiMinBaseHeight", str(minimum_height)),
+            SetLaunchConfiguration("guiMaxBaseHeight", str(maximum_height)),
             SetLaunchConfiguration("guiMaxVx", str(reference["maxDisplacementVelocityX"])),
             SetLaunchConfiguration("guiMaxVy", str(reference["maxDisplacementVelocityY"])),
             SetLaunchConfiguration("guiMaxYawRate", str(reference["maxRotationVelocity"])),
@@ -403,8 +409,11 @@ def generate_launch_description():
                 "reference_base_height": ParameterValue(
                     LaunchConfiguration("guiRefBaseHeight"), value_type=float
                 ),
-                "max_base_height_delta": ParameterValue(
-                    LaunchConfiguration("guiMaxHeightDelta"), value_type=float
+                "minimum_base_height": ParameterValue(
+                    LaunchConfiguration("guiMinBaseHeight"), value_type=float
+                ),
+                "maximum_base_height": ParameterValue(
+                    LaunchConfiguration("guiMaxBaseHeight"), value_type=float
                 ),
             }
         ],

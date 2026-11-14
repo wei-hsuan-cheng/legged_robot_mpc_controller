@@ -627,9 +627,10 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         targetRotationVelocity: 0.5
         maxDisplacementVelocityX: 1.0
         maxDisplacementVelocityY: 0.5
-        maxDeltaPelvisHeight: 0.4
         maxRotationVelocity: 1.5708
         defaultBaseHeight: 0.795
+        minBaseHeight: 0.395
+        maxBaseHeight: 1.195
         basePosePositionTolerance: 0.02
         basePoseOrientationTolerance: 0.03
         
@@ -1148,9 +1149,10 @@ humanoid_centroidal_mpc_controller:
         targetRotationVelocity: 0.5
         maxDisplacementVelocityX: 2.4
         maxDisplacementVelocityY: 1.2
-        maxDeltaPelvisHeight: 0.4
         maxRotationVelocity: 1.0
         defaultBaseHeight: 0.795
+        minBaseHeight: 0.395
+        maxBaseHeight: 1.195
         basePosePositionTolerance: 0.02
         basePoseOrientationTolerance: 0.03
         # Arms hang at the sides. The all-zero arm posture this replaced put the

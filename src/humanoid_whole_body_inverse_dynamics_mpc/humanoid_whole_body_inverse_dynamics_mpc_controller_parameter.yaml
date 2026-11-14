@@ -398,8 +398,11 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           in x [m/s]"}
       maxDisplacementVelocityY: {type: double, default_value: 1.2, description: "Maximum commanded base velocity
           in y [m/s]"}
-      maxDeltaPelvisHeight: {type: double, default_value: 0.4, description: "Maximum commanded pelvis height change
-          [m]"}
+      minBaseHeight: {type: double, default_value: 0.3925, description: "Lowest commanded pelvis height above ground
+          [m]: the base command GUI's slider bottom and the clamp of base-height commands; with a posture table also of the
+          MPC height reference", validation: {gt: [0.0]}}
+      maxBaseHeight: {type: double, default_value: 1.1925, description: "Highest commanded pelvis height above ground
+          [m], as minBaseHeight", validation: {gt: [0.0]}}
       maxRotationVelocity: {type: double, default_value: 1.0, description: "Maximum commanded yaw rate [rad/s]"}
       velocityCommandRateLimits: {type: double_array, default_value: [0.1, 0.08, 0.05, 0.1], description: "Physical
           slew limits [ax, ay (m/s^2), height rate (m/s), yaw acceleration (rad/s^2)] applied to the scaled walking

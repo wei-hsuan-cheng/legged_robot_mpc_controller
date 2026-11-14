@@ -21,23 +21,23 @@ exec(compile(ast.Module(body=SELECTED, type_ignores=[]), str(SOURCE), "exec"), N
 
 class BaseCommandGuiTest(unittest.TestCase):
     def test_robot_height_mapping_and_reset(self):
-        for center, delta in ((.30, .08), (.795, .4), (1.02, .4)):
+        for center, minimum, maximum in ((.30, .22, .33), (.795, .395, 1.195), (1.02, .62, 1.42)):
             with self.subTest(center=center):
-                bar = NAMESPACE["HeightBar"](None, MagicMock(), center, delta)
-                self.assertAlmostEqual(bar._value_to_y(center), (bar._top + bar._bottom) / 2)
-                self.assertAlmostEqual(bar._y_to_value(bar._top), center + delta)
-                self.assertAlmostEqual(bar._y_to_value(bar._bottom), center - delta)
+                bar = NAMESPACE["HeightBar"](None, MagicMock(), center, minimum, maximum)
+                self.assertAlmostEqual(bar._y_to_value(bar._value_to_y(center)), center)
+                self.assertAlmostEqual(bar._y_to_value(bar._top), maximum)
+                self.assertAlmostEqual(bar._y_to_value(bar._bottom), minimum)
                 bar.set(10)
-                self.assertAlmostEqual(bar.get(), center + delta)
+                self.assertAlmostEqual(bar.get(), maximum)
                 bar.set(-10)
-                self.assertAlmostEqual(bar.get(), center - delta)
+                self.assertAlmostEqual(bar.get(), minimum)
                 bar.set(center)
                 self.assertEqual(bar.get(), center)
 
     def test_publication_uses_the_same_range(self):
         publisher = MagicMock()
-        node = SimpleNamespace(_publisher=publisher, _minimum_height=.22, _maximum_height=.38)
-        for requested, expected in ((.3, .3), (0, .22), (2, .38)):
+        node = SimpleNamespace(_publisher=publisher, _minimum_height=.22, _maximum_height=.33)
+        for requested, expected in ((.3, .3), (0, .22), (2, .33)):
             NAMESPACE["publish_command"](node, 0, 0, requested, 0)
             self.assertAlmostEqual(publisher.publish.call_args.args[0].desired_pelvis_height, expected)
         node._minimum_height, node._maximum_height = .62, 1.42
@@ -45,12 +45,13 @@ class BaseCommandGuiTest(unittest.TestCase):
         self.assertEqual(publisher.publish.call_args.args[0].desired_pelvis_height, 1.2)
 
     def test_invalid_ranges_are_rejected(self):
-        for center, delta in ((0, .1), (.3, -.1), (math.nan, .1), (.3, math.inf)):
+        for center, minimum, maximum in ((0, 0, .1), (.3, .33, .22), (.3, -.1, .4), (math.nan, .2, .4),
+                                         (.3, .2, math.inf), (.4, .22, .33), (.2, .22, .33)):
             with self.assertRaises(ValueError):
-                NAMESPACE["height_limits"](center, delta)
+                NAMESPACE["height_limits"](center, minimum, maximum)
 
-    def test_zero_delta_holds_nominal_height(self):
-        bar = NAMESPACE["HeightBar"](None, MagicMock(), .30, 0.0)
+    def test_empty_range_holds_nominal_height(self):
+        bar = NAMESPACE["HeightBar"](None, MagicMock(), .30, .30, .30)
         self.assertAlmostEqual(bar._value_to_y(.30), (bar._top + bar._bottom) / 2)
         bar.set(2)
         self.assertEqual(bar.get(), .30)

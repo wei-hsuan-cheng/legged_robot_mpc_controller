@@ -60,14 +60,24 @@ TargetTrajectoriesCalculatorBase::TargetTrajectoriesCalculatorBase(const Referen
                                   "one joint state of the MPC joint dimension per height");
     }
   }
+  if (!std::isfinite(referenceConfig.minBaseHeight) || !std::isfinite(referenceConfig.maxBaseHeight) ||
+      !(referenceConfig.minBaseHeight > 0.0) || !(referenceConfig.minBaseHeight <= referenceConfig.defaultBaseHeight) ||
+      !(referenceConfig.defaultBaseHeight <= referenceConfig.maxBaseHeight)) {
+    throw std::invalid_argument("[TargetTrajectoriesCalculatorBase] needs 0 < minBaseHeight <= defaultBaseHeight <= maxBaseHeight");
+  }
+  if (!referenceConfig.postureHeights.empty() && (referenceConfig.minBaseHeight < referenceConfig.postureHeights.front() ||
+                                                  referenceConfig.maxBaseHeight > referenceConfig.postureHeights.back())) {
+    throw std::invalid_argument("[TargetTrajectoriesCalculatorBase] posture table heights must cover [minBaseHeight, maxBaseHeight]");
+  }
   postureHeights_ = referenceConfig.postureHeights;
   postureJointStates_ = referenceConfig.postureJointStates;
   defaultBaseHeight_ = referenceConfig.defaultBaseHeight;
+  minBaseHeight_ = referenceConfig.minBaseHeight;
+  maxBaseHeight_ = referenceConfig.maxBaseHeight;
   targetRotationVelocity_ = referenceConfig.targetRotationVelocity;
   targetDisplacementVelocity_ = referenceConfig.targetDisplacementVelocity;
   maxDisplacementVelocityX_ = referenceConfig.maxDisplacementVelocityX;
   maxDisplacementVelocityY_ = referenceConfig.maxDisplacementVelocityY;
-  maxDeltaPelvisHeight_ = referenceConfig.maxDeltaPelvisHeight;
   maxRotationVelocity_ = referenceConfig.maxRotationVelocity;
 }
 
@@ -88,7 +98,7 @@ scalar_t TargetTrajectoriesCalculatorBase::clampBaseHeight(scalar_t height) cons
   if (postureHeights_.empty()) {
     return height;
   }
-  return std::clamp(height, postureHeights_.front(), postureHeights_.back());
+  return std::clamp(height, minBaseHeight_, maxBaseHeight_);
 }
 
 /******************************************************************************************************/
@@ -99,7 +109,7 @@ vector_t TargetTrajectoriesCalculatorBase::getPostureForHeight(scalar_t height) 
   if (postureHeights_.empty()) {
     return targetJointState_;
   }
-  const scalar_t h = clampBaseHeight(height);
+  const scalar_t h = std::clamp(height, postureHeights_.front(), postureHeights_.back());
   const auto upper = std::upper_bound(postureHeights_.begin(), postureHeights_.end(), h);
   if (upper == postureHeights_.begin()) {
     return postureJointStates_.front();
@@ -132,8 +142,7 @@ vector6_t TargetTrajectoriesCalculatorBase::getDeltaBaseTarget(const vector4_t& 
   target(0) = currentPoseTarget(0) + globalFrameDeltaX;
   target(1) = currentPoseTarget(1) + globalFrameDeltaY;
   // base z relative to the default height
-  scalar_t deltaPelvisHeight = std::clamp(commadLinePoseTarget(2), -maxDeltaPelvisHeight_, maxDeltaPelvisHeight_);
-  target(2) = defaultBaseHeight_ + deltaPelvisHeight;
+  target(2) = std::clamp(defaultBaseHeight_ + commadLinePoseTarget(2), minBaseHeight_, maxBaseHeight_);
   // theta_z relative to current
   target(3) = currentPoseTarget(3) + commadLinePoseTarget(3) * M_PI / 180.0;
   target(4) = 0.0;

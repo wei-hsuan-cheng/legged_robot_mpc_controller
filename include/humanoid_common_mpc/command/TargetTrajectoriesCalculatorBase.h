@@ -47,16 +47,18 @@ struct ReferenceConfig {
   scalar_t targetRotationVelocity{0.5};
   scalar_t maxDisplacementVelocityX{2.0};
   scalar_t maxDisplacementVelocityY{1.2};
-  scalar_t maxDeltaPelvisHeight{0.4};
   scalar_t maxRotationVelocity{1.0};
   scalar_t defaultBaseHeight{0.79};
+  // Commanded base height range [m], above the ground the model assumes; must contain defaultBaseHeight.
+  scalar_t minBaseHeight{0.39};
+  scalar_t maxBaseHeight{1.19};
   // Physical command slew limits [ax, ay, height rate, yaw acceleration]; zero disables an axis.
   vector4_t commandRateLimits{vector4_t::Zero()};
   scalar_t basePosePositionTolerance{0.02};
   scalar_t basePoseOrientationTolerance{0.03};
   vector_t defaultJointState;
   // Optional joint posture reference as a function of base height: joint states at strictly increasing
-  // heights, linearly interpolated at the target height, which is clamped to [front, back]. Empty: the
+  // heights covering [minBaseHeight, maxBaseHeight], linearly interpolated at the target height. Empty: the
   // target joint state at every height.
   scalar_array_t postureHeights;
   vector_array_t postureJointStates;
@@ -74,7 +76,10 @@ class TargetTrajectoriesCalculatorBase {
   void setTargetRotationVelocity_(scalar_t targetRotationVelocity) { targetRotationVelocity = targetRotationVelocity; }
   void setTargetJointState(const vector_t targetJointState);
 
-  /** Base height clamped to the posture table's range; unchanged without a table. */
+  /**
+   * Base height clamped to [minBaseHeight, maxBaseHeight] when a posture table is set; unchanged without one,
+   * since base pose and terrain targets then carry world-frame heights.
+   */
   scalar_t clampBaseHeight(scalar_t height) const;
 
   /** Joint posture reference at a base height: interpolated from the posture table, else the target joint state. */
@@ -134,10 +139,11 @@ class TargetTrajectoriesCalculatorBase {
   // For velocity control mode
   scalar_t maxDisplacementVelocityX_ = 0.6;
   scalar_t maxDisplacementVelocityY_ = 0.3;
-  scalar_t maxDeltaPelvisHeight_ = 0.3;
   scalar_t maxRotationVelocity_ = 0.6;
 
   scalar_t defaultBaseHeight_;
+  scalar_t minBaseHeight_;
+  scalar_t maxBaseHeight_;
   vector_t targetJointState_;
   scalar_array_t postureHeights_;
   vector_array_t postureJointStates_;

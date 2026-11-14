@@ -8,8 +8,8 @@ The implemented equations, current weights, rolling-contact equalities and execu
 
 ## Leg-Crossing Fix (2026-11-15, Claude)
 
-Nothing is committed.
-Shipped in `config/upkie/ros2_controllers.yaml`: posture by height (0.20-0.33 m table, target heights clamped to it), hip/knee posture 3/0.1 (terminal 6/0.2), `tangentialVelocityGain` 5; base height/pitch/roll weights unchanged at 3000/500/2000.
+Pushed as 3943180, 30b2410 and b7de5eb.
+Shipped in `config/upkie/ros2_controllers.yaml`: posture by height (0.20-0.33 m table), commanded heights 0.22-0.33 m (`minBaseHeight`/`maxBaseHeight`), hip/knee posture 3/0.1 (terminal 6/0.2), `tangentialVelocityGain` 5; base height/pitch/roll weights unchanged at 3000/500/2000.
 Every user observation is fixed in simulation (GT base, MPC 200 Hz) and the full flat/terrain regression passes; tables below.
 Changed: [`TargetTrajectoriesCalculatorBase`](../include/humanoid_common_mpc/command/TargetTrajectoriesCalculatorBase.h) (optional posture-by-height table and height clamp), [`WbIdMpcTargetTrajectoriesCalculator.cpp`](../src/core/humanoid_wb_id_mpc/src/command/WbIdMpcTargetTrajectoriesCalculator.cpp) (uses it), the WB-ID parameter schema and controller (`ocs2.reference.postureHeights` / `postureJointStates`), the table generator [`config/upkie/compute_posture_table.py`](../config/upkie/compute_posture_table.py) and the table in the Upkie YAML.
 Without a table nothing changes, so H2/G1 behave as before; the centroidal controller is untouched.
@@ -43,7 +43,17 @@ The 0.38 m GUI maximum is out of reach: straight legs give about 0.34 m, and the
 ### Fix and results
 
 Each height's balanced symmetric posture (level trunk, tires on the floor, tire contact under the whole-robot CoM) is precomputed by `compute_posture_table.py`; at 0.30 m it reproduces `defaultJointState` to six decimals.
-The joint reference is interpolated at the target height, and target heights are clamped to the table (0.20-0.33 m; 0.33 m keeps a 0.5 rad knee bend).
+The joint reference is interpolated at the target height, and target heights are clamped to `minBaseHeight`/`maxBaseHeight` (0.22-0.33 m; 0.33 m keeps a 0.5 rad knee bend), which the table must cover.
+
+### Height range in the YAML
+
+`ocs2.reference.minBaseHeight` / `maxBaseHeight` replace `maxDeltaPelvisHeight` in both controllers' schemas and in every robot YAML.
+They are absolute heights above the ground the model assumes, and `defaultBaseHeight` must lie between them.
+They set the GUI slider ends and its published-command clamp, the clamp of base-pose deltas, and, with a posture table, the clamp of the WB-ID height reference.
+Without a posture table the WB-ID reference is not clamped, because base-pose and terrain targets then carry world-frame heights (H2 stairs).
+The controller refuses to start if a posture table does not cover the range, and the launch refuses a `refBaseHeight` outside it.
+Upkie is 0.22-0.33 m, so the GUI no longer offers the unreachable 0.38 m.
+H2 (0.62-1.42 m) and G1 (0.395-1.195 m) are their former `defaultBaseHeight +/- 0.4`, so their behaviour is unchanged.
 Experiment 1 also set H2's posture ratio (hip 3 / knee 0.1, terminal 6 / 0.2), passed with `--set` and not yet in the YAML.
 
 | Case | Shipped | Exp 1: hip 3 / knee 0.1 | Exp 2: + posture by height |
@@ -416,7 +426,7 @@ Two implementation defects were found rather than treating this as missing turni
    See [MuJoCo 3.3.2 source, mj_objectVelocity](https://github.com/google-deepmind/mujoco/blob/3.3.2/src/engine/engine_support.c#L1166); this simulator fix is in the separate `mujoco_ros2_control` repository and requires rebuilding it too.
    A synthetic rotated/off-center-inertia regression test matches link-origin Jacobians for yaw, pitch, translation and mixed motion, and verifies both feedback paths select XBODY.
 
-The GUI height slider and published-command clamp now use `defaultBaseHeight +/- maxDeltaPelvisHeight` from the selected YAML instead of hard-coded 0.2-1.0 m.
+The GUI height slider and published-command clamp now use `defaultBaseHeight +/- maxDeltaPelvisHeight` from the selected YAML instead of hard-coded 0.2-1.0 m (superseded on 2026-11-15 by absolute `minBaseHeight`/`maxBaseHeight`).
 Upkie therefore spans 0.22-0.38 m with 0.30 m at the slider center, while H2 can command its configured heights above 1 m.
 The launch passes the existing height delta to the GUI without adding a launch argument or controller parameter; four headless GUI mapping/clamping tests pass, including a fixed-height zero-delta configuration.
 Both packages were rebuilt in Release in `ros_jazzy`; wheel `_v2` CppAD functions were generated on first launch and reused afterward.
@@ -707,7 +717,7 @@ python3 src/legged_robot_mpc_controller/tests/tuning/analyze_wheeled_biped.py /t
 ```
 
 Do not run two simulations at once (shared topic names).
-On the GUI the height slider is absolute; the Upkie nominal is 0.30 m and `maxDeltaPelvisHeight` is 0.08 m.
+On the GUI the height slider is absolute; the Upkie nominal is 0.30 m and the range is `minBaseHeight`/`maxBaseHeight`, 0.22-0.33 m.
 
 
 ## How to build and test
@@ -742,7 +752,7 @@ These are proposed follow-up milestones, not permission to silently expand the c
 | 1 | Larger asymmetric edges and slow terrain entries | Superseded by "Tire Collision Fix and 20 mm Edge Analysis" at the top: the fall mechanism is identified (slip feedback on a blocked wheel), the tire collision is fixed, and the mesh-tire 20 mm entry climbs but then falls off the strip's side |
 | 2 | Broader no-map terrain acceptance | Still untested: more random seeds, reverse traversal, ramp descent/far drop, turns while on the ramp/field, and sudden stops at edges; preserve the passed small-terrain checkpoint |
 | 3 | Push-recovery envelope | Only the original +/-1.5 Nm pitch and +/-6 N fore/aft pulses are validated; lateral/yaw pushes, combined disturbances and pushes on unequal-height terrain remain untested |
-| 4 | Height envelope without sacrificing balance | Current tests cover 0.26-0.34 m and a height change on a 10 mm split; GUI endpoints 0.22/0.38 m, faster height changes and a range of support-height differences need separate testing |
+| 4 | Height envelope without sacrificing balance | Current tests cover 0.26-0.34 m and a height change on a 10 mm split; GUI endpoints 0.22/0.33 m, faster height changes and a range of support-height differences need separate testing |
 | 5 | Rolling-contact estimated-state control | Not implemented: adapt stationary-foot KF measurements to tire rolling geometry, compensate IMU extrinsics, gate unreliable/slipping contacts, then repeat acceptance without simulator base-state feedback |
 | 6 | Kneeling stand-up and handover | Export/playback bounds were corrected, but the full simulator/controller stand-up and MPC catch have never passed a complete test |
 | 7 | Flight/hop | Not implemented/tested: add and validate symmetric takeoff, flight, wheel-spin behavior and touchdown before claiming hopping |

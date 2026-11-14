@@ -493,9 +493,9 @@ At each solve, the target trajectory re-anchors to the current base pose and int
 The velocity references have zero world vertical velocity and zero pitch/roll rates, even while a changing height command moves the height reference between solves.
 Upkie supports forward driving, differential turning and leg-length height adjustment in principle, not independent sideways translation.
 The GUI still accepts a nonzero lateral command without a wheel-specific rejection, so keep $c_y=0$.
-The GUI's absolute height slider and outgoing height clamp use `defaultBaseHeight +/- maxDeltaPelvisHeight` from the selected controller YAML, with the lower endpoint clipped at zero.
-For Upkie this is $[0.22,0.38]\ \mathrm{m}$, centered at $0.30\ \mathrm{m}$; the endpoint labels show the same range.
-Changing `refBaseHeight` moves the GUI center while retaining the YAML height delta; no separate launch argument is needed for the slider range.
+The GUI's absolute height slider and outgoing height clamp use `minBaseHeight`/`maxBaseHeight` from the selected controller YAML, with the reset mark at `defaultBaseHeight`.
+For Upkie this is $[0.22,0.33]\ \mathrm{m}$ with the reset at $0.30\ \mathrm{m}$; the endpoint labels show the same range, which the posture table must cover.
+Changing `refBaseHeight` moves the reset value only, and the launch rejects a value outside the range.
 Configured command maxima are not validated stability limits.
 
 

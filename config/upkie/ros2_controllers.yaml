@@ -242,9 +242,12 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         # GUI/topic normalization maxima. A wheeled biped cannot move sideways: command vy = 0.
         maxDisplacementVelocityX: 1.0
         maxDisplacementVelocityY: 0.1
-        maxDeltaPelvisHeight: 0.08
         maxRotationVelocity: 1.5
         defaultBaseHeight: 0.30
+        # Commanded height range: GUI slider, command clamp and MPC height reference. Must lie inside postureHeights.
+        # 0.33 m keeps a 0.5 rad knee bend from the straight-leg singularity (about 0.34 m); 0.22 m is the lowest tested.
+        minBaseHeight: 0.22
+        maxBaseHeight: 0.33
         basePosePositionTolerance: 0.02
         basePoseOrientationTolerance: 0.03
         velocityCommandRateLimits:
@@ -265,7 +268,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         # Posture reference by target height (config/upkie/compute_posture_table.py): the balanced symmetric
         # posture of each height (level trunk, tires on the floor, tire contact under the CoM). A fixed 0.30 m
         # posture far from the target height makes splitting the legs fore/aft cheaper than staying symmetric.
-        # Target heights are clamped to this range; 0.33 m keeps a 0.5 rad knee bend from the straight-leg singularity.
+        # The table must cover [minBaseHeight, maxBaseHeight]; regenerate it before widening that range.
         postureHeights:
           [0.200, 0.210, 0.220, 0.230, 0.240, 0.250, 0.260, 0.270, 0.280, 0.290, 0.300, 0.310, 0.320, 0.330]
         postureJointStates:

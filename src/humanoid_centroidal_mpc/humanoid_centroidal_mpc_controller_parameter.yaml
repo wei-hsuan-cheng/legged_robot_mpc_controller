@@ -973,10 +973,17 @@ humanoid_centroidal_mpc_controller:
         default_value: 1.2,
         description: "Maximum commanded base velocity in y [m/s]"
       }
-      maxDeltaPelvisHeight: {
+      minBaseHeight: {
         type: double,
-        default_value: 0.4,
-        description: "Maximum commanded pelvis height change [m]"
+        default_value: 0.3925,
+        description: "Lowest commanded pelvis height above ground [m]: the base command GUI's slider bottom and the clamp of base-height commands",
+        validation: { gt: [0.0] }
+      }
+      maxBaseHeight: {
+        type: double,
+        default_value: 1.1925,
+        description: "Highest commanded pelvis height above ground [m], as minBaseHeight",
+        validation: { gt: [0.0] }
       }
       maxRotationVelocity: {
         type: double,
