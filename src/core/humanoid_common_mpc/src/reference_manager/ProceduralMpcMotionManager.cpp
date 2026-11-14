@@ -58,11 +58,13 @@ ProceduralMpcMotionManager::ProceduralMpcMotionManager(GaitMap gaitMap,
       basePoseTarget_(referenceConfig, mpcRobotModel, std::move(basePoseTargetToTargetTrajectories)),
       referenceConfig_(referenceConfig) {
   gaitMap_ = std::move(gaitMap);
-  // preSolverRun() indexes the ladder and falls back to rung 0 as "stance"; the loader
-  // validates the file, this guards direct construction.
-  if (gaitModeStates_.empty() || gaitModeStates_.front().gaitCommand != "stance") {
-    throw std::invalid_argument("[ProceduralMpcMotionManager] the gait ladder must start with 'stance'");
+  // preSolverRun() indexes the ladder and falls back to rung 0, the rest gait ("stance" on the legged robots,
+  // "wheel_drive" on Upkie); the loader validates the file, this guards direct construction.
+  if (gaitModeStates_.empty()) {
+    throw std::invalid_argument("[ProceduralMpcMotionManager] the gait ladder is empty");
   }
+  restGait_ = gaitModeStates_.front().gaitCommand;
+  currentGaitCommand_ = lastGaitCommand_ = restGait_;
   for (const auto& rung : gaitModeStates_) {
     if (gaitMap_.count(rung.gaitCommand) == 0) {
       throw std::invalid_argument("[ProceduralMpcMotionManager] gait ladder names '" + rung.gaitCommand +
@@ -202,7 +204,7 @@ void ProceduralMpcMotionManager::preSolverRun(scalar_t initTime,
     switchedModelReferenceManagerPtr_->setStairClimbingPlan(nullptr);
     stairClimbFinishedLogged_ = false;
     currentGaitMode_ = 0;
-    currentGaitCommand_ = lastGaitCommand_ = "stance";
+    currentGaitCommand_ = lastGaitCommand_ = restGait_;
     std::cout << "[ProceduralMpcMotionManager] Stair climbing plan cleared." << std::endl;
   }
 
@@ -265,7 +267,7 @@ void ProceduralMpcMotionManager::preSolverRun(scalar_t initTime,
     const bool moving = std::abs(filteredVelCommand(0)) > 0.03 || std::abs(filteredVelCommand(1)) > 0.03 ||
                         std::abs(filteredVelCommand(3)) > 0.05;
     currentGaitMode_ = 0;
-    currentGaitCommand_ = moving ? terrainGait : "stance";
+    currentGaitCommand_ = moving ? terrainGait : restGait_;
   } else if (initTime > lastGaitChangeTime_ + minGaitDwellTime_) {  // do not change the gait pattern too often
     // The bounds are enforced explicitly rather than left to the sentinel
     // thresholds in gaitModeStates_ ("stance" has minLinVelCmd = -0.1, which no
@@ -324,7 +326,7 @@ void ProceduralMpcMotionManager::runStairClimbing(scalar_t initTime, const vecto
     // Insert the full (non-periodic) climb sequence once, then park the stored
     // template on stance so the schedule extends with stance after the climb.
     gaitSchedulePtr_->insertModeSequenceTemplate(plan->getModeSequenceTemplate(), initTime, plan->getFinalTime() - 1e-3);
-    gaitSchedulePtr_->insertModeSequenceTemplate(gaitMap_.at("stance"), plan->getFinalTime(), plan->getFinalTime() + 0.5);
+    gaitSchedulePtr_->insertModeSequenceTemplate(gaitMap_.at(restGait_), plan->getFinalTime(), plan->getFinalTime() + 0.5);
 
     switchedModelReferenceManagerPtr_->setStairClimbingPlan(plan);
     activeStairClimbingPlan_ = std::move(plan);
@@ -332,7 +334,7 @@ void ProceduralMpcMotionManager::runStairClimbing(scalar_t initTime, const vecto
 
     // Park the velocity-gait FSM while the fixed sequence runs.
     currentGaitMode_ = 0;
-    currentGaitCommand_ = lastGaitCommand_ = "stance";
+    currentGaitCommand_ = lastGaitCommand_ = restGait_;
 
     std::cout << "[ProceduralMpcMotionManager] Stair climbing started at t=" << initTime << ", finishes at t="
               << activeStairClimbingPlan_->getFinalTime() << std::endl;

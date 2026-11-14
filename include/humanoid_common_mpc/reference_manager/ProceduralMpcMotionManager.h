@@ -81,8 +81,8 @@ class ProceduralMpcMotionManager : public SolverSynchronizedModule {
    * parameters (see config/g1/ros2_controllers.yaml for the semantics).
    */
   struct GaitTransitionConfig {
-    //! Ordered from slowest to fastest; the first rung must be "stance". The FSM moves
-    //! at most one rung per change.
+    //! Ordered from slowest to fastest; the first rung is the rest gait (e.g. "stance"). The FSM
+    //! moves at most one rung per change.
     std::vector<GaitModeStateConfig> ladder;
     //! Minimum time between two gait changes [s].
     scalar_t minDwellTime = 0.2;
@@ -178,6 +178,7 @@ class ProceduralMpcMotionManager : public SolverSynchronizedModule {
   BasePoseTarget basePoseTarget_;
   std::atomic<TargetMode> targetMode_{TargetMode::BaseTwist};
 
+  std::string restGait_{"stance"};  //!< the ladder's first rung
   std::string currentGaitCommand_{"stance"};
   std::string lastGaitCommand_{"stance"};
   scalar_t lastGaitChangeTime_{0.0};

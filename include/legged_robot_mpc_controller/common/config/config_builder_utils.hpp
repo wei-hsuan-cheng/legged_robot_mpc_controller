@@ -153,7 +153,7 @@ ocs2::humanoid::GaitMap buildGaitMap(const Params& params)
 }
 
 /// Builds the velocity-based gait selection from `ocs2.gait.transitions`: the ladder
-/// (slowest to fastest, starting at "stance") and its switching timing, validated
+/// (slowest to fastest, starting at the rest gait) and its switching timing, validated
 /// against the templates in `gaitMap`.
 template <typename Params>
 ocs2::humanoid::ProceduralMpcMotionManager::GaitTransitionConfig buildGaitTransitionConfig(
@@ -182,8 +182,8 @@ ocs2::humanoid::ProceduralMpcMotionManager::GaitTransitionConfig buildGaitTransi
     state.angVelErrorThresh = rung.measuredMargin[1];
     config.ladder.push_back(state);
   }
-  if (config.ladder.empty() || config.ladder.front().gaitCommand != "stance") {
-    throw std::invalid_argument("[config_builder] ocs2.gait.transitions.ladder must start with stance");
+  if (config.ladder.empty()) {
+    throw std::invalid_argument("[config_builder] ocs2.gait.transitions.ladder is empty; its first rung is the rest gait");
   }
   return config;
 }
