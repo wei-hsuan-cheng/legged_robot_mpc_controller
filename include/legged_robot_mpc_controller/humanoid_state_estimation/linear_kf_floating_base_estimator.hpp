@@ -49,6 +49,15 @@ namespace legged_robot_mpc_controller::state_estimation
  * matching the residuals e_p,i / e_v,i / e_h,i of the paper. A foot in SWING has
  * its process and measurement noise multiplied by lkf_swing_noise_multiplier so
  * the filter effectively ignores it.
+ *
+ * ROLLING WHEELS (lkf_contact_model "rolling_wheel"). A tire's contact point moves
+ * with the robot, so it is no landmark; what stays at rest without slip is the tread
+ * MATERIAL at the contact. Each wheel then gives
+ *     base velocity = -(velocity of that material point relative to the base)   (3 rows)
+ *     base height   = ground - (contact point relative to the base).z            (1 row)
+ * with the contact at the lowest point of the tire circle, and the state is the base
+ * position and velocity only (6). Wheel spin enters through the wheel joint velocity.
+ * Hosseini, Rodriguez and Behnke (IRC 2022) adapt legged filters to wheels the same way.
  */
 class LinearKfFloatingBaseEstimator : public FloatingBaseEstimatorInterface
 {
@@ -91,7 +100,7 @@ public:
   const EstimatorDiagnostics & diagnostics() const override { return diagnostics_; }
   const std::vector<std::string> & contactFrames() const override { return settings_.contact_frames; }
 
-  void setBaseOrientation(const Eigen::Quaterniond & q) override { base_orientation_ = q.normalized(); }
+  void setBaseOrientation(const Eigen::Quaterniond & q) override { base_orientation_ = imuToBaseOrientation(q); }
 
 private:
   FloatingBaseEstimate updateImpl(
@@ -100,6 +109,24 @@ private:
     const std::vector<double> & joint_positions,
     const std::vector<double> & joint_velocities,
     const std::vector<bool> & point_contact_flags);
+
+  FloatingBaseEstimate updateRollingWheels(
+    const Eigen::Vector3d & base_angular_velocity,
+    const Eigen::Vector3d & base_linear_acceleration,
+    const std::vector<bool> & wheel_contact_flags);
+
+  /// Tire contact point relative to the base origin (world-aligned) and the velocity of the tread
+  /// material there relative to the base, from the last forwardKinematics call.
+  void wheelContact(Eigen::Index i, Eigen::Vector3d & position, Eigen::Vector3d & material_velocity) const;
+
+  /// Forward kinematics with the base at the origin: orientation, joints and the base angular rate only.
+  void baseRelativeKinematics(
+    const Eigen::Vector3d & base_angular_velocity,
+    const std::vector<double> & joint_positions,
+    const std::vector<double> & joint_velocities);
+
+  /// Base attitude from the sensor attitude; with lkf_imu_extrinsics the IMU mounting is removed.
+  Eigen::Quaterniond imuToBaseOrientation(const Eigen::Quaterniond & imu_orientation) const;
 
   /// Expand per-FOOT contact flags to per-CONTACT-POINT flags via
   /// settings_.contact_foot_indices. The G1 has 2 feet and 4 contact points.
@@ -127,6 +154,11 @@ private:
 
   Eigen::Quaterniond base_orientation_{Eigen::Quaterniond::Identity()};
   bool initialized_{false};
+
+  bool rolling_wheels_{false};
+  bool imu_extrinsics_{false};
+  Eigen::Quaterniond base_to_imu_{Eigen::Quaterniond::Identity()};   //!< IMU attitude in the base frame
+  Eigen::Vector3d imu_position_base_{Eigen::Vector3d::Zero()};       //!< IMU position in the base frame
 };
 
 }  // namespace legged_robot_mpc_controller::state_estimation

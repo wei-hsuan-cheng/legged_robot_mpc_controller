@@ -64,6 +64,11 @@ bool HumanoidLinearKf::readParameters(
   filter.lkf_foot_sensor_noise_velocity = p.footSensorNoiseVelocity;
   filter.lkf_foot_height_sensor_noise = p.footHeightSensorNoise;
   filter.lkf_swing_noise_multiplier = p.swingNoiseMultiplier;
+  filter.lkf_contact_model = p.contactModel;
+  filter.lkf_wheel_radius = p.wheel.radius;
+  filter.lkf_wheel_center_offset = Eigen::Vector3d(p.wheel.centerOffset[0], p.wheel.centerOffset[1], p.wheel.centerOffset[2]);
+  filter.lkf_wheel_axle_axis = Eigen::Vector3d(p.wheel.axleAxis[0], p.wheel.axleAxis[1], p.wheel.axleAxis[2]);
+  filter.lkf_imu_extrinsics = p.imuExtrinsics;
   return true;
 }
 

@@ -18,6 +18,7 @@
 #include <ocs2_robotic_tools/common/RotationDerivativesTransforms.h>
 #include <ocs2_robotic_tools/common/RotationTransforms.h>
 #include <pinocchio/algorithm/frames.hpp>
+#include <pinocchio/algorithm/joint-configuration.hpp>
 #include <pinocchio/algorithm/kinematics.hpp>
 #include <pluginlib/class_list_macros.hpp>
 #include <yaml-cpp/yaml.h>
@@ -107,6 +108,17 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
     mpc_interface_ = std::make_unique<ocs2::humanoid::WbIdMpcInterface>(mpc_config);
     control_model_.reset(mpc_interface_->getMpcRobotModel().clone());
     control_pinocchio_ = std::make_unique<ocs2::PinocchioInterface>(mpc_interface_->getPinocchioInterface());
+    base_to_imu_ = Eigen::Quaterniond::Identity();
+    if (!parameters_.floatingBase.imuFrame.empty()) {
+      const auto& model = control_pinocchio_->getModel();
+      if (!model.existFrame(parameters_.floatingBase.imuFrame)) {
+        throw std::invalid_argument("floatingBase.imuFrame '" + parameters_.floatingBase.imuFrame + "' is not in the URDF");
+      }
+      // At the neutral configuration the base is at the identity, so a frame fixed to it sits at its mounting.
+      pinocchio::Data data(model);
+      pinocchio::framesForwardKinematics(model, data, pinocchio::neutral(model));
+      base_to_imu_ = Eigen::Quaterniond(data.oMf[model.getFrameId(parameters_.floatingBase.imuFrame)].rotation()).normalized();
+    }
 
     const auto joint_dim = static_cast<Eigen::Index>(control_model_->getJointDim());
     torque_limit_ = mpc_interface_->getTorqueLimits();
@@ -715,7 +727,9 @@ std::optional<Eigen::Quaterniond> HumanoidWholeBodyInverseDynamicsMpcController:
   if (!q.coeffs().allFinite() || q.norm() < 1e-6) {
     return std::nullopt;
   }
-  return q.normalized();
+  // The IMU attitude is the sensor's; the trunk's is R_world_imu * R_base_imu^T.
+  return uses_state_estimator(parameters_.floatingBase.source) ? (q.normalized() * base_to_imu_.conjugate()).normalized()
+                                                               : q.normalized();
 }
 
 bool HumanoidWholeBodyInverseDynamicsMpcController::read_imu_rates(Eigen::Vector3d& gyro, Eigen::Vector3d& accel)

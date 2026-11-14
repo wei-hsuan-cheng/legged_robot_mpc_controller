@@ -129,6 +129,14 @@ struct EstimatorSettings
   //! is how the filter ignores a foot that is not on the ground. Cheetah 3 uses
   //! 100; the paper describes it as raising the covariance "to a high value".
   double lkf_swing_noise_multiplier{100.0};
+  //! "point": planted contact points (Cheetah 3). "rolling_wheel": each contact frame is a wheel link whose
+  //! tire rolls without slip on the plane z = height_ground_z; the state is then base position and velocity only.
+  std::string lkf_contact_model{"point"};
+  double lkf_wheel_radius{0.0};                                       //!< [m]
+  Eigen::Vector3d lkf_wheel_center_offset{Eigen::Vector3d::Zero()};  //!< tire centre in the wheel frame [m]
+  Eigen::Vector3d lkf_wheel_axle_axis{Eigen::Vector3d::UnitZ()};       //!< axle direction in the wheel frame
+  //! Remove the IMU mounting (imu_frame relative to the base) from attitude, rate and acceleration.
+  bool lkf_imu_extrinsics{false};
 
   // Base-height conditioning. The centroidal MPC references swing/stance foot
   // targets to an ABSOLUTE ground plane (terrainHeight is forced to 0 in

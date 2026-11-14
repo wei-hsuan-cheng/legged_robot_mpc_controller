@@ -167,6 +167,7 @@ private:
   //! Controller-owned pinocchio copy for the stand's gravity compensation and the
   //! optional measured-state inverse dynamics (the solver owns its own instances).
   std::unique_ptr<ocs2::PinocchioInterface> control_pinocchio_;
+  Eigen::Quaterniond base_to_imu_{Eigen::Quaterniond::Identity()};  //!< IMU mounting (floatingBase.imuFrame)
   std::unique_ptr<ocs2::humanoid::WbIdMpcTargetTrajectoriesCalculator> target_trajectories_calculator_;
   std::shared_ptr<Ros2ProceduralMpcMotionManager> motion_manager_;
   std::unique_ptr<ocs2::MPC_BASE> mpc_solver_;

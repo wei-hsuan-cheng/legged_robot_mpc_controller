@@ -148,6 +148,36 @@ humanoid_linear_kf:
     description: "Measurement noise on the assumed contact height",
     validation: { gt: [0.0] }
   }
+  contactModel: {
+    type: string,
+    default_value: "point",
+    description: "'point': planted contact points as landmarks (Cheetah 3). 'rolling_wheel': each contact frame is a wheel link rolling without slip on the ground plane; each wheel measures the base velocity (tread material at rest) and height (lowest tire point on the ground), and footProcessNoisePosition/footSensorNoisePosition are unused.",
+    validation: { one_of<>: [["point", "rolling_wheel"]] }
+  }
+  wheel:
+    radius: {
+      type: double,
+      default_value: 0.0,
+      description: "Tire radius [m] for contactModel rolling_wheel.",
+      validation: { gt_eq: [0.0] }
+    }
+    centerOffset: {
+      type: double_array,
+      default_value: [0.0, 0.0, 0.0],
+      description: "Tire centre in the wheel (contact) frame [m].",
+      validation: { fixed_size<>: [3] }
+    }
+    axleAxis: {
+      type: double_array,
+      default_value: [0.0, 0.0, 1.0],
+      description: "Axle direction in the wheel (contact) frame.",
+      validation: { fixed_size<>: [3] }
+    }
+  imuExtrinsics: {
+    type: bool,
+    default_value: false,
+    description: "Remove the IMU mounting (imuFrame relative to the base, from the URDF) from the attitude, angular rate and acceleration. Off: the IMU is taken as the base frame.",
+  }
   swingNoiseMultiplier: {
     type: double,
     default_value: 100.0,

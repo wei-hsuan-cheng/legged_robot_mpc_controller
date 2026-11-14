@@ -73,6 +73,8 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         no body pose."}
     imuInterfaceName: {type: string, default_value: "pelvis_imu", description: "ros2_control IMU sensor prefix read
         by the bring-up: the stand's gravity compensation uses its attitude, rest detection its gyro and accelerometer."}
+    imuFrame: {type: string, default_value: "", description: "URDF frame of that IMU. With state_estimator the
+        bring-up removes its mounting rotation from the attitude it reads; empty: the IMU is aligned with the base."}
   bringUp:
     autoStart: {type: bool, default_value: true, description: "With state_estimator: run the whole bring-up by itself.
         Set false on hardware, where the operator calls ~/stand_up (Passive -> StandUp) and then ~/start_locomotion
