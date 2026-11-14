@@ -97,9 +97,9 @@ class Probe(Node):
                               msg.header.frame_id, f.x, f.y, f.z, t.x, t.y, t.z))
 
     def observe_estimate(self, msg):
-        q = msg.pose.pose.orientation
+        q, p = msg.pose.pose.orientation, msg.pose.pose.position
         v, w = msg.twist.twist.linear, msg.twist.twist.angular
-        self.estimate = dict(time=msg.header.stamp.sec + 1e-9*msg.header.stamp.nanosec,
+        self.estimate = dict(time=msg.header.stamp.sec + 1e-9*msg.header.stamp.nanosec, position=[p.x, p.y, p.z],
                              rpy=attitude(q), linear=[v.x, v.y, v.z], angular=[w.x, w.y, w.z])
 
     def observe_joints(self, msg):
@@ -150,6 +150,9 @@ def main():
     parser.add_argument("--height", type=float, help="Override YAML nominal pelvis height [m]")
     parser.add_argument("--height-sequence", type=json.loads, default=[],
                         help='Height steps after takeover: [[seconds, height_m], ...]; permits --speed 0')
+    parser.add_argument("--gait-sequence", type=json.loads, default=[],
+                        help='Gait requests after takeover on /humanoid/gait_command: [[seconds, "template"], ...]; '
+                             '"" returns to the velocity ladder; permits --speed 0')
     parser.add_argument("--mpc-rate", type=int, default=100)
     parser.add_argument("--launch-file", default="robot.launch.py")
     parser.add_argument("--robot-name", choices=["g1", "h2", "upkie"], default="g1")
@@ -168,6 +171,8 @@ def main():
     parser.add_argument("--double-support", type=float, default=0.15)
     parser.add_argument("--source", choices=["ground_truth_state", "state_estimator"], default="ground_truth_state")
     parser.add_argument("--estimator", default="humanoid_inekf")
+    parser.add_argument("--log-estimator", action="store_true",
+                        help="With ground_truth_state, also run --estimator and record its odometry (it does not drive control)")
     parser.add_argument("--prefix", default="/tmp/wb_id_walk")
     parser.add_argument("--config", type=Path, help="Controller YAML (default: config/<robot-name>/ros2_controllers.yaml)")
     parser.add_argument("--set", action="append", default=[], metavar="KEY=JSON", help="Override a dotted controller parameter in a temporary YAML")
@@ -184,7 +189,7 @@ def main():
         parser.error("wrench sequence and recovery pause must fit inside the walking test")
     args.config = args.config or Path(__file__).resolve().parents[1] / "config" / args.robot_name / "ros2_controllers.yaml"
     height_override = args.height
-    if args.hold <= 0 or args.ramp < 0 or (args.speed == 0 and not args.height_sequence):
+    if args.hold <= 0 or args.ramp < 0 or (args.speed == 0 and not args.height_sequence and not args.gait_sequence):
         parser.error("hold must be positive, ramp nonnegative, and speed nonzero")
     config = yaml.safe_load(args.config.read_text())
     params = config[CONTROLLER]["ros__parameters"]
@@ -214,6 +219,12 @@ def main():
                 not 0 <= point[0] < total_duration or point[0] <= previous_time or point[1] <= 0):
             parser.error("height-sequence needs increasing nonnegative times within the run and positive finite heights")
         previous_time = point[0]
+    previous_time = -1.0
+    for point in args.gait_sequence:
+        if (not isinstance(point, list) or len(point) != 2 or not isinstance(point[0], (int, float)) or
+                not isinstance(point[1], str) or not 0 <= point[0] < total_duration or point[0] <= previous_time):
+            parser.error('gait-sequence needs increasing nonnegative times within the run and template names: [[t, "name"], ...]')
+        previous_time = point[0]
     if args.swing_duration is not None:
         if args.swing_duration <= 0 or args.double_support <= 0:
             parser.error("swing duration and double support must be positive")
@@ -240,7 +251,7 @@ def main():
         f"mpcControllerName:={CONTROLLER}", f"mujocoModelFile:={args.scene}",
         "rviz:=false", "mujoco_headless:=true", "baseCommandGui:=false",
         f"floatingBaseSource:={args.source}",
-        f"floatingBaseEstimator:={args.estimator if args.source == 'state_estimator' else 'none'}",
+        f"floatingBaseEstimator:={args.estimator if args.source == 'state_estimator' or args.log_estimator else 'none'}",
         f"mpcFreq:={args.mpc_rate}", "mrtFreq:=1000",
         f"controllersFile:={config_path}",
     ]
@@ -269,6 +280,9 @@ def main():
             arm_publisher = probe.create_publisher(MpcTargets, "/humanoid/mpc_targets", QoSProfile(
                 depth=1, reliability=ReliabilityPolicy.BEST_EFFORT)) if args.arm_target is not None else None
             arm_sent = False
+            gait_publisher = probe.create_publisher(String, "/humanoid/gait_command", QoSProfile(
+                depth=1, reliability=ReliabilityPolicy.RELIABLE)) if args.gait_sequence else None
+            gait_sent = None
             sender = WrenchPublisher(probe, sequence) if sequence else None
             process = subprocess.Popen(launch_cmd, cwd=launch_cwd, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
             deadline = time.monotonic() + args.startup_timeout
@@ -342,6 +356,12 @@ def main():
                     if elapsed >= height_time:
                         height_command = height_value
                 commanded_heights.append((elapsed, height_command, probe.gt[3]))
+                if gait_publisher is not None:
+                    gait = next((name for when, name in reversed(args.gait_sequence) if elapsed >= when), None)
+                    if gait is not None and gait != gait_sent:
+                        gait_publisher.publish(String(data=gait))
+                        gait_sent = gait
+                        print(f"GAIT {gait or '(ladder)'} t={elapsed:.2f}", flush=True)
                 probe.command(command if args.axis == "vx" else 0.0, command if args.axis == "vy" else 0.0,
                               height_command, command if args.axis == "yaw" else 0.0)
                 _, x, y, z, roll, pitch, yaw, *_ = probe.gt
