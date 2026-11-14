@@ -22,16 +22,37 @@ The MJCF is the simulation reference, so the MPC URDF is generated from it rathe
 | Bodies renamed `base`, `{left,right}_femur`, `{left,right}_tibia`, `{left,right}_wheel_link`; free joint `floating_base_joint` | One name per side; distinct link and joint names for Pinocchio frame lookups |
 | Position servos (legs) and velocity servos (wheels) replaced by unit-gear `motor`s, `ctrlrange` = `forcerange` = +/-16 N m hip/knee and +/-1.7 N m wheel | The controller commands torque. `effort_pd` writes PD + feed-forward to `ctrl` every physics step, so the cap applies to the summed command |
 | Sensors `imu_quat`, `imu_gyro`, `imu_acc` at the upstream `imu` site | The names the ros2_control IMU sensor reads, as for G1/H2 |
+| Tire collision geoms `{left,right}_foot_collision` are a 64-sided convex prism mesh `tire_collision` (circumradius 0.055 m, half-width 0.022 m, same pose) instead of `cylinder` primitives | MuJoCo's cylinder-box collision never produces the edge contact of a tire meeting a step: see below |
 
-Joint armature (0.005 kg m^2), friction loss (0.1 N m), joint ranges, inertias, the 55 mm x 44 mm tire cylinders and `noslip_iterations=4` are unchanged.
+Joint armature (0.005 kg m^2), friction loss (0.1 N m), joint ranges, inertias, the 55 mm x 44 mm tire size and `noslip_iterations=4` are unchanged.
 [`scene.xml`](../../../mujoco/robots/upkie/scene.xml) selects a 0.5 ms timestep, the [Upkie night background](../../../mujoco/common/backgrounds/background_night_upkie.xml) and the robot module, in the same composition style as H2.
 The background provides the unchanged flat-floor physics and H2-style studio appearance with lights aimed at `base`; `upkie.xml` owns the implicit-fast integrator and four no-slip iterations.
 Optional ramp/uneven includes remain commented out, so the default wheel-drive checkpoint is still flat.
 
 
+## Tire collision shape
+
+MuJoCo 3.13.0 (the version `mujoco_ros2_control` links) handles a primitive `cylinder` against a `box` step with two contacts on the tire rims whose normal is the step's vertical face, (1, 0, 0).
+The contact a real tire makes, at the step's top edge with a normal from the edge to the hub (about 50 degrees from vertical at 20 mm), is never generated.
+The step therefore acts as a wall until the hub has passed the face; then the top face pushes the tire up by the whole step height at once.
+A convex mesh prism of the same size gets the edge contact at every depth tested (0.5-15 mm), as a sphere does.
+Its normal is the nearest facet's, so it is quantized to the 5.6-degree facet spacing: 1.5 degrees off the true normal at 10 mm and 2.7 degrees at 20 mm.
+
+A 2.7 kg wheel on a slider (half an Upkie), held at 0.2 m/s by a force-limited servo, must be pushed with at least W tan(theta) to roll over a step undriven: 18.6 N at 10 mm and 32 N at 20 mm.
+
+| Step | Primitive cylinder | 64-sided prism |
+| --- | --- | --- |
+| 10 mm | Climbs at 10 N, sinking 10.2 mm into the step | Blocked at 10 N, climbs at 20 N, 0.8 mm penetration |
+| 20 mm | Blocked at 10 and 20 N; climbs at 40 N only by tunneling 20.6 mm into the step | Blocked at 10 and 20 N, climbs at 40 N, 1.1 mm penetration |
+
+The prism matches the analytic threshold; the cylinder makes 10 mm steps easier and 20 mm steps harder than they are.
+On flat ground each prism tire touches with four rim vertices at 0.1-0.2 mm depth; the rolling-radius ripple of a 64-gon is r (1 - cos(pi/64)) = 0.07 mm.
+[`generate_upkie_urdf.py`](generate_upkie_urdf.py) writes the prism back as its 0.055 m x 0.044 m cylinder, so `upkie.urdf` is unchanged.
+
+
 ## Generated URDF
 
-[`upkie.urdf`](upkie.urdf) is written by [`generate_upkie_urdf.py`](generate_upkie_urdf.py) from the MJCF: link frames, joint axes, masses, centres of mass and inertia tensors are copied unchanged, visuals keep the MJCF mesh placements, and collisions are the MJCF primitives.
+[`upkie.urdf`](upkie.urdf) is written by [`generate_upkie_urdf.py`](generate_upkie_urdf.py) from the MJCF: link frames, joint axes, masses, centres of mass and inertia tensors are copied unchanged, visuals keep the MJCF mesh placements, and collisions are the MJCF primitives (the tire prisms as cylinders).
 Rerun the script after any MJCF change.
 The quaternion-to-RPY conversion explicitly handles pitch at +/-90 degrees by choosing zero yaw and preserving the remaining roll/yaw combination.
 The earlier conversion evaluated ambiguous zero-over-zero angle formulas at these orientations, misrotating six visual meshes and four collision primitives and making the leg parts appear disconnected in RViz.

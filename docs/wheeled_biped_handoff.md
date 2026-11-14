@@ -6,9 +6,82 @@ Update this file at each milestone.
 The implemented equations, current weights, rolling-contact equalities and execution limits are collected in [Wheeled-Biped WB-ID MPC](wheeled_biped_whole_body_inverse_dynamics_mpc.md).
 
 
+## Tire Collision Fix and 20 mm Edge Analysis (2026-11-14, Claude, after 22:00)
+
+Stopped at the user's request before the weekly usage limit; nothing is committed.
+Changed files: [`upkie.xml`](../description/mujoco/robots/upkie/upkie.xml) (tire collision shape), [`generate_upkie_urdf.py`](../description/urdf/robots/upkie/generate_upkie_urdf.py), [`MODEL_SOURCE.md`](../description/urdf/robots/upkie/MODEL_SOURCE.md), the terrain [README](../config/terrains/upkie/README.md) and this file.
+No C++ or controller parameter changed; `upkie.urdf` regenerates byte-identical and `tests/test_upkie_urdf.py` passes.
+
+### Why the 20 mm one-sided entry fell (primitive-cylinder tire)
+
+Reproduced first: `claude_s20_base` fell at 10.31 s against Codex's 10.22 s, same configuration.
+From `codex_upkie_finalbalance_split20`:
+
+1. The left tire stopped at the strip at 7.7 s and stayed at x = 0.558-0.575 m for 2 s (42 mm from the face is the touching distance for 20 mm).
+2. Wheel torque never saturated while stalled (|tau| <= 1.0 N m until 9.6 s); the measured edge load was intermittent, 12 N mean, above 2 N in 42% of samples.
+3. The left wheel spun up against the edge (17 to 56 rad/s), so the measured tread slip grew to 1-3 m/s.
+4. The rolling row's slip feedback (`tangentialVelocityGain` 50) turned that slip into planned left traction: correlation 0.97 between measured slip and planned fx, which rose from 3 to 112 N, with planned fz up to 157 N against a 54 N robot weight.
+5. Those planned wrenches drove the body forward past the stuck wheel: left hip -0.58 to +0.70 rad, left knee -0.97 to +0.05 rad (straight leg); then roll went from -0.02 to -0.30 rad in 0.9 s.
+
+So the fall mechanism is the MPC treating a blocked, spinning wheel as a gripping one, not torque limits and not the z = 0 gap term (the tire rose only 1-4 mm).
+
+### The simulator made the edge a wall
+
+Replaying the stalled poses in MuJoCo 3.13.0 (the version `mujoco_ros2_control` links) showed the tire overlapping the step by about 15 mm, with the shin's wheel-motor housing (`left_tibia_collision2`) resting on the corner.
+MuJoCo's primitive cylinder against a box gives two rim contacts with the step face's horizontal normal (1, 0, 0), never the edge contact a real tire makes; details and the analytic check are in [MODEL_SOURCE.md](../description/urdf/robots/upkie/MODEL_SOURCE.md#tire-collision-shape).
+The tire collision is now a 64-sided convex prism of the same size, which reproduces the textbook push thresholds over 10 and 20 mm steps.
+Every earlier terrain result (Codex's ramp, split10, rough, split20) was obtained with the primitive tire, which made 10 mm edges easier and 20 mm edges harder than they are.
+
+### One parameter experiment (primitive tire, not adopted)
+
+`claude_s20_kdt5` (`--set ocs2.constraints.wheelContact.tangentialVelocityGain=5.0`) did not fall in 23 s (max roll 0.033 rad) but stalled at the edge (final x 0.63 m, mean vx 0.064 m/s).
+That confirms the slip feedback drives the fall; it was not run on the rest of the suite, so it is not adopted.
+
+### Mesh-tire regression (shipped weights, GT base, MPC 200 Hz, Codex's exact arguments)
+
+| Prefix under `/tmp/` | Result | Measured |
+| --- | --- | --- |
+| `claude_mesh_height` | SUCCESS, 23 s | max roll/pitch 0.0003/0.0035 rad |
+| `claude_mesh_yaw` | SUCCESS, 17 s | 1.5 rad/s request, 1.127 rad/s measured; max roll/pitch 0.0016/0.0032 rad |
+| `claude_mesh_push` | SUCCESS, 25 s | four original pulses; max pitch 0.080 rad |
+| `claude_mesh_roll` | SUCCESS, 27 s | 0.2 m/s and brake, 0.195 m/s mean; max pitch 0.0053 rad |
+| `claude_mesh_ramp` | SUCCESS, 23 s | 0.188 m/s mean; max roll/pitch 0.0016/0.0106 rad |
+| `claude_mesh_split10` | SUCCESS, 25 s | 0.141 m/s mean with height steps; max roll/pitch 0.0025/0.0096 rad |
+| `claude_mesh_rough` | SUCCESS, 22 s | seed-7 field at 0.3 m/s, 0.290 m/s mean, 3.19 m final x; max roll/pitch 0.0028/0.0057 rad |
+| `claude_mesh_split20` | FALL at 16.37 s, after climbing | see below |
+
+With the mesh tire the 20 mm entry is climbed: the left wheel stalled 1.9 s with the same slip build-up (planned fx up to 45 N), then rose onto the strip at 9.8 s and drove on it at 0.19 m/s.
+The stall turned the heading by +0.2 rad, which relative-twist tracking deliberately does not restore, so the robot drove diagonally; at 14.2 s the left tire ran off the strip's outer side (tire y 0.37 m, strip edge 0.34 m), dropped 20 mm sideways, the yaw spun up, and it fell at 16.4 s.
+This is a new failure mode, a one-wheel lateral drop, partly set up by the 0.28 m wide strip; the entry itself now passes once.
+
+### Odometry/estimation sensitivity (user's question)
+
+x, y and yaw are gauge states here, as for H2/G1:
+
+- In `base_twist` the target is re-anchored at the current pose every solve and integrated from the body-frame command ([WbIdMpcTargetTrajectoriesCalculator.cpp](../src/core/humanoid_wb_id_mpc/src/command/WbIdMpcTargetTrajectoriesCalculator.cpp)).
+- `BaseMotionTrackingCost` in RelativeTwist mode drops world x/y/yaw errors and compares horizontal velocity in each frame's heading ([BaseMotionTrackingCost.cpp](../src/core/humanoid_common_mpc/src/cost/BaseMotionTrackingCost.cpp)).
+- The plain quadratic cost has a zero base block ([config builder](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp)).
+- The rolling, lateral no-slip and friction-cone rows use velocities and the world-up normal only, so a yaw rotation or x/y shift leaves them unchanged.
+
+Roll and pitch are regulated to absolute zero, which is fine because the IMU observes them.
+Absolute height z is the sensitive one: the height target is world z above the plane z = 0, and each wheel's gap row has a position term `kp_n (n . p_c - 0)` with `kp_n` 50.
+An estimator must therefore report z relative to the wheel contact plane (leg kinematics with the ground under the wheels at 0, as G1's `height.source: kinematic`), not integrated IMU z; a 1 cm z drift would read as both wheels 1 cm in the air.
+Only the explicit `base_pose` target mode tracks absolute pose, by design.
+
+### Next, in order (replaces item 1 of "Next steps" below)
+
+1. Blocked-wheel slip feedback: compare `tangentialVelocityGain` 5-20 against 50 on the whole suite, and the alternative of feeding the MPC a rolling-consistent wheel speed (measured spin replaced by hub velocity / r while in contact) so slip is left to the wheel's low-level damping, as wheeled-legged MPCs that keep wheel spin out of the MPC state do.
+2. Separate the 20 mm entry from the side drop: a strip wide enough that heading drift cannot reach its outer edge, then a deliberate one-wheel lateral drop test.
+3. Repeat the primitive-tire conclusions under the mesh tire: uneven-field entry at 0.15 m/s (the old stall), more seeds, and the 0.3 m/s 20 mm entry.
+4. The rest of the original list below (push envelope, height envelope, estimator, stand-up, hop, single support) is unchanged.
+
+Reproduction: scenes come from `tests/mujoco_scene.py --terrain split_height --split-height 0.02` and the other terrain commands in the [terrain README](../config/terrains/upkie/README.md); each `/tmp/claude_mesh_*.json` holds its full arguments.
+
+
 ## Current Height/Terrain Checkpoint (2026-11-14)
 
 Handover deadline: 22:00 Asia/Taipei on 2026-11-14; Claude takes over afterward.
+These results predate the tire-collision fix above and used the primitive-cylinder tire.
 The final selected configuration keeps the original hip/knee posture weights 1/2 and uses base height/pitch/roll 3000/500/2000 in Q and Qf.
 This is the current YAML; all weak-posture candidates described below are rejected experiments, not the retained configuration.
 `codex_upkie_finalbalance_yaw` passed the 1.5 rad/s abrupt turn at requested 200 Hz: measured mean 1.14565 rad/s, max pitch/roll 0.00388/0.00194 rad and 0.0656 m drift.
@@ -540,7 +613,7 @@ These are proposed follow-up milestones, not permission to silently expand the c
 
 | Order | Milestone | Current boundary and next evidence needed |
 | --- | --- | --- |
-| 1 | Larger asymmetric edges and slow terrain entries | Known failures: the 20 mm one-sided vertical entry falls, and the 0.15 m/s uneven entry stalls; compare contact loss, actual/commanded torque limits, planned contact forces and fixed-plane residuals before more tuning |
+| 1 | Larger asymmetric edges and slow terrain entries | Superseded by "Tire Collision Fix and 20 mm Edge Analysis" at the top: the fall mechanism is identified (slip feedback on a blocked wheel), the tire collision is fixed, and the mesh-tire 20 mm entry climbs but then falls off the strip's side |
 | 2 | Broader no-map terrain acceptance | Still untested: more random seeds, reverse traversal, ramp descent/far drop, turns while on the ramp/field, and sudden stops at edges; preserve the passed small-terrain checkpoint |
 | 3 | Push-recovery envelope | Only the original +/-1.5 Nm pitch and +/-6 N fore/aft pulses are validated; lateral/yaw pushes, combined disturbances and pushes on unequal-height terrain remain untested |
 | 4 | Height envelope without sacrificing balance | Current tests cover 0.26-0.34 m and a height change on a 10 mm split; GUI endpoints 0.22/0.38 m, faster height changes and a range of support-height differences need separate testing |

@@ -83,7 +83,15 @@ def add_inertial(link, inertial):
                   iyy=f"{iyy:.9g}", iyz=f"{iyz:.9g}", izz=f"{izz:.9g}")
 
 
-def add_geoms(link, body, materials):
+def prism_size(vertex_text):
+    """Circumradius and half-length of an inline-vertex prism about its local z axis (the tire collision)."""
+    v = floats(vertex_text)
+    points = [v[i:i + 3] for i in range(0, len(v), 3)]
+    # Rounded to 0.01 mm: the vertices are written to 1e-6 m, which perturbs their radii by up to about 6e-7 m.
+    return round(max(math.hypot(x, y) for x, y, _ in points), 5), round(max(abs(z) for _, _, z in points), 5)
+
+
+def add_geoms(link, body, materials, prisms):
     for geom in body.findall("geom"):
         pos = floats(geom.get("pos", "0 0 0"), 3)
         quat = floats(geom.get("quat", "1 0 0 0"), 4)
@@ -100,11 +108,14 @@ def add_geoms(link, body, materials):
             collision = ET.SubElement(link, "collision", name=geom.get("name", ""))
             origin(collision, pos, quat)
             geometry = ET.SubElement(collision, "geometry")
-            size = floats(geom.get("size"))
+            size = floats(geom.get("size")) if geom.get("size") else []
             if geom.get("type") == "box":
                 ET.SubElement(geometry, "box", size=fmt([2 * s for s in size]))
             elif geom.get("type") == "cylinder":
                 ET.SubElement(geometry, "cylinder", radius=f"{size[0]:.9g}", length=f"{2 * size[1]:.9g}")
+            elif geom.get("type") == "mesh" and geom.get("mesh") in prisms:
+                radius, half_length = prisms[geom.get("mesh")]
+                ET.SubElement(geometry, "cylinder", radius=f"{radius:.9g}", length=f"{2 * half_length:.9g}")
             else:
                 raise ValueError(f"unsupported collision geom type {geom.get('type')}")
 
@@ -119,6 +130,7 @@ def joint_kind(name):
 def main():
     root = ET.parse(MJCF).getroot()
     materials = {m.get("name"): m.get("rgba") for m in root.iter("material") if m.get("rgba")}
+    prisms = {m.get("name"): prism_size(m.get("vertex")) for m in root.iter("mesh") if m.get("vertex")}
     base = root.find("worldbody/body")
     assert base.get("name") == "base"
 
@@ -128,7 +140,7 @@ def main():
     def add_link(body):
         link = ET.SubElement(robot, "link", name=body.get("name"))
         add_inertial(link, body.find("inertial"))
-        add_geoms(link, body, materials)
+        add_geoms(link, body, materials, prisms)
         return link
 
     def recurse(parent_body):

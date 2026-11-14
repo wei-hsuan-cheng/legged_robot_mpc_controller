@@ -44,5 +44,7 @@ The controller remains in `base_twist`, with no terrain planner, scene lookup, o
 Simulation ground truth still supplies the floating-base state; this is not an estimated-state deployment test.
 The ramp passed at a 0.2 m/s command and the uneven field passed at 0.3 m/s; the 0.15 m/s uneven trial stayed balanced but stalled at the entry.
 Do not interpret that stall as successful traversal or assume that slower driving always crosses these vertical tile edges more easily.
-The 10 mm one-sided strip was traversed while changing the base height; a 20 mm one-sided vertical entry caused falls in stress trials and is not a validated capability.
+The tire collision is a convex prism since 2026-11-14: MuJoCo's primitive cylinder never made a proper edge contact with a box step, so results before then are not comparable.
+With the prism, the ramp, the 10 mm strip and the seed-7 field at 0.3 m/s pass; the 20 mm strip entry is climbed, but the run then fell when heading drift took the left tire off the strip's outer side.
+Neither the 20 mm entry nor one-wheel lateral drops are a validated capability; see the handoff's tire-collision section.
 Prioritize base pitch/roll and fall avoidance over exact height, straight-line position or heading tracking.
