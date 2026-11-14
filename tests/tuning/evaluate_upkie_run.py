@@ -45,6 +45,15 @@ cmd_wz = args["speed"] * frac if args["axis"] == "yaw" else np.zeros_like(t)
 cmd_h = np.full_like(t, args["height"] if args.get("height") else ref["defaultBaseHeight"])
 for when, value in args.get("height_sequence") or []:
     cmd_h[t >= when] = value
+# Posture reference as the WB-ID target calculator builds it: with a posture table the height command is clamped to
+# [minBaseHeight, maxBaseHeight] (runs before those keys existed: the table range) and the posture interpolated there.
+table_h = np.array(ref.get("postureHeights") or [], float)
+if table_h.size:
+    cmd_h = np.clip(cmd_h, ref.get("minBaseHeight", table_h[0]), ref.get("maxBaseHeight", table_h[-1]))
+    table_q = np.array(ref["postureJointStates"], float).reshape(table_h.size, -1)
+    q_ref = np.stack([np.interp(cmd_h, table_h, table_q[:, i]) for i in range(table_q.shape[1])], 1)
+else:
+    q_ref = np.tile(q_default, (t.size, 1))
 
 yaw = col("obs_base/yaw"); h = np.stack([np.cos(yaw), np.sin(yaw)], 1)
 v_fwd = h[:, 0] * col("obs_base/vx") + h[:, 1] * col("obs_base/vy")
@@ -76,7 +85,7 @@ w_of = {"base z": W["basePose"][2], "base pitch": W["basePose"][4], "base roll":
         "v fwd": W["baseVelocity"][0], "v lat": W["baseVelocity"][1], "v z": W["baseVelocity"][2],
         "yaw rate": W["baseVelocity"][3], "pitch rate": W["baseVelocity"][4], "roll rate": W["baseVelocity"][5]}
 for i, j in enumerate(joints):
-    err["q " + j] = mq[j] - q_default[i]; w_of["q " + j] = W["jointPositions"][i]
+    err["q " + j] = mq[j] - q_ref[:, i]; w_of["q " + j] = W["jointPositions"][i]
     err["v " + j] = col("meas_v/" + j); w_of["v " + j] = W["jointVelocities"][i]
 wr = R["contactWrenches"]
 for i, (side, comp) in enumerate([(s, c) for s in ("left", "right") for c in ("fx", "fy", "fz", "mx", "my", "mz")]):
@@ -130,7 +139,7 @@ if "--plot" in sys.argv:
     ax[3].plot(t, col("obs_base/dyaw"), label="GT"); ax[3].plot(t, col("plan_base/dyaw"), "--", label="plan"); ax[3].plot(t, cmd_wz, ":", label="cmd"); ax[3].set_ylabel("yaw rate [rad/s]")
     for a, jl, jr, i in ((ax[4], "left_hip", "right_hip", 0), (ax[5], "left_knee", "right_knee", 1)):
         a.plot(t, mq[jl], label="L GT"); a.plot(t, -mq[jr], label="-R GT"); a.plot(t, pq[jl], "--", label="L plan"); a.plot(t, -pq[jr], "--", label="-R plan")
-        a.axhline(q_default[i], color="k", lw=0.8, ls=":", label="posture ref"); a.set_ylabel(jl.split("_")[1] + " [rad]")
+        a.plot(t, q_ref[:, i], color="k", lw=0.8, ls=":", label="posture ref"); a.set_ylabel(jl.split("_")[1] + " [rad]")
     ax[6].plot(t, 1000 * dx_wheels, label="wheel dx L-R [mm]"); ax[6].plot(t, 1000 * off_L, label="left wheel ahead of base [mm]"); ax[6].plot(t, 1000 * off_R, label="right wheel ahead of base [mm]"); ax[6].set_ylabel("mm")
     ax[7].plot(t, col("meas_tau/left_knee"), label="L GT"); ax[7].plot(t, -col("meas_tau/right_knee"), label="-R GT")
     ax[7].plot(t, col("cmd_tau/left_knee"), "--", label="L ff"); ax[7].plot(t, -col("cmd_tau/right_knee"), "--", label="-R ff"); ax[7].set_ylabel("knee tau [N m]")
