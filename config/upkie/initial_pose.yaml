@@ -1,0 +1,12 @@
+# Balanced Upkie crouch: level trunk 0.30 m above the ground (base origin), knees forward, each
+# tire's lowest point under the whole-body CoM; spawned 0.5 mm above the ground.
+# Mirrored joints: right = -left (description/urdf/robots/upkie/MODEL_SOURCE.md).
+upkie_joints:
+  left_hip: -0.6021396734839873
+  left_knee: -0.9655142016056263
+  left_wheel: 0.0
+  right_hip: 0.6021396734839873
+  right_knee: 0.9655142016056263
+  right_wheel: 0.0
+upkie_base:
+  z: 0.3005

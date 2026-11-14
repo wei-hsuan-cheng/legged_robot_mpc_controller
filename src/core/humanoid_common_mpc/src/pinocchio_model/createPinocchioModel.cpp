@@ -174,6 +174,15 @@ PinocchioInterface createCustomPinocchioInterface(const std::string& urdfFilePat
     scalePinocchioModelInertia(model, totalMass, true);
   }
 
+  // Reflected rotor inertia: Pinocchio's RNEA/CRBA/ABA add armature * a on the joint diagonal.
+  // The MPC joints are the model's last joints, in the same order as mpcModelJointNames.
+  if (!modelSettings.jointArmature.empty()) {
+    const auto nj = static_cast<Eigen::Index>(modelSettings.jointArmature.size());
+    for (Eigen::Index i = 0; i < nj; ++i) {
+      model.armature(model.nv - nj + i) = modelSettings.jointArmature[static_cast<size_t>(i)];
+    }
+  }
+
   PinocchioInterface pinocchioInterface(model, urdfTree);
   checkPinocchioJointNaming(pinocchioInterface, modelSettings);
 

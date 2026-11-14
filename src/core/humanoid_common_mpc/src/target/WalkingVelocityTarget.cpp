@@ -84,6 +84,10 @@ WalkingVelocityTarget::Output WalkingVelocityTarget::evaluate(scalar_t initTime,
     for (const int i : {0, 1, 3}) {
       if (commandRateLimits_(i) > 0.0) previousCommand_(i) = 0.0;
     }
+    const scalar_t resetHeight = resetHeight_.exchange(std::numeric_limits<scalar_t>::quiet_NaN());
+    if (std::isfinite(resetHeight) && commandRateLimits_(2) > 0.0) {
+      previousCommand_(2) = resetHeight;
+    }
     previousTime_ = initTime;
     velocityCommandFilter_.reset(previousCommand_);
   }
@@ -109,7 +113,8 @@ WalkingVelocityTarget::Output WalkingVelocityTarget::evaluate(scalar_t initTime,
 /******************************************************************************************************/
 /******************************************************************************************************/
 /******************************************************************************************************/
-void WalkingVelocityTarget::requestFilterReset() {
+void WalkingVelocityTarget::requestFilterReset(scalar_t initialHeight) {
+  resetHeight_.store(initialHeight);
   filterResetRequested_.store(true, std::memory_order_release);
 }
 

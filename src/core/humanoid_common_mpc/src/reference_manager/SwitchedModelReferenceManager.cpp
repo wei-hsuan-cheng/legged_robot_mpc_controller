@@ -212,6 +212,9 @@ void SwitchedModelReferenceManager::addArmSwingOffsets(vector_t& desiredJointAng
   // momentum cancels while the pair still applies a yaw moment opposing the one
   // the swinging leg generates.
   const ModelSettings& modelSettings = mpcRobotModelPtr_->modelSettings;
+  if (!modelSettings.hasArmSwingJoints) {
+    return;
+  }
   desiredJointAngles[modelSettings.j_l_shoulder_y_index] += -shoulderOffset;
   desiredJointAngles[modelSettings.j_r_shoulder_y_index] += shoulderOffset;
   desiredJointAngles[modelSettings.j_l_elbow_y_index] += -elbowOffset;

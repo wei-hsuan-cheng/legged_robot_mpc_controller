@@ -1,6 +1,7 @@
 #ifndef LEGGED_ROBOT_MPC_CONTROLLER__HUMANOID_WHOLE_BODY_INVERSE_DYNAMICS_MPC__HUMANOID_WHOLE_BODY_INVERSE_DYNAMICS_MPC_CONTROLLER_HPP_
 #define LEGGED_ROBOT_MPC_CONTROLLER__HUMANOID_WHOLE_BODY_INVERSE_DYNAMICS_MPC__HUMANOID_WHOLE_BODY_INVERSE_DYNAMICS_MPC_CONTROLLER_HPP_
 
+#include <array>
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
@@ -126,6 +127,26 @@ private:
   JointActionCommand hold_command(const vector_t& q_target, const vector_t& q_measured,
                                   const std::optional<Eigen::Quaterniond>& imu_orientation);
   JointActionCommand damping_command(const vector_t& q_measured) const;
+
+  // Wheeled stand-up (bringUp.standUpTrajectoryFile): a planned joint trajectory with feed-forward
+  // torques, played back from the idle pose. Passive (idle) -> StandUp (playback) -> Blend at
+  // handoverTime -> Locomotion, with the MPC already solving from the start of the playback.
+  struct StandUpTrajectory
+  {
+    std::vector<double> time;
+    std::vector<vector_t> position;
+    std::vector<vector_t> velocity;
+    std::vector<vector_t> effort;
+    vector_t kp;
+    vector_t kd;
+    double handoverTime{0.0};
+    JointActionCommand sample(double t) const;
+  };
+  static StandUpTrajectory load_stand_up_trajectory(const std::string& file, const std::vector<std::string>& joint_names);
+  //! The bring-up phase machine runs for the estimator, and for any robot with a planned stand-up.
+  bool uses_bring_up() const;
+  //! The configured contact frames (feet or tire centres), for the inverse-dynamics helpers.
+  std::array<std::string, 2> contact_frame_names() const;
   std::optional<Eigen::Quaterniond> read_imu_orientation();
   bool read_imu_rates(Eigen::Vector3d& gyro, Eigen::Vector3d& accel);
   void enter_bring_up_phase(BringUpPhase phase, double time);
@@ -155,6 +176,10 @@ private:
   //! effort_pd servo gains per MPC joint (control.jointEffortPd); empty = keep the hardware's.
   vector_t joint_kp_;
   vector_t joint_kd_;
+  // Servo gains of the stand-up playback, in place of joint_kp_/kd_ while non-empty.
+  vector_t servo_kp_override_;
+  vector_t servo_kd_override_;
+  std::optional<StandUpTrajectory> stand_up_trajectory_;
   //! Command-interface indices of <joint>/kp, <joint>/kd, interleaved per MPC joint.
   std::vector<std::size_t> gain_command_index_;
 

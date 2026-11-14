@@ -20,9 +20,11 @@
 #include <pinocchio/algorithm/frames.hpp>
 #include <pinocchio/algorithm/kinematics.hpp>
 #include <pluginlib/class_list_macros.hpp>
+#include <yaml-cpp/yaml.h>
 
 #include <humanoid_common_mpc/gait/MotionPhaseDefinition.h>
 #include <humanoid_common_mpc/pinocchio_model/DynamicsHelperFunctions.h>
+#include <humanoid_wb_id_mpc/common/WheelContactKinematics.h>
 
 #include "legged_robot_mpc_controller/common/config/config_builder_utils.hpp"
 #include "legged_robot_mpc_controller/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.hpp"
@@ -108,7 +110,9 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
 
     const auto joint_dim = static_cast<Eigen::Index>(control_model_->getJointDim());
     torque_limit_ = mpc_interface_->getTorqueLimits();
-    if (!parameters_.ocs2.constraints.inverseDynamics.activate || !parameters_.ocs2.constraints.footMotionEquality.activate ||
+    const bool contact_equalities = parameters_.ocs2.constraints.footMotionEquality.activate ||
+                                    parameters_.ocs2.constraints.wheelContact.activate;
+    if (!parameters_.ocs2.constraints.inverseDynamics.activate || !contact_equalities ||
         !parameters_.ocs2.constraints.swingFootZeroWrench.activate) {
       RCLCPP_WARN(get_node()->get_logger(),
         "%s physical dynamics/contact equalities are disabled: diagnostic ablation only, not a physically consistent locomotion model",
@@ -135,8 +139,30 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
       joint_kp_ = Eigen::Map<const vector_t>(pd.kp.data(), joint_dim);
       joint_kd_ = Eigen::Map<const vector_t>(pd.kd.data(), joint_dim);
     }
+    if (parameters_.ocs2.constraints.wheelContact.activate) {
+      // A rolling wheel's angle is unwrapped and free: a position gain would fight the rolling.
+      for (const auto& wheel_joint : parameters_.ocs2.model.contactParentJointNames) {
+        const auto it = std::find(parameters_.robot.jointNames.begin(), parameters_.robot.jointNames.end(), wheel_joint);
+        const auto index = static_cast<Eigen::Index>(std::distance(parameters_.robot.jointNames.begin(), it));
+        if (joint_kp_.size() > 0 && index < joint_kp_.size() && joint_kp_(index) != 0.0) {
+          throw std::invalid_argument("control.jointEffortPd.kp of wheel joint '" + wheel_joint + "' must be 0");
+        }
+      }
+    }
     RCLCPP_INFO(get_node()->get_logger(), "%s joint servo gains: %s", kTag,
                 joint_kp_.size() > 0 ? "control.jointEffortPd, written every tick" : "the hardware's (not claimed)");
+
+    stand_up_trajectory_.reset();
+    if (!parameters_.bringUp.standUpTrajectoryFile.empty()) {
+      if (joint_kp_.size() == 0) {
+        throw std::invalid_argument("bringUp.standUpTrajectoryFile needs control.jointEffortPd (the playback writes servo gains)");
+      }
+      stand_up_trajectory_ =
+        load_stand_up_trajectory(parameters_.bringUp.standUpTrajectoryFile, parameters_.robot.jointNames);
+      RCLCPP_INFO(get_node()->get_logger(), "%s planned stand-up: %zu samples over %.3f s, MPC handover at %.3f s (%s)", kTag,
+                  stand_up_trajectory_->time.size(), stand_up_trajectory_->time.back(), stand_up_trajectory_->handoverTime,
+                  parameters_.bringUp.standUpTrajectoryFile.c_str());
+    }
 
     configure_stage = "building the target-trajectories calculator / reference manager";
     auto reference_config = common::buildReferenceConfig(parameters_);
@@ -181,7 +207,7 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
     motion_manager_->subscribe(
       get_node(), command_qos, parameters_.target.walkingVelocityTopic,
       parameters_.target.basePoseTopic, parameters_.target.modeTopic,
-      parameters_.target.globalFrame);
+      parameters_.target.globalFrame, parameters_.target.gaitTopic);
     motion_manager_->subscribeMpcTargets(
       get_node(), parameters_.target.mpcTargetsTopic,
       common::selectAtIndices(parameters_.robot.jointNames, common::findArmJointIndices(parameters_.robot.jointNames)),
@@ -368,7 +394,7 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
     request_estimator_initialization();
   }
 
-  if (uses_state_estimator(parameters_.floatingBase.source)) {
+  if (uses_bring_up()) {
     vector_t q_joint, v_joint;
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
     while (rclcpp::ok() && !read_joint_state(q_joint, v_joint)) {
@@ -386,11 +412,19 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
 
     start_deferred_solver_thread();
 
-    RCLCPP_INFO(
-      get_node()->get_logger(),
-      "%s activated in bring-up (passive); the MPC starts from the %s estimate once the robot has stood up "
-      "and the estimator is ready | joints=%zu",
-      kTag, parameters_.floatingBase.estimator.c_str(), parameters_.robot.jointNames.size());
+    if (stand_up_trajectory_) {
+      RCLCPP_INFO(get_node()->get_logger(),
+                  "%s activated in bring-up (idle); the planned stand-up starts after %.2f s and hands over to the MPC "
+                  "(%s base) at %.3f s | joints=%zu",
+                  kTag, parameters_.bringUp.idleSeconds, parameters_.floatingBase.source.c_str(),
+                  stand_up_trajectory_->handoverTime, parameters_.robot.jointNames.size());
+    } else {
+      RCLCPP_INFO(
+        get_node()->get_logger(),
+        "%s activated in bring-up (passive); the MPC starts from the %s estimate once the robot has stood up "
+        "and the estimator is ready | joints=%zu",
+        kTag, parameters_.floatingBase.estimator.c_str(), parameters_.robot.jointNames.size());
+    }
     return controller_interface::CallbackReturn::SUCCESS;
   }
 
@@ -503,7 +537,7 @@ HumanoidWholeBodyInverseDynamicsMpcController::state_interface_configuration() c
   const bool need_gt_interfaces =
     parameters_.floatingBase.source == "ground_truth_state" ||
     !parameters_.floatingBase.stateInterfaceName.empty();
-  const bool bring_up = uses_state_estimator(parameters_.floatingBase.source);
+  const bool bring_up = uses_bring_up();
   if ((need_gt_interfaces || has_estimator() || bring_up) &&
       config.type == controller_interface::interface_configuration_type::NONE) {
     config.type = controller_interface::interface_configuration_type::INDIVIDUAL;
@@ -515,6 +549,13 @@ HumanoidWholeBodyInverseDynamicsMpcController::state_interface_configuration() c
   if (has_estimator()) {
     for (const auto& name : estimator_interfaces::names()) {
       config.names.emplace_back(parameters_.floatingBase.estimator + "/" + name);
+    }
+  }
+  if (parameters_.diagnostics.trackingRate > 0.0 && !parameters_.diagnostics.contactSensorNames.empty()) {
+    config.type = controller_interface::interface_configuration_type::INDIVIDUAL;
+    for (const auto& sensor : parameters_.diagnostics.contactSensorNames) {
+      config.names.emplace_back(sensor + "/normal_force");
+      config.names.emplace_back(sensor + "/contact");
     }
   }
   if (bring_up) {
@@ -580,7 +621,7 @@ controller_interface::return_type HumanoidWholeBodyInverseDynamicsMpcController:
     }
   }
   JointActionCommand command;
-  if (uses_state_estimator(parameters_.floatingBase.source)) {
+  if (uses_bring_up()) {
     command = run_bring_up(time, observation);
   } else if (active_policy_ready_) {
     command = compute_mpc_joint_action(observation);
@@ -713,6 +754,74 @@ HumanoidWholeBodyInverseDynamicsMpcController::hold_command(
   return command;
 }
 
+std::array<std::string, 2> HumanoidWholeBodyInverseDynamicsMpcController::contact_frame_names() const
+{
+  const auto& names = mpc_interface_->modelSettings().contactNames;
+  return {names.at(0), names.at(1)};
+}
+
+bool HumanoidWholeBodyInverseDynamicsMpcController::uses_bring_up() const
+{
+  return uses_state_estimator(parameters_.floatingBase.source) || stand_up_trajectory_.has_value();
+}
+
+HumanoidWholeBodyInverseDynamicsMpcController::StandUpTrajectory
+HumanoidWholeBodyInverseDynamicsMpcController::load_stand_up_trajectory(
+  const std::string& file, const std::vector<std::string>& joint_names)
+{
+  const YAML::Node root = YAML::LoadFile(file)["stand_up"];
+  if (!root) {
+    throw std::invalid_argument("stand-up trajectory " + file + " has no 'stand_up' map");
+  }
+  if (root["joint_names"].as<std::vector<std::string>>() != joint_names) {
+    throw std::invalid_argument("stand-up trajectory " + file + ": joint_names must equal robot.jointNames, in order");
+  }
+  const auto n = static_cast<Eigen::Index>(joint_names.size());
+  const auto to_vector = [&](const std::vector<double>& values, const std::string& what) {
+    if (static_cast<Eigen::Index>(values.size()) != n) {
+      throw std::invalid_argument("stand-up trajectory " + file + ": " + what + " needs one entry per joint");
+    }
+    return vector_t(Eigen::Map<const vector_t>(values.data(), n));
+  };
+  StandUpTrajectory plan;
+  plan.time = root["time"].as<std::vector<double>>();
+  plan.handoverTime = root["handover_time"].as<double>();
+  plan.kp = to_vector(root["kp"].as<std::vector<double>>(), "kp");
+  plan.kd = to_vector(root["kd"].as<std::vector<double>>(), "kd");
+  for (const char* key : {"position", "velocity", "effort"}) {
+    auto& samples = std::string(key) == "position" ? plan.position : (std::string(key) == "velocity" ? plan.velocity : plan.effort);
+    for (const auto& row : root[key].as<std::vector<std::vector<double>>>()) {
+      samples.push_back(to_vector(row, key));
+    }
+    if (samples.size() != plan.time.size()) {
+      throw std::invalid_argument("stand-up trajectory " + file + ": " + key + " needs one row per time sample");
+    }
+  }
+  if (plan.time.size() < 2 || !std::is_sorted(plan.time.begin(), plan.time.end()) || plan.time.front() != 0.0) {
+    throw std::invalid_argument("stand-up trajectory " + file + ": time must start at 0 and increase, with >= 2 samples");
+  }
+  if (!(plan.handoverTime > 0.0 && plan.handoverTime <= plan.time.back())) {
+    throw std::invalid_argument("stand-up trajectory " + file + ": handover_time must lie inside the trajectory");
+  }
+  return plan;
+}
+
+HumanoidWholeBodyInverseDynamicsMpcController::JointActionCommand
+HumanoidWholeBodyInverseDynamicsMpcController::StandUpTrajectory::sample(double t) const
+{
+  // Linear interpolation, held at the ends.
+  const auto upper = std::upper_bound(time.begin(), time.end(), t);
+  const size_t k1 = static_cast<size_t>(std::clamp<std::ptrdiff_t>(std::distance(time.begin(), upper), 1,
+                                                                    static_cast<std::ptrdiff_t>(time.size()) - 1));
+  const size_t k0 = k1 - 1;
+  const double a = std::clamp((t - time[k0]) / (time[k1] - time[k0]), 0.0, 1.0);
+  JointActionCommand command;
+  command.policy_position = (1.0 - a) * position[k0] + a * position[k1];
+  command.policy_velocity = (1.0 - a) * velocity[k0] + a * velocity[k1];
+  command.feedforward = (1.0 - a) * effort[k0] + a * effort[k1];
+  return command;
+}
+
 void HumanoidWholeBodyInverseDynamicsMpcController::enter_bring_up_phase(BringUpPhase phase, double time)
 {
   RCLCPP_INFO(get_node()->get_logger(), "%s bring-up: %s -> %s", kTag, to_string(bring_up_phase_.load()),
@@ -753,6 +862,38 @@ HumanoidWholeBodyInverseDynamicsMpcController::run_bring_up(
   switch (bring_up_phase_.load()) {
     case BringUpPhase::Passive: {
       JointActionCommand hold = damping_command(passive_hold_joints_);
+      if (stand_up_trajectory_) {
+        // Wheeled: idle in the rest pose, then start the solver and the planned stand-up together,
+        // so the MPC is already solving when it takes over. With the estimator, it initialises from
+        // the idle pose first (the robot is at rest on the floor there). The idle hold uses the
+        // plan's servo gains, so the stand-up starts from the state it was planned from.
+        servo_kp_override_ = stand_up_trajectory_->kp;
+        servo_kd_override_ = stand_up_trajectory_->kd;
+        if (!(bu.autoStart || stand_up_requested_.load()) || t - phase_start_time_ < bu.idleSeconds) {
+          return hold;
+        }
+        if (uses_state_estimator(parameters_.floatingBase.source)) {
+          if (!estimator_initialized_for_request()) {
+            request_estimator_initialization();
+            return hold;
+          }
+          if (!estimator_status_.ready) {
+            RCLCPP_INFO_THROTTLE(get_node()->get_logger(), *get_node()->get_clock(), 2000,
+                                 "%s bring-up: idle, estimator converging | %s", kTag,
+                                 estimator_report(estimator_status_, estimator_diagnostics_).c_str());
+            return hold;
+          }
+          estimator_driving_control_ = true;
+        }
+        if (!observation_from_hardware_) {
+          return hold;
+        }
+        start_observation_ = observation;
+        locomotion_requested_.store(true, std::memory_order_release);
+        stand_up_start_joints_ = q;
+        enter_bring_up_phase(BringUpPhase::StandUp, t);
+        return hold;
+      }
       if (bu.autoStart || stand_up_requested_.load()) {
         stand_up_start_joints_ = q;
         enter_bring_up_phase(BringUpPhase::StandUp, t);
@@ -765,6 +906,36 @@ HumanoidWholeBodyInverseDynamicsMpcController::run_bring_up(
     }
 
     case BringUpPhase::StandUp: {
+      if (stand_up_trajectory_) {
+        const auto& plan = *stand_up_trajectory_;
+        const double elapsed = t - phase_start_time_;
+        servo_kp_override_ = plan.kp;
+        servo_kd_override_ = plan.kd;
+        if (elapsed >= plan.handoverTime) {
+          if (!active_policy_ready_) {
+            RCLCPP_ERROR(get_node()->get_logger(),
+                         "%s bring-up FAULT: no valid MPC policy at the stand-up handover (%.3f s); damping.", kTag,
+                         plan.handoverTime);
+            servo_kp_override_.resize(0);
+            servo_kd_override_.resize(0);
+            enter_bring_up_phase(BringUpPhase::Fault, t);
+            return damping_command(q);
+          }
+          // The height reference restarts at the measured height and ramps to the command at the
+          // configured height rate, instead of stepping from the crouch to the standing height.
+          motion_manager_->requestVelocityTargetFilterReset(control_model_->getBasePose(observation.state)(2));
+          servo_kp_override_.resize(0);
+          servo_kd_override_.resize(0);
+          enter_bring_up_phase(BringUpPhase::Blend, t);
+          JointActionCommand handover = plan.sample(plan.handoverTime);
+          clamp_torque(handover.feedforward);
+          return handover;
+        }
+        // The plan's feed-forward is clamped like the MPC's (jointTorqueLimits / URDF efforts).
+        JointActionCommand playback = plan.sample(elapsed);
+        clamp_torque(playback.feedforward);
+        return playback;
+      }
       const double s = bu.standUpSeconds > 0.0
         ? std::clamp((t - phase_start_time_) / bu.standUpSeconds, 0.0, 1.0) : 1.0;
       const double alpha = s * s * (3.0 - 2.0 * s);
@@ -837,7 +1008,8 @@ HumanoidWholeBodyInverseDynamicsMpcController::run_bring_up(
         enter_bring_up_phase(BringUpPhase::StartingMpc, t);
         return hold_command(stand_nominal_joints_, q, imu);
       }
-      const JointActionCommand stand = hold_command(stand_nominal_joints_, q, imu);
+      const JointActionCommand stand = stand_up_trajectory_ ? stand_up_trajectory_->sample(stand_up_trajectory_->handoverTime)
+                                                            : hold_command(stand_nominal_joints_, q, imu);
       const JointActionCommand mpc = compute_mpc_joint_action(observation);
       const double a = bu.blendSeconds > 0.0
         ? std::clamp((t - phase_start_time_) / bu.blendSeconds, 0.0, 1.0) : 1.0;
@@ -1361,7 +1533,8 @@ HumanoidWholeBodyInverseDynamicsMpcController::compute_weight_compensating_torqu
   const vector_t q = control_model_->getGeneralizedCoordinates(observation.state);
   const vector_t qd = vector_t::Zero(static_cast<Eigen::Index>(control_model_->getGenCoordinatesDim()));
   const vector_t qdd_joints = vector_t::Zero(static_cast<Eigen::Index>(control_model_->getJointDim()));
-  return ocs2::humanoid::computeJointTorques<ocs2::scalar_t>(q, qd, qdd_joints, foot_wrenches, *control_pinocchio_);
+  return ocs2::humanoid::computeJointTorques<ocs2::scalar_t>(q, qd, qdd_joints, foot_wrenches, *control_pinocchio_,
+                                                            contact_frame_names());
 }
 
 void HumanoidWholeBodyInverseDynamicsMpcController::clamp_torque(vector_t& tau) const
@@ -1397,8 +1570,20 @@ HumanoidWholeBodyInverseDynamicsMpcController::compute_mpc_joint_action(const oc
     const std::array<ocs2::vector6_t, 2> foot_wrenches{
       control_model_->getContactWrench(policy_input, 0), control_model_->getContactWrench(policy_input, 1)};
     const vector_t a = control_model_->getGeneralizedAccelerations(policy_input);
-    return ocs2::humanoid::computeJointTorques<ocs2::scalar_t>(
-      q, v, a.tail(static_cast<Eigen::Index>(control_model_->getJointDim())), foot_wrenches, *control_pinocchio_);
+    vector_t tau = ocs2::humanoid::computeJointTorques<ocs2::scalar_t>(
+      q, v, a.tail(static_cast<Eigen::Index>(control_model_->getJointDim())), foot_wrenches, *control_pinocchio_,
+      contact_frame_names());
+    // The modelled joint Coulomb friction, as in the MPC's joint dynamics rows.
+    const auto& friction = mpc_interface_->modelSettings().jointFriction;
+    const auto nj = static_cast<Eigen::Index>(friction.size());
+    if (nj == tau.size()) {
+      const vector_t joint_velocities = v.tail(nj);
+      for (Eigen::Index i = 0; i < nj; ++i) {
+        tau(i) += friction[static_cast<size_t>(i)] *
+                  std::tanh(joint_velocities(i) / mpc_interface_->modelSettings().jointFrictionVelocity);
+      }
+    }
+    return tau;
   };
 
   if (feedforward_ == Feedforward::PolicyTorque && parameters_.ocs2.constraints.inverseDynamics.activate) {
@@ -1479,6 +1664,19 @@ void HumanoidWholeBodyInverseDynamicsMpcController::configure_tracking()
     for (const char* axis : {"fx", "fy", "fz", "mx", "my", "mz"}) {
       tracking_names_.push_back("plan_wrench/" + frame + "/" + axis);
     }
+  }
+  // Rolling wheels: gap of the tire's lowest point and the tread slip velocity at it, from the
+  // observed state (WheelContactKinematics.h), plus the simulator's measured contact.
+  if (parameters_.ocs2.constraints.wheelContact.activate) {
+    for (const auto& frame : parameters_.ocs2.model.contactNames6DoF) {
+      for (const char* name : {"gap", "slip_lon", "slip_lat"}) {
+        tracking_names_.push_back("obs_wheel/" + frame + "/" + name);
+      }
+    }
+  }
+  for (const auto& sensor : parameters_.diagnostics.contactSensorNames) {
+    tracking_names_.push_back("meas_contact/" + sensor + "/normal_force");
+    tracking_names_.push_back("meas_contact/" + sensor + "/contact");
   }
   tracking_row_.data.assign(tracking_names_.size(), std::numeric_limits<double>::quiet_NaN());
 
@@ -1704,6 +1902,31 @@ void HumanoidWholeBodyInverseDynamicsMpcController::publish_tracking(
     for (std::size_t c = 0; c < tracking_foot_frames_.size(); ++c) {
       put_vec(control_model_->getContactWrench(tracking_policy_input_, c), 6);
     }
+  } else {
+    skip(6 * tracking_foot_frames_.size());
+  }
+  if (parameters_.ocs2.constraints.wheelContact.activate) {
+    const auto& wheel = parameters_.ocs2.constraints.wheelContact;
+    const Eigen::Vector3d axle_local = Eigen::Vector3d(wheel.axleAxis[0], wheel.axleAxis[1], wheel.axleAxis[2]).normalized();
+    const Eigen::Vector3d normal(0.0, 0.0, 1.0);
+    pinocchio::forwardKinematics(model, data, control_model_->getGeneralizedCoordinates(observation.state),
+                                 control_model_->getGeneralizedVelocities(observation.state));
+    for (const auto frame : tracking_foot_frames_) {
+      const auto& placement = pinocchio::updateFramePlacement(model, data, frame);
+      const auto velocity = pinocchio::getFrameVelocity(model, data, frame, pinocchio::LOCAL_WORLD_ALIGNED);
+      const Eigen::Vector3d axle = placement.rotation() * axle_local;
+      const Eigen::Vector3d rho = ocs2::humanoid::wheel::contactOffset<double>(axle, normal, wheel.radius);
+      const Eigen::Vector3d slip = velocity.linear() + velocity.angular().cross(rho);
+      put(normal.dot(placement.translation() + rho));
+      put(ocs2::humanoid::wheel::longitudinalDirection<double>(axle, normal).dot(slip));
+      put(ocs2::humanoid::wheel::lateralDirection<double>(axle, normal).dot(slip));
+    }
+  }
+  for (const auto& sensor : parameters_.diagnostics.contactSensorNames) {
+    const auto force = get_state_interface_value(sensor, "normal_force");
+    const auto contact = get_state_interface_value(sensor, "contact");
+    put(force ? *force : std::numeric_limits<double>::quiet_NaN());
+    put(contact ? *contact : std::numeric_limits<double>::quiet_NaN());
   }
   (void)tracking_publisher_->try_publish(tracking_row_);
 }
@@ -1726,10 +1949,12 @@ void HumanoidWholeBodyInverseDynamicsMpcController::write_joint_action_command(
     (void)command_interfaces_[3 * i + 2].set_value(safe(i < static_cast<size_t>(tau_ff.size()) ? tau_ff[idx] : 0.0));
   }
   // Servo gains, every tick: the hardware runs the PD with whatever was written last.
+  const vector_t& kp = servo_kp_override_.size() == joint_kp_.size() ? servo_kp_override_ : joint_kp_;
+  const vector_t& kd = servo_kd_override_.size() == joint_kd_.size() ? servo_kd_override_ : joint_kd_;
   for (size_t i = 0; 2 * i + 1 < gain_command_index_.size(); ++i) {
     const auto idx = static_cast<Eigen::Index>(i);
-    (void)command_interfaces_[gain_command_index_[2 * i]].set_value(joint_kp_[idx]);
-    (void)command_interfaces_[gain_command_index_[2 * i + 1]].set_value(joint_kd_[idx]);
+    (void)command_interfaces_[gain_command_index_[2 * i]].set_value(kp[idx]);
+    (void)command_interfaces_[gain_command_index_[2 * i + 1]].set_value(kd[idx]);
   }
   // Joints excluded from the MPC model (wrists): hold zero, soft hardware gains.
   for (size_t i = 0; i < fixed_joint_count; ++i) {

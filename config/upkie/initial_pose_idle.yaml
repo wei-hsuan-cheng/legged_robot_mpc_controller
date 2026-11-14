@@ -1,0 +1,13 @@
+# Upkie kneeling idle pose (docs/wheeled_biped_handoff.md): spawned upright with these joints, the
+# robot settles forward onto its knee-motor housings and both wheels. Spawn height from
+# plan_stand_up.py (lowest collision bounding sphere 1 cm above the floor); the stand-up
+# trajectory (stand_up_trajectory.yaml) is planned from the state it settles into.
+upkie_joints:
+  left_hip: -1.3
+  left_knee: -2.4
+  left_wheel: 0.0
+  right_hip: 1.3
+  right_knee: 2.4
+  right_wheel: 0.0
+upkie_base:
+  z: 0.1346

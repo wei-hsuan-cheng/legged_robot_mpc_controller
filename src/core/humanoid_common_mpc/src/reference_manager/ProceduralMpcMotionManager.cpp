@@ -92,8 +92,13 @@ void ProceduralMpcMotionManager::setVelocityCommand(const WalkingVelocityCommand
 /******************************************************************************************************/
 /******************************************************************************************************/
 
-void ProceduralMpcMotionManager::requestVelocityTargetFilterReset() {
-  walkingVelocityTarget_.requestFilterReset();
+void ProceduralMpcMotionManager::requestGait(const std::string& gait) {
+  std::lock_guard<std::mutex> lock(requestedGaitMutex_);
+  requestedGait_ = gait;
+}
+
+void ProceduralMpcMotionManager::requestVelocityTargetFilterReset(scalar_t initialHeight) {
+  walkingVelocityTarget_.requestFilterReset(initialHeight);
 }
 
 /******************************************************************************************************/
@@ -230,7 +235,28 @@ void ProceduralMpcMotionManager::preSolverRun(scalar_t initTime,
   const GaitModeStateConfig& currentCfg = gaitModeStates_[currentGaitMode_];
   vector6_t baseVelocity = mpcRobotModelPtr_->getBaseComVelocity(initState);
 
-  if (targetMode == TargetMode::TerrainWalk) {
+  std::string requestedGait;
+  {
+    std::lock_guard<std::mutex> lock(requestedGaitMutex_);
+    requestedGait = requestedGait_;
+  }
+  if (!requestedGait.empty() && gaitMap_.count(requestedGait) == 0) {
+    std::cerr << "[ProceduralMpcMotionManager] requested gait '" << requestedGait << "' is not a template; ignored." << std::endl;
+    requestedGait.clear();
+  }
+
+  if (!requestedGait.empty()) {
+    // An explicitly requested template overrides the velocity ladder while it is set.
+    currentGaitMode_ = 0;
+    currentGaitCommand_ = requestedGait;
+    requestedGaitActive_ = true;
+  } else if (requestedGaitActive_) {
+    // Released: back to the ladder from its first rung.
+    requestedGaitActive_ = false;
+    currentGaitMode_ = 0;
+    currentGaitCommand_ = gaitModeStates_[0].gaitCommand;
+    lastGaitChangeTime_ = initTime;
+  } else if (targetMode == TargetMode::TerrainWalk) {
     // Terrain-aware walking uses a fixed, deliberately slow gait with generous
     // double support (the "terrain_walk" template in ocs2.gait, matching the
     // stair-climb swing/stance timing) instead of the velocity-based gait FSM,

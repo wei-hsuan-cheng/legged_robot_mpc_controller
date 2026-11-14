@@ -103,7 +103,8 @@ void Ros2ProceduralMpcMotionManager::subscribe(
   const std::string& walking_velocity_topic,
   const std::string& base_pose_topic,
   const std::string& target_mode_topic,
-  const std::string& global_frame)
+  const std::string& global_frame,
+  const std::string& gait_topic)
 {
   tf_buffer_ = std::make_unique<tf2_ros::Buffer>(node->get_clock());
   tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
@@ -145,6 +146,16 @@ void Ros2ProceduralMpcMotionManager::subscribe(
         RCLCPP_WARN(node->get_logger(), "Rejected target mode: %s", error.what());
       }
     });
+
+  if (!gait_topic.empty()) {
+    gait_subscription_ = node->create_subscription<std_msgs::msg::String>(
+      gait_topic,
+      rclcpp::QoS(1).reliable(),
+      [this, node](const std_msgs::msg::String::SharedPtr message) {
+        requestGait(message->data);
+        RCLCPP_INFO(node->get_logger(), "Requested gait: %s", message->data.empty() ? "(velocity ladder)" : message->data.c_str());
+      });
+  }
 }
 
 void Ros2ProceduralMpcMotionManager::subscribeMpcTargets(

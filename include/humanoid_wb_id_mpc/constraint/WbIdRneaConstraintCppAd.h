@@ -44,6 +44,8 @@ class WbIdRneaConstraintCppAd final : public StateInputConstraintCppAd {
 
   bool isActive(scalar_t time) const override;
   size_t getNumConstraints(scalar_t /*time*/) const override { return numConstraints_; }
+  //! Joint rows with Coulomb friction: [f_c per joint, smoothing velocity]; empty otherwise.
+  vector_t getParameters(scalar_t /*time*/, const PreComputation& /*preComputation*/) const override { return frictionParameters_; }
 
  private:
   WbIdRneaConstraintCppAd(const WbIdRneaConstraintCppAd& rhs);
@@ -59,6 +61,7 @@ class WbIdRneaConstraintCppAd final : public StateInputConstraintCppAd {
   std::vector<size_t> contactFrameIds_;
   size_t numConstraints_;
   std::shared_ptr<const WbIdTorqueWindow> torqueWindow_;
+  vector_t frictionParameters_;
 };
 
 }  // namespace ocs2::humanoid

@@ -73,6 +73,9 @@ class HumanoidCostConstraintFactory {
     PieceWisePolynomialBarrierPenalty::Config footCollisionBarrierConfig;
 
     PieceWisePolynomialBarrierPenalty::Config jointLimitsBarrierConfig;
+    // MPC joint indices without position bounds (rolling wheels): their limits are set to +/-inf,
+    // where the polynomial barrier is exactly zero.
+    std::vector<size_t> unboundedJointIndices;
 
     RelaxedBarrierPenalty::Config contactMomentBarrierConfig;
 

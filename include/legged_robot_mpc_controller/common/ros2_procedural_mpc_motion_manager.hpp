@@ -41,7 +41,8 @@ public:
     const std::string& walking_velocity_topic,
     const std::string& base_pose_topic,
     const std::string& target_mode_topic,
-    const std::string& global_frame);
+    const std::string& global_frame,
+    const std::string& gait_topic = "");
 
   /// Subscribes to the MpcTargets command topic (command_type dispatch: "joint"
   /// arm targets, "frame_relation" relative-pose tracking of declared
@@ -59,6 +60,7 @@ private:
   rclcpp::Subscription<ocs2_msgs::msg::WalkingVelocityCommand>::SharedPtr velocity_command_subscription_;
   rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr base_pose_command_subscription_;
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr target_mode_subscription_;
+  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr gait_subscription_;
   rclcpp::Subscription<ocs2_msgs::msg::MpcTargets>::SharedPtr mpc_targets_subscription_;
   std::vector<std::string> tracked_arm_joint_names_;
   std::vector<std::string> declared_frame_relation_source_frames_;

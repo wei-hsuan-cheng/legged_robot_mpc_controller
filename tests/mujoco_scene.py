@@ -54,7 +54,7 @@ def temporary_scene(robot="g1", terrain="none", package=ROOT):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--robot-name", choices=("g1", "h2"), default="g1")
+    parser.add_argument("--robot-name", choices=("g1", "h2", "upkie"), default="g1")
     parser.add_argument("--terrain", choices=MODULES, default="none")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()

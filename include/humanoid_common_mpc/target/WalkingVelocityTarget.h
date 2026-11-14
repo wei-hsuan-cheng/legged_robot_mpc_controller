@@ -75,8 +75,10 @@ class WalkingVelocityTarget {
   /// Must only be called from the solver thread (owns the filter state).
   Output evaluate(scalar_t initTime, scalar_t finalTime, const vector_t& initState);
 
-  /// Request a solver-thread reset; slew-limited twist axes restart from zero.
-  void requestFilterReset();
+  /// Request a solver-thread reset; slew-limited twist axes restart from zero. A finite
+  /// initialHeight restarts the slew-limited height channel there (e.g. the measured base height
+  /// when the MPC takes over from a crouch), so the reference ramps to the commanded height.
+  void requestFilterReset(scalar_t initialHeight = std::numeric_limits<scalar_t>::quiet_NaN());
 
  private:
   WalkingVelocityCommand scaleCommand(WalkingVelocityCommand command) const;
@@ -94,6 +96,7 @@ class WalkingVelocityTarget {
   mutable std::mutex commandMutex_;
   WalkingVelocityCommand command_;
   std::atomic_bool filterResetRequested_{true};
+  std::atomic<scalar_t> resetHeight_{std::numeric_limits<scalar_t>::quiet_NaN()};
 };
 
 }  // namespace ocs2::humanoid

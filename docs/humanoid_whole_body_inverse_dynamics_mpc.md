@@ -5,6 +5,7 @@ The MPC plans whole-body motion, contact wrenches, accelerations and joint torqu
 It adapts [Khazoom et al., Tailoring Solution Accuracy for Fast Whole-body Model Predictive Control of Legged Robots](https://arxiv.org/abs/2407.10789) and [Molnar et al., Whole-Body Inverse Dynamics MPC for Legged Loco-Manipulation](https://arxiv.org/abs/2511.19709) to OCS2 and flat-foot humanoid contacts.
 The implementation choices below describe the repository rather than claiming an exact reproduction of either paper.
 Code locations and parameter mappings are collected in [Implementation Guide](./humanoid_whole_body_inverse_dynamics_mpc_impl.md).
+The Upkie extension, including rolling contact, friction compensation and its current costs and limits, is documented separately in [Wheeled-Biped WB-ID MPC](./wheeled_biped_whole_body_inverse_dynamics_mpc.md).
 
 
 ## 1. Architecture and Signal Flow

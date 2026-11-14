@@ -1,5 +1,7 @@
 #include "legged_robot_mpc_controller/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.hpp"
 
+#include <algorithm>
+#include <iterator>
 #include <stdexcept>
 #include <utility>
 #include <vector>
@@ -55,15 +57,28 @@ ocs2::humanoid::WbIdMpcInterface::Config buildWholeBodyInverseDynamicsMpcConfig(
   model.fixedJointNames = p.model.fixedJointNames;
   model.contactNames6DoF = p.model.contactNames6DoF;
   model.contactParentJointNames = p.model.contactParentJointNames;
-  if (p.reference.armSwing.jointNames.size() != 4) {
+  // A robot without arms (the wheeled biped) leaves the arm-swing joints empty.
+  const auto& armSwingJoints = p.reference.armSwing.jointNames;
+  if (armSwingJoints.size() != 4 && !(armSwingJoints.empty() && !p.reference.armSwing.enabled)) {
     throw std::invalid_argument(
       "[whole_body_inverse_dynamics_mpc_config_builder] reference.armSwing.jointNames must contain exactly 4 entries "
-      "[left_shoulder_y, right_shoulder_y, left_elbow_y, right_elbow_y]");
+      "[left_shoulder_y, right_shoulder_y, left_elbow_y, right_elbow_y], or be empty with armSwing.enabled false");
   }
-  model.j_l_shoulder_y_name = p.reference.armSwing.jointNames[0];
-  model.j_r_shoulder_y_name = p.reference.armSwing.jointNames[1];
-  model.j_l_elbow_y_name = p.reference.armSwing.jointNames[2];
-  model.j_r_elbow_y_name = p.reference.armSwing.jointNames[3];
+  if (armSwingJoints.size() == 4) {
+    model.j_l_shoulder_y_name = armSwingJoints[0];
+    model.j_r_shoulder_y_name = armSwingJoints[1];
+    model.j_l_elbow_y_name = armSwingJoints[2];
+    model.j_r_elbow_y_name = armSwingJoints[3];
+  }
+  if (!p.model.jointArmature.empty()) {
+    checkJointArraySize(p.model.jointArmature, numJoints, "ocs2.model.jointArmature");
+  }
+  model.jointArmature = p.model.jointArmature;
+  if (!p.model.jointFriction.empty()) {
+    checkJointArraySize(p.model.jointFriction, numJoints, "ocs2.model.jointFriction");
+  }
+  model.jointFriction = p.model.jointFriction;
+  model.jointFrictionVelocity = p.model.jointFrictionVelocity;
 
   auto& foot = model.footConstraintConfig;
   foot.positionErrorGain_z = p.constraints.footMotionEquality.positionErrorGain_z;
@@ -221,6 +236,35 @@ ocs2::humanoid::WbIdMpcInterface::Config buildWholeBodyInverseDynamicsMpcConfig(
   if (armCollision.activate) {
     readSpheres(armParams.arms, armCollision.arms);
     readSpheres(armParams.bodies, armCollision.bodies);
+  }
+  // Rolling wheels: the contact parent joints are the wheel joints. Their angles are unwrapped
+  // and unbounded, so they get no position bounds and no posture weight.
+  config.activateWheelContact = p.constraints.wheelContact.activate;
+  if (config.activateWheelContact) {
+    const auto& wheel = p.constraints.wheelContact;
+    auto& settings = config.wheelContactSettings;
+    settings.radius = wheel.radius;
+    settings.axleAxis = vector3_t(wheel.axleAxis[0], wheel.axleAxis[1], wheel.axleAxis[2]);
+    settings.normalPositionGain = wheel.normalPositionGain;
+    settings.normalVelocityGain = wheel.normalVelocityGain;
+    settings.tangentialVelocityGain = wheel.tangentialVelocityGain;
+    settings.normalAccelerationGain = wheel.normalAccelerationGain;
+    settings.tangentialAccelerationGain = wheel.tangentialAccelerationGain;
+    for (const auto& wheelJoint : p.model.contactParentJointNames) {
+      const auto it = std::find(params.robot.jointNames.begin(), params.robot.jointNames.end(), wheelJoint);
+      if (it == params.robot.jointNames.end()) {
+        throw std::invalid_argument("[whole_body_inverse_dynamics_mpc_config_builder] wheelContact: contact parent joint '" +
+                                    wheelJoint + "' must be an MPC joint (the wheel joint)");
+      }
+      const auto index = static_cast<size_t>(std::distance(params.robot.jointNames.begin(), it));
+      costs.unboundedJointIndices.push_back(index);
+      for (const auto* weights : {&p.costs.q.jointPositions, &p.costs.qFinal.jointPositions}) {
+        if ((*weights)[index] != 0.0) {
+          throw std::invalid_argument("[whole_body_inverse_dynamics_mpc_config_builder] wheelContact: the posture weight of wheel joint '" +
+                                      wheelJoint + "' must be 0 in costs.q/qFinal.jointPositions (wheel angles are unwrapped)");
+        }
+      }
+    }
   }
   config.activateInverseDynamics = p.constraints.inverseDynamics.activate;
   config.activateFootMotionEquality = p.constraints.footMotionEquality.activate;

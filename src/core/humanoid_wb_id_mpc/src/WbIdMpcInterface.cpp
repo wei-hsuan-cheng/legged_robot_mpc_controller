@@ -181,6 +181,18 @@ void WbIdMpcInterface::setupOptimalControlProblem() {
   }
 
   // Contacts.
+  if (config_.activateWheelContact && (config_.activateFootMotionEquality || config_.activateContactMomentXY)) {
+    throw std::invalid_argument(
+        "[WbIdMpcInterface] wheelContact replaces footMotionEquality and contactMomentXY; deactivate both");
+  }
+  if (config_.activateWheelContact) {
+    // One lateral no-slip row shared by the wheels in contact (see WbIdWheelContactConstraintCppAd).
+    problemPtr_->equalityConstraintPtr->add(
+        "wheelLateralNoSlip",
+        std::make_unique<WbIdWheelContactConstraintCppAd>(WbIdWheelContactConstraintCppAd::Type::Lateral, *referenceManagerPtr_,
+                                                          *pinocchioInterfacePtr_, *mpcRobotModelADPtr_, 0,
+                                                          config_.wheelContactSettings, modelSettings_));
+  }
   for (size_t i = 0; i < N_CONTACTS; i++) {
     const std::string& footName = modelSettings_.contactNames[i];
 
@@ -193,6 +205,18 @@ void WbIdMpcInterface::setupOptimalControlProblem() {
     }
     if (config_.activateSwingFootZeroWrench) {
       problemPtr_->equalityConstraintPtr->add(footName + "_zeroWrench", factory.getZeroWrenchConstraint(i));
+    }
+    if (config_.activateWheelContact) {
+      problemPtr_->equalityConstraintPtr->add(
+          footName + "_wheelRolling",
+          std::make_unique<WbIdWheelContactConstraintCppAd>(WbIdWheelContactConstraintCppAd::Type::Rolling, *referenceManagerPtr_,
+                                                            *pinocchioInterfacePtr_, *mpcRobotModelADPtr_, i,
+                                                            config_.wheelContactSettings, modelSettings_));
+      problemPtr_->equalityConstraintPtr->add(
+          footName + "_wheelSwingVertical",
+          std::make_unique<WbIdWheelContactConstraintCppAd>(WbIdWheelContactConstraintCppAd::Type::SwingVertical,
+                                                            *referenceManagerPtr_, *pinocchioInterfacePtr_, *mpcRobotModelADPtr_, i,
+                                                            config_.wheelContactSettings, modelSettings_));
     }
     if (config_.activateFootMotionEquality) {
       problemPtr_->equalityConstraintPtr->add(

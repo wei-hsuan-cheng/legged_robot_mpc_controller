@@ -334,7 +334,8 @@ VECTOR_T<SCALAR_T> computeJointTorques(const VECTOR_T<SCALAR_T>& q,
                                        const VECTOR_T<SCALAR_T>& qd,
                                        const VECTOR_T<SCALAR_T>& qdd_joints,
                                        const std::array<VECTOR6_T<SCALAR_T>, 2>& footWrenches,
-                                       PinocchioInterfaceTpl<SCALAR_T>& pinocchioInterface);
+                                       PinocchioInterfaceTpl<SCALAR_T>& pinocchioInterface,
+                                       const std::array<std::string, 2>& contactFrames = {"foot_l_contact", "foot_r_contact"});
 
 ///
 /// @brief WARNING!!!!!! This formualtion currently does not work! Since pinocchio is not aware of the custom 6 dof base joint the results

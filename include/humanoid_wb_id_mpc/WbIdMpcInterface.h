@@ -23,6 +23,7 @@
 #include "humanoid_wb_id_mpc/cost/WbIdTorsoTiltCost.h"
 #include "humanoid_wb_id_mpc/constraint/WbIdFootAccelerationConstraintCppAd.h"
 #include "humanoid_wb_id_mpc/constraint/WbIdTorqueWindow.h"
+#include "humanoid_wb_id_mpc/constraint/WbIdWheelContactConstraintCppAd.h"
 #include "humanoid_wb_id_mpc/initialization/WbIdInitializer.h"
 
 namespace ocs2::humanoid {
@@ -84,6 +85,12 @@ class WbIdMpcInterface final : public RobotInterface {
 
     //! Acceleration-level stance/swing foot constraint gains.
     WbIdFootAccelerationConstraintCppAd::Gains footAccelerationGains;
+
+    // Rolling wheels instead of planted feet: the contact frames sit at the tire centres on the
+    // wheel links, whose joints are the contact parent joints. Replaces the foot motion
+    // equalities and the CoP (contactMomentXY) penalty, which must then be off.
+    bool activateWheelContact = false;
+    WbIdWheelContactConstraintCppAd::Settings wheelContactSettings;
 
     bool activateInverseDynamics = true;
     bool activateFootMotionEquality = true;

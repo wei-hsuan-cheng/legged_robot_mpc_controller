@@ -17,6 +17,9 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
     defaultMode: {type: string, default_value: "base_twist", description: "Target mode selected when the controller
         starts", validation: {one_of<>: [["base_twist", "base_pose"]]}}
     globalFrame: {type: string, default_value: "world", description: "Global frame used by MPC base-pose targets"}
+    gaitTopic: {type: string, default_value: "/humanoid/gait_command", description: "std_msgs/String: a gait template
+        name held instead of the velocity ladder (e.g. a hop); an empty string returns to the ladder. Empty topic
+        name = no subscription"}
     mpcTargetsTopic: {type: string, default_value: "/humanoid/mpc_targets", description: "ocs2_msgs/MpcTargets command
         topic (command_type dispatch: joint arm targets; frame_relation is a future extension)"}
   robot:
@@ -48,6 +51,9 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         space. Also enables ~/solver (names on ~/solver_names): per solve, the solve time, the SQP performance
         indices, the equality violation per constraint term and every cost / soft-constraint term at the first
         node. 0 disables both.", validation: {gt_eq: [0.0]}}
+    contactSensorNames: {type: string_array, default_value: [], description: "Simulation contact sensors (one per
+        contact, in contact order) whose normal_force and contact state interfaces are logged on ~/tracking as
+        meas_contact/<sensor>/normal_force and /contact. Claimed only when trackingRate > 0; empty logs none"}
   floatingBase:
     source: {type: string, default_value: "ground_truth_state", description: "Where the floating-base state comes
         from. ground_truth_state = the simulator/hardware body state (ground truth in MuJoCo). state_estimator =
@@ -86,6 +92,14 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         within this of g [m/s^2].", validation: {gt: [0.0]}}
     settleFilterHz: {type: double, default_value: 2.0, description: "Cutoff of the first-order low-pass applied
         to the IMU rest tests [Hz].", validation: {gt: [0.0]}}
+    standUpTrajectoryFile: {type: string, default_value: "", description: "Planned stand-up (a wheeled biped that
+        cannot stand on a joint hold): YAML with a stand_up map of joint_names, time, position, velocity, effort,
+        kp, kd and handover_time. When set, the bring-up runs with either floating-base source: Passive holds the
+        idle pose for idleSeconds, then the MPC starts solving and the trajectory plays back (PD + feed-forward with
+        its own gains); at handover_time the MPC takes over (Blend, then Locomotion), with the height reference
+        restarted at the measured height. Empty keeps the humanoid stand-up."}
+    idleSeconds: {type: double, default_value: 1.0, description: "With standUpTrajectoryFile: time to hold the idle
+        pose before the planned stand-up starts [s]", validation: {gt_eq: [0.0]}}
     blendSeconds: {type: double, default_value: 0.5, description: "Time to blend the stand command into the first
         MPC commands [s], so the hand-over is not a torque step.", validation: {gt_eq: [0.0]}}
     tiltLimit: {type: double, default_value: 0.8, description: "Trunk tilt (angle between its vertical axis and
@@ -111,6 +125,14 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
             the contact parent joint to the contact frame [x, y, z]", validation: {fixed_size<>: [3]}}
         rectangle: {type: double_array, default_value: [0.09, -0.09, 0.03, -0.03], description: "Contact rectangle
             in the contact frame [x_max, x_min, y_max, y_min]", validation: {fixed_size<>: [4]}}
+      jointArmature: {type: double_array, default_value: [], description: "Reflected rotor inertia of each MPC
+          joint [kg m^2], in robot.jointNames order; added on the joint diagonal by Pinocchio's RNEA/CRBA. Empty =
+          none. Baked into the generated CppAD libraries: set codegen.recompileLibraries after changing it"}
+      jointFriction: {type: double_array, default_value: [], description: "Coulomb friction of each MPC joint [N m],
+          in robot.jointNames order, e.g. the MJCF frictionloss. The joint dynamics rows (and the inverse-dynamics
+          fallback) add f_c tanh(v / jointFrictionVelocity), so the planned motor torque overcomes it. Empty = none"}
+      jointFrictionVelocity: {type: double, default_value: 0.05, description: "Joint speed [rad/s] over which the
+          smoothed Coulomb friction reaches 76% of f_c (tanh(1))", validation: {gt: [0.0]}}
     solver:
       sqp:
         nThreads: {type: int, default_value: 4, description: "Number of solver threads", validation: {gt: [0]}}
@@ -266,6 +288,25 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
             linear acceleration error feedback gain"}
         angularAccelerationErrorGain: {type: double, default_value: 0.0, description: "Stance foot angular acceleration
             error feedback gain"}
+      wheelContact:
+        activate: {type: bool, default_value: false, description: "Rolling wheels instead of planted feet: the
+            contact frames sit at the tire centres on the wheel links (contactParentJointNames are the wheel
+            joints). Per wheel in contact: no longitudinal slip and no gap at the tire contact point (acceleration
+            level) and moment = rho x force; one lateral no-slip row shared by the wheels in contact; a swing wheel
+            follows the swing height. Requires footMotionEquality and contactMomentXY off. Wheel joints get no
+            position bounds"}
+        radius: {type: double, default_value: 0.055, description: "Tire radius [m]", validation: {gt: [0.0]}}
+        axleAxis: {type: double_array, default_value: [0.0, 0.0, 1.0], description: "Wheel axle direction in the
+            contact frame", validation: {fixed_size<>: [3]}}
+        normalPositionGain: {type: double, default_value: 50.0, description: "Gap (and swing height) position
+            feedback gain"}
+        normalVelocityGain: {type: double, default_value: 50.0, description: "Gap rate (and swing vertical velocity)
+            feedback gain"}
+        tangentialVelocityGain: {type: double, default_value: 50.0, description: "Tread slip velocity feedback gain"}
+        normalAccelerationGain: {type: double, default_value: 1.0, description: "Gap acceleration multiplier; keep
+            nonzero"}
+        tangentialAccelerationGain: {type: double, default_value: 1.0, description: "Tread slip acceleration
+            multiplier; keep nonzero"}
       inverseDynamics:
         activate: {type: bool, default_value: true, description: "Enable floating-base and joint RNEA equalities; disabling removes physical consistency and uses RNEA feedforward instead of policy torque"}
         torqueConstraintNodes: {type: int, default_value: 3, description: "Nodes from the start of the horizon carrying
@@ -377,7 +418,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
       armSwing:
         jointNames: {type: string_array, default_value: [], description: "Reference joints in order [left shoulder
             pitch, right shoulder pitch, left elbow, right elbow]. Required by model joint-index setup even
-            when arm swing is disabled."}
+            when arm swing is disabled; empty for a robot without arms (arm swing must then stay disabled)."}
         enabled: {type: bool, default_value: false, description: "Superimpose a gait-phase-locked arm swing on the
             nominal arm posture. OFF by default, which keeps the nominal posture except for external arm
             targets. This is reference generation, not an angular-momentum stabilization objective."}

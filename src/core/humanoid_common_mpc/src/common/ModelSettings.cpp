@@ -30,6 +30,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "humanoid_common_mpc/common/ModelSettings.h"
 
+#include <cmath>
 #include <stdexcept>
 
 #include <ocs2_pinocchio_interface/PinocchioInterface.h>
@@ -152,10 +153,42 @@ ModelSettings::ModelSettings(const Params& params, const std::string& urdfFile, 
   this->mpc_joint_dim = this->mpcModelJointNames.size();
   this->full_joint_dim = this->fullJointNames.size();
 
-  j_l_shoulder_y_index = this->jointIndexMap.at(j_l_shoulder_y_name);
-  j_r_shoulder_y_index = this->jointIndexMap.at(j_r_shoulder_y_name);
-  j_l_elbow_y_index = this->jointIndexMap.at(j_l_elbow_y_name);
-  j_r_elbow_y_index = this->jointIndexMap.at(j_r_elbow_y_name);
+  // A robot without arms (e.g. a wheeled biped) leaves all four arm-swing names empty.
+  const bool noArmNames = j_l_shoulder_y_name.empty() && j_r_shoulder_y_name.empty() && j_l_elbow_y_name.empty() &&
+                          j_r_elbow_y_name.empty();
+  hasArmSwingJoints = !noArmNames;
+  if (hasArmSwingJoints) {
+    j_l_shoulder_y_index = this->jointIndexMap.at(j_l_shoulder_y_name);
+    j_r_shoulder_y_index = this->jointIndexMap.at(j_r_shoulder_y_name);
+    j_l_elbow_y_index = this->jointIndexMap.at(j_l_elbow_y_name);
+    j_r_elbow_y_index = this->jointIndexMap.at(j_r_elbow_y_name);
+  }
+
+  this->jointArmature = params.jointArmature;
+  if (!jointArmature.empty() && jointArmature.size() != mpc_joint_dim) {
+    throw std::invalid_argument("[ModelSettings] jointArmature needs one entry per MPC joint (" + std::to_string(mpc_joint_dim) +
+                                "), got " + std::to_string(jointArmature.size()));
+  }
+  for (const scalar_t armature : jointArmature) {
+    if (!std::isfinite(armature) || armature < 0.0) {
+      throw std::invalid_argument("[ModelSettings] jointArmature entries must be finite and non-negative");
+    }
+  }
+
+  this->jointFriction = params.jointFriction;
+  this->jointFrictionVelocity = params.jointFrictionVelocity;
+  if (!jointFriction.empty() && jointFriction.size() != mpc_joint_dim) {
+    throw std::invalid_argument("[ModelSettings] jointFriction needs one entry per MPC joint (" + std::to_string(mpc_joint_dim) +
+                                "), got " + std::to_string(jointFriction.size()));
+  }
+  for (const scalar_t friction : jointFriction) {
+    if (!std::isfinite(friction) || friction < 0.0) {
+      throw std::invalid_argument("[ModelSettings] jointFriction entries must be finite and non-negative");
+    }
+  }
+  if (!jointFriction.empty() && !(std::isfinite(jointFrictionVelocity) && jointFrictionVelocity > 0.0)) {
+    throw std::invalid_argument("[ModelSettings] jointFrictionVelocity must be positive");
+  }
 
   if (verbose) {
     std::cerr << " #### =============================================================================" << std::endl;

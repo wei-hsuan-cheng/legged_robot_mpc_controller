@@ -1,0 +1,31 @@
+# Upkie pitch disturbances for the first acceptance test (docs/design_notes/wheeled_biped/wheeled_biped_first_step.md):
+# forward then backward torque pulses about the base y axis, then a forward and a backward
+# force at the base centre of mass. Forces [N] and torques [Nm] in the world frame.
+
+- link: base
+  frame: world
+  force: [0.0, 0.0, 0.0]
+  torque: [0.0, 1.5, 0.0]
+  duration: 0.2
+  wait_after: 3.0
+
+- link: base
+  frame: world
+  force: [0.0, 0.0, 0.0]
+  torque: [0.0, -1.5, 0.0]
+  duration: 0.2
+  wait_after: 3.0
+
+- link: base
+  frame: world
+  force: [6.0, 0.0, 0.0]
+  torque: [0.0, 0.0, 0.0]
+  duration: 0.2
+  wait_after: 3.0
+
+- link: base
+  frame: world
+  force: [-6.0, 0.0, 0.0]
+  torque: [0.0, 0.0, 0.0]
+  duration: 0.2
+  wait_after: 3.0

@@ -1,4 +1,4 @@
-"""Robot-independent MuJoCo/MPC launch; select Unitree G1 or H2 with robotName.
+"""Robot-independent MuJoCo/MPC launch; select Unitree G1, H2 or the Upkie wheeled biped with robotName.
 
 Robot configuration, scenes and CppAD caches are selected together. The selected
 controller YAML owns the reference height used by both MPC and the command GUI.
@@ -38,7 +38,7 @@ def generate_launch_description():
 
     # Official model filenames differ; all other robot-specific paths follow robotName.
     urdf_name = PythonExpression([
-        "{'g1': 'g1_29dof.urdf', 'h2': 'h2_31dof.urdf'}['", robot_name, "']"
+        "{'g1': 'g1_29dof.urdf', 'h2': 'h2_31dof.urdf', 'upkie': 'upkie.urdf'}['", robot_name, "']"
     ])
     urdf_default = PathJoinSubstitution([mpc_share_dir, "description", "urdf", "robots", robot_name, urdf_name])
 
@@ -69,8 +69,8 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "robotName",
             default_value="g1",
-            choices=["g1", "h2"],
-            description="Robot model and configuration: Unitree G1 or H2.",),
+            choices=["g1", "h2", "upkie"],
+            description="Robot model and configuration: Unitree G1, H2, or the Upkie wheeled biped.",),
         DeclareLaunchArgument("rviz", default_value="true"),
         DeclareLaunchArgument("rvizconfig", default_value=rviz_default),
         DeclareLaunchArgument("use_fake_hardware", default_value="false"),
@@ -83,7 +83,10 @@ def generate_launch_description():
         # The MuJoCo free-joint body. Its ground-truth TF is world -> gt/pelvis while an
         # estimator owns odom -> pelvis, and world -> pelvis only with floatingBaseEstimator:=none
         # (pelvis can have one TF parent).
-        DeclareLaunchArgument("gt_body_frame", default_value="pelvis"),
+        DeclareLaunchArgument(
+            "gt_body_frame",
+            default_value=PythonExpression(["{'g1': 'pelvis', 'h2': 'pelvis', 'upkie': 'base'}['", robot_name, "']"]),
+        ),
         DeclareLaunchArgument("urdfFile", default_value=urdf_default),
         DeclareLaunchArgument(
             "mpcControllerName",

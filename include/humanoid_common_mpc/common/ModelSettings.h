@@ -76,6 +76,13 @@ class ModelSettings {
     scalar_t contactRectangleYMin = 0.0;
     scalar_t contactRectangleYMax = 0.0;
     scalar_t contactRectangleScaleFactor = 1.0;
+    // Rotor inertia reflected to each MPC joint [kg m^2], in MPC joint order; empty = none.
+    // Pinocchio's RNEA and CRBA add it on the joint diagonal (model.armature).
+    std::vector<scalar_t> jointArmature;
+    // Coulomb friction of each MPC joint [N m], in MPC joint order; empty = none. The WB-ID
+    // joint dynamics rows add f_c tanh(v / jointFrictionVelocity).
+    std::vector<scalar_t> jointFriction;
+    scalar_t jointFrictionVelocity = 0.05;  // [rad/s]
   };
 
   ModelSettings(const Params& params, const std::string& urdfFile, const std::string& mpcName, bool verbose = false);
@@ -114,10 +121,19 @@ class ModelSettings {
   std::string j_l_elbow_y_name;
   std::string j_r_elbow_y_name;
 
-  size_t j_l_shoulder_y_index;
-  size_t j_r_shoulder_y_index;
-  size_t j_l_elbow_y_index;
-  size_t j_r_elbow_y_index;
+  // Arm-swing joint indices; only valid when hasArmSwingJoints (robots without arms leave the
+  // four names empty).
+  bool hasArmSwingJoints = false;
+  size_t j_l_shoulder_y_index = 0;
+  size_t j_r_shoulder_y_index = 0;
+  size_t j_l_elbow_y_index = 0;
+  size_t j_r_elbow_y_index = 0;
+
+  // Rotor inertia per MPC joint [kg m^2]; empty = none.
+  std::vector<scalar_t> jointArmature;
+  // Coulomb friction per MPC joint [N m]; empty = none; smoothed as f_c tanh(v / jointFrictionVelocity).
+  std::vector<scalar_t> jointFriction;
+  scalar_t jointFrictionVelocity = 0.05;
 
   FootConstraintConfig footConstraintConfig;
 

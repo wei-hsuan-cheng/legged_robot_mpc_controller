@@ -32,6 +32,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "humanoid_common_mpc/pinocchio_model/DynamicsHelperFunctions.h"
 
+#include <stdexcept>
+
 // Pinnochio
 #include <pinocchio/algorithm/contact-dynamics.hpp>
 #include <pinocchio/algorithm/crba.hpp>
@@ -238,23 +240,32 @@ VECTOR_T<SCALAR_T> computeJointTorques(const VECTOR_T<SCALAR_T>& q,
                                        const VECTOR_T<SCALAR_T>& qd,
                                        const VECTOR_T<SCALAR_T>& qdd_joints,
                                        const std::array<VECTOR6_T<SCALAR_T>, 2>& footWrenches,
-                                       PinocchioInterfaceTpl<SCALAR_T>& pinocchioInterface) {
+                                       PinocchioInterfaceTpl<SCALAR_T>& pinocchioInterface,
+                                       const std::array<std::string, 2>& contactFrames) {
   const auto& model = pinocchioInterface.getModel();
   pinocchio::DataTpl<SCALAR_T>& data = pinocchioInterface.getData();
+
+  // A missing frame makes getFrameId return nframes, and the Jacobian below then reads past the
+  // frame array; refuse it instead (the frames are robot-specific: feet, or tire centres).
+  std::array<pinocchio::FrameIndex, 2> frameIds;
+  for (size_t i = 0; i < 2; ++i) {
+    if (!model.existFrame(contactFrames[i])) {
+      throw std::invalid_argument("[computeJointTorques] contact frame '" + contactFrames[i] + "' is not in the model");
+    }
+    frameIds[i] = model.getFrameId(contactFrames[i]);
+  }
 
   pinocchio::crba(model, data, q);
   pinocchio::nonLinearEffects(model, data, q, qd);
 
-  // Compute Jacobians for the foot frames
+  // Compute Jacobians for the contact frames
   MATRIX_T<SCALAR_T> J_foot_l = MATRIX_T<SCALAR_T>::Zero(6, qd.size());
   MATRIX_T<SCALAR_T> J_foot_r = MATRIX_T<SCALAR_T>::Zero(6, qd.size());
 
   ////////////////////////////////////////////////////////////////////////////
 
-  pinocchio::computeFrameJacobian(model, data, q, model.getFrameId("foot_l_contact"), pinocchio::ReferenceFrame::LOCAL_WORLD_ALIGNED,
-                                  J_foot_l);
-  pinocchio::computeFrameJacobian(model, data, q, model.getFrameId("foot_r_contact"), pinocchio::ReferenceFrame::LOCAL_WORLD_ALIGNED,
-                                  J_foot_r);
+  pinocchio::computeFrameJacobian(model, data, q, frameIds[0], pinocchio::ReferenceFrame::LOCAL_WORLD_ALIGNED, J_foot_l);
+  pinocchio::computeFrameJacobian(model, data, q, frameIds[1], pinocchio::ReferenceFrame::LOCAL_WORLD_ALIGNED, J_foot_r);
 
   // Project contact wrenches into the joint space
 
@@ -276,12 +287,14 @@ template VECTOR_T<scalar_t> computeJointTorques(const VECTOR_T<scalar_t>& q,
                                                 const VECTOR_T<scalar_t>& qd,
                                                 const VECTOR_T<scalar_t>& qdd_joints,
                                                 const std::array<VECTOR6_T<scalar_t>, 2>& footWrenches,
-                                                PinocchioInterfaceTpl<scalar_t>& pinocchioInterface);
+                                                PinocchioInterfaceTpl<scalar_t>& pinocchioInterface,
+                                                const std::array<std::string, 2>& contactFrames);
 template VECTOR_T<ad_scalar_t> computeJointTorques(const VECTOR_T<ad_scalar_t>& q,
                                                    const VECTOR_T<ad_scalar_t>& qd,
                                                    const VECTOR_T<ad_scalar_t>& qdd_joints,
                                                    const std::array<VECTOR6_T<ad_scalar_t>, 2>& footWrenches,
-                                                   PinocchioInterfaceTpl<ad_scalar_t>& pinocchioInterface);
+                                                   PinocchioInterfaceTpl<ad_scalar_t>& pinocchioInterface,
+                                                   const std::array<std::string, 2>& contactFrames);
 
 /******************************************************************************************************/
 /******************************************************************************************************/

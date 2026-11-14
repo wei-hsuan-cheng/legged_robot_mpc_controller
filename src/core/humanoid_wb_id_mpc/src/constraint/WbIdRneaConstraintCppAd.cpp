@@ -37,9 +37,20 @@ WbIdRneaConstraintCppAd::WbIdRneaConstraintCppAd(Rows rows,
     }
     contactFrameIds_.push_back(frameId);
   }
-  initialize(mpcRobotModelAD.getStateDim(), mpcRobotModelAD.getInputDim(), 0,
-             rows_ == Rows::Base ? "wb_id_rnea_base" : "wb_id_rnea_joint", modelSettings.modelFolderCppAd,
-             modelSettings.recompileLibrariesCppAd, modelSettings.verboseCppAd);
+  // Joint Coulomb friction only acts in the joint rows. It is a parameter vector of its own
+  // generated library (different name), so the frictionless libraries stay valid.
+  const bool friction = rows_ == Rows::Joint && !modelSettings.jointFriction.empty();
+  if (friction) {
+    const auto nj = static_cast<Eigen::Index>(modelSettings.jointFriction.size());
+    frictionParameters_.resize(nj + 1);
+    for (Eigen::Index i = 0; i < nj; ++i) {
+      frictionParameters_(i) = modelSettings.jointFriction[static_cast<size_t>(i)];
+    }
+    frictionParameters_(nj) = modelSettings.jointFrictionVelocity;
+  }
+  const std::string modelName = rows_ == Rows::Base ? "wb_id_rnea_base" : (friction ? "wb_id_rnea_joint_coulomb_v1" : "wb_id_rnea_joint");
+  initialize(mpcRobotModelAD.getStateDim(), mpcRobotModelAD.getInputDim(), static_cast<size_t>(frictionParameters_.size()),
+             modelName, modelSettings.modelFolderCppAd, modelSettings.recompileLibrariesCppAd, modelSettings.verboseCppAd);
 }
 
 WbIdRneaConstraintCppAd::WbIdRneaConstraintCppAd(const WbIdRneaConstraintCppAd& rhs)
@@ -49,7 +60,8 @@ WbIdRneaConstraintCppAd::WbIdRneaConstraintCppAd(const WbIdRneaConstraintCppAd& 
       mpcRobotModelADPtr_(rhs.mpcRobotModelADPtr_->clone()),
       contactFrameIds_(rhs.contactFrameIds_),
       numConstraints_(rhs.numConstraints_),
-      torqueWindow_(rhs.torqueWindow_) {}
+      torqueWindow_(rhs.torqueWindow_),
+      frictionParameters_(rhs.frictionParameters_) {}
 
 bool WbIdRneaConstraintCppAd::isActive(scalar_t time) const {
   return rows_ == Rows::Base || torqueWindow_->contains(time);
@@ -58,7 +70,7 @@ bool WbIdRneaConstraintCppAd::isActive(scalar_t time) const {
 ad_vector_t WbIdRneaConstraintCppAd::constraintFunction(ad_scalar_t /*time*/,
                                                         const ad_vector_t& state,
                                                         const ad_vector_t& input,
-                                                        const ad_vector_t& /*parameters*/) const {
+                                                        const ad_vector_t& parameters) const {
   const auto& model = pinocchioInterfaceCppAd_.getModel();
   auto data = pinocchioInterfaceCppAd_.getData();  // const method: record on a copy
 
@@ -81,7 +93,15 @@ ad_vector_t WbIdRneaConstraintCppAd::constraintFunction(ad_scalar_t /*time*/,
     return residual.head<6>();
   }
   const auto nj = static_cast<Eigen::Index>(mpcRobotModelADPtr_->getJointDim());
-  return residual.tail(nj) - mpcRobotModelADPtr_->getJointTorques(input);
+  ad_vector_t jointResidual = residual.tail(nj) - mpcRobotModelADPtr_->getJointTorques(input);
+  if (parameters.size() == nj + 1) {
+    // Coulomb friction opposing the joint velocity, smoothed: tau_motor = ID + f_c tanh(v / v_s).
+    const ad_vector_t jointVelocities = v.tail(nj);
+    for (Eigen::Index i = 0; i < nj; ++i) {
+      jointResidual(i) += parameters(i) * CppAD::tanh(jointVelocities(i) / parameters(nj));
+    }
+  }
+  return jointResidual;
 }
 
 }  // namespace ocs2::humanoid

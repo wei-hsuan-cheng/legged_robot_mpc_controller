@@ -30,6 +30,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #pragma once
 
+#include <limits>
+
 #include <atomic>
 #include <functional>
 #include <memory>
@@ -131,8 +133,9 @@ class ProceduralMpcMotionManager : public SolverSynchronizedModule {
   /// Store the latest bounded walking command; conditioning happens in preSolverRun. Thread-safe.
   void setVelocityCommand(const WalkingVelocityCommand& command);
 
-  /// Reset walking-command filter history on the next solver update. Thread-safe.
-  void requestVelocityTargetFilterReset();
+  /// Reset walking-command filter history on the next solver update. Thread-safe. A finite
+  /// initialHeight restarts the height reference there (see WalkingVelocityTarget).
+  void requestVelocityTargetFilterReset(scalar_t initialHeight = std::numeric_limits<scalar_t>::quiet_NaN());
 
   void setBasePoseCommand(const BasePoseCommand& command);
 
@@ -142,6 +145,11 @@ class ProceduralMpcMotionManager : public SolverSynchronizedModule {
   void setStairClimbingConfig(StairClimbingConfig config);
 
   void setTargetMode(TargetMode mode);
+
+  /// Hold a named gait template instead of the velocity-selected ladder rung (e.g. a hop or a
+  /// single-support test); an empty name returns to the ladder from stance. Thread-safe; takes
+  /// effect at the next solve, spliced in like a ladder change.
+  void requestGait(const std::string& gait);
 
   TargetMode getTargetMode() const { return targetMode_.load(std::memory_order_acquire); }
 
@@ -173,6 +181,10 @@ class ProceduralMpcMotionManager : public SolverSynchronizedModule {
   std::string currentGaitCommand_{"stance"};
   std::string lastGaitCommand_{"stance"};
   scalar_t lastGaitChangeTime_{0.0};
+
+  std::mutex requestedGaitMutex_;
+  std::string requestedGait_;        // written by requestGait(), read by the solver thread
+  bool requestedGaitActive_{false};  // solver thread only
 
   // Stair climbing: semantic config is shared with the ROS thread; the compiled
   // plan is owned by the solver thread (created / cleared in preSolverRun).

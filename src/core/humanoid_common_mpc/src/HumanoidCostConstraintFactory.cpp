@@ -30,6 +30,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "humanoid_common_mpc/HumanoidCostConstraintFactory.h"
 
+#include <limits>
+#include <stdexcept>
+
 #include <ocs2_core/penalties/Penalties.h>
 
 #include <ocs2_core/constraint/StateInputConstraint.h>
@@ -162,6 +165,13 @@ std::unique_ptr<StateCost> HumanoidCostConstraintFactory::getJointLimitsConstrai
             << std::endl;
 
   std::pair<vector_t, vector_t> jointLimits = readPinocchioJointLimits(*pinocchioInterfacePtr_, mpcRobotModelPtr_->modelSettings);
+  for (const size_t index : config_.unboundedJointIndices) {
+    if (index >= static_cast<size_t>(jointLimits.first.size())) {
+      throw std::invalid_argument("[HumanoidCostConstraintFactory] unbounded joint index out of range");
+    }
+    jointLimits.first(static_cast<Eigen::Index>(index)) = -std::numeric_limits<scalar_t>::infinity();
+    jointLimits.second(static_cast<Eigen::Index>(index)) = std::numeric_limits<scalar_t>::infinity();
+  }
 
   return std::unique_ptr<StateCost>(new JointLimitsSoftConstraint(jointLimits, barrierPenaltyConfig, *mpcRobotModelPtr_));
 }

@@ -150,7 +150,7 @@ def main():
     parser.add_argument("--height", type=float, help="Override YAML nominal pelvis height [m]")
     parser.add_argument("--mpc-rate", type=int, default=100)
     parser.add_argument("--launch-file", default="robot.launch.py")
-    parser.add_argument("--robot-name", choices=["g1", "h2"], default="g1")
+    parser.add_argument("--robot-name", choices=["g1", "h2", "upkie"], default="g1")
     parser.add_argument("--scene", help="Scene filename or absolute path; omitted generates an isolated flat test scene")
     parser.add_argument("--minimum-height", type=float, default=0.38)
     parser.add_argument("--startup-timeout", type=float, default=600.0)
@@ -169,6 +169,8 @@ def main():
     parser.add_argument("--prefix", default="/tmp/wb_id_walk")
     parser.add_argument("--config", type=Path, help="Controller YAML (default: config/<robot-name>/ros2_controllers.yaml)")
     parser.add_argument("--set", action="append", default=[], metavar="KEY=JSON", help="Override a dotted controller parameter in a temporary YAML")
+    parser.add_argument("--launch-arg", action="append", default=[], metavar="NAME:=VALUE",
+                        help="Extra robot.launch.py argument, e.g. initialPoseFile:=/abs/initial_pose_idle.yaml")
     args = parser.parse_args()
     if args.scene is None:
         args.scene = str(write_scene(Path(args.prefix + "_scene.xml"), args.robot_name))
@@ -235,6 +237,7 @@ def main():
     ]
     if height_override is not None:
         launch_cmd.append(f"refBaseHeight:={args.height}")
+    launch_cmd += args.launch_arg
     verdict = "TIMEOUT"
     result = vars(args).copy()
     result["config"] = str(args.config)
@@ -396,6 +399,9 @@ def main():
                     result.update(walk_pose_mean_vx_world=(last[1] - first[1]) / duration,
                                   walk_pose_mean_vy_world=(last[2] - first[2]) / duration)
     finally:
+        if probe is not None:
+            # The odometry CSV is closed by now; later callbacks must not write to it.
+            probe.writer = csv.writer(open(os.devnull, "w"))
         if sender is not None:
             for _ in range(5):
                 sender.stop()
