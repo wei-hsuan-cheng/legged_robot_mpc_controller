@@ -6,6 +6,120 @@ Update this file at each milestone.
 The implemented equations, current weights, rolling-contact equalities and execution limits are collected in [Wheeled-Biped WB-ID MPC](wheeled_biped_whole_body_inverse_dynamics_mpc.md).
 
 
+## Estimated State, Stand-up, Hop and Single Support (2026-11-15, Claude)
+
+Milestones 5-8 of "Next steps" now pass in simulation (MPC 200 Hz, flat unless stated).
+The MPC runs without ground truth: a wheel-aware linear KF drives it from the kneeling idle through the planned stand-up, rolling, terrain, pushes, jumps and alternating wheel lifts.
+Caveat for all estimator results: the simulated IMU and encoders are noise-free, so these are best-case numbers.
+
+### Wheel-aware linear KF
+
+[`LinearKfFloatingBaseEstimator`](../src/humanoid_state_estimation/linear_kf_floating_base_estimator.cpp) gained `contactModel: rolling_wheel`.
+A tire's contact point moves with the robot, so it is no landmark; what stays at rest without slip is the tread material at the contact.
+Each wheel therefore measures the base velocity (minus the velocity of that material point relative to the base, wheel spin included) and the base height (the lowest point of the tire circle on the plane z = 0), and the state is base position and velocity only.
+This is the proprioceptive model the MPC already uses: height above the wheels' contact plane, flat ground at zero.
+`imuExtrinsics: true` removes Upkie's rotated, offset IMU mounting (URDF frame `imu`) from attitude, rate and acceleration; the MPC's bring-up tilt check does the same through `floatingBase.imuFrame`.
+G1/H2 keep `contactModel: point` and `imuExtrinsics: false`, so their filters are unchanged.
+
+Logged against GT while GT drives the MPC:
+
+| run | height error | roll/pitch error | forward velocity error | drift |
+| --- | --- | --- | --- | --- |
+| roll 0.3 m/s and brake | RMS 0.2 mm | < 0.0001 rad | RMS 1 mm/s, max 8 mm/s | x 3 mm over 2.1 m, yaw 0 |
+| yaw 1.0 rad/s | RMS 0.2 mm | < 0.0001 rad | RMS 2 mm/s | yaw 0 |
+| jumps (estimator driving) | RMS 1-2 mm, max 12 mm | < 0.003 rad | RMS 0.05-0.10 m/s, up to 0.7 m/s at touchdown | - |
+
+The touchdown spikes are tires landing while spinning (slip) plus the estimate odometry's 100 Hz sampling; they did not destabilise any run.
+
+### Stand-up and handover
+
+The planned stand-up (Codex's offline plan, played back open loop) passes on GT and on the estimator: idle on the knee housings for 3 s (the estimator initialises there), fold and push for 0.7 s, then the MPC catches the robot at 0.09 m and pitch -0.7 rad and ramps the height to 0.30 m.
+Two fixes were needed:
+
+1. The height clamp of the previous checkpoint acted on the MPC reference, so the catch's height ramp (restarted at the measured 0.09 m) became a 12 cm step and the robot ran away at 1.3-2 m/s and fell; the clamp now acts on the commanded height, before the rate limit.
+2. The posture table now starts at 0.10 m, so the posture reference during that ramp is the balanced posture of the current height instead of the 0.20 m one.
+
+The catch crosses the legs (wheel gap 36-42 cm for about 0.7 s, then symmetric again) and leaves the robot turned by 0.2 rad, to either side on different runs.
+That split is how the MPC catches the robot, not a side effect.
+Straightening the body from -0.71 rad within about 0.15 s saturates both wheel torques (1.7 N m) at once and the base overshoots forward at 1-2 m/s; rolling alone cannot move the support under the body fast enough, so the MPC swings one leg forward and one back with the 16 N m hips, like a catching step.
+A cost on the tires' fore/aft offset in the base frame (weights 300, 1000 and 3000, tested and removed) kept the split under 3 mm and made all three catches fall 0.6 s after the handover, while the unrestricted catch survived every run (about 20, including the estimator acceptance set).
+The fix belongs in the handover: a gentler catch, for example a pitch reference ramped from the measured pitch as the height already is, so the wheels are not saturated.
+
+### Estimator acceptance (no GT in control, each from the kneeling stand-up)
+
+| case | result | max pitch / roll from 3 s after the catch |
+| --- | --- | --- |
+| roll 0.3 m/s and brake | pass | 0.006 / 0.001 |
+| yaw 1.0 rad/s at 0.22 m | pass, 7.16 of 9.0 rad (80%, as on GT) | 0.002 / 0.001 |
+| pitch push sequence | balanced; the verdict reads NO_TRACKING only because the 0.01 m/s probe drive covered 7 of 20 mm | 0.089 / 0.001 (GT 0.081) |
+| 20 mm strip | pass | 0.020 / 0.005 |
+| 2-degree ramp | pass | 0.005 / 0.004 |
+| uneven field 0.3 m/s | pass | 0.010 / 0.005 |
+
+### Gait names
+
+Upkie's gaits are `wheel_drive`, `jump`, `walk` and `trot` (the user's names).
+`wheel_drive` (both wheels down, rolling and turning) is the rest gait: the first rung of `ocs2.gait.transitions.ladder`.
+The motion manager used to require that rung to be called `stance`; it now takes the first rung, whatever its name, so G1/H2 (still `stance`) are unchanged (H2 drive smoke run passes).
+The others are requested on `/humanoid/gait_command` (held while requested, `""` returns to `wheel_drive`).
+The results below were recorded under the earlier names `hop` (now `jump`), `alternate` (now `walk`) and `lift_left`/`lift_right` (single lifts, now a short `walk` request); `jump`, `walk` and `trot` were re-run under the new names on GT.
+
+### Jump (milestone 7)
+
+Template `jump` (`[STANCE, FLY]`, 0.4 s stance, 0.15 s flight, 30 mm swing height).
+A request reaches the plan about 0.3 s ahead plus the template's stance, so hold it at least 0.9 s for one jump.
+
+| run | flight measured (both contact sensors < 0.5 N) | tire clearance | base rise | landing peak | max pitch / roll |
+| --- | --- | --- | --- | --- | --- |
+| one jump, GT | 0.15 s | 11 mm | 34 mm | 136 N per wheel | 0.037 / 0.003 |
+| five jumps, GT | 0.15 s each | 10-11 mm | 35-40 mm | 108-170 N | 0.049 / 0.009 |
+| jump while rolling 0.2 m/s, GT | 0.16 s | 11 mm | 38 mm | 125-160 N | 0.036 / 0.002 |
+| jump while rolling, estimator from stand-up | 0.16-0.17 s | 10-11 mm | 42 mm | 142 N | small |
+| four jumps, estimator from stand-up | 0.15-0.21 s | 9-11 mm | 40-43 mm | 56-242 N | small |
+
+Torque at the limits in under 1% of samples (wheels); weight is about 53 N, so landings peak at 2-4.5 body weights per wheel.
+
+### Walk and trot: single and alternating support (milestone 8)
+
+`walk` is `[STANCE, RF, STANCE, LF]` (0.15 s lifts, 0.45 s double support, 20 mm swing height); `trot` is `[RF, STANCE, LF, STANCE]` (0.15 s lifts, 0.05 s double support).
+Upkie has no hip roll, so with one wheel up the body tips toward the lifted side; the lifts stay short for that reason.
+
+| run | lifted wheel off the ground | clearance | max pitch / roll |
+| --- | --- | --- | --- |
+| lift left / lift right, GT | 0.14 s, the other wheel stays loaded | 7 mm | 0.014 / 0.022 |
+| walk x 5, GT, at rest and at 0.2 m/s | 0.13-0.14 s each | 7 mm | 0.015 / 0.022 |
+| walk x 5, estimator from stand-up, at rest and at 0.2 m/s | 0.13-0.18 s | 7-12 mm | 0.038 / 0.046 worst lift |
+| trot x 13 at rest and x 17 at 0.2 m/s, GT | 0.14-0.17 s each | 7 mm | 0.014 / 0.031 |
+| single 0.3 s lift, GT | 0.29 s (stance wheel briefly unloaded 0.06 s) | 15 mm | 0.045 / 0.073 |
+
+The 0.3 s lift survives but roll grows as expected (CoM 0.15 m inside the stance wheel); longer single support would need a pre-lean with unequal leg lengths, which the MPC does not plan by itself at these weights.
+
+### How to run
+
+```bash
+H=src/legged_robot_mpc_controller/tests/wb_id_walk_test.py
+CFG=/root/ocs2_ros2_ws/install/legged_robot_mpc_controller/share/legged_robot_mpc_controller/config/upkie
+SU="--set bringUp.standUpTrajectoryFile=\"$CFG/stand_up_trajectory.yaml\" --launch-arg initialPoseFile:=$CFG/initial_pose_idle.yaml"
+# estimator driving the MPC, from the kneeling idle: roll, jump while rolling, brake
+python3 $H --robot-name upkie --mpc-rate 200 --record-joints --record-tracking --max-yaw-error 100 \
+  --source state_estimator --estimator humanoid_linear_kf --minimum-height 0.05 --startup-timeout 900 $SU \
+  --axis vx --speed 0.2 --hold 6 --ramp 1 --settle 6 --rest 4 --gait-sequence '[[9,"jump"],[9.9,""]]' --prefix /tmp/upkie_jump_est
+# GT driving, estimator logged alongside: add --source ground_truth_state --log-estimator --estimator humanoid_linear_kf
+python3 src/legged_robot_mpc_controller/tests/tuning/compare_upkie_estimate.py /tmp/upkie_jump_est --plot
+python3 src/legged_robot_mpc_controller/tests/tuning/analyze_upkie_flight.py /tmp/upkie_jump_est --plot
+```
+
+Interactive: `floatingBaseSource:=state_estimator floatingBaseEstimator:=humanoid_linear_kf initialPoseFile:=<idle pose>` with `bringUp.standUpTrajectoryFile` set in the YAML; request a gait with `ros2 topic pub --once /humanoid/gait_command std_msgs/String "{data: jump}"` and release it with `"{data: ''}"`.
+A standing spawn cannot run on the estimator: the robot cannot stand unbalanced while the filter initialises, so start from the kneeling idle.
+
+### Open after this checkpoint
+
+1. Leg crossing during the stand-up catch (above): it is the MPC's catching step under saturated wheel torque; make the catch gentler (pitch reference ramp) rather than forbid the split.
+2. Sensor noise and biases: the filter has only seen perfect simulated sensors; add IMU/encoder noise in the simulator before trusting the tuning.
+3. Touchdown slip: keep a landing wheel's rows inflated for a short settle time if the touchdown velocity spikes matter.
+4. Longer single support (pre-lean), jumps with higher clearance, `trot` on the estimator, and repeat counts (N = 1-5 per case).
+
+
 ## Leg-Crossing Fix (2026-11-15, Claude)
 
 Pushed as 3943180, 30b2410 and b7de5eb.
@@ -43,14 +157,14 @@ The 0.38 m GUI maximum is out of reach: straight legs give about 0.34 m, and the
 ### Fix and results
 
 Each height's balanced symmetric posture (level trunk, tires on the floor, tire contact under the whole-robot CoM) is precomputed by `compute_posture_table.py`; at 0.30 m it reproduces `defaultJointState` to six decimals.
-The joint reference is interpolated at the target height, and target heights are clamped to `minBaseHeight`/`maxBaseHeight` (0.22-0.33 m; 0.33 m keeps a 0.5 rad knee bend), which the table must cover.
+The joint reference is interpolated at the target height, and commanded heights are clamped to `minBaseHeight`/`maxBaseHeight` (0.22-0.33 m; 0.33 m keeps a 0.5 rad knee bend), which the table must cover.
 
 ### Height range in the YAML
 
 `ocs2.reference.minBaseHeight` / `maxBaseHeight` replace `maxDeltaPelvisHeight` in both controllers' schemas and in every robot YAML.
 They are absolute heights above the ground the model assumes, and `defaultBaseHeight` must lie between them.
-They set the GUI slider ends and its published-command clamp, the clamp of base-pose deltas, and, with a posture table, the clamp of the WB-ID height reference.
-Without a posture table the WB-ID reference is not clamped, because base-pose and terrain targets then carry world-frame heights (H2 stairs).
+They set the GUI slider ends and its published-command clamp, the clamp of position-command heights, and the clamp of the walking command's height in the MPC.
+That clamp acts on the command before its rate limit, so the stand-up handover, which restarts the height ramp at the measured 0.10 m, still ramps up from there; a first version clamped the MPC reference itself, which turned that ramp into a 12 cm step and made the robot fall at the catch.
 The controller refuses to start if a posture table does not cover the range, and the launch refuses a `refBaseHeight` outside it.
 Upkie is 0.22-0.33 m, so the GUI no longer offers the unreachable 0.38 m.
 H2 (0.62-1.42 m) and G1 (0.395-1.195 m) are their former `defaultBaseHeight +/- 0.4`, so their behaviour is unchanged.
@@ -123,7 +237,6 @@ Evaluate any run with `tests/tuning/evaluate_upkie_run.py PREFIX --plot` (statis
 At 0.30 m the 1.0 rad/s yaw reaches 70-74%: the wheel speeds imply 0.72 rad/s and the body turns 0.70, so there is no slip; the MPC plans only about 0.71 because about 0.15 N m per wheel of unmodelled drag remains.
 A flat tire on a plane is loaded at both rims, 44 mm apart, and scrubs when turning: mu N 0.022 m per tire is about 0.9 N m of yaw drag, matching; the MPC models a thin disk and re-plans from the measured yaw rate.
 Codex's slow-yaw undertracking has the same cause; not yet addressed.
-
 
 
 ## Tire Collision Fix and 20 mm Edge Analysis (2026-11-14, Claude, after 22:00)
@@ -753,10 +866,10 @@ These are proposed follow-up milestones, not permission to silently expand the c
 | 2 | Broader no-map terrain acceptance | Still untested: more random seeds, reverse traversal, ramp descent/far drop, turns while on the ramp/field, and sudden stops at edges; preserve the passed small-terrain checkpoint |
 | 3 | Push-recovery envelope | Only the original +/-1.5 Nm pitch and +/-6 N fore/aft pulses are validated; lateral/yaw pushes, combined disturbances and pushes on unequal-height terrain remain untested |
 | 4 | Height envelope without sacrificing balance | Current tests cover 0.26-0.34 m and a height change on a 10 mm split; GUI endpoints 0.22/0.33 m, faster height changes and a range of support-height differences need separate testing |
-| 5 | Rolling-contact estimated-state control | Not implemented: adapt stationary-foot KF measurements to tire rolling geometry, compensate IMU extrinsics, gate unreliable/slipping contacts, then repeat acceptance without simulator base-state feedback |
-| 6 | Kneeling stand-up and handover | Export/playback bounds were corrected, but the full simulator/controller stand-up and MPC catch have never passed a complete test |
-| 7 | Flight/hop | Not implemented/tested: add and validate symmetric takeoff, flight, wheel-spin behavior and touchdown before claiming hopping |
-| 8 | Single support and alternating support | Not implemented/tested; Upkie has no hip roll, so balance authority and equality rank must be checked before a single-wheel or alternating-support gait |
+| 5 | Rolling-contact estimated-state control | Passes in simulation (2026-11-15, top section): wheel-aware linear KF with IMU extrinsics drives the MPC through the full acceptance set; noise-free sensors only, slip gating not added |
+| 6 | Kneeling stand-up and handover | Passes on GT and on the estimator (2026-11-15); the catch still crosses the legs for about 0.7 s |
+| 7 | Flight/jump | Passes (2026-11-15): 0.15 s flight, 11 mm clearance, in place, repeated and while rolling, on GT and on the estimator |
+| 8 | Single support and alternating support | Passes for 0.15 s lifts and alternating lifts at rest and rolling (2026-11-15); a 0.3 s lift reaches 0.073 rad roll |
 
 For item 1, the current model continues to schedule both wheels as supporting even when measured contact is lost, and its contact height/normal is a fixed world plane.
 The failing 20 mm trials show zero-load intervals and wheel torque saturation; those are observed symptoms, not a proven sole root cause.
