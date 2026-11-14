@@ -5,13 +5,49 @@ controller_manager:
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
 
+    humanoid_linear_kf:
+      type: legged_robot_mpc_controller/HumanoidLinearKfController
+
     humanoid_whole_body_inverse_dynamics_mpc_controller:
       type: legged_robot_mpc_controller/HumanoidWholeBodyInverseDynamicsMpcController
 
 
+# Wheel-aware two-stage linear KF (floatingBaseEstimator:=humanoid_linear_kf): attitude from the IMU with its
+# mounting removed; each tire measures the base velocity (tread material at rest) and height (lowest tire point
+# on the ground plane z = 0). Both wheels are in stance unless the gait schedules them off the ground.
+humanoid_linear_kf:
+  ros__parameters:
+    update_rate: $(var mrtFreq)
+    urdfFile: $(var urdfFile)
+    baseFrame: base
+    jointNames: [left_hip, left_knee, left_wheel, right_hip, right_knee, right_wheel]
+    imuInterfaceName: base_imu
+    imuFrame: imu
+    imuExtrinsics: true
+    contactFrames: [left_wheel_link, right_wheel_link]
+    contactModel: rolling_wheel
+    wheel:
+      radius: 0.055
+      # The tire centre on the wheel link, as ocs2.model.contactGeometry.frameTranslation.
+      centerOffset: [0.0, 0.0, -0.0312]
+      axleAxis: [0.0, 0.0, 1.0]
+    odomTopic: /humanoid/state_estimate/odom
+    odomFrame: odom
+    publishRate: 100.0
+    readiness:
+      minSeconds: 1.0
+      rollPitchStdDevMax: 0.10
+      heightStdDevMax: 0.05
+      velocityStdDevMax: 0.20
+    contact:
+      source: scheduled
+      footIndices: [0, 1]
+
+
 # Upkie wheeled biped: the WB-ID MPC with rolling-wheel contacts (docs/wheeled_biped_whole_body_inverse_dynamics_mpc.md).
-# First milestone: ground-truth floating base (floatingBaseSource:=ground_truth_state
-# floatingBaseEstimator:=none), double support throughout.
+# Ground-truth floating base: floatingBaseSource:=ground_truth_state floatingBaseEstimator:=none.
+# Estimated base: floatingBaseSource:=state_estimator floatingBaseEstimator:=humanoid_linear_kf, starting from the
+# kneeling idle pose with the planned stand-up (the estimator initialises while the robot rests on the floor).
 humanoid_whole_body_inverse_dynamics_mpc_controller:
   ros__parameters:
     update_rate: $(var mrtFreq)
@@ -52,6 +88,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
       estimator: $(var floatingBaseEstimator)
       stateInterfaceName: base
       imuInterfaceName: base_imu
+      imuFrame: imu
 
     bringUp:
       autoStart: true
@@ -268,11 +305,22 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         # Posture reference by target height (config/upkie/compute_posture_table.py): the balanced symmetric
         # posture of each height (level trunk, tires on the floor, tire contact under the CoM). A fixed 0.30 m
         # posture far from the target height makes splitting the legs fore/aft cheaper than staying symmetric.
-        # The table must cover [minBaseHeight, maxBaseHeight]; regenerate it before widening that range.
+        # The table must cover [minBaseHeight, maxBaseHeight]; regenerate it before widening that range. It starts at
+        # 0.10 m so the stand-up catch (about 0.09 m) has a balanced reference while its height ramps up.
         postureHeights:
-          [0.200, 0.210, 0.220, 0.230, 0.240, 0.250, 0.260, 0.270, 0.280, 0.290, 0.300, 0.310, 0.320, 0.330]
+          [0.100, 0.110, 0.120, 0.130, 0.140, 0.150, 0.160, 0.170, 0.180, 0.190, 0.200, 0.210, 0.220, 0.230, 0.240, 0.250, 0.260, 0.270, 0.280, 0.290, 0.300, 0.310, 0.320, 0.330]
         postureJointStates:
-          [-1.197768, -1.822225, 0.0, 1.197768, 1.822225, 0.0,
+          [-1.771627, -2.434317, 0.0, 1.771627, 2.434317, 0.0,
+           -1.706312, -2.377744, 0.0, 1.706312, 2.377744, 0.0,
+           -1.643804, -2.320467, 0.0, 1.643804, 2.320467, 0.0,
+           -1.583613, -2.262358, 0.0, 1.583613, 2.262358, 0.0,
+           -1.525326, -2.203303, 0.0, 1.525326, 2.203303, 0.0,
+           -1.468581, -2.143186, 0.0, 1.468581, 2.143186, 0.0,
+           -1.413062, -2.081892, 0.0, 1.413062, 2.081892, 0.0,
+           -1.358482, -2.019296, 0.0, 1.358482, 2.019296, 0.0,
+           -1.304573, -1.955261, 0.0, 1.304573, 1.955261, 0.0,
+           -1.251084, -1.889630, 0.0, 1.251084, 1.889630, 0.0,
+           -1.197768, -1.822225, 0.0, 1.197768, 1.822225, 0.0,
            -1.144376, -1.752835, 0.0, 1.144376, 1.752835, 0.0,
            -1.090652, -1.681207, 0.0, 1.090652, 1.681207, 0.0,
            -1.036318, -1.607038, 0.0, 1.036318, 1.607038, 0.0,
@@ -306,17 +354,25 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           impactProximityFactorTouchDownVelocity: 0.3
           impactProximityFactorMidPointValue: 0.0
 
-        # STANCE = both wheels in contact. Rolling needs no gait change, so the first milestone
-        # keeps double support throughout.
+        # Modes: STANCE = both wheels in contact, RF = only the right wheel, LF = only the left, FLY = none.
+        # wheel_drive is the rest gait (first rung of the ladder): both wheels down, rolling and turning.
+        # The others are requested on /humanoid/gait_command (held while requested, "" returns to wheel_drive).
         templates:
-          names: [stance]
-          stance: {modeSequence: [STANCE], switchingTimes: [0.0, 0.5]}
+          names: [wheel_drive, jump, walk, trot]
+          wheel_drive: {modeSequence: [STANCE], switchingTimes: [0.0, 0.5]}
+          # Symmetric jump: thrust in stance, then both wheels off the ground; FLY plans zero wrenches and lifts the tires.
+          jump: {modeSequence: [STANCE, FLY], switchingTimes: [0.0, 0.4, 0.55], swingHeight: 0.03}
+          # Alternating single support with long double support: left wheel up, both down, right wheel up, both down.
+          # With no hip roll the body tips toward the lifted wheel, so each lift is short.
+          walk: {modeSequence: [STANCE, RF, STANCE, LF], switchingTimes: [0.0, 0.45, 0.6, 1.05, 1.2], swingHeight: 0.02}
+          # Alternating single support with only a brief double support between the lifts.
+          trot: {modeSequence: [RF, STANCE, LF, STANCE], switchingTimes: [0.0, 0.15, 0.2, 0.35, 0.4], swingHeight: 0.02}
 
         transitions:
           minDwellTime: 0.2
           switchDelayHorizonFraction: 0.3
-          ladder: [stance]
-          stance: {linearVelocity: [-0.1, 10.0], yawRate: [-0.1, 10.0], measuredMargin: [10.0, 10.0]}
+          ladder: [wheel_drive]
+          wheel_drive: {linearVelocity: [-0.1, 10.0], yawRate: [-0.1, 10.0], measuredMargin: [10.0, 10.0]}
 
     visualization:
       frameId: odom
