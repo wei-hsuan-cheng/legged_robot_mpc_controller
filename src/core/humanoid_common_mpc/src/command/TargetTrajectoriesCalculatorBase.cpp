@@ -50,6 +50,18 @@ TargetTrajectoriesCalculatorBase::TargetTrajectoriesCalculatorBase(const Referen
                                 std::to_string(mpcRobotModel.getJointDim()) + ")");
   }
   targetJointState_ = referenceConfig.defaultJointState;
+  if (referenceConfig.postureHeights.size() != referenceConfig.postureJointStates.size()) {
+    throw std::invalid_argument("[TargetTrajectoriesCalculatorBase] postureHeights and postureJointStates differ in length");
+  }
+  for (size_t i = 0; i < referenceConfig.postureHeights.size(); ++i) {
+    if (referenceConfig.postureJointStates[i].size() != mpcRobotModel.getJointDim() ||
+        (i > 0 && !(referenceConfig.postureHeights[i] > referenceConfig.postureHeights[i - 1]))) {
+      throw std::invalid_argument("[TargetTrajectoriesCalculatorBase] posture table needs strictly increasing heights and "
+                                  "one joint state of the MPC joint dimension per height");
+    }
+  }
+  postureHeights_ = referenceConfig.postureHeights;
+  postureJointStates_ = referenceConfig.postureJointStates;
   defaultBaseHeight_ = referenceConfig.defaultBaseHeight;
   targetRotationVelocity_ = referenceConfig.targetRotationVelocity;
   targetDisplacementVelocity_ = referenceConfig.targetDisplacementVelocity;
@@ -66,6 +78,38 @@ TargetTrajectoriesCalculatorBase::TargetTrajectoriesCalculatorBase(const Referen
 void TargetTrajectoriesCalculatorBase::setTargetJointState(const vector_t targetJointState) {
   assert(targetJointState.size() == mpcRobotModelPtr_->getJointDim());
   targetJointState_ = targetJointState;
+}
+
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+
+scalar_t TargetTrajectoriesCalculatorBase::clampBaseHeight(scalar_t height) const {
+  if (postureHeights_.empty()) {
+    return height;
+  }
+  return std::clamp(height, postureHeights_.front(), postureHeights_.back());
+}
+
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+
+vector_t TargetTrajectoriesCalculatorBase::getPostureForHeight(scalar_t height) const {
+  if (postureHeights_.empty()) {
+    return targetJointState_;
+  }
+  const scalar_t h = clampBaseHeight(height);
+  const auto upper = std::upper_bound(postureHeights_.begin(), postureHeights_.end(), h);
+  if (upper == postureHeights_.begin()) {
+    return postureJointStates_.front();
+  }
+  if (upper == postureHeights_.end()) {
+    return postureJointStates_.back();
+  }
+  const size_t i = static_cast<size_t>(upper - postureHeights_.begin());
+  const scalar_t alpha = (h - postureHeights_[i - 1]) / (postureHeights_[i] - postureHeights_[i - 1]);
+  return (1.0 - alpha) * postureJointStates_[i - 1] + alpha * postureJointStates_[i];
 }
 
 /******************************************************************************************************/

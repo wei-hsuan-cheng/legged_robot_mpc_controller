@@ -55,6 +55,11 @@ struct ReferenceConfig {
   scalar_t basePosePositionTolerance{0.02};
   scalar_t basePoseOrientationTolerance{0.03};
   vector_t defaultJointState;
+  // Optional joint posture reference as a function of base height: joint states at strictly increasing
+  // heights, linearly interpolated at the target height, which is clamped to [front, back]. Empty: the
+  // target joint state at every height.
+  scalar_array_t postureHeights;
+  vector_array_t postureJointStates;
 };
 
 class TargetTrajectoriesCalculatorBase {
@@ -68,6 +73,12 @@ class TargetTrajectoriesCalculatorBase {
   void setTargetDisplacementVelocity(scalar_t targetDisplacementVelocity) { targetDisplacementVelocity_ = targetDisplacementVelocity; }
   void setTargetRotationVelocity_(scalar_t targetRotationVelocity) { targetRotationVelocity = targetRotationVelocity; }
   void setTargetJointState(const vector_t targetJointState);
+
+  /** Base height clamped to the posture table's range; unchanged without a table. */
+  scalar_t clampBaseHeight(scalar_t height) const;
+
+  /** Joint posture reference at a base height: interpolated from the posture table, else the target joint state. */
+  vector_t getPostureForHeight(scalar_t height) const;
 
   /**
    * Converts command line to TargetTrajectories.
@@ -128,6 +139,8 @@ class TargetTrajectoriesCalculatorBase {
 
   scalar_t defaultBaseHeight_;
   vector_t targetJointState_;
+  scalar_array_t postureHeights_;
+  vector_array_t postureJointStates_;
   scalar_t mpcHorizon_;
 };
 

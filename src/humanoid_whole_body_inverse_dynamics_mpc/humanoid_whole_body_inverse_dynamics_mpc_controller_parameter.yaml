@@ -415,6 +415,11 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           index-aligned with robot.jointNames. The ARM entries are also the nominal arm posture the arms hold while
           walking: with the swing below disabled, this is the whole arm reference. Keep it inside the self-collision-free
           envelope - armSelfCollision is a soft approximate safeguard, not a hard collision guarantee."}
+      postureHeights: {type: double_array, default_value: [], description: "Optional base heights [m], strictly
+          increasing, for postureJointStates: the joint posture reference is interpolated at the target base height,
+          and target heights are clamped to [first, last]. Empty: defaultJointState at every height"}
+      postureJointStates: {type: double_array, default_value: [], description: "Joint states for postureHeights,
+          one row of robot.jointNames per height, row-major"}
       armSwing:
         jointNames: {type: string_array, default_value: [], description: "Reference joints in order [left shoulder
             pitch, right shoulder pitch, left elbow, right elbow]. Required by model joint-index setup even

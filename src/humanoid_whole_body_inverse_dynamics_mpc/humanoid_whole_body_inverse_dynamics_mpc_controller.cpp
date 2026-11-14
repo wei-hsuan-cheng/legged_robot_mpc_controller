@@ -168,6 +168,19 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
     auto reference_config = common::buildReferenceConfig(parameters_);
     reference_config.commandRateLimits =
       Eigen::Map<const ocs2::vector4_t>(parameters_.ocs2.reference.velocityCommandRateLimits.data());
+    {
+      const auto& heights = parameters_.ocs2.reference.postureHeights;
+      const auto& states = parameters_.ocs2.reference.postureJointStates;
+      const auto num_joints = parameters_.robot.jointNames.size();
+      if (states.size() != heights.size() * num_joints) {
+        throw std::invalid_argument("ocs2.reference.postureJointStates needs one row of robot.jointNames per postureHeights entry");
+      }
+      for (std::size_t i = 0; i < heights.size(); ++i) {
+        reference_config.postureHeights.push_back(heights[i]);
+        reference_config.postureJointStates.push_back(
+          Eigen::Map<const vector_t>(states.data() + i * num_joints, static_cast<Eigen::Index>(num_joints)));
+      }
+    }
     target_trajectories_calculator_ = std::make_unique<ocs2::humanoid::WbIdMpcTargetTrajectoriesCalculator>(
       reference_config, mpc_interface_->getMpcRobotModel(), mpc_interface_->mpcSettings().timeHorizon_);
     auto velocity_target_to_target_trajectories =
