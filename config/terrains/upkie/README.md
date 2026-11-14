@@ -44,3 +44,5 @@ The controller remains in `base_twist`, with no terrain planner, scene lookup, o
 Simulation ground truth still supplies the floating-base state; this is not an estimated-state deployment test.
 The ramp passed at a 0.2 m/s command and the uneven field passed at 0.3 m/s; the 0.15 m/s uneven trial stayed balanced but stalled at the entry.
 Do not interpret that stall as successful traversal or assume that slower driving always crosses these vertical tile edges more easily.
+The 10 mm one-sided strip was traversed while changing the base height; a 20 mm one-sided vertical entry caused falls in stress trials and is not a validated capability.
+Prioritize base pitch/roll and fall avoidance over exact height, straight-line position or heading tracking.

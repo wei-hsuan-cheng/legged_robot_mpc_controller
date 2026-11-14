@@ -137,13 +137,14 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         # Joints: [left_hip, left_knee, left_wheel, right_hip, right_knee, right_wheel]; wheel angles
         # and wheel speeds carry no weight (unwrapped angles; the speed follows the base command).
         q:
-          basePose: [0.0, 0.0, 100.0, 0.0, 20.0, 50.0]
+          # Balance first: height stays soft; retain posture regularization to discourage leg-fold reversal.
+          basePose: [0.0, 0.0, 3000.0, 0.0, 500.0, 2000.0]
           baseVelocity: [20.0, 20.0, 1.0, 10.0, 1.0, 1.0]
           jointPositions: [1.0, 1.0, 0.0, 1.0, 1.0, 0.0]
           jointVelocities: [0.01, 0.01, 0.0, 0.01, 0.01, 0.0]
 
         qFinal:
-          basePose: [0.0, 0.0, 100.0, 0.0, 20.0, 50.0]
+          basePose: [0.0, 0.0, 3000.0, 0.0, 500.0, 2000.0]
           baseVelocity: [20.0, 20.0, 1.0, 10.0, 1.0, 1.0]
           jointPositions: [2.0, 2.0, 0.0, 2.0, 2.0, 0.0]
           jointVelocities: [0.01, 0.01, 0.0, 0.01, 0.01, 0.0]

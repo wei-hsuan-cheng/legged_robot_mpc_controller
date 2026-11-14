@@ -392,13 +392,16 @@ $$
 The current diagonal entries are:
 
 $$
-\operatorname{diag}Q_p=[0,0,1000,0,100,500],
+\operatorname{diag}Q_p=[0,0,3000,0,500,2000],
 \qquad
 \operatorname{diag}Q_v=[20,20,1,10,1,1].
 $$
 
 The tracked height is the base origin's height, not the whole-body CoM height, and the linear velocity is base velocity despite legacy accessor names containing `Com`.
 Pitch and roll are softly stabilized while yaw rate is tracked without restoring a fixed yaw angle.
+The tuning priority is avoiding falls and controlling pitch/roll, not exact height, symmetric leg lengths, yaw accuracy or XY position.
+For scale, a 5-degree pitch error costs about 1.90 and the same roll error about 7.62, versus 0.60 for a 2 cm height error in the running base cost.
+These are weighted soft preferences, not a strict task hierarchy or a stability guarantee; the optimizer may accept height and motion error to remain balanced.
 Returning the forward command to zero asks the robot to stop moving, not to return to a particular XY position.
 There is no separate CoM-position, capture-point, centroidal-momentum or integral drift-rejection objective in this configuration.
 
@@ -416,13 +419,15 @@ q_j^d=[-0.6021397,-0.9655142,0,0.6021397,0.9655142,0]^{\mathsf T},
 $$
 
 $$
-\operatorname{diag}Q_j=[0.05,0.05,0,0.05,0.05,0],
+\operatorname{diag}Q_j=[1,1,0,1,1,0],
 \qquad
 \operatorname{diag}Q_{\dot j}=[0.01,0.01,0,0.01,0.01,0].
 $$
 
 The wheel angles and spin speeds have zero tracking weights, allowing wheel rotation to emerge from base-motion tracking and rolling physics.
 Wheel spin speeds still have soft velocity limits.
+The original hip/knee posture weights are retained: reducing them too far improved static height accuracy but allowed the opposite knee-bending branch and severely degraded turning in regression tests.
+These posture costs do not require equal leg heights and do not forbid a different bend when dynamics and the other costs justify it.
 Upkie has no tracked arm joints, so the shared dedicated arm-position evaluator contributes no arm objective.
 
 
@@ -461,7 +466,7 @@ No first-node torque-rate or previous-torque matching cost is registered here.
 ### 5.4 Terminal cost and inactive additions
 
 The terminal objective repeats the base, joint-position and joint-velocity residuals with Qf and no terminal input cost.
-Qf has the same base and joint-velocity weights as Q, but joint-position weights $[0.1,0.1,0,0.1,0.1,0]$.
+Qf has the same base and joint-velocity weights as Q, but joint-position weights $[2,2,0,2,2,0]$.
 `qScaling` and `terminalCostScaling` are both $1$, while `rScaling` is $0.001$.
 The builder partitions Q/Qf among base and generic evaluators without double counting.
 Soft path-limit penalties are running terms; no separate terminal joint-limit barrier is registered by this setup.
@@ -725,11 +730,17 @@ Rebuild `mujoco_ros2_control` as well as this package when adopting the correcte
 | Initial state/input seed | [WbIdInitializer.cpp](../src/core/humanoid_wb_id_mpc/src/initialization/WbIdInitializer.cpp) |
 | Observation, execution, stand-up and tracking diagnostics | [humanoid_whole_body_inverse_dynamics_mpc_controller.cpp](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp) |
 
-The handoff records flat-ground balance, forward/backward drive, braking, turning and four complete four-pulse push sequences with corrected simulator base feedback at requested MPC 100 Hz.
-Turning remained balanced for commands +0.3, -0.6 and +1.5 rad/s, including an abrupt maximum-yaw request, but the slow +0.3 rad/s command averaged only +0.145 rad/s and failed the tracking threshold.
+The handoff preserves the earlier 100 Hz flat-drive/push checkpoint and records the selected balance-first weights tested at requested MPC 200 Hz.
+Use `mpcFreq:=200 mrtFreq:=1000` for the current Upkie examples; measured VM rates are typically about 190-192 Hz, not a guaranteed exact 200 Hz.
+The selected weights passed 0.26-0.34 m height steps, a 2-degree ramp, a low uneven field and a 10 mm unequal-wheel-support test while changing height.
+At a 0.34 m request, the selected configuration accepts about 9.93 mm of steady height error, versus the original 33.11 mm; a weaker-posture candidate tracked height more accurately but severely undertracked turns and is not retained.
+The final 1.5 rad/s turning trial averaged 1.146 rad/s with peak pitch/roll below 0.004 rad.
+The final 200 Hz-requested four-pulse push trial recovered all disturbances, with peak pitch 0.07860 rad and final recovery pitch below 0.00410 rad.
+In the earlier 100 Hz logs, turning remained balanced for commands +0.3, -0.6 and +1.5 rad/s, but the slow +0.3 rad/s command averaged only +0.145 rad/s and failed the tracking threshold.
 The existing +/-1.5 Nm pitch and +/-6 N forward-force pulses were recovered without falls; these results do not establish recovery from arbitrary push directions or magnitudes.
-The final repository night-scene repeat reached peak pitch $0.1881\ \mathrm{rad}$ and recovered below $0.0041\ \mathrm{rad}$, without actuator saturation; forward driving averaged $0.2015\ \mathrm{m/s}$ for a $0.2\ \mathrm{m/s}$ command.
-Height sweeps, full-stack kneeling stand-up, hopping, sustained single support, terrain adaptation and estimator-based control remain unvalidated.
+The earlier 100 Hz repository night-scene repeat reached peak pitch $0.1881\ \mathrm{rad}$ and recovered below $0.0041\ \mathrm{rad}$, without actuator saturation; forward driving averaged $0.2015\ \mathrm{m/s}$ for a $0.2\ \mathrm{m/s}$ command.
+The 20 mm one-sided-entry stress tests fell, including a final-configuration repeat at a 0.2 m/s command, and the earlier slow 0.15 m/s uneven-field entry stalled; the tested 0.3 m/s traversal is not a general terrain-robustness guarantee.
+GUI height endpoints, ramp descent/drops, terrain turns, full-stack kneeling stand-up, hopping, sustained single support and estimator-based control remain unvalidated.
 Logging includes base motion, planned wrenches, feedforward/applied joint effort, measured wheel contacts/normal forces, contact gaps, tread slip and solver residuals.
 The slip/gap diagnostics currently assume a horizontal zero-height plane; they are not a generic arbitrary-terrain contact estimator.
 Documented equations describe the implementation, not a guarantee that a one-iteration SQP policy satisfies every equality or that soft limits remain unviolated.
@@ -737,6 +748,11 @@ The [native consistency audit](../tests/wheel_model_consistency_test.cpp) compar
 The audit's maximum equation error was $1.08\times10^{-10}$, maximum normalized Jacobian error $1.19\times10^{-8}$, and smallest input-equality singular value $0.0716$; its finite-difference calculations are tests only, not production derivatives.
 The test also checks tire-center wrench virtual work and the initializer's joint-RNEA/tire-moment consistency.
 These checks cover fixed horizontal normals and double support, not all admissible motions or future terrain/flight modes.
+
+![Measured height and terrain balance](design_notes/wheeled_biped/assets/upkie_height_terrain.png)
+
+The figure uses the final balance-first parameters and measured-state logs; its support-level plot is center height minus tire radius on the horizontal split strip, not a general terrain estimator.
+The control still assumes a fixed horizontal support plane; the modest terrain trials test feedback tolerance to that model error rather than a newly implemented terrain observer or planner.
 
 
 ## 9. Design Traceability and Parameter Selection

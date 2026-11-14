@@ -6,6 +6,122 @@ Update this file at each milestone.
 The implemented equations, current weights, rolling-contact equalities and execution limits are collected in [Wheeled-Biped WB-ID MPC](wheeled_biped_whole_body_inverse_dynamics_mpc.md).
 
 
+## Current Height/Terrain Checkpoint (2026-11-14)
+
+Handover deadline: 22:00 Asia/Taipei on 2026-11-14; Claude takes over afterward.
+The final selected configuration keeps the original hip/knee posture weights 1/2 and uses base height/pitch/roll 3000/500/2000 in Q and Qf.
+This is the current YAML; all weak-posture candidates described below are rejected experiments, not the retained configuration.
+`codex_upkie_finalbalance_yaw` passed the 1.5 rad/s abrupt turn at requested 200 Hz: measured mean 1.14565 rad/s, max pitch/roll 0.00388/0.00194 rad and 0.0656 m drift.
+It retains a strong weighted preference for balance, not a mathematical hard priority or a guarantee against falls.
+
+Final-configuration acceptance (all requested MPC 200 Hz, MRT 1 kHz, GT base state and no terrain map):
+
+| Prefix under `/tmp/` | Result | Measured behavior |
+| --- | --- | --- |
+| `codex_upkie_finalbalance_height` | SUCCESS, 23 s | 0.26 / 0.34 / 0.30 m steps: settled mean errors 1.82 / 9.93 / 0.10 mm; max pitch/roll 0.00307/0.000283 rad |
+| `codex_upkie_finalbalance_yaw` | SUCCESS, 17 s | Abrupt 1.5 rad/s request averaged 1.14565 rad/s; max pitch/roll 0.00388/0.00194 rad |
+| `codex_upkie_finalbalance_ramp` | SUCCESS, 23 s | 2-degree ramp, 0.2 m/s request averaged 0.19321 m/s; max pitch/roll 0.01044/0.00179 rad |
+| `codex_upkie_finalbalance_split10` | SUCCESS, 25 s | 10 mm unequal supports plus 0.34/0.30 m height commands; height errors 8.06/0.83 mm; max pitch/roll 0.00757/0.00261 rad |
+| `codex_upkie_finalbalance_rough` | SUCCESS, 22 s | Seed-7 field, 0.3 m/s request averaged 0.29260 m/s; displacement 3.202 m; max pitch/roll 0.01068/0.00645 rad |
+| `codex_upkie_finalbalance_push` | SUCCESS, 25 s | All four original pulses verified; max pitch/roll 0.07860/0.000440 rad; final recovery pitch <=0.00410 rad |
+| `codex_upkie_finalbalance_split20` | FALL at 10.22 s | Final weights still do not handle the 20 mm one-sided vertical entry at a 0.2 m/s command; leave this as an explicit open issue |
+
+The larger final height error is intentional relative to the rejected 3.55 mm-error candidate: balance, a stable leg-fold preference and turning are more important than exact height.
+The old static 0.34 m request had 33.11 mm bias; the selected configuration reduces it to 9.93 mm without weakening the original posture cost.
+All measured joints stayed below their effort limits in the final height, yaw, ramp and split10 tests.
+Final mean logged rates were 190.25 Hz (height), 191.36 Hz (yaw), 192.41 Hz (ramp), 191.06 Hz (split10), and 191.42 Hz (rough).
+Mean advance times for those runs were 1.67-1.94 ms, with p95 2.12-3.10 ms, but individual outliers reached 50.62 ms; there is no hard real-time or exact-200-Hz guarantee.
+The Release install/build completed successfully in 4.63 s with no C++ changes or code-generation regeneration; 17 focused GUI, stand-up-data, terrain-generator and scene-compilation tests passed.
+The plot asset linked below has been regenerated from these final-configuration runs, not the earlier weak-posture trials.
+
+Reproduce the height profile from the sourced container workspace:
+
+```bash
+python3 src/legged_robot_mpc_controller/tests/wb_id_walk_test.py \
+  --robot-name upkie --source ground_truth_state --mpc-rate 200 \
+  --axis vx --speed 0 --height-sequence '[[4,0.26],[10,0.34],[16,0.30]]' \
+  --hold 23 --ramp 0 --settle 0 --rest 0 --minimum-height 0.15 \
+  --record-joints --record-tracking --prefix /tmp/upkie_height_mine
+```
+
+For exact terrain commands, each container prefix has its complete `.json` arguments and evaluated `.yaml` parameter snapshot.
+Generate the selected temporary scene first using the commands in `config/terrains/upkie/README.md`; no extra installed robot `scene_*.xml` files are needed.
+All simulations are intentionally stopped for the 22:00 handover; do not launch overlapping tests on the shared ROS topics.
+No further test or controller change is scheduled after this checkpoint.
+
+
+### Earlier tuning trials
+
+At 21:39 an intermediate maximum-yaw regression exposed severe undertracking with the provisional 0.05/0.1 posture weights below: 1.5 rad/s requested, only 0.07866 rad/s measured, despite remaining upright.
+Increasing yaw-rate weight from 10 to 100 did not fix it (0.15439 rad/s, 0.688 m translation drift).
+Logged and measured right-knee motion crossed the nominal bending branch (about +0.978 to -0.537 rad); restoring the full posture weights recovered turning.
+Do not treat the provisional height-only tuning as a complete yaw-compatible checkpoint.
+The user clarified at about 21:42 that pitch/roll stability and fall avoidance outrank height precision, matching leg lengths, yaw drift and XY drift.
+Do not pursue exact height/velocity tracking at the cost of losing balance or add new objective/constraint structures merely to improve a tracking metric.
+Restoring full posture weights 1/2 with height weight 10000 recovered the 1.5 rad/s turn (1.14294 rad/s measured, max pitch/roll 0.00683/0.00292 rad) in `codex_upkie_heighttune_posture1_yaw`, but this high-height-weight candidate is not selected without terrain validation.
+Another rejected candidate used height/pitch/roll 3000/500/2000, hip position 0.05/0.1 (Q/Qf), and the original knee position 1/2.
+Its `codex_upkie_balancefirst_split20` still fell at 10.73 s on the 20 mm one-sided entry, and `codex_upkie_balancefirst_yaw` undertracked at 0.30974 rad/s with another knee-branch reversal; stronger tilt weights with weak hips were not sufficient.
+The user has independently tested smooth driving/turning at requested MPC 200 Hz; use `mpcFreq:=200` in Upkie examples and keep MRT at 1 kHz and physics/PD at 2 kHz.
+The shared launch still defaults to 100 Hz for other robots; the Upkie documentation and its acceptance suite select 200 explicitly.
+New measurements here target 200 Hz and average about 190-192 Hz on the VM, not a guaranteed exact 200 Hz.
+The historical 100 Hz results and earlier conservative rate advice below are superseded for the current manual-testing recommendation, not rewritten as 200 Hz evidence.
+
+The first, now-rejected tuning changed these existing Q/Qf entries in `config/upkie/ros2_controllers.yaml`:
+
+| Weight | Before | Rejected Intermediate | Reason for the trial |
+| --- | --- | --- | --- |
+| Base height, Q and Qf | 100 | 1000 | Reduce height bias while retaining a soft objective |
+| Base pitch/roll, Q and Qf | 20 / 50 | 100 / 500 | Prefer trunk balance while the legs change length independently |
+| Hip/knee position, Q | 1 | 0.05 | Stop the nominal crouch fighting a new height or unequal supports |
+| Hip/knee position, Qf | 2 | 0.1 | Avoid forcing the nominal crouch at the horizon end |
+
+Wheel-angle weights remain zero; no new cost, constraint, planner, runtime C++ change, PD gain, torque limit or friction value was added for this tuning.
+The existing wheel equality gains remain 50/50/50 for normal position/normal velocity/tangential velocity.
+Trials with normal-position gain 5 or 0, normal-velocity gain 5, forward-velocity weight 100, and roll weight 2000 combined with weak posture did not resolve the tested larger-edge failures; those trial combinations are not retained.
+No new CppAD library generation is required for these YAML weight changes.
+The table and early terrain results below describe the intermediate candidate; use the final regression table added at handover for current-parameter claims.
+
+Flat static comparison at a 0.34 m request: the old weights settled at 0.30689 m (33.11 mm low); increasing height weight alone to 3000 reached 0.33027 m but increased pitch lean to about 0.032 rad.
+The rejected weak-posture height/tilt combination reached 0.33664 m with max pitch 0.00143 rad in that trial.
+The tiny 0.001 m/s static-test command failed its velocity-tracking verdict with those weights, but the height/attitude statistics are the intended comparison; do not label it a velocity success.
+
+Earlier intermediate-parameter tests used `base_twist`, simulator base-state feedback, no terrain-map input and no stair/terrain-walking planner:
+
+| Container prefix under `/tmp/` | Result | Evidence |
+| --- | --- | --- |
+| `codex_upkie_height_steps` | SUCCESS, 23 s | Height steps 0.30 -> 0.26 -> 0.34 -> 0.30 m; steady mean errors 0.10 / 0.80 / 3.55 / 0.44 mm after excluding the first 2 s of each step; max pitch/roll 0.00344/0.000193 rad |
+| `codex_upkie_ramp_gain50` | SUCCESS, 23 s | 2-degree ramp, 0.2 m/s request averaged 0.19480 m/s; displacement 2.257 m; max pitch/roll 0.02225/0.00105 rad |
+| `codex_upkie_split10_gain50` | SUCCESS, 25 s | Left tire on a 10 mm strip, right on floor; 0.15 m/s request averaged 0.14874 m/s; measured wheel-center difference about 10.02 mm while base roll averaged 0.00013 rad over x=1-2 m |
+| `codex_upkie_split10_height` | SUCCESS, 25 s | Same unequal supports while commanding 0.34 m at 12 s and 0.30 m at 19 s; mean height errors 2.15 mm / 0.71 mm after settling; max pitch/roll 0.01052/0.00301 rad |
+| `codex_upkie_rough_v30` | SUCCESS, 22 s | Seed-7 low uneven field; 0.3 m/s request averaged 0.29320 m/s; displacement 3.206 m; max pitch/roll 0.02362/0.00850 rad |
+| `codex_upkie_rough_v30_repeat` | SUCCESS, 22 s | Independent repeat, 0.28995 m/s; displacement 3.189 m; max pitch/roll 0.03531/0.00943 rad |
+| `codex_upkie_heighttune_push200` | SUCCESS, 25 s | All four original pulses verified; max pitch 0.12774 rad; final recovery pitch <=0.00584 rad |
+
+The new profile files and regeneration/manual test commands are in `config/terrains/upkie/README.md`.
+The ramp starts at x=0.6 m, rises 2 degrees over 3 m, and has an untested far-edge drop; the passing test stopped before it.
+The uneven field spans x=0.5-4.5 m, y=-1-1 m with 0.25 m tiles, seeded 0.67-21.92 mm tops and 3.83-6.85 mm edge-neighbor jumps.
+Floor-to-first-tile jumps are exempt from that neighbor range.
+Do not overwrite the shared humanoid terrain parameters to regenerate this small-wheel variant.
+
+Important unresolved limits:
+
+- `codex_upkie_rough_gain50`, `rough_gain5_vx100` and `rough_compliant` remained upright but stalled near x=0.64-0.67 m at 0.15 m/s, rather than traversing the field.
+  The first stalled trial had one wheel spinning against the entry while the other had climbed; weak world-plane height feedback alone was not the cure.
+- `codex_upkie_split20_height` fell at 8.92 s on the 20 mm one-sided vertical entry at a 0.3 m/s command, before the scheduled height change.
+  `codex_upkie_split20_roll2000` also fell at 13.38 s with roll weight 2000 and normal-position gain 5 at 0.2 m/s.
+  Therefore the fall is not evidence that a height-command step caused it, and neither simply raising roll weight nor loosening normal position was sufficient.
+  These are failed stress tests, not accepted capabilities.
+- Height remains an absolute world-z base-origin target, not ground-relative clearance; the controller's support plane still assumes world z=0 with an upright normal.
+  Small terrain errors are absorbed in receding-horizon feedback and finite SQP residuals, not represented by an identified per-wheel terrain plane.
+  Ground truth supplies only the robot base state, not the upcoming terrain; estimated-state rolling control remains unimplemented.
+
+Visual evidence: `docs/design_notes/wheeled_biped/assets/upkie_height_terrain.png` contains height steps, unequal measured wheel support levels and base pitch/roll traces.
+It is reproducible with `tests/tuning/plot_upkie_height_terrain.py`; measured-state replay screenshots were also inspected at `/tmp/codex_upkie_terrain_visual.png` on the Mac, including the larger-step failure.
+The test harness now supports `--height-sequence '[[seconds,height_m],...]'`, writes `_height.csv`, and reports per-step settled errors; production control is unchanged.
+Eleven focused geometry/generator/scene-compilation tests passed after adding the small-wheel fixtures.
+The intermediate user commit `b8baeee` already contains the terrain fixtures/docs/harness; the final checkpoint adds the selected YAML weights, current results, plot/reproduction script and open-issue handoff.
+
+
 ## Branch Checkpoint (2026-11-14)
 
 The user requested committing and pushing the complete current Upkie checkpoint with a detailed commit message, retaining the current code and parameter values.
@@ -369,7 +485,7 @@ In the `ros_jazzy` container, from `/root/ocs2_ros2_ws` (launch from there: the 
 ```bash
 source install/setup.bash
 # 1. Wheel drive with the GUI: standing spawn, ground-truth base, MuJoCo and RViz windows.
-ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=upkie \
+ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=upkie mpcFreq:=200 mrtFreq:=1000 \
   floatingBaseSource:=ground_truth_state floatingBaseEstimator:=none \
   rviz:=true mujoco_headless:=false baseCommandGui:=true
 #    The GUI's forward axis is normalised by maxDisplacementVelocityX (1.0 m/s); keep vy at 0
@@ -405,7 +521,7 @@ MAKEFLAGS=-j2 colcon build --symlink-install --packages-select legged_robot_mpc_
   --cmake-args -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
 source install/setup.bash
 # manual run (standing spawn, ground truth)
-ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=upkie \
+ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=upkie mpcFreq:=200 mrtFreq:=1000 \
   floatingBaseSource:=ground_truth_state floatingBaseEstimator:=none rviz:=true mujoco_headless:=false
 # acceptance suite: TAG N [extra harness args]; results /tmp/upkie_<TAG>_{roll,push}_<i>.*
 bash src/legged_robot_mpc_controller/tests/tuning/upkie_acceptance_suite.sh m1 3 \
@@ -419,12 +535,26 @@ A full rebuild takes about 11 minutes (ModelSettings/helper headers are included
 
 ## Next steps, in order
 
-1. Preserve the current successful flat checkpoint and investigate slow-yaw undertracking before changing gains; repeat any friction-model versus wheel-kd comparison only with corrected XBODY feedback, since the older angular-feedback data are not a valid tuning baseline.
-2. Run the planned stand-up in the stack; adjust the plan (`plan_stand_up.py --search`) or the handover if the MPC cannot catch it.
-3. Hop: add a `hop` template (e.g. STANCE 0.5 s, FLY 0.1-0.15 s) and request it on `/humanoid/gait_command`; check takeoff/landing torques, measured flight (contact sensors) and touchdown slip; consider a wheel-spin cost in flight.
-4. Short single support (`left_leg`/`right_leg` templates for ~0.1-0.2 s): no hip roll, so lateral balance comes only from rolling the trunk with leg-length differences; measure roll before attempting alternating support (trot).
-5. Estimator: adapt the linear KF to rolling contacts (wheel contact gives a base-velocity measurement through zero tread velocity and a height measurement; no fixed foot landmark), then rerun the milestones closed loop on the estimate.
-6. Extend the passed G1/H2 flat forward/brake smoke tests to broader regression after the shared changes (`computeJointTorques` signature, optional arm-swing joints, height-reset argument, gait topic subscription, tracking columns and simulator twist convention).
+Priority from the user: preventing a fall and controlling base pitch/roll comes first; accept height error, unequal leg lengths, yaw error and XY drift when needed.
+These are proposed follow-up milestones, not permission to silently expand the control architecture.
+
+| Order | Milestone | Current boundary and next evidence needed |
+| --- | --- | --- |
+| 1 | Larger asymmetric edges and slow terrain entries | Known failures: the 20 mm one-sided vertical entry falls, and the 0.15 m/s uneven entry stalls; compare contact loss, actual/commanded torque limits, planned contact forces and fixed-plane residuals before more tuning |
+| 2 | Broader no-map terrain acceptance | Still untested: more random seeds, reverse traversal, ramp descent/far drop, turns while on the ramp/field, and sudden stops at edges; preserve the passed small-terrain checkpoint |
+| 3 | Push-recovery envelope | Only the original +/-1.5 Nm pitch and +/-6 N fore/aft pulses are validated; lateral/yaw pushes, combined disturbances and pushes on unequal-height terrain remain untested |
+| 4 | Height envelope without sacrificing balance | Current tests cover 0.26-0.34 m and a height change on a 10 mm split; GUI endpoints 0.22/0.38 m, faster height changes and a range of support-height differences need separate testing |
+| 5 | Rolling-contact estimated-state control | Not implemented: adapt stationary-foot KF measurements to tire rolling geometry, compensate IMU extrinsics, gate unreliable/slipping contacts, then repeat acceptance without simulator base-state feedback |
+| 6 | Kneeling stand-up and handover | Export/playback bounds were corrected, but the full simulator/controller stand-up and MPC catch have never passed a complete test |
+| 7 | Flight/hop | Not implemented/tested: add and validate symmetric takeoff, flight, wheel-spin behavior and touchdown before claiming hopping |
+| 8 | Single support and alternating support | Not implemented/tested; Upkie has no hip roll, so balance authority and equality rank must be checked before a single-wheel or alternating-support gait |
+
+For item 1, the current model continues to schedule both wheels as supporting even when measured contact is lost, and its contact height/normal is a fixed world plane.
+The failing 20 mm trials show zero-load intervals and wheel torque saturation; those are observed symptoms, not a proven sole root cause.
+A wheel-aware, per-contact local reference updated from robot pose/encoders is a possible implementation correction if parameter-only tests are exhausted, not an existing capability and not an excuse to supply a GT terrain map.
+Do not simply enable the generic `groundHeight.useEstimate`: the current shared foot-height helper averages tire-center frames rather than tread contacts, introducing a tire-radius offset and still not representing separate left/right support heights.
+Retain the corrected XBODY simulator feedback and compare failure windows before choosing that change.
+The source-independent H2/G1 regression and broader wheel friction-versus-damping calibration also remain open, but do not change their parameters as part of the Upkie-only tuning.
 
 
 ## Traps found
