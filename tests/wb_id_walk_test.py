@@ -148,6 +148,8 @@ def main():
     parser.add_argument("--settle", type=float, default=5.0)
     parser.add_argument("--rest", type=float, default=5.0)
     parser.add_argument("--height", type=float, help="Override YAML nominal pelvis height [m]")
+    parser.add_argument("--height-sequence", type=json.loads, default=[],
+                        help='Height steps after takeover: [[seconds, height_m], ...]; permits --speed 0')
     parser.add_argument("--mpc-rate", type=int, default=100)
     parser.add_argument("--launch-file", default="robot.launch.py")
     parser.add_argument("--robot-name", choices=["g1", "h2", "upkie"], default="g1")
@@ -182,7 +184,7 @@ def main():
         parser.error("wrench sequence and recovery pause must fit inside the walking test")
     args.config = args.config or Path(__file__).resolve().parents[1] / "config" / args.robot_name / "ros2_controllers.yaml"
     height_override = args.height
-    if args.hold <= 0 or args.ramp < 0 or args.speed == 0:
+    if args.hold <= 0 or args.ramp < 0 or (args.speed == 0 and not args.height_sequence):
         parser.error("hold must be positive, ramp nonnegative, and speed nonzero")
     config = yaml.safe_load(args.config.read_text())
     params = config[CONTROLLER]["ros__parameters"]
@@ -205,6 +207,13 @@ def main():
             parser.error(f"Unknown parameter: {key}")
         parent[parts[-1]] = json.loads(value)
     args.height = float(params["ocs2"]["reference"]["defaultBaseHeight"]) if args.height is None else args.height
+    previous_time = -1.0
+    for point in args.height_sequence:
+        if (not isinstance(point, list) or len(point) != 2 or
+                not all(isinstance(v, (int, float)) and math.isfinite(v) for v in point) or
+                not 0 <= point[0] < total_duration or point[0] <= previous_time or point[1] <= 0):
+            parser.error("height-sequence needs increasing nonnegative times within the run and positive finite heights")
+        previous_time = point[0]
     if args.swing_duration is not None:
         if args.swing_duration <= 0 or args.double_support <= 0:
             parser.error("swing duration and double support must be positive")
@@ -268,6 +277,7 @@ def main():
             last_phase = None
             bad_since = None
             next_report = 0
+            commanded_heights = []
             while time.monotonic() < deadline:
                 rclpy.spin_once(probe, timeout_sec=0.02)
                 if process.poll() is not None:
@@ -327,8 +337,13 @@ def main():
                     if phase in ("ramp_in", "walk") and movement_start is None:
                         movement_start = probe.gt
                 command = normalized_speed * fraction
+                height_command = args.height
+                for height_time, height_value in args.height_sequence:
+                    if elapsed >= height_time:
+                        height_command = height_value
+                commanded_heights.append((elapsed, height_command, probe.gt[3]))
                 probe.command(command if args.axis == "vx" else 0.0, command if args.axis == "vy" else 0.0,
-                              args.height, command if args.axis == "yaw" else 0.0)
+                              height_command, command if args.axis == "yaw" else 0.0)
                 _, x, y, z, roll, pitch, yaw, *_ = probe.gt
                 if elapsed >= next_report:
                     print(f"t={elapsed:.1f} xyz=({x:.3f},{y:.3f},{z:.3f}) rpy=({roll:.3f},{pitch:.3f},{yaw:.3f})", flush=True)
@@ -347,8 +362,8 @@ def main():
                     yaw_error = max(abs(math.remainder(s[6] - yaw0, 2 * math.pi)) for s in probe.samples)
                     result.update(displacement=displacement, expected_displacement=expected,
                                   cross_axis_displacement=cross_axis, max_observed_yaw_error=yaw_error)
-                    verdict = "SUCCESS" if (displacement / expected > 0.5 and yaw_error <= args.max_yaw_error
-                                             and abs(cross_axis) < 0.35 * abs(expected)) else "NO_TRACKING"
+                    verdict = "SUCCESS" if (expected == 0 or (displacement / expected > 0.5 and yaw_error <= args.max_yaw_error
+                                             and abs(cross_axis) < 0.35 * abs(expected))) else "NO_TRACKING"
                     if args.axis == "yaw":
                         movement = [movement_start] + [s for s in probe.samples if s[0] > movement_start[0]]
                         rotation = sum(math.remainder(b[6] - a[6], 2 * math.pi) for a, b in zip(movement, movement[1:]))
@@ -358,6 +373,23 @@ def main():
                     break
             if start is not None:
                 result["sim_seconds"] = probe.gt[0] - start
+            if args.height_sequence:
+                result["height_tracking"] = []
+                steps = [[0.0, args.height], *args.height_sequence]
+                for index, (begin, requested) in enumerate(steps):
+                    end = steps[index + 1][0] if index + 1 < len(steps) else total_duration
+                    values = [z for t, _, z in commanded_heights if begin + 2.0 <= t < end]
+                    if values:
+                        result["height_tracking"].append(dict(begin=begin, requested=requested,
+                            mean_measured=sum(values) / len(values),
+                            mean_abs_error=sum(abs(z-requested) for z in values) / len(values),
+                            max_abs_error=max(abs(z-requested) for z in values)))
+                if verdict == "SUCCESS" and any(s["mean_abs_error"] > .015 for s in result["height_tracking"]):
+                    verdict = "HEIGHT_TRACKING_ERROR"
+                with Path(str(prefix) + "_height.csv").open("w") as file:
+                    writer = csv.writer(file)
+                    writer.writerow(("elapsed", "command_height", "measured_height"))
+                    writer.writerows(commanded_heights)
             if probe.samples:
                 result.update(min_z=min(s[3] for s in probe.samples),
                               max_roll=max(abs(s[4]) for s in probe.samples),

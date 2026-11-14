@@ -166,6 +166,24 @@ The default edge-neighbor height differences are bounded to 2-5 cm; see [paramet
 This only changes the environment and supplies no terrain map to ordinary `base_twist` control.
 
 
+### Wheeled Biped
+
+Upkie uses the WB-ID controller with six actuated joints and continuous rolling support.
+Use **200 Hz MPC**, 1 kHz MRT and the default 2 kHz physics/PD loop:
+
+```bash
+ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=upkie \
+  floatingBaseSource:=ground_truth_state floatingBaseEstimator:=none \
+  mpcFreq:=200 mrtFreq:=1000 \
+  rviz:=true mujoco_headless:=false baseCommandGui:=true
+```
+
+The GUI height range is 0.22-0.38 m; forward speed, yaw rate and height are supported, not independent sideways driving.
+Height is a soft base-origin target, not a hard equality or a terrain-relative clearance command.
+See the [Upkie model](./docs/wheeled_biped_whole_body_inverse_dynamics_mpc.md) and [handoff/test commands](./docs/wheeled_biped_handoff.md) for tested limits and remaining work.
+The [small-wheel terrain profiles](./config/terrains/upkie/README.md) leave the existing humanoid terrains unchanged and provide no terrain map to MPC.
+
+
 ### WB-ID running
 
 In `base_twist` mode, G1 and H2 use `[stance, walk, trot, run]`, with overlapping speed bands.

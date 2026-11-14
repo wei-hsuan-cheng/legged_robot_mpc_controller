@@ -392,7 +392,7 @@ $$
 The current diagonal entries are:
 
 $$
-\operatorname{diag}Q_p=[0,0,100,0,20,50],
+\operatorname{diag}Q_p=[0,0,1000,0,100,500],
 \qquad
 \operatorname{diag}Q_v=[20,20,1,10,1,1].
 $$
@@ -416,7 +416,7 @@ q_j^d=[-0.6021397,-0.9655142,0,0.6021397,0.9655142,0]^{\mathsf T},
 $$
 
 $$
-\operatorname{diag}Q_j=[1,1,0,1,1,0],
+\operatorname{diag}Q_j=[0.05,0.05,0,0.05,0.05,0],
 \qquad
 \operatorname{diag}Q_{\dot j}=[0.01,0.01,0,0.01,0.01,0].
 $$
@@ -461,7 +461,7 @@ No first-node torque-rate or previous-torque matching cost is registered here.
 ### 5.4 Terminal cost and inactive additions
 
 The terminal objective repeats the base, joint-position and joint-velocity residuals with Qf and no terminal input cost.
-Qf has the same base and joint-velocity weights as Q, but joint-position weights $[2,2,0,2,2,0]$.
+Qf has the same base and joint-velocity weights as Q, but joint-position weights $[0.1,0.1,0,0.1,0.1,0]$.
 `qScaling` and `terminalCostScaling` are both $1$, while `rScaling` is $0.001$.
 The builder partitions Q/Qf among base and generic evaluators without double counting.
 Soft path-limit penalties are running terms; no separate terminal joint-limit barrier is registered by this setup.

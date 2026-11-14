@@ -1,0 +1,11 @@
+# Small-wheel trial: rise is 0.105 m over 3 m; stop before the far drop.
+# Generate with the shared ramp.xml.xacro and this ramp_params_file.
+ramp:
+  base:
+    pos: [0.6, 0.0, 0.0]
+    yaw: 0.0
+  length: 3.0
+  incline_deg: 2.0
+  width: 1.5
+  friction: [0.8, 0.005, 0.0001]
+  color_gray: 0.55

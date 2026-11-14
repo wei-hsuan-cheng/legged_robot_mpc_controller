@@ -9,10 +9,12 @@ import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULES = {"none": None, "stairs": "terrains/stairs.xml", "ramp": "terrains/ramp.xml",
-           "rough": "terrains/uneven_terrain.xml", "slope": "terrains/slope.xml", "boxes": "objects/boxes.xml"}
+           "rough": "terrains/uneven_terrain.xml", "slope": "terrains/slope.xml", "boxes": "objects/boxes.xml",
+           "upkie_ramp": "terrains/upkie_ramp.xml", "upkie_rough": "terrains/upkie_uneven_terrain.xml",
+           "split_height": None}
 
 
-def write_scene(output, robot="g1", terrain="none", package=ROOT):
+def write_scene(output, robot="g1", terrain="none", package=ROOT, split_height=0.01):
     scenes = (Path(package) / "description/mujoco").resolve()
     robot_dir = scenes / "robots" / robot
     root = ET.parse(robot_dir / "scene.xml").getroot()
@@ -40,6 +42,14 @@ def write_scene(output, robot="g1", terrain="none", package=ROOT):
     ET.SubElement(root, "compiler", compiler)
     if MODULES[terrain] is not None:
         ET.SubElement(root, "include", file=str(scenes / MODULES[terrain]))
+    if terrain == "split_height":
+        if not 0.0 < split_height <= 0.05:
+            raise ValueError("split height must be in (0, 0.05] m")
+        # Left tire traverses the raised strip while the right remains on the floor.
+        world = ET.SubElement(root, "worldbody")
+        ET.SubElement(world, "geom", name="split_height_strip", type="box",
+                      pos=f"2.0 0.2 {split_height / 2}", size=f"1.4 0.14 {split_height / 2}",
+                      material="studio_terrain", friction="0.8 0.005 0.0001", priority="1")
     output = Path(output).resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
     ET.indent(root, space="  ")
@@ -58,5 +68,6 @@ if __name__ == "__main__":
     parser.add_argument("--robot-name", choices=("g1", "h2", "upkie"), default="g1")
     parser.add_argument("--terrain", choices=MODULES, default="none")
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--split-height", type=float, default=0.01, help="Raised left-wheel strip [m]")
     args = parser.parse_args()
-    print(write_scene(args.output, args.robot_name, args.terrain))
+    print(write_scene(args.output, args.robot_name, args.terrain, split_height=args.split_height))

@@ -134,7 +134,7 @@ class SceneLayoutTest(unittest.TestCase):
 
     @unittest.skipIf(mujoco is None, "mujoco Python package is not installed")
     def test_upkie_flat_and_terrain_fixtures_compile(self):
-        for terrain in ("none", "ramp", "rough"):
+        for terrain in ("none", "ramp", "rough", "upkie_ramp", "upkie_rough", "split_height"):
             with self.subTest(terrain=terrain), temporary_scene("upkie", terrain) as scene:
                 model = mujoco.MjModel.from_xml_path(str(scene))
                 self.assertEqual((model.nq, model.nv, model.nu), (13, 12, 6))

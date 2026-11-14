@@ -1,0 +1,28 @@
+# Low version of the shared field for 55 mm-radius wheels; no terrain map reaches MPC.
+uneven_terrain:
+  base:
+    pos: [2.5, 0.0, 0.0]
+    yaw: 0.0
+  size: [4.0, 2.0]
+  grid: [16, 8]
+  seed: 7
+  height:
+    min: 0.0
+    max: 0.024
+    adjacent_difference:
+      min: 0.003
+      max: 0.008
+      distribution: triangular
+      mode: 0.005
+    jitter: 0.0003
+  profile:
+    amplitude: 0.002
+    wavelength: [2.0, 2.5]
+    strength: 0.75
+  clear_patch:
+    center: [0.0, 0.0]
+    size: [0.0, 0.0]
+  depth: 0.1
+  gap: 0.0
+  friction: [0.8, 0.005, 0.0001]
+  color_gray: 0.55

@@ -33,6 +33,18 @@ def defaults():
 
 
 class UnevenTerrainTest(unittest.TestCase):
+    def test_upkie_profile_is_lower_and_generated_files_match(self):
+        config = yaml.safe_load((ROOT / "config/terrains/upkie/uneven_terrain_params.yaml").read_text())["uneven_terrain"]
+        heights = terrain.generate_heights(config)
+        differences = terrain.adjacent_differences(heights)
+        self.assertGreaterEqual(min(differences), .003 - 1e-10)
+        self.assertLessEqual(max(differences), .008 + 1e-10)
+        self.assertLessEqual(max(map(max, heights)), .024)
+        blocks = terrain.generate_blocks(config, heights)
+        for relative, root in (("description/mujoco/terrains/upkie_uneven_terrain.xml", terrain.build_mjcf(config, blocks)),
+                               ("description/urdf/terrains/upkie_uneven_terrain.urdf.xacro", terrain.build_urdf(config, blocks))):
+            self.assertEqual((ROOT / relative).read_text(), terrain.xml_text(root))
+
     def test_default_neighbor_distribution_and_envelope(self):
         config = defaults()
         heights = terrain.generate_heights(config)
