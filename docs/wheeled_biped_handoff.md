@@ -6,6 +6,116 @@ Update this file at each milestone.
 The implemented equations, current weights, rolling-contact equalities and execution limits are collected in [Wheeled-Biped WB-ID MPC](wheeled_biped_whole_body_inverse_dynamics_mpc.md).
 
 
+## Leg-Crossing Fix (2026-11-15, Claude)
+
+Nothing is committed.
+Shipped in `config/upkie/ros2_controllers.yaml`: posture by height (0.20-0.33 m table, target heights clamped to it), hip/knee posture 3/0.1 (terminal 6/0.2), `tangentialVelocityGain` 5; base height/pitch/roll weights unchanged at 3000/500/2000.
+Every user observation is fixed in simulation (GT base, MPC 200 Hz) and the full flat/terrain regression passes; tables below.
+Changed: [`TargetTrajectoriesCalculatorBase`](../include/humanoid_common_mpc/command/TargetTrajectoriesCalculatorBase.h) (optional posture-by-height table and height clamp), [`WbIdMpcTargetTrajectoriesCalculator.cpp`](../src/core/humanoid_wb_id_mpc/src/command/WbIdMpcTargetTrajectoriesCalculator.cpp) (uses it), the WB-ID parameter schema and controller (`ocs2.reference.postureHeights` / `postureJointStates`), the table generator [`config/upkie/compute_posture_table.py`](../config/upkie/compute_posture_table.py) and the table in the Upkie YAML.
+Without a table nothing changes, so H2/G1 behave as before; the centroidal controller is untouched.
+
+### What shapes the leg posture: H2 versus Upkie (the user's question)
+
+H2's leg posture comes mainly from its constraints, as the user expected.
+In stance, `footMotionEquality` is a hard 6-DoF equality on each foot (still, height and tilt corrected), so with the base height/pitch/roll tracked a 6-DoF leg has no free motion left.
+In swing, the foot height follows the swing path (hard) and the landing x/y comes from `captureFootPlacement` through `taskSpaceFootCost`.
+H2's posture weights (hip pitch 3, knee 0.1) are regularizers on top; the hip one is commented as stopping "a persistent front/back stance".
+Upkie has no equivalent: a rolling wheel constrains gap, tread slip, lateral slip and moment, but its spin is free, so each leg keeps one free sagittal motion (wheel fore/aft under the hip) and there is no foothold cost.
+Balance pins the common mode (wheels under the CoM); the differential mode (one wheel ahead, one behind) is held by the joint-posture cost alone.
+
+### Mechanism, from the reproduction runs
+
+| Case (shipped weights, mesh tire) | Wheel fore/aft gap max | Hip asymmetry max | Tracking |
+| --- | --- | --- | --- |
+| 0.30 m, yaw 1.0 rad/s | 32 mm | 0.08 rad | yaw 70% |
+| 0.22 m, yaw 1.0 rad/s | 379 mm | 1.20 rad | yaw 0% |
+| 0.22 m, vx 0.3 m/s | 354 mm | 1.19 rad | vx 93% |
+| 0.38 m request, vx 0.3 m/s | 30 mm | 0.48 rad | vx 92%; height -41 mm, knee straight, knee jitter 7-8 mrad |
+| Ramp, vx 0.2 m/s | 224 mm | 0.71 rad | vx 93% |
+
+At 0.22 m the legs first fold symmetrically, then split within a second during settling, before any velocity command (side-view frames confirm it).
+At a fixed height each leg only sweeps fore/aft, and balance pins only the two wheels' mean; splitting by +/-d costs f(s+d) + f(s-d), which beats the symmetric f(s) when the posture cost f curves downward along the sweep.
+Its curvature contains (q - q_ref) q'' terms, which become large and negative when the reference is far from the posture the height requires: at 0.22 m the balanced symmetric posture is hip -1.09 / knee -1.68 rad against the fixed reference -0.60 / -0.97.
+On the ramp the GT base holds 0.30 m of absolute height while the ground rises, so the legs fold to about 0.23 m above the slope and split at 14 s the same way.
+Yaw then fails geometrically: wheels 350 mm apart fore/aft have parallel axles that never meet, so without lateral slip a differential drive has no centre of rotation.
+The 0.38 m GUI maximum is out of reach: straight legs give about 0.34 m, and the height cost (51-61% of the cost) pins the knees at the singularity, which is the jitter.
+
+### Fix and results
+
+Each height's balanced symmetric posture (level trunk, tires on the floor, tire contact under the whole-robot CoM) is precomputed by `compute_posture_table.py`; at 0.30 m it reproduces `defaultJointState` to six decimals.
+The joint reference is interpolated at the target height, and target heights are clamped to the table (0.20-0.33 m; 0.33 m keeps a 0.5 rad knee bend).
+Experiment 1 also set H2's posture ratio (hip 3 / knee 0.1, terminal 6 / 0.2), passed with `--set` and not yet in the YAML.
+
+| Case | Shipped | Exp 1: hip 3 / knee 0.1 | Exp 2: + posture by height |
+| --- | --- | --- | --- |
+| 0.22 m, yaw 1.0 | 379 mm, yaw 0% | 204 mm, yaw 10% | 11 mm, yaw 81% |
+| 0.22 m, vx 0.3 | 354 mm, vx 93% | 168 mm, vx 102% | 1 mm, vx 98% |
+| 0.30 m, yaw 1.0 | 32 mm, yaw 70% | 17 mm, yaw 74% | 15 mm, yaw 74% |
+| 0.38 m request, vx 0.3 | knee jitter 7-8 mrad | 7-8 mrad | clamped to 0.33 m: 0.4 mrad, vx 99% |
+| Ramp | 224 mm | 2 mm | 1 mm, vx 96% |
+| 20 mm strip | FALL (mesh tire) | not run | SUCCESS; 241 mm sweep while the wheel stalls at the edge |
+
+Tilt stays at or below 0.003 rad on flat ground in experiment 2.
+The high-height runs report HEIGHT_TRACKING_ERROR only because the harness scores against the requested 0.38 m.
+On the 20 mm strip the remaining sweep is the slip-feedback mechanism of the tire-collision section again (planned left traction follows tread slip, correlation 0.95, up to 46 N, wheel torque at 1.66 N m).
+
+### Weight balance (cause 3)
+
+With 1/(acceptable error)^2, normalised to H2's base height 150 (2 cm, 0.02 rad tilt, 0.05 m/s, 0.1 rad/s yaw rate, 0.2 rad/s tilt rates, 0.2 rad posture, 2 rad/s joint speed), velocity, posture and joint-velocity weights are already balanced; only the base pose is 3-20x high (height 3000 vs 150, pitch 500 vs 150, roll 2000 vs 150).
+The 30 input weights are regularizers (x 0.001), as in H2.
+
+Both reductions were tested on top of experiment 2 and rejected on the no-fall priority:
+
+| Experiment | Flat, ramp, roll and brake | Push max pitch | 20 mm strip |
+| --- | --- | --- | --- |
+| 2: height/pitch/roll 3000/500/2000 | pass | 0.080 (shipped) | pass, max roll 0.028 |
+| 3: 150/150/150 | pass; ramp lets the body rise 15 mm | 0.114 | FALL, roll 0.44 |
+| 3b: height 150 only | pass; ramp lets the body rise 15 mm | 0.080 | FALL, roll 0.31 |
+
+The stiff height and tilt weights are what hold the body when one wheel stalls at a step; the crossing was the fixed posture reference, not the height weight.
+
+### Slip feedback on a blocked wheel (experiment 4)
+
+On the 20 mm strip, 2 runs per gain on top of experiment 2:
+
+| `tangentialVelocityGain` | Stall at the edge | Max planned left traction | Max roll | Leg sweep (wheel gap / hip asymmetry) |
+| --- | --- | --- | --- | --- |
+| 50 | 1.7 s | 44-46 N | 0.028-0.043 | 241-278 mm / 0.71-0.83 rad |
+| 10 | 1.1-1.65 s | 22-38 N | 0.007-0.065 | 183-334 mm / 0.55-0.98 rad |
+| 5 | 1.2 s | 16-17 N | 0.007-0.008 | 191-203 mm / 0.57 rad |
+
+Gain 5 was consistent and chosen; the leg still sweeps about 20 cm while the wheel waits at the edge, because the body keeps tracking the commanded speed.
+
+### Final regression (experiment 2 + gain 5)
+
+| Case | Result |
+| --- | --- |
+| Push (4 pulses) | pass, max pitch 0.079-0.083 rad (shipped 0.080) |
+| Roll 0.2 m/s and brake | pass, vx 97%, max pitch 0.006 rad |
+| Yaw 1.5 rad/s | pass, 83% (shipped 75%) |
+| Height steps 0.26 / 0.34 (clamped 0.33) / 0.30 m | pass, steady knee jitter 0.01 mrad |
+| 0.22 m yaw 1.0 / vx 0.3 | pass: yaw 80%, vx 98%; wheel gap 14 / 1 mm |
+| 0.38 m request, vx 0.3 | clamped to 0.33 m: vx 99%, knee bend 0.50 rad, no jitter (reported HEIGHT_TRACKING_ERROR against 0.38 m) |
+| Ramp 0.2 m/s | pass x 2, vx 96%, wheel gap 1 mm |
+| 10 mm strip with height steps | pass; wheel gap 24-44 mm steady (length compensation; shipped -24 to +6) |
+| Rough field 0.3 m/s | pass, vx 98% |
+| Rough field 0.15 m/s (old stall) | pass: past the old 0.64-0.67 m stall, 1.53 m at 0.12 m/s |
+| 20 mm strip | pass x 4 (final YAML x 2), max roll 0.010-0.018 |
+| 20 mm, 1 m wide strip | pass, max roll 0.006 |
+| 20 mm strip, driving off its far end (forward one-wheel drop) | pass, roll 0.006 rad after the drop |
+| 20 mm strip rotated 0.1 rad (meant as a side drop) | pass, but no drop happened: the robot aligned with the strip and rode its edge |
+
+Runs are `/tmp/claude_{rep,e1,e2,e3,e3b,cand,fin}_*` and `/tmp/claude_e4k*` in `ros_jazzy`.
+Evaluate any run with `tests/tuning/evaluate_upkie_run.py PREFIX --plot` (statistics, per-dimension cost shares, cmd/plan/GT plot sheet) and render frames with `tests/tuning/render_upkie_replay.py SCENE PREFIX_replay.json OUT.png t...`.
+
+### Other findings
+
+At 0.30 m the 1.0 rad/s yaw reaches 70-74%: the wheel speeds imply 0.72 rad/s and the body turns 0.70, so there is no slip; the MPC plans only about 0.71 because about 0.15 N m per wheel of unmodelled drag remains.
+A flat tire on a plane is loaded at both rims, 44 mm apart, and scrubs when turning: mu N 0.022 m per tire is about 0.9 N m of yaw drag, matching; the MPC models a thin disk and re-plans from the measured yaw rate.
+Codex's slow-yaw undertracking has the same cause; not yet addressed.
+
+
+
 ## Tire Collision Fix and 20 mm Edge Analysis (2026-11-14, Claude, after 22:00)
 
 Stopped at the user's request before the weekly usage limit; nothing is committed.
@@ -68,12 +178,28 @@ Absolute height z is the sensitive one: the height target is world z above the p
 An estimator must therefore report z relative to the wheel contact plane (leg kinematics with the ground under the wheels at 0, as G1's `height.source: kinematic`), not integrated IMU z; a 1 cm z drift would read as both wheels 1 cm in the air.
 Only the explicit `base_pose` target mode tracks absolute pose, by design.
 
+### User's manual test notes (2026-11-15), the first tuning target
+
+- Flat, base height raised toward the 0.38 m maximum: the knees jitter more as they approach full extension (singularity); just below that, vx and yaw-rate tracking stay good.
+- Flat, base height lowered: the two legs cross (one wheel ahead, one behind) and the yaw rate essentially cannot track.
+- Driving onto the 2 cm strip: the legs also cross; the robot should instead let the leg give (compliance) and rise rather than push hard.
+- Driving up the ramp: fine at first, then the legs start to cross the higher it climbs.
+- The user's reading: base height (and tilt) are weighted so strongly that the optimizer sacrifices a symmetric leg posture for them; with less sensitivity the legs should keep the same knee direction and drive smoothly.
+- Expected: vx and yaw rate trackable at every commanded height, no crossing at low height, on the step or on the ramp.
+
+Candidate causes (status after the 2026-11-15 tuning; see "Leg-Crossing Fix" above):
+
+1. `defaultJointState` is the 0.30 m posture at every commanded height. Confirmed as the cause of crossing; fixed by the posture-by-height table.
+2. The model stays proprioceptive with the ground at z = 0, like H2, by the user's decision: no ground-relative height or gap references. With the GT base the ramp still folds the legs (absolute height 0.30 m over rising ground), but the posture fix keeps them symmetric.
+3. Base height/tilt weights 3000/500/2000 are 3-20x above a balanced weighting, but lowering them made the 20 mm step fall; kept.
+
 ### Next, in order (replaces item 1 of "Next steps" below)
 
-1. Blocked-wheel slip feedback: compare `tangentialVelocityGain` 5-20 against 50 on the whole suite, and the alternative of feeding the MPC a rolling-consistent wheel speed (measured spin replaced by hub velocity / r while in contact) so slip is left to the wheel's low-level damping, as wheeled-legged MPCs that keep wheel spin out of the MPC state do.
-2. Separate the 20 mm entry from the side drop: a strip wide enough that heading drift cannot reach its outer edge, then a deliberate one-wheel lateral drop test.
-3. Repeat the primitive-tire conclusions under the mesh tire: uneven-field entry at 0.15 m/s (the old stall), more seeds, and the 0.3 m/s 20 mm entry.
-4. The rest of the original list below (push envelope, height envelope, estimator, stand-up, hop, single support) is unchanged.
+1. A real one-wheel side drop: the rotated-strip test aligned with the strip instead; drive across a strip's side edge on purpose (for example a yaw command while one wheel is on a narrow strip).
+2. Yaw scrub: the flat tire's two loaded rims cost about 0.9 N m of yaw drag the MPC does not model (yaw 75-83% of the command); decide whether the tire collision should be crowned (one contact line, as a rubber tire) or the MPC should model the scrub.
+3. The remaining leg sweep while a wheel waits at a step edge (about 20 cm): the body keeps tracking the commanded speed; consider easing the speed target when a wheel is blocked.
+4. Repeat counts are 1-4 per case; run N >= 5 on the step and push cases before calling it robust.
+5. The rest of the original list below (push envelope, estimator, stand-up, hop, single support) is unchanged.
 
 Reproduction: scenes come from `tests/mujoco_scene.py --terrain split_height --split-height 0.02` and the other terrain commands in the [terrain README](../config/terrains/upkie/README.md); each `/tmp/claude_mesh_*.json` holds its full arguments.
 

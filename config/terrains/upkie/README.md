@@ -48,7 +48,7 @@ python3 $H $COMMON --axis vx --speed 0.2 --hold 10 --ramp 2 --settle 4 --rest 5 
 # 10 mm one-sided strip with height steps (scene: --terrain split_height --split-height 0.01)
 python3 $H $COMMON --axis vx --speed 0.15 --hold 12 --ramp 2 --settle 4 --rest 5 \
   --height-sequence '[[12,0.34],[19,0.30]]' --scene /tmp/upkie_split10_scene.xml --prefix /tmp/upkie_split10
-# 20 mm one-sided strip (scene: --terrain split_height --split-height 0.02); currently falls after climbing
+# 20 mm one-sided strip (scene: --terrain split_height --split-height 0.02)
 python3 $H $COMMON --axis vx --speed 0.2 --hold 10 --ramp 2 --settle 4 --rest 5 \
   --scene /tmp/upkie_split20_scene.xml --prefix /tmp/upkie_split20
 # uneven field (scene: --terrain upkie_rough)
@@ -63,9 +63,7 @@ Use only one simulator at a time.
 RViz terrain geometry is separate; these commands do not alter your `description/urdf/env.urdf.xacro` selections.
 The controller remains in `base_twist`, with no terrain planner, scene lookup, or preview of the upcoming heights/normals.
 Simulation ground truth still supplies the floating-base state; this is not an estimated-state deployment test.
-The ramp passed at a 0.2 m/s command and the uneven field passed at 0.3 m/s; the 0.15 m/s uneven trial stayed balanced but stalled at the entry.
-Do not interpret that stall as successful traversal or assume that slower driving always crosses these vertical tile edges more easily.
 The tire collision is a convex prism since 2026-11-14: MuJoCo's primitive cylinder never made a proper edge contact with a box step, so results before then are not comparable.
-With the prism, the ramp, the 10 mm strip and the seed-7 field at 0.3 m/s pass; the 20 mm strip entry is climbed, but the run then fell when heading drift took the left tire off the strip's outer side.
-Neither the 20 mm entry nor one-wheel lateral drops are a validated capability; see the handoff's tire-collision section.
+With the 2026-11-15 configuration (posture by height, hip/knee posture 3/0.1, tread-slip gain 5) the ramp, the 10 mm strip, the seed-7 field at 0.3 and 0.15 m/s, the 20 mm strip (narrow, 1 m wide, and driving off its far end) all pass; see the handoff's leg-crossing section.
+A one-wheel drop off a strip's side edge has not been exercised yet, and each case has 1-4 runs, not a repeat-tested envelope.
 Prioritize base pitch/roll and fall avoidance over exact height, straight-line position or heading tracking.
