@@ -91,7 +91,7 @@ WbIdWheelContactConstraintCppAd::WbIdWheelContactConstraintCppAd(Type type,
 
   const std::string prefix = type_ == Type::Lateral ? std::string("wheels") : modelSettings.contactNames.at(contactIndex_);
   initialize(mpcRobotModelAD.getStateDim(), mpcRobotModelAD.getInputDim(), kNumParameters,
-             prefix + "_wb_id_wheel_" + typeTag(type_) + "_v1", modelSettings.modelFolderCppAd, modelSettings.recompileLibrariesCppAd,
+             prefix + "_wb_id_wheel_" + typeTag(type_) + "_v2", modelSettings.modelFolderCppAd, modelSettings.recompileLibrariesCppAd,
              modelSettings.verboseCppAd);
 }
 
@@ -188,7 +188,7 @@ ad_vector_t WbIdWheelContactConstraintCppAd::constraintFunction(ad_scalar_t /*ti
   const ad_vector3 normal = p.segment<3>(kNormal);
 
   struct WheelKinematics {
-    ad_vector3 centre, rho, vContact, aContact, axle, vCentre, aCentre;
+    ad_vector3 centre, rho, vContact, aContact, axle, axleRate, vCentre, aCentre;
   };
   const auto wheelKinematics = [&](size_t frameId) {
     WheelKinematics k;
@@ -201,19 +201,25 @@ ad_vector_t WbIdWheelContactConstraintCppAd::constraintFunction(ad_scalar_t /*ti
     k.vCentre = twist.linear();
     k.aCentre = acceleration.linear();
     k.axle = placement.rotation() * axleLocal;
+    k.axleRate = omega.cross(k.axle);
     k.rho = wheel::contactOffset<ad_scalar_t>(k.axle, normal, radius);
-    const ad_vector3 rhoRate = wheel::contactOffsetRate<ad_scalar_t>(k.axle, omega.cross(k.axle), normal, radius);
+    const ad_vector3 rhoRate = wheel::contactOffsetRate<ad_scalar_t>(k.axle, k.axleRate, normal, radius);
     k.vContact = k.vCentre + omega.cross(k.rho);
     k.aContact = k.aCentre + alpha.cross(k.rho) + omega.cross(rhoRate);
     return k;
   };
 
   if (type_ == Type::Lateral) {
+    // Mirrored wheels have opposite axle signs. Project both residuals onto ONE
+    // direction, otherwise their average cancels at the symmetric standing pose.
+    const WheelKinematics reference = wheelKinematics(frameIds_.front());
+    const ad_vector3 lateral = wheel::lateralDirection<ad_scalar_t>(reference.axle, normal);
+    const ad_vector3 lateralRate = wheel::lateralDirectionRate<ad_scalar_t>(reference.axle, reference.axleRate, normal);
     ad_vector_t g = ad_vector_t::Zero(1);
     for (size_t i = 0; i < frameIds_.size() && i < N_CONTACTS; ++i) {
       const WheelKinematics k = wheelKinematics(frameIds_[i]);
-      const ad_vector3 lateral = wheel::lateralDirection<ad_scalar_t>(k.axle, normal);
-      g(0) += p[kWeights + i] * (kaT * lateral.dot(k.aContact) + kdT * lateral.dot(k.vContact));
+      g(0) += p[kWeights + i] *
+          (kaT * (lateral.dot(k.aContact) + lateralRate.dot(k.vContact)) + kdT * lateral.dot(k.vContact));
     }
     return g;
   }
@@ -227,13 +233,14 @@ ad_vector_t WbIdWheelContactConstraintCppAd::constraintFunction(ad_scalar_t /*ti
   }
 
   const ad_vector3 longitudinal = wheel::longitudinalDirection<ad_scalar_t>(k.axle, normal);
+  const ad_vector3 longitudinalRate = normal.cross(wheel::lateralDirectionRate<ad_scalar_t>(k.axle, k.axleRate, normal));
   const ad_vector3 contactPoint = k.centre + k.rho;
   const auto wrench = mpcRobotModelADPtr_->getContactWrench(input, contactIndex_);
   const ad_vector3 force = wrench.template head<3>();
   const ad_vector3 moment = wrench.template tail<3>();
 
   ad_vector_t g(5);
-  g(0) = kaT * longitudinal.dot(k.aContact) + kdT * longitudinal.dot(k.vContact);
+  g(0) = kaT * (longitudinal.dot(k.aContact) + longitudinalRate.dot(k.vContact)) + kdT * longitudinal.dot(k.vContact);
   g(1) = kaN * normal.dot(k.aContact) + kdN * normal.dot(k.vContact) + kpN * (normal.dot(contactPoint) - p[kZRef]);
   g.tail<3>() = moment - k.rho.cross(force);
   return g;

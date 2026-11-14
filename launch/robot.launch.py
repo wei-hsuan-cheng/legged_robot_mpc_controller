@@ -250,6 +250,7 @@ def generate_launch_description():
         return [
             SetLaunchConfiguration("controllersParamsFile", str(path)),
             SetLaunchConfiguration("guiRefBaseHeight", str(height)),
+            SetLaunchConfiguration("guiMaxHeightDelta", str(reference["maxDeltaPelvisHeight"])),
             SetLaunchConfiguration("guiMaxVx", str(reference["maxDisplacementVelocityX"])),
             SetLaunchConfiguration("guiMaxVy", str(reference["maxDisplacementVelocityY"])),
             SetLaunchConfiguration("guiMaxYawRate", str(reference["maxRotationVelocity"])),
@@ -401,6 +402,9 @@ def generate_launch_description():
                 "max_yaw_rate": ParameterValue(LaunchConfiguration("guiMaxYawRate"), value_type=float),
                 "reference_base_height": ParameterValue(
                     LaunchConfiguration("guiRefBaseHeight"), value_type=float
+                ),
+                "max_base_height_delta": ParameterValue(
+                    LaunchConfiguration("guiMaxHeightDelta"), value_type=float
                 ),
             }
         ],

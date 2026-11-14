@@ -68,6 +68,9 @@ def main():
     v_forward = np.cos(yaw) * tracking["obs_base/vx"] + np.sin(yaw) * tracking["obs_base/vy"]
     v_lateral = -np.sin(yaw) * tracking["obs_base/vx"] + np.cos(yaw) * tracking["obs_base/vy"]
     plan_forward = np.cos(yaw) * tracking["plan_base/vx"] + np.sin(yaw) * tracking["plan_base/vy"]
+    # Pose derivatives are an independent frame-contract check on reported base rates.
+    pose_rates = {axis: np.gradient(np.unwrap(tracking[f"obs_base/{axis}"]), t)
+                  for axis in ("yaw", "pitch", "roll")} if t.size > 1 and np.all(np.diff(t) > 0) else {}
 
     summary = dict(prefix=args.prefix, samples=int(t.size), joints=joints, wheels=wheels, contact_sensors=sensors, phases={})
     for phase in dict.fromkeys(phases):
@@ -78,7 +81,11 @@ def main():
                      height=stats(tracking["obs_base/z"][mask]),
                      v_forward=stats(v_forward[mask]),
                      v_lateral=stats(v_lateral[mask]),
+                     yaw_rate=stats(tracking["obs_base/dyaw"][mask]),
+                     plan_yaw_rate=stats(tracking["plan_base/dyaw"][mask]),
                      plan_v_forward=stats(plan_forward[mask]))
+        entry["rate_pose_error"] = {axis: stats((tracking[f"obs_base/d{axis}"] - rate)[mask])
+                                     for axis, rate in pose_rates.items()}
         effort = {}
         for joint in joints:
             limit = limit_of(joint)
@@ -86,6 +93,8 @@ def main():
             finite = applied[np.isfinite(applied)]
             effort[joint] = dict(feedforward=stats(tracking["cmd_tau/" + joint][mask]),
                                  applied=stats(applied),
+                                 position_error=stats((tracking["meas_q/" + joint] - tracking["cmd_q/" + joint])[mask]),
+                                 velocity_error=stats((tracking["meas_v/" + joint] - tracking["cmd_qd/" + joint])[mask]),
                                  limit=limit,
                                  saturated_fraction=float(np.mean(np.abs(finite) >= args.saturation * limit)) if finite.size else None)
         entry["effort"] = effort
@@ -160,6 +169,27 @@ def main():
         fig.tight_layout()
         fig.savefig(args.prefix + "_wheeled.png", dpi=90)
         print("wrote", args.prefix + "_wheeled.png")
+
+        fig, axes = plt.subplots(4, 1, figsize=(12, 12), sharex=True)
+        axes[0].plot(t, tracking["obs_base/dyaw"], label="measured yaw rate")
+        axes[0].plot(t, tracking["plan_base/dyaw"], "--", label="planned yaw rate")
+        if pose_rates:
+            axes[0].plot(t, pose_rates["yaw"], label="pose derivative", alpha=.6)
+        for joint in joints:
+            axes[1].plot(t, tracking["meas_q/" + joint] - tracking["cmd_q/" + joint], label=joint)
+            axes[2].plot(t, tracking["meas_v/" + joint] - tracking["cmd_qd/" + joint], label=joint)
+        for axis, rate in pose_rates.items():
+            axes[3].plot(t, tracking[f"obs_base/d{axis}"] - rate, label=axis)
+        for ax, title, unit in zip(axes, ("base yaw tracking", "joint position: measured minus command",
+                                        "joint velocity: measured minus command", "base rate minus pose derivative"),
+                                   ("rad/s", "rad", "rad/s", "rad/s")):
+            ax.set_title(title)
+            ax.set_ylabel(unit)
+            ax.legend(ncol=3, fontsize=8)
+        axes[-1].set_xlabel("time [s]")
+        fig.tight_layout()
+        fig.savefig(args.prefix + "_wheeled_tracking.png", dpi=100)
+        print("wrote", args.prefix + "_wheeled_tracking.png")
 
 
 if __name__ == "__main__":

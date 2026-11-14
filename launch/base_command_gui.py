@@ -18,6 +18,12 @@ TITLE_FONT = ("Helvetica", 11, "bold")
 VALUE_FONT = ("Helvetica", 11)
 
 
+def height_limits(center, max_delta):
+    if not math.isfinite(center) or center <= 0.0 or not math.isfinite(max_delta) or max_delta < 0.0:
+        raise ValueError("Reference base height must be finite and positive; maximum height delta must be finite and nonnegative")
+    return max(0.0, center - max_delta), center + max_delta
+
+
 class Joystick:
     def __init__(self, parent, label, on_change):
         self._on_change = on_change
@@ -280,14 +286,13 @@ class YawRateBar:
 
 
 class HeightBar:
-    def __init__(self, parent, on_change, center=0.6):
+    def __init__(self, parent, on_change, center=0.6, max_delta=0.4):
         self._on_change = on_change
         self._canvas = tk.Canvas(parent, width=48, height=150, bg="#2c2c2c", highlightthickness=0)
         self._x = 24.0
         self._top = 10.0
         self._bottom = 140.0
-        self._minimum = 0.2
-        self._maximum = 1.0
+        self._minimum, self._maximum = height_limits(center, max_delta)
         # Nominal pelvis height, from the reference_base_height parameter so the
         # slider's centre and its reset value follow ocs2.reference.defaultBaseHeight
         # instead of drifting apart from it.
@@ -330,6 +335,8 @@ class HeightBar:
         self._canvas.bind("<ButtonRelease-1>", self._release)
 
     def _value_to_y(self, value):
+        if self._maximum == self._minimum:
+            return (self._top + self._bottom) / 2
         ratio = (self._maximum - value) / (self._maximum - self._minimum)
         return self._top + ratio * (self._bottom - self._top)
 
@@ -408,6 +415,7 @@ class baseCommandGui(tk.Tk):
         max_linear_velocity_y,
         max_yaw_rate,
         reference_base_height=0.6,
+        max_base_height_delta=0.4,
     ):
         super().__init__()
         self.title("Humanoid MPC Base Command GUI (Pelvis Frame)")
@@ -417,6 +425,7 @@ class baseCommandGui(tk.Tk):
         self._max_linear_velocity_y = max_linear_velocity_y
         self._max_yaw_rate = max_yaw_rate
         self._reference_base_height = reference_base_height
+        minimum_height, maximum_height = height_limits(reference_base_height, max_base_height_delta)
 
         container = tk.Frame(self, bg="#2c2c2c")
         container.pack(padx=16, pady=16)
@@ -436,7 +445,7 @@ class baseCommandGui(tk.Tk):
             fg="white",
             font=TITLE_FONT,
         ).grid(row=0, column=0)
-        self._height_value = tk.StringVar(value="z = 0.792")
+        self._height_value = tk.StringVar(value=f"z = {reference_base_height:.3f}")
         tk.Label(
             height_frame,
             textvariable=self._height_value,
@@ -446,17 +455,17 @@ class baseCommandGui(tk.Tk):
         ).grid(row=1, column=0, pady=(8, 4))
         tk.Label(
             height_frame,
-            text="↑",
+            text=f"{maximum_height:.3f} ↑",
             bg="#2c2c2c",
             fg="white",
             font=("Helvetica", 12, "bold"),
         ).grid(row=2, column=0)
-        self._height = HeightBar(height_frame, self._height_changed, self._reference_base_height)
+        self._height = HeightBar(height_frame, self._height_changed, self._reference_base_height, max_base_height_delta)
         self._height.set(self._reference_base_height)
         self._height._canvas.grid(row=3, column=0)
         tk.Label(
             height_frame,
-            text="↓",
+            text=f"{minimum_height:.3f} ↓",
             bg="#2c2c2c",
             fg="white",
             font=("Helvetica", 12, "bold"),
@@ -503,10 +512,13 @@ class PublisherNode(Node):
         self.declare_parameter("max_linear_velocity_y", 1.2)
         self.declare_parameter("max_yaw_rate", 1.0)
         self.declare_parameter("reference_base_height", 0.6)
+        self.declare_parameter("max_base_height_delta", 0.4)
         self.max_linear_velocity_x = float(self.get_parameter("max_linear_velocity_x").value)
         self.max_linear_velocity_y = float(self.get_parameter("max_linear_velocity_y").value)
         self.max_yaw_rate = float(self.get_parameter("max_yaw_rate").value)
         self.reference_base_height = float(self.get_parameter("reference_base_height").value)
+        self.max_base_height_delta = float(self.get_parameter("max_base_height_delta").value)
+        self._minimum_height, self._maximum_height = height_limits(self.reference_base_height, self.max_base_height_delta)
         qos = QoSProfile(depth=25, reliability=ReliabilityPolicy.BEST_EFFORT)
         self._publisher = self.create_publisher(
             WalkingVelocityCommand,
@@ -518,7 +530,7 @@ class PublisherNode(Node):
         message = WalkingVelocityCommand()
         message.linear_velocity_x = float(max(-1.0, min(1.0, linear_x)))
         message.linear_velocity_y = float(max(-1.0, min(1.0, linear_y)))
-        message.desired_pelvis_height = float(max(0.2, min(1.0, height)))
+        message.desired_pelvis_height = float(max(self._minimum_height, min(self._maximum_height, height)))
         message.angular_velocity_z = float(max(-1.0, min(1.0, yaw_rate)))
         self._publisher.publish(message)
 
@@ -534,6 +546,7 @@ def main():
         node.max_linear_velocity_y,
         node.max_yaw_rate,
         node.reference_base_height,
+        node.max_base_height_delta,
     )
     try:
         app.mainloop()

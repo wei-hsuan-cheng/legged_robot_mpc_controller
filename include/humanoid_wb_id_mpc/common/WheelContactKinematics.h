@@ -64,6 +64,17 @@ Vector3<SCALAR> lateralDirection(const Vector3<SCALAR>& axle, const Vector3<SCAL
   return lateral / lateral.norm();
 }
 
+/** Time derivative of the lateral direction, for a fixed support-plane normal. */
+template <typename SCALAR>
+Vector3<SCALAR> lateralDirectionRate(const Vector3<SCALAR>& axle,
+                                    const Vector3<SCALAR>& axleRate,
+                                    const Vector3<SCALAR>& normal) {
+  const Vector3<SCALAR> projected = axle - axle.dot(normal) * normal;
+  const Vector3<SCALAR> projectedRate = axleRate - axleRate.dot(normal) * normal;
+  const Vector3<SCALAR> lateral = projected / projected.norm();
+  return (projectedRate - lateral * lateral.dot(projectedRate)) / projected.norm();
+}
+
 /** Unit rolling direction in the plane, n x lateral. */
 template <typename SCALAR>
 Vector3<SCALAR> longitudinalDirection(const Vector3<SCALAR>& axle, const Vector3<SCALAR>& normal) {

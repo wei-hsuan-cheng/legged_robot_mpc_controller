@@ -252,6 +252,12 @@ install(TARGETS
 )
 
 if(BUILD_TESTING)
+  add_executable(wheel_model_consistency_test tests/wheel_model_consistency_test.cpp)
+  target_link_libraries(wheel_model_consistency_test PRIVATE legged_robot_humanoid_wb_id_core)
+  add_executable(wheel_contact_kinematics_test tests/wheel_contact_kinematics_test.cpp)
+  target_include_directories(wheel_contact_kinematics_test PRIVATE include)
+  target_link_libraries(wheel_contact_kinematics_test PRIVATE Eigen3::Eigen)
+  add_test(NAME wheel_contact_kinematics_test COMMAND wheel_contact_kinematics_test)
   add_executable(arm_body_collision_test tests/arm_body_collision_test.cpp)
   target_link_libraries(arm_body_collision_test PRIVATE legged_robot_humanoid_wb_id_core)
   add_test(NAME arm_body_collision_test COMMAND arm_body_collision_test)

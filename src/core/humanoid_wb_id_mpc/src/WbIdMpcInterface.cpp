@@ -246,7 +246,8 @@ void WbIdMpcInterface::setupOptimalControlProblem() {
   problemPtr_->preComputationPtr =
       std::make_unique<HumanoidPreComputation>(*pinocchioInterfacePtr_, *referenceManagerPtr_->getSwingTrajectoryPlanner(), *mpcRobotModelPtr_);
 
-  initializerPtr_ = std::make_unique<WbIdInitializer>(*pinocchioInterfacePtr_, *referenceManagerPtr_, *mpcRobotModelPtr_);
+  initializerPtr_ = std::make_unique<WbIdInitializer>(*pinocchioInterfacePtr_, *referenceManagerPtr_, *mpcRobotModelPtr_,
+      config_.activateWheelContact ? config_.wheelContactSettings.radius : 0.0, config_.wheelContactSettings.axleAxis);
 }
 
 }  // namespace ocs2::humanoid

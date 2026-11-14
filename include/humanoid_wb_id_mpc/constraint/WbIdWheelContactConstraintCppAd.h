@@ -22,17 +22,19 @@ namespace ocs2::humanoid {
  * its material velocity v_c and acceleration a_c = d/dt v_c are what rolling constrains.
  *
  *   Rolling (5 rows, while the wheel is in contact):
- *     ka_t lon.a_c + kd_t lon.v_c                              = 0   no longitudinal slip
+ *     ka_t (lon.a_c + lon_dot.v_c) + kd_t lon.v_c             = 0   no longitudinal slip
  *     ka_n n.a_c   + kd_n n.v_c   + kp_n (n.p_c - z_ref)       = 0   no gap
  *     m - rho x f                                              = 0   the force acts at the tire
  *   Lateral (1 row, while any wheel is in contact):
- *     sum_i w_i (ka_t lat_i.a_ci + kd_t lat_i.v_ci)            = 0   no lateral slip
+ *     sum_i w_i (ka_t (lat.a_ci + lat_dot.v_ci) + kd_t lat.v_ci) = 0   no mean lateral slip
  *   SwingVertical (1 row, while the wheel is in the air):
  *     ka (a_z - az_ref) + kd (v_z - vz_ref) + kp (z_h - r - z_ref) = 0   tire bottom follows the swing height
  *
  * Lateral is shared because, without hip roll, both wheels' lateral rows are the same function of
  * the base motion in symmetric double support: two such equalities make the projected equality
- * system rank deficient. w_i = flag_i / sum(flags) is a parameter, so one generated function
+ * system rank deficient. A common direction from the first wheel avoids cancellation when
+ * left/right axle signs are mirrored. This row constrains mean slip, not each wheel separately.
+ * w_i = flag_i / sum(flags) is a parameter, so one generated function
  * serves double and single support. Spin, steering by differential wheel speed and the contact
  * point's travel along the tire stay free; moments about the contact point are zero.
  *

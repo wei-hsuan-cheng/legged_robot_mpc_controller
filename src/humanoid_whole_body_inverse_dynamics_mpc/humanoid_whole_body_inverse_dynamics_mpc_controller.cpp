@@ -685,13 +685,16 @@ const char* HumanoidWholeBodyInverseDynamicsMpcController::to_string(BringUpPhas
   return "unknown";
 }
 
-std::optional<Eigen::Quaterniond> HumanoidWholeBodyInverseDynamicsMpcController::read_imu_orientation()
+std::optional<Eigen::Quaterniond> HumanoidWholeBodyInverseDynamicsMpcController::read_bring_up_orientation()
 {
-  const std::string& imu = parameters_.floatingBase.imuInterfaceName;
-  const auto qw = get_state_interface_value(imu, "orientation.w");
-  const auto qx = get_state_interface_value(imu, "orientation.x");
-  const auto qy = get_state_interface_value(imu, "orientation.y");
-  const auto qz = get_state_interface_value(imu, "orientation.z");
+  // Ground-truth bring-up must check trunk tilt, not the possibly rotated IMU site.
+  const std::string& frame = uses_state_estimator(parameters_.floatingBase.source)
+                               ? parameters_.floatingBase.imuInterfaceName
+                               : parameters_.floatingBase.stateInterfaceName;
+  const auto qw = get_state_interface_value(frame, "orientation.w");
+  const auto qx = get_state_interface_value(frame, "orientation.x");
+  const auto qy = get_state_interface_value(frame, "orientation.y");
+  const auto qz = get_state_interface_value(frame, "orientation.z");
   if (!qw || !qx || !qy || !qz) {
     return std::nullopt;
   }
@@ -781,7 +784,11 @@ HumanoidWholeBodyInverseDynamicsMpcController::load_stand_up_trajectory(
     if (static_cast<Eigen::Index>(values.size()) != n) {
       throw std::invalid_argument("stand-up trajectory " + file + ": " + what + " needs one entry per joint");
     }
-    return vector_t(Eigen::Map<const vector_t>(values.data(), n));
+    vector_t result = Eigen::Map<const vector_t>(values.data(), n);
+    if (!result.allFinite()) {
+      throw std::invalid_argument("stand-up trajectory " + file + ": " + what + " must be finite");
+    }
+    return result;
   };
   StandUpTrajectory plan;
   plan.time = root["time"].as<std::vector<double>>();
@@ -797,7 +804,10 @@ HumanoidWholeBodyInverseDynamicsMpcController::load_stand_up_trajectory(
       throw std::invalid_argument("stand-up trajectory " + file + ": " + key + " needs one row per time sample");
     }
   }
-  if (plan.time.size() < 2 || !std::is_sorted(plan.time.begin(), plan.time.end()) || plan.time.front() != 0.0) {
+  const bool finiteTimes = std::all_of(plan.time.begin(), plan.time.end(), [](double t) { return std::isfinite(t); });
+  const bool strictlyIncreasing = std::adjacent_find(plan.time.begin(), plan.time.end(),
+                                                    [](double a, double b) { return a >= b; }) == plan.time.end();
+  if (plan.time.size() < 2 || !finiteTimes || !strictlyIncreasing || plan.time.front() != 0.0) {
     throw std::invalid_argument("stand-up trajectory " + file + ": time must start at 0 and increase, with >= 2 samples");
   }
   if (!(plan.handoverTime > 0.0 && plan.handoverTime <= plan.time.back())) {
@@ -843,13 +853,13 @@ HumanoidWholeBodyInverseDynamicsMpcController::run_bring_up(
   if (!read_joint_state(q, v)) {
     return damping_command(stand_nominal_joints_);
   }
-  const auto imu = read_imu_orientation();
+  const auto orientation = read_bring_up_orientation();
   if (phase_start_time_ < 0.0) {
     phase_start_time_ = t;
   }
 
-  if (imu && bring_up_phase_ != BringUpPhase::Passive && bring_up_phase_ != BringUpPhase::Fault) {
-    const double tilt = std::acos(std::clamp(imu->toRotationMatrix()(2, 2), -1.0, 1.0));
+  if (orientation && bring_up_phase_ != BringUpPhase::Passive && bring_up_phase_ != BringUpPhase::Fault) {
+    const double tilt = std::acos(std::clamp(orientation->toRotationMatrix()(2, 2), -1.0, 1.0));
     if (tilt > bu.tiltLimit) {
       RCLCPP_ERROR(get_node()->get_logger(),
                    "%s bring-up FAULT: trunk tilt %.3f rad > %.3f in phase '%s'; damping. Deactivate and "
@@ -943,7 +953,7 @@ HumanoidWholeBodyInverseDynamicsMpcController::run_bring_up(
       if (s >= 1.0) {
         enter_bring_up_phase(BringUpPhase::Settle, t);
       }
-      return hold_command(target, q, imu);
+      return hold_command(target, q, orientation);
     }
 
     case BringUpPhase::Settle: {
@@ -975,7 +985,7 @@ HumanoidWholeBodyInverseDynamicsMpcController::run_bring_up(
           rest_gyro_lpf_.norm(), bu.settleGyroMax, rest_accel_lpf_.norm() - 9.81, bu.settleAccelTolerance,
           settled ? "at rest; call ~/start_locomotion" : "not at rest yet");
       }
-      return hold_command(stand_nominal_joints_, q, imu);
+      return hold_command(stand_nominal_joints_, q, orientation);
     }
 
     case BringUpPhase::Converge:
@@ -993,23 +1003,23 @@ HumanoidWholeBodyInverseDynamicsMpcController::run_bring_up(
             estimator_report(estimator_status_, estimator_diagnostics_).c_str() :
             "waiting for the estimator to act on the initialization request");
       }
-      return hold_command(stand_nominal_joints_, q, imu);
+      return hold_command(stand_nominal_joints_, q, orientation);
 
     case BringUpPhase::StartingMpc:
       if (active_policy_ready_) {
         estimator_driving_control_ = true;
         enter_bring_up_phase(BringUpPhase::Blend, t);
       }
-      return hold_command(stand_nominal_joints_, q, imu);
+      return hold_command(stand_nominal_joints_, q, orientation);
 
     case BringUpPhase::Blend: {
       if (!active_policy_ready_) {
         estimator_driving_control_ = false;
         enter_bring_up_phase(BringUpPhase::StartingMpc, t);
-        return hold_command(stand_nominal_joints_, q, imu);
+        return hold_command(stand_nominal_joints_, q, orientation);
       }
       const JointActionCommand stand = stand_up_trajectory_ ? stand_up_trajectory_->sample(stand_up_trajectory_->handoverTime)
-                                                            : hold_command(stand_nominal_joints_, q, imu);
+                                                            : hold_command(stand_nominal_joints_, q, orientation);
       const JointActionCommand mpc = compute_mpc_joint_action(observation);
       const double a = bu.blendSeconds > 0.0
         ? std::clamp((t - phase_start_time_) / bu.blendSeconds, 0.0, 1.0) : 1.0;

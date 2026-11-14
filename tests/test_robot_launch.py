@@ -47,6 +47,7 @@ class RobotLaunchTest(unittest.TestCase):
             reference = config[WB_ID]['ros__parameters']['ocs2']['reference']
             self.assertEqual(reference['defaultBaseHeight'], height)
             self.assertEqual(float(values['guiRefBaseHeight']), height)
+            self.assertEqual(float(values['guiMaxHeightDelta']), reference['maxDeltaPelvisHeight'])
             for mode, argument in (('stair_climbing', 'stairClimbingFile'), ('terrain_walking', 'terrainWalkingFile')):
                 self.assertEqual(Path(values[argument]).parts[-4:], ('config', 'terrains', mode, f'{robot}.yaml'))
                 self.assertTrue(Path(values[argument]).is_file())
@@ -69,6 +70,15 @@ class RobotLaunchTest(unittest.TestCase):
             self.assertEqual(float(values['guiRefBaseHeight']), .9)
             self.assertNotEqual(Path(values['controllersParamsFile']), source)
             self.assertEqual(source.read_bytes(), before)
+
+    def test_upkie_gui_height_range_comes_from_yaml(self):
+        context, _ = self.resolve('upkie')
+        values = context.launch_configurations
+        self.assertEqual(float(values['guiRefBaseHeight']), .30)
+        self.assertEqual(float(values['guiMaxHeightDelta']), .08)
+        context, _ = self.resolve('upkie', refBaseHeight='0.28')
+        self.assertEqual(float(context.launch_configurations['guiRefBaseHeight']), .28)
+        self.assertEqual(float(context.launch_configurations['guiMaxHeightDelta']), .08)
 
     def test_scene_path_remains_unrestricted(self):
         for robot in ('g1', 'h2'):

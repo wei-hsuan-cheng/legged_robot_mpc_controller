@@ -164,7 +164,7 @@ class Rollout:
                 free_time = free_time + self.m.opt.timestep if self.knee_force() < 0.1 else 0.0
                 if lift is None and free_time >= liftoff_hold:
                     xi, offset, relative_velocity = self.divergent_component()
-                    lift = dict(t=t, xi=xi, com_offset=offset, relative_velocity=relative_velocity,
+                    lift = dict(t=d.time - t0, xi=xi, com_offset=offset, relative_velocity=relative_velocity,
                                 pitch=self.pitch(), pitch_rate=float(d.qvel[4]),
                                 com_height=float(d.subtree_com[1][2]), base_height=float(d.qpos[2]))
                     if record:
@@ -198,8 +198,13 @@ def export(rollout, p, path=OUT):
     lift, saturation, samples = rollout.stand_up(p, record=True)
     if lift is None:
         raise RuntimeError("the knees never left the floor: no handover point")
-    spawn = rollout.spawn_idle(settle=0.0)
     rows = [s for s in samples if len(s) == 4]
+    # Lift-off can fall between the 5 ms samples. Include its post-step state so
+    # the controller's handover timestamp lies within the exported trajectory.
+    if rows[-1][0] < lift["t"] - 1e-9:
+        q, v = rollout.joints()
+        rows.append((lift["t"], q.copy(), v.copy(), rollout.d.ctrl[rollout.act].copy()))
+    spawn = rollout.spawn_idle(settle=0.0)
     lines = [
         "# Upkie stand-up from the kneeling idle pose, planned by plan_stand_up.py; do not edit by hand.",
         f"# Parameters [hip1, knee1, T_fold, hip2, knee2, T_push, wheel torque]: {json.dumps([round(x, 6) for x in p])}",

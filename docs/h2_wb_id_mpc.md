@@ -331,9 +331,13 @@ Only run one simulator/controller instance at a time because the robot-independe
 
 ## Validation Caveat: Published Simulator Twist
 
-Use pose displacement and unwrapped orientation differences for H2's external tracking metrics rather than trusting the existing `/mujoco/ground_truth/odom` twist axes.
-The simulator publisher calls `mj_objectVelocity` with `mjOBJ_BODY` and local coordinates, which uses the body's inertial frame, while the message pose and child frame describe the pelvis link.
+Older simulator builds returned inconsistent `/mujoco/ground_truth/odom` twist axes; use pose displacement and unwrapped orientation differences to independently check recorded tracking metrics.
+The old publisher called `mj_objectVelocity` with `mjOBJ_BODY` and local coordinates, which uses the body's inertial frame, while the message pose and child frame describe the pelvis link.
 H2's nonidentity pelvis inertial rotation makes those axes differ substantially.
 A local MuJoCo check with identity pelvis rotation and world translational velocity `[1,2,3]` returned approximately `[1.0203,2.9897,-2.0051]` through that local-body call.
-This publisher issue has not been changed in the external simulator repository; the walking harness now also reports position-derived world-frame mean speeds.
-Do not interpret the near-zero published vy or yaw-rate mean in these logs as a lack of actual lateral or turning motion.
+The 2026-11-14 Upkie yaw/push fix changes both simulator odometry and ros2_control body-state feedback to `mjOBJ_XBODY`, matching the regular link origin and axes.
+Rebuild `mujoco_ros2_control` to obtain that fix; historical logs and the tables above retain their original measurement caveat.
+The shared fix passed short G1/H2 forward/brake tests and two H2 turning tests at requested 80 Hz.
+The final +0.3 rad/s turn averaged +0.29774 rad/s without falling over 18 s, but drifted 0.487 m; this is not a complete H2 regression or proof of exact in-place turning.
+The walking harness also reports position-derived world-frame mean speeds.
+Do not interpret the near-zero published vy or yaw-rate mean in the historical logs as a lack of actual lateral or turning motion.

@@ -147,7 +147,7 @@ private:
   bool uses_bring_up() const;
   //! The configured contact frames (feet or tire centres), for the inverse-dynamics helpers.
   std::array<std::string, 2> contact_frame_names() const;
-  std::optional<Eigen::Quaterniond> read_imu_orientation();
+  std::optional<Eigen::Quaterniond> read_bring_up_orientation();
   bool read_imu_rates(Eigen::Vector3d& gyro, Eigen::Vector3d& accel);
   void enter_bring_up_phase(BringUpPhase phase, double time);
   static const char* to_string(BringUpPhase phase);

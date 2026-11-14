@@ -83,6 +83,118 @@ Current Upkie runtime evidence still uses ground truth; no rolling estimator imp
 The next estimator milestone is an estimated-versus-simulator comparison followed by closed-loop balance, drive, braking and push acceptance on estimated state.
 
 
+## Yaw/Push Failure Fix and Validation (2026-11-14)
+
+The user reported that forward/backward driving works but yaw-only commands and pushes immediately destabilize Upkie.
+A baseline 0.3 rad/s yaw test at 100 Hz reproduced a fall 5.84 s after takeover, about 1.84 s after the yaw ramp began; artifacts are `/tmp/codex_upkie_yaw_baseline*` in `ros_jazzy`.
+The original four-pulse push sequence also fell at 7.01 s, during recovery from the second pitch-torque pulse, before either force pulse; artifacts are `/tmp/codex_upkie_push_baseline*`.
+Before the yaw fall, hip/knee position tracking errors stayed below roughly 0.010/0.006 rad, without actuator saturation, while planned and measured base behavior diverged.
+Two implementation defects were found rather than treating this as missing turning capability or immediately retuning costs.
+
+1. The mean lateral row averaged opposite signed wheel axles, canceling at the symmetric posture: its acceleration Jacobian norm was 1.52e-14 versus 1.04 after expressing both wheels in a common lateral basis.
+   The corrected row uses the first wheel's lateral direction for every supporting wheel and includes the rotating-direction derivative; longitudinal slip now includes that derivative as well.
+   This still constrains mean lateral slip, not independently both tires, and single-support/large-asymmetric-axle cases remain unvalidated.
+   Generated wheel libraries use `_v2` names so existing `_v1` tapes cannot silently retain the old function.
+2. MuJoCo ground-truth feedback mixed link-frame pose with inertial-frame/COM twist: `mj_objectVelocity(..., mjOBJ_BODY, ..., 1)` returns the principal-inertia frame, not the regular body frame.
+   Upkie's base inertia axes are nearly 90 degrees from its link axes; pure physical yaw of 0.3 rad/s returned approximately `[0.01125, 0.29972, -0.00625]` in that wrong basis, which the controller interpreted as link-frame angular velocity.
+   Both ros2_control body-state feedback and published odometry now use `mjOBJ_XBODY`, consistent with `xpos/xquat` and the advertised child frame.
+   See [MuJoCo 3.3.2 source, mj_objectVelocity](https://github.com/google-deepmind/mujoco/blob/3.3.2/src/engine/engine_support.c#L1166); this simulator fix is in the separate `mujoco_ros2_control` repository and requires rebuilding it too.
+   A synthetic rotated/off-center-inertia regression test matches link-origin Jacobians for yaw, pitch, translation and mixed motion, and verifies both feedback paths select XBODY.
+
+The GUI height slider and published-command clamp now use `defaultBaseHeight +/- maxDeltaPelvisHeight` from the selected YAML instead of hard-coded 0.2-1.0 m.
+Upkie therefore spans 0.22-0.38 m with 0.30 m at the slider center, while H2 can command its configured heights above 1 m.
+The launch passes the existing height delta to the GUI without adding a launch argument or controller parameter; four headless GUI mapping/clamping tests pass, including a fixed-height zero-delta configuration.
+Both packages were rebuilt in Release in `ros_jazzy`; wheel `_v2` CppAD functions were generated on first launch and reused afterward.
+No MPC cost, constraint gain, PD gain, actuator cap, friction value or command slew limit was retuned.
+The following current-parameter tests used ground-truth feedback, an isolated flat scene, requested MPC 100 Hz and MRT 1 kHz, with tracking and joint logging.
+
+| Test/artifact prefix in container `/tmp/` | Result | Key observation |
+| --- | --- | --- |
+| `codex_upkie_yaw_fixed_1` | Balanced for 19 s; tracking verdict NO_TRACKING | +0.3 rad/s command averaged +0.145 rad/s; max pitch 0.00551 rad, roll 0.00260 rad; slow yaw still undertracks |
+| `codex_upkie_yaw_fixed_reverse` | SUCCESS, 19 s | -0.6 rad/s command averaged -0.359 rad/s; max pitch 0.00374 rad, roll 0.00328 rad |
+| `codex_upkie_yaw_fixed_max` | SUCCESS, 17 s | Abrupt +1.5 rad/s command with harness ramp 0, controller slew unchanged; mean +1.121 rad/s, max pitch 0.01036 rad, roll 0.00282 rad |
+| `codex_upkie_push_fixed_1` | SUCCESS, all four pulses verified | 25 s; max pitch 0.1853 rad, roll 0.000633 rad; final recovery pitch <=0.0103 rad |
+| `upkie_codex_fixed_push_1`, `upkie_codex_fixed_push_2` | SUCCESS, both full sequences verified | Two repeats of the suite's 26 s push/drive test; max pitch 0.1848/0.1846 rad, roll <=0.000220 rad |
+| `upkie_codex_fixed_roll_1`, `upkie_codex_fixed_roll_2` | SUCCESS | Two 27 s forward/brake tests; measured mean +0.2017/+0.2017 m/s for +0.2 m/s |
+| `codex_upkie_reverse_drive` | SUCCESS, 16 s | Measured mean -0.1996 m/s for -0.2 m/s; max pitch 0.01359 rad, roll 0.000228 rad |
+| `codex_h2_xbody_regression` | SUCCESS, 15 s | Shared simulator-frame change: H2 forward/brake smoke test, no fall, max pitch 0.02597 rad and roll 0.01472 rad; this is not a full H2 regression |
+| `codex_g1_xbody_regression` | SUCCESS, 15 s | G1 forward/brake smoke test, no fall, mean +0.1778 m/s for +0.2 m/s; max pitch 0.00841 rad and roll 0.00586 rad |
+
+Push disturbances were unchanged: +/-1.5 Nm pitch torque then +/-6 N forward force, each 0.2 s, with 3 s pauses.
+In the first corrected push trial both contact flags stayed true, measured normal loads remained positive during recovery, and no joint reached the configured effort limits.
+The fixed yaw trial's pre-fall-window rate-versus-pose-derivative RMS mismatch dropped from 0.0436 to 0.00230 rad/s for yaw, and from 0.0778 to 0.000719 rad/s for pitch.
+The phase/sampling comparison is diagnostic rather than an exact trajectory-matched estimator benchmark.
+Joint command/measurement plots show tight position tracking after the fixes; wheel velocities use the mirrored encoder sign convention, so both encoder speeds having the same sign during an in-place turn is correct.
+Typical mean solves were 1.9-2.6 ms and p95 about 4.0-4.4 ms; actual logged rate was mostly 96-98 Hz at the requested 100 Hz.
+Occasional wall-time outliers occurred, including a 263 ms sample in the first push run, so the earlier 4.9 ms peak is not a worst-case bound and no higher-rate guarantee is justified.
+Retain 100 Hz for this tested checkpoint rather than changing frequency while validating the model fixes.
+Slow-turn tracking, yaw deadband/friction effects, arbitrary push directions and larger disturbances remain tuning/validation work; the current result is not a guarantee of general push recovery.
+
+Visual evidence on the Mac: `/tmp/codex_upkie_yaw_replay.png` compares measured-state replays of the original 0.3 rad/s fall with the corrected 1.5 rad/s turn, and `/tmp/codex_upkie_push_fixed_1_wheeled.png` shows attitude, velocity, slip, contact force and effort recovery curves.
+The mapped Tk GUI was also captured and inspected at `/tmp/codex_upkie_gui_height.png`, with a centered 0.300 m slider and labeled 0.220/0.380 m endpoints; its preview callback publishes nothing.
+The analyzer now writes `_wheeled_tracking.png` with planned/measured yaw rate, per-joint command errors and pose-derivative consistency, and includes these statistics in the JSON summary.
+The analytic wheel geometry/basis derivative executable passed finite-difference regression checks; four headless GUI tests and two sourced ROS launch-resolution tests passed, as did the two simulator feedback-frame tests.
+No simulator-frame compatibility switch was added: XBODY restores the already-advertised link-frame contract rather than offering a second measurement convention.
+
+
+## Follow-up Model Audit (2026-11-14)
+
+The frame correction is shared with H2/G1: their ground-truth twist now follows the link axes and origin that their pose and controller already assume.
+It changes numerical feedback when the inertia axes or COM differ, but does not change those robots' MPC equations, weights, gains or estimator implementation.
+H2 also passed `/tmp/codex_h2_xbody_yaw_audit` at requested 80 Hz: +0.3 rad/s averaged +0.29645 rad/s, max pitch/roll 0.01582/0.02635 rad, with no fall over 18 s.
+That in-place turn drifted 0.495 m, so it is a turning smoke test rather than proof of unchanged full H2 performance.
+
+The audit compared the generated RNEA and wheel equations against direct Pinocchio calculations, differentiated the material tread slip numerically along the double-integrator trajectory, checked every state/input Jacobian column, checked wrench virtual work, and checked double-support input-equality rank at 12 nominal/perturbed states.
+`tests/wheel_model_consistency_test.cpp` passed: maximum equation error 1.07568e-10, maximum normalized AD Jacobian error 1.18102e-08, and minimum singular value of the 23-by-30 input-equality Jacobian 0.0715591.
+Finite differences are used only for testing; production derivatives remain CppAD generated.
+No further defect was found in these tested equations; this finite audit is not a proof for arbitrary tilt, changing ground normals, flight or single support.
+
+The scan found and corrected two initialization/playback inconsistencies:
+
+- `WbIdInitializer` now seeds each supporting wheel moment as `rho x force` and adds configured smoothed joint friction to its seed torque.
+  The native audit checks its joint RNEA and tire-moment residuals at nonzero velocity and tilt; this is still an initial guess, not a projection onto all base/rolling equalities.
+  Wheel-disabled, friction-empty G1/H2 configurations retain the old initializer calculation.
+- The optional stand-up exporter used a pre-step lift-off time and omitted the actual lift sample, leaving handover after its last exported sample.
+  The regenerated plan ends at its 0.6965 s handover; all earlier position/velocity/effort rows are unchanged and no search/tuning was performed.
+  Loading now rejects nonfinite sample values and non-strict timestamps, and GT bring-up uses the base orientation for tilt/gravity hold rather than the rotated IMU-site orientation.
+  Estimator-based bring-up retains its alignment assumption; full-stack stand-up remains unvalidated and disabled by default.
+
+Six local Python tests pass (four GUI, two stand-up export/data), along with the two separate simulator frame tests.
+The sourced ROS launch suite passes six of seven tests; its unrelated environment test expects at least one visual, but the user's currently edited `description/urdf/env.urdf.xacro` is empty.
+That user edit is preserved and excluded from the commit rather than modifying their scene or weakening the test.
+
+To rerun the native consistency audit from the sourced container workspace:
+
+```bash
+MAKEFLAGS=-j2 colcon build --symlink-install --packages-select legged_robot_mpc_controller \
+  --cmake-target wheel_model_consistency_test \
+  --cmake-args -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+./build/legged_robot_mpc_controller/wheel_model_consistency_test \
+  src/legged_robot_mpc_controller/description/urdf/robots/upkie/upkie.urdf \
+  /root/ocs2_ros2_ws/auto_generated/upkie
+```
+
+Use the normal Release build with `BUILD_TESTING=OFF` afterward to install all targets.
+
+The final complete Release build passed in 1 min 45 s, and the native equation/Jacobian audit passed again against the installed libraries.
+The following tests were rerun after the initializer and GT bring-up corrections, without parameter changes:
+
+| Container artifact prefix under `/tmp/` | Result | Measurements |
+| --- | --- | --- |
+| `codex_upkie_final_yaw` | SUCCESS, 17 s | Abrupt +1.5 rad/s request; mean +1.1199 rad/s; max pitch/roll 0.01207/0.00309 rad |
+| `codex_upkie_final_push` | SUCCESS, 25 s, actual repository night scene | All four original pulses verified; max pitch 0.18804 rad; final recovery pitch <=0.00401 rad; no actuator saturation |
+| `codex_upkie_final_drive` | SUCCESS, 21 s, actual repository night scene | +0.2 m/s request averaged +0.20146 m/s; max pitch/roll 0.01246/0.00076 rad; braking remained balanced |
+| `codex_h2_xbody_final_yaw` | SUCCESS, 18 s at requested 80 Hz | +0.3 rad/s request averaged +0.29774 rad/s; max pitch/roll 0.02061/0.04042 rad; translation drift 0.487 m |
+
+Logged actual rate means were 97.46 Hz for Upkie yaw, 97.58 Hz for push, 95.59 Hz for drive, and 77.48 Hz for H2 at its 80 Hz target.
+These are VM wall-clock measurements with scheduling outliers, not guaranteed rates; Upkie drive had one 82.11 Hz reporting window.
+All final Upkie health windows reported zero solver exceptions and torque-window overruns, but finite equality residuals remain because the controller uses one SQP iteration.
+The updated measured-state replay `/tmp/codex_upkie_yaw_replay.png` compares the original fall with the final yaw trial; `/tmp/codex_upkie_final_push_wheeled.png` and `/tmp/codex_upkie_final_yaw_wheeled_tracking.png` were generated and inspected.
+The push curves show decaying attitude/velocity responses, positive wheel loads and no saturation; the turn still shows periodic planned-rate ripple and command undertracking, not an exact yaw-tracking solution.
+All owned simulations were stopped after these tests; full-stack stand-up and arbitrary-direction pushes remain future validation.
+The required simulator fix was pushed as `mujoco_ros2_control` commit `44f395d` on `jazzy`; pull and rebuild it together with this controller checkpoint.
+
+
 ## Status (2026-11-14)
 
 | Milestone | State |
@@ -91,12 +203,12 @@ The next estimator milestone is an estimated-versus-simulator comparison followe
 | Rolling-wheel WB-ID MPC, wheel drive, ground truth (standing spawn) | Works: balance, 0.2 m/s drive and braking in the first run |
 | Unmodelled wheel friction (zero-command creep) | Diagnosed; friction model added; comparison against wheel PD started, only the friction-model variant ran (results below) |
 | Activation segfault | Root cause found and fixed (hard-coded foot frame names) |
-| M1 acceptance suite (3x roll+brake, 3x push recovery) | Not yet run cleanly; the first suite attempt hit the segfault |
+| Flat acceptance after yaw/push fixes | Passed repeated forward/brake, reverse/brake, four complete push sequences and turning tests without falls; final night-scene drive/push repeats also passed; slow +0.3 rad/s turn still undertracks |
 | Kneeling idle -> planned stand-up -> MPC | Planned and implemented; never run in the full stack |
 | Small symmetric hop | Not started (gait-request topic is ready) |
 | Short single support, then trot | Not started |
 | Estimator closed loop (linear KF adapted to rolling) | Not started; ground truth only so far |
-| G1/H2 regression after the shared-code changes | Not run |
+| G1/H2 regression after the shared-code changes | Passed short flat forward/brake smoke tests and two H2 80 Hz turning tests; turning drift remains and broader regression is open |
 
 
 ## Terminology
@@ -307,12 +419,12 @@ A full rebuild takes about 11 minutes (ModelSettings/helper headers are included
 
 ## Next steps, in order
 
-1. Finish the friction-model vs wheel-kd comparison (`pd_only`: no MPC friction, wheel kd 0.3; `both`: friction + kd 0.3; commands in the comparison section), pick the combination, then run the M1 acceptance suite (3x roll+brake, 3x push recovery) and confirm repeatability, the zero-command drift and the push-induced yaw swing.
+1. Preserve the current successful flat checkpoint and investigate slow-yaw undertracking before changing gains; repeat any friction-model versus wheel-kd comparison only with corrected XBODY feedback, since the older angular-feedback data are not a valid tuning baseline.
 2. Run the planned stand-up in the stack; adjust the plan (`plan_stand_up.py --search`) or the handover if the MPC cannot catch it.
 3. Hop: add a `hop` template (e.g. STANCE 0.5 s, FLY 0.1-0.15 s) and request it on `/humanoid/gait_command`; check takeoff/landing torques, measured flight (contact sensors) and touchdown slip; consider a wheel-spin cost in flight.
 4. Short single support (`left_leg`/`right_leg` templates for ~0.1-0.2 s): no hip roll, so lateral balance comes only from rolling the trunk with leg-length differences; measure roll before attempting alternating support (trot).
 5. Estimator: adapt the linear KF to rolling contacts (wheel contact gives a base-velocity measurement through zero tread velocity and a height measurement; no fixed foot landmark), then rerun the milestones closed loop on the estimate.
-6. Regression-test G1/H2 after the shared changes (`computeJointTorques` signature, optional arm-swing joints, height-reset argument, gait topic subscription, tracking columns).
+6. Extend the passed G1/H2 flat forward/brake smoke tests to broader regression after the shared changes (`computeJointTorques` signature, optional arm-swing joints, height-reset argument, gait topic subscription, tracking columns and simulator twist convention).
 
 
 ## Traps found
@@ -322,4 +434,4 @@ A full rebuild takes about 11 minutes (ModelSettings/helper headers are included
 - Editing the parameter schema while a build runs leaves the generated header stale; rebuild after.
 - `jointArmature` is baked into the generated CppAD libraries (set `codegen.recompileLibraries` or clear `auto_generated/upkie` after changing it); `jointFriction` and the wheel gains are parameters.
 - Pass the gdb launch prefix as one argument: `--launch-prefix "gdb -batch -ex run -ex bt --args"`.
-- `/mujoco/ground_truth/odom` twist is in the body inertial frame (see the H2 caveat); use the tracking `obs_base` columns or pose differences.
+- Old `mujoco_ros2_control` builds returned principal-inertia/COM twist alongside link pose; rebuild the simulator with the XBODY fix, not only the controller, and sanity-check rates against pose differences.
