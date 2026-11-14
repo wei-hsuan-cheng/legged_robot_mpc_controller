@@ -25,8 +25,8 @@ The MPC URDF is generated from the MuJoCo model to match link frames, joint axes
 The optimizer uses Pinocchio kinematics and inverse dynamics, CppAD-generated constraint derivatives, and OCS2 SQP with HPIPM.
 The asynchronous MPC worker publishes a policy that the ros2_control thread evaluates at the MRT frequency, followed by an `effort_pd` joint servo.
 There is no centroidal-momentum state, reduced cart-pendulum prediction model, or separate whole-body-control QP in this path.
-For simulation debugging, the current wheel-drive checkpoint uses `ground_truth_state` with no estimator; GT feedback is not available for real-world deployment.
-Rolling-contact estimator feedback has not yet been validated.
+Feedback comes from the wheel-aware linear Kalman filter of Section 7.5 (IMU attitude, rate and acceleration plus leg and wheel encoders), started from the kneeling idle of Section 7.4.
+Simulator ground truth is only logged alongside as a benchmark, or used for GT-driven tuning runs; it is not available for real-world deployment.
 
 
 ## 2. State, Input and Initial Observation
@@ -360,7 +360,7 @@ $$
 This branch approximates tire-bottom height as center height minus radius, rather than using the tilted disk's full $\rho_i$ geometry.
 It does not prescribe swing-wheel XY position or touchdown wheel spin.
 During flight both wrenches are zero and the shared lateral row is inactive, but full-body inverse dynamics remains active.
-These code paths exist, but the shipped Upkie gait library contains only double-support `stance`; hopping and alternating support are not established capabilities.
+The shipped gait library uses them in `jump` (both wheels in flight) and in `walk` and `trot` (one wheel at a time); Section 7.1 lists the templates and their validation.
 For moving-wheel support and zero-force/vertical-motion swing constraints, compare [Bjelonic et al., Section III-A4, Eqs. (5)-(6), PDF page 4](https://arxiv.org/pdf/2010.06322#page=4).
 Their optimizer uses a fixed wheel angle and moving contact with kinodynamic prediction; this branch instead retains wheel spin and full-body inverse dynamics, so the state and constraint formulas are not interchangeable.
 
@@ -587,18 +587,40 @@ The hard bounds in [Molnar et al., Section IV-B4, Eq. (8)](https://arxiv.org/htm
 ## 7. Gait, Initialization and Execution
 
 
-### 7.1 Current support schedule
+### 7.1 Gaits and support schedule
 
-The default and only configured gait is `stance`:
+Upkie's gait templates (`ocs2.gait.templates`) switch only the support flags $\gamma_L,\gamma_R$ and the swing references; the optimal control problem is the same in every phase.
+Modes: `STANCE` both wheels support, `RF` only the right wheel, `LF` only the left, `FLY` neither.
+
+| Gait | Mode sequence (durations) | Swing height |
+| --- | --- | --- |
+| `wheel_drive` | `STANCE` | - |
+| `jump` | `STANCE` 0.4 s, `FLY` 0.15 s | 0.03 m |
+| `walk` | `STANCE` 0.45 s, `RF` 0.15 s, `STANCE` 0.45 s, `LF` 0.15 s | 0.02 m |
+| `trot` | `RF` 0.15 s, `STANCE` 0.05 s, `LF` 0.15 s, `STANCE` 0.05 s | 0.02 m |
+
+`wheel_drive` is continuous rolling support,
 
 $$
-\gamma_L(t)=\gamma_R(t)=1.
+\gamma_L(t)=\gamma_R(t)=1,
 $$
 
-Here stance means continuous rolling support, not a planted or motionless wheel.
-No gait switch is required to accelerate, brake or turn.
-The `/humanoid/gait_command` string topic can request an existing template, but it does not itself create a hop or single-support template.
-Scheduled contact flags activate optimizer terms; measured contact sensors currently provide diagnostics rather than automatically rewriting the support schedule.
+not a planted or motionless wheel; no gait switch is needed to accelerate, brake or turn.
+It is the first rung of `ocs2.gait.transitions.ladder`, so it runs whenever no other gait is requested.
+`jump`, `walk` and `trot` are requested by name on the `/humanoid/gait_command` string topic and held while requested; an empty string returns to `wheel_drive`.
+A request is spliced into the schedule about 0.3 of the 1 s horizon ahead, so a single jump needs the request held for about 0.9 s.
+Scheduled contact flags activate optimizer terms and are written to the estimator; measured contact sensors provide diagnostics only.
+With no hip roll, a lifted wheel lets the body tip toward it (the CoM is about 0.15 m inside the remaining wheel), so single-support phases are 0.15 s; a 0.3 s lift reached 0.073 rad roll.
+
+Validated with the estimator driving the MPC, each run from the kneeling stand-up (wheel off the ground per the simulated contact sensors):
+
+| Gait | Runs | Wheel(s) off the ground | Clearance | Max pitch / roll |
+| --- | --- | --- | --- | --- |
+| `jump` | 4 in place, 1 rolling at 0.2 m/s | 0.15-0.18 s | 10 mm | 0.037 / 0.014 rad |
+| `walk` | at rest and at 0.2 m/s, 5 lifts each | 0.13-0.15 s | 6.5 mm | 0.016 / 0.021 rad |
+| `trot` | 13 lifts at rest, 15 at 0.2 m/s | 0.12-0.16 s | 6.5-6.9 mm | 0.015 / 0.032 rad |
+
+Jump landings peak at 2-4.5 body weights per wheel; torque limits are reached in under 1% of samples.
 
 
 ### 7.2 Initial policy seed
@@ -659,48 +681,81 @@ Changing to direct `qfrc_applied` bypass would invalidate the actuator-clipping 
 An optional trajectory-file path implements idle hold, planned stand-up playback, policy handover, blend and locomotion.
 The height command filter resets to the measured base height at handover rather than stepping immediately to the nominal $0.30\ \mathrm{m}$ height.
 This playback is not a stand-up trajectory optimized online by the MPC.
-It is implemented but has not yet been validated in the complete controller/simulator stack; the default configuration leaves it disabled.
+It passes in the complete stack with ground truth and with the estimator; the default configuration leaves it disabled (standing spawn), and estimator runs must enable it because an unbalanced wheeled robot cannot stand still while the filter initialises.
+At the handover the body is at about 0.09 m, pitched back 0.71 rad; the posture table starts at 0.10 m so the posture reference matches the height ramp.
+The catch saturates both wheel torques, and the MPC swings one leg forward and the other back for about 0.7 s, a catching step, before the legs rejoin; forbidding that split with a cost made every catch fall.
 The exporter includes the actual post-step knee-lift sample, so the current $0.6965\ \mathrm{s}$ handover lies within the exported time range.
 Trajectory loading rejects nonfinite samples and timestamps that are not strictly increasing.
 When using ground-truth feedback, the bring-up tilt check and gravity-compensating hold use the base-link orientation, not the orientation of the rotated IMU site.
-The existing estimator-based bring-up still assumes an appropriately aligned IMU; this correction does not implement a rolling-contact estimator or an IMU-extrinsic calibration.
+With the estimator, `floatingBase.imuFrame` removes the IMU mounting rotation from the attitude used by the tilt check, and the estimator removes it from its own inputs (Section 7.5).
 
 
-### 7.5 Rolling-contact state estimation: required future adaptation
+### 7.5 Rolling-contact state estimation
 
-The present checkpoint uses simulator ground-truth base feedback; the rolling-contact estimator described here is a future requirement, not an implemented or validated capability.
-The primary feedback remains the floating-base pose and linear/angular velocity, as for H2, but a planted-foot measurement model cannot be reused unchanged for a moving wheel.
-The existing [linear KF model](../include/legged_robot_mpc_controller/humanoid_state_estimation/linear_kf_floating_base_estimator.hpp#L36) assumes stationary contact landmarks, $\dot d_i=0$.
-A wheel center and the instantaneous geometric contact location move during driving, even under ideal no-slip rolling.
-Instead, the material tread point currently touching the ground satisfies the approximate measurement relation:
+The floating-base estimate comes from the two-stage linear Kalman filter ([`LinearKfFloatingBaseEstimator`](../src/humanoid_state_estimation/linear_kf_floating_base_estimator.cpp)) with `contactModel: rolling_wheel`, run as the `humanoid_linear_kf` controller ahead of the MPC.
+A planted-foot model cannot be reused: a wheel centre and its geometric contact point move during driving, even without slip.
+What stays at rest is the material tread point currently touching the ground:
 
 $$
 0\simeq v_{c,i}^{W}
 =v_{h,i}^{W}+\omega_i^{W}\times\rho_i^{W}.
 $$
 
-Here $v_{h,i}^{W}$ is the tire-center velocity, $\omega_i^{W}$ is the wheel link's full angular velocity including spin, and $\rho_i^{W}$ is the center-to-contact offset from Section 4.1.
-With IMU attitude/gyro and joint encoder measurements, this relation supplies information about unknown base velocity through the leg and wheel kinematics.
-Ground-relative height updates must also account for tire radius and axle orientation rather than treating the tire-center frame as a ground-level planted foot.
-This requires changing the estimator's contact model, not merely selecting H2's estimator through a launch argument.
+Here $v_{h,i}^{W}$ is the tire-centre velocity, $\omega_i^{W}$ the wheel link's angular velocity including spin, and $\rho_i^{W}$ the centre-to-contact offset of Section 4.1 (the lowest point of the tire circle).
+This follows the wheel-aware adaptation of legged filters in [Hosseini, Rodriguez and Behnke, State Estimation for Hybrid Locomotion of Driving-Stepping Quadrupeds, IRC 2022](https://www.ais.uni-bonn.de/~hosseini/se-dsq/IEEE_IRC_22_StateEstimationForDrivingSteppingQuadrupeds.pdf).
 
-The direct reference is [Hosseini, Rodriguez and Behnke, State Estimation for Hybrid Locomotion of Driving-Stepping Quadrupeds, IRC 2022, Fig. 1 and its wheel-aware state-estimation formulation](https://www.ais.uni-bonn.de/~hosseini/se-dsq/IEEE_IRC_22_StateEstimationForDrivingSteppingQuadrupeds.pdf).
-Their method incorporates wheel geometry and rolling motion into a legged Kalman filter; this motivates the adaptation but does not establish that our current estimator already implements their equations or has their validation results.
+**Stage 1, attitude.** The IMU's own attitude, with its mounting removed (`imuExtrinsics: true`, URDF frame `imu`):
 
-| Quantity | Proposed first implementation |
+$$
+R_{WB}=R_{WI}R_{BI}^{\mathsf T},\qquad
+\omega_B=R_{BI}\,\omega_I,\qquad
+a_B=R_{BI}\,a_I-\omega_B\times(\omega_B\times r_{BI}),
+$$
+
+where $(R_{BI},r_{BI})$ is the IMU pose in the base frame; the lever arm's angular-acceleration term is left to the velocity measurements.
+Yaw is never corrected, as in any proprioceptive filter.
+
+**Stage 2, position and velocity.** The state is $x=[p_B^W;\,v_B^W]$, propagated with the IMU acceleration:
+
+$$
+p^+=p+\Delta t\,v+\tfrac12\Delta t^2(R_{WB}a_B+g),\qquad
+v^+=v+\Delta t\,(R_{WB}a_B+g).
+$$
+
+Forward kinematics is evaluated with the base at the origin, with attitude $R_{WB}$, rate $\omega_B$ and the joint encoders only, so the measurements do not depend on the state they correct.
+Each wheel $i$ then measures, with $p_{h,i}$ and $v_{h,i}$ the tire centre relative to the base:
+
+$$
+v_B^W=-\big(v_{h,i}+\omega_i\times\rho_i\big),\qquad
+z_B=z_g-\big(p_{h,i}+\rho_i\big)_z,\qquad
+\rho_i=r\,\frac{-e_z+(e_z\cdot a_i)\,a_i}{\lVert -e_z+(e_z\cdot a_i)\,a_i\rVert},
+$$
+
+with $a_i$ the axle direction, $r=0.055\ \mathrm{m}$ and the ground plane $z_g=0$.
+This is the height above the wheels' contact plane, the same proprioceptive convention as the MPC's flat ground model.
+A wheel scheduled off the ground keeps its four rows with noise multiplied by `swingNoiseMultiplier`, so the dimensions never change.
+The filter initialises at the kneeling idle from these height rows and the IMU attitude, and reports ready after `readiness.minSeconds` (1 s).
+
+| Parameter | Meaning |
 | --- | --- |
-| Base orientation and angular velocity | Retain an IMU-based attitude/gyro path with the correct sensor-to-base transform |
-| Base linear velocity | Fuse IMU acceleration with rolling-contact kinematic measurements |
-| Base height | Use leg geometry, wheel radius and the assumed local support surface |
-| Contact and slip reliability | Gate or downweight rolling measurements during contact loss or slip; a separate observer may supply this reliability |
-| Radius, axle and contact offset | Initially use configured geometry and forward kinematics, not additional filter states |
-| Slip, effective radius, terrain normal and sensor biases | Consider later if required and observable; these are not all mandatory extra states |
+| `contactModel`, `wheel.radius`, `wheel.centerOffset`, `wheel.axleAxis` | rolling-wheel measurement geometry, matching `contactGeometry.frameTranslation` |
+| `imuExtrinsics`, `imuFrame` | remove the IMU mounting |
+| `imuProcessNoisePosition/Velocity` | process noise, scaled as in Cheetah 3 |
+| `footSensorNoiseVelocity`, `footHeightSensorNoise` | per-wheel velocity and height measurement variances |
+| `contact.source: scheduled` | support flags from the MPC's mode schedule |
 
-Contact forces need not become filter states, and simulator contact flags or ground-truth terrain are not substitutes for deployable contact detection.
-Official Upkie likewise exposes separate base-orientation, wheel-contact and wheel-odometry observations; see [Upkie observations](https://upkie.github.io/upkie/observations.html).
-Proprioceptive estimation alone does not provide drift-free global horizontal position or heading, and unknown ground height cannot be separated arbitrarily from base height without additional assumptions or measurements.
-Acceptance should first compare estimated and simulator base states during balance, drive, braking and pushes, then repeat those scenarios with estimated state driving the MPC.
-No estimator adaptation or estimated-state closed-loop test was performed for this documentation checkpoint.
+Accuracy against simulator ground truth (noise-free simulated sensors):
+
+| Run | Height | Roll / pitch | Forward velocity |
+| --- | --- | --- | --- |
+| rolling at 0.3 m/s and braking | RMS 0.2 mm | below 0.0001 rad | RMS 1 mm/s, max 8 mm/s |
+| `walk`, `trot` | RMS 0.7-1.1 mm | RMS below 0.0015 rad | RMS 0.01-0.03 m/s |
+| `jump` | RMS 1-1.5 mm, max 12 mm | RMS below 0.003 rad | RMS 0.1 m/s, up to 0.6-0.7 m/s at touchdown |
+| kneeling stand-up push | max 11 mm | max 0.036 rad | up to 0.7 m/s while the knees drag |
+
+Driving the MPC, the estimator also passed rolling and braking, yaw at 0.22 m, the pitch pushes, the 20 mm strip, the ramp and the uneven field (handoff).
+Not handled yet: sensor noise and biases (the simulator adds none), touchdown slip (a landing wheel that spun in the air slips briefly, which the rolling rows misread), contact detection from sensors, and terrain other than the assumed plane under the wheels.
+Proprioception alone does not provide drift-free horizontal position or heading.
 
 The simulator feedback must still obey its advertised frame contract even while using ground truth.
 Both the ros2_control body-state interfaces and ground-truth odometry use link-origin pose and link-local twist through MuJoCo's `mjOBJ_XBODY` velocity query.
@@ -739,8 +794,9 @@ The final 200 Hz-requested four-pulse push trial recovered all disturbances, wit
 In the earlier 100 Hz logs, turning remained balanced for commands +0.3, -0.6 and +1.5 rad/s, but the slow +0.3 rad/s command averaged only +0.145 rad/s and failed the tracking threshold.
 The existing +/-1.5 Nm pitch and +/-6 N forward-force pulses were recovered without falls; these results do not establish recovery from arbitrary push directions or magnitudes.
 The earlier 100 Hz repository night-scene repeat reached peak pitch $0.1881\ \mathrm{rad}$ and recovered below $0.0041\ \mathrm{rad}$, without actuator saturation; forward driving averaged $0.2015\ \mathrm{m/s}$ for a $0.2\ \mathrm{m/s}$ command.
-The 20 mm one-sided-entry stress tests fell, including a final-configuration repeat at a 0.2 m/s command, and the earlier slow 0.15 m/s uneven-field entry stalled; the tested 0.3 m/s traversal is not a general terrain-robustness guarantee.
-GUI height endpoints, ramp descent/drops, terrain turns, full-stack kneeling stand-up, hopping, sustained single support and estimator-based control remain unvalidated.
+With the convex-prism tire collision and the posture-by-height reference, the 20 mm one-sided strip (narrow, wide and driving off its end) and the uneven field at 0.15 and 0.3 m/s pass; before those changes the 20 mm entry fell and the slow field entry stalled.
+These are 1-5 runs per case, not a general terrain-robustness guarantee.
+The kneeling stand-up, jumps, short single and alternating support and estimator-driven control are validated in simulation (Sections 7.1, 7.4, 7.5); ramp descent and drops, terrain turns, sustained single support, sensor noise and hardware remain unvalidated.
 Logging includes base motion, planned wrenches, feedforward/applied joint effort, measured wheel contacts/normal forces, contact gaps, tread slip and solver residuals.
 The slip/gap diagnostics currently assume a horizontal zero-height plane; they are not a generic arbitrary-terrain contact estimator.
 Documented equations describe the implementation, not a guarantee that a one-iteration SQP policy satisfies every equality or that soft limits remain unviolated.

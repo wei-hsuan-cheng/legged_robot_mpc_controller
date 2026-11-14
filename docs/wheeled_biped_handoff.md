@@ -62,7 +62,32 @@ Upkie's gaits are `wheel_drive`, `jump`, `walk` and `trot` (the user's names).
 `wheel_drive` (both wheels down, rolling and turning) is the rest gait: the first rung of `ocs2.gait.transitions.ladder`.
 The motion manager used to require that rung to be called `stance`; it now takes the first rung, whatever its name, so G1/H2 (still `stance`) are unchanged (H2 drive smoke run passes).
 The others are requested on `/humanoid/gait_command` (held while requested, `""` returns to `wheel_drive`).
-The results below were recorded under the earlier names `hop` (now `jump`), `alternate` (now `walk`) and `lift_left`/`lift_right` (single lifts, now a short `walk` request); `jump`, `walk` and `trot` were re-run under the new names on GT.
+The jump/walk tables further down were recorded under the earlier names `hop` (now `jump`), `alternate` (now `walk`) and `lift_left`/`lift_right` (single lifts, now a short `walk` request).
+
+### All gaits in closed loop on the estimator (final check under the new names)
+
+No GT in control; each run starts from the kneeling idle and planned stand-up; GT is only logged for the benchmark columns.
+
+| gait | runs | verdict | wheel(s) off the ground | clearance | max pitch / roll | estimate vs GT during the gait |
+| --- | --- | --- | --- | --- | --- | --- |
+| `jump` | 4 in place | pass | 0.16-0.18 s | 10-11 mm | 0.037 / 0.014 | height RMS 1.5 mm, vx RMS 0.10 m/s (touchdown spikes to 0.64) |
+| `jump` | 1 while rolling 0.2 m/s | pass, 1.28 of 1.40 m | 0.15 s | 10 mm | 0.029 / 0.008 | height RMS 0.9 mm, vx RMS 0.013 m/s |
+| `walk` | at rest, 5 lifts | pass | 0.13-0.15 s | 6.5 mm | 0.016 / 0.020 | height RMS 0.7 mm, vx RMS 0.010 m/s |
+| `walk` | rolling 0.2 m/s, 5 lifts | pass, 1.30 of 1.40 m | 0.13-0.15 s | 6.5-6.8 mm | 0.016 / 0.021 | height RMS 0.7 mm, vx RMS 0.011 m/s |
+| `trot` | at rest, 13 lifts | pass | 0.12-0.15 s | 6.5-6.9 mm | 0.015 / 0.032 | height RMS 1.1 mm, vx RMS 0.022 m/s |
+| `trot` | rolling 0.2 m/s, 15 lifts | pass, 1.09 of 1.40 m | 0.12-0.16 s | 6.5-6.9 mm | 0.015 / 0.031 | height RMS 1.1 mm, vx RMS 0.026 m/s |
+
+Roll/pitch estimate errors stay below 0.0015 rad RMS in every gait.
+`trot` while rolling covers 78% of the commanded distance (the lifts cost forward speed); `walk` and `jump` 91-93%.
+On GT the same gaits measure alike (`trot` 13 and 17 lifts, 0.014 / 0.031), and the H2 drive smoke run passes after the rest-gait change.
+
+### The stand-up handover in detail
+
+The cut-over is the plan's own `handover_time`, 0.697 s after the playback starts (knee lift-off in the planning rollout, where the body's divergent component is about zero); it is time-based, not detected, and needs a valid MPC policy (the MPC solves from the start of the playback), else the bring-up faults.
+Then a 0.05 s blend from the plan's last sample into the MPC; in the estimator run the playback starts at 4.01 s, the blend at 4.70 s and the MPC alone at 4.75 s.
+During the catch the MPC's schedule stays `wheel_drive`, yet the contact sensors show the right wheel off the ground for 0.18 s (4.85-5.03 s, up to 8 mm) while the legs split to 36 cm, then landing and rejoining by about 5.45 s.
+So the catching step is emergent, chosen by the MPC under saturated wheel torque but not planned as a step; scheduling a single-wheel phase at the handover would let the MPC plan it and its landing (not done).
+Videos of this run (real time and 0.25x) were rendered from the replay for the user and are not in the repository.
 
 ### Jump (milestone 7)
 
@@ -117,7 +142,7 @@ A standing spawn cannot run on the estimator: the robot cannot stand unbalanced 
 1. Leg crossing during the stand-up catch (above): it is the MPC's catching step under saturated wheel torque; make the catch gentler (pitch reference ramp) rather than forbid the split.
 2. Sensor noise and biases: the filter has only seen perfect simulated sensors; add IMU/encoder noise in the simulator before trusting the tuning.
 3. Touchdown slip: keep a landing wheel's rows inflated for a short settle time if the touchdown velocity spikes matter.
-4. Longer single support (pre-lean), jumps with higher clearance, `trot` on the estimator, and repeat counts (N = 1-5 per case).
+4. Longer single support (pre-lean), jumps with higher clearance, and repeat counts (N = 1-5 per case).
 
 
 ## Leg-Crossing Fix (2026-11-15, Claude)
