@@ -87,6 +87,8 @@ class WalkingVelocityTarget {
   scalar_t maxDisplacementVelocityX_;
   scalar_t maxDisplacementVelocityY_;
   scalar_t maxRotationVelocity_;
+  scalar_t minBaseHeight_;
+  scalar_t maxBaseHeight_;
   vector4_t commandRateLimits_;
   vector4_t previousCommand_;
   scalar_t previousTime_{std::numeric_limits<scalar_t>::quiet_NaN()};

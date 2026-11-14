@@ -44,6 +44,8 @@ WalkingVelocityTarget::WalkingVelocityTarget(const ReferenceConfig& referenceCon
       maxDisplacementVelocityX_(referenceConfig.maxDisplacementVelocityX),
       maxDisplacementVelocityY_(referenceConfig.maxDisplacementVelocityY),
       maxRotationVelocity_(referenceConfig.maxRotationVelocity),
+      minBaseHeight_(referenceConfig.minBaseHeight),
+      maxBaseHeight_(referenceConfig.maxBaseHeight),
       commandRateLimits_(referenceConfig.commandRateLimits),
       previousCommand_(0.0, 0.0, referenceConfig.defaultBaseHeight, 0.0),
       velocityCommandFilter_(5, vector4_t(0.0, 0.0, referenceConfig.defaultBaseHeight, 0.0)) {}
@@ -63,6 +65,9 @@ WalkingVelocityCommand WalkingVelocityTarget::scaleCommand(WalkingVelocityComman
   command.linear_velocity_x *= maxDisplacementVelocityX_;
   command.linear_velocity_y *= maxDisplacementVelocityY_;
   command.angular_velocity_z *= maxRotationVelocity_;
+  // The commanded height, not the conditioned one: a reset to a measured height outside the range (a robot
+  // standing up from the floor) still ramps from there at the height rate limit.
+  command.desired_pelvis_height = std::clamp(command.desired_pelvis_height, minBaseHeight_, maxBaseHeight_);
   return command;
 }
 

@@ -77,12 +77,9 @@ class TargetTrajectoriesCalculatorBase {
   void setTargetJointState(const vector_t targetJointState);
 
   /**
-   * Base height clamped to [minBaseHeight, maxBaseHeight] when a posture table is set; unchanged without one,
-   * since base pose and terrain targets then carry world-frame heights.
+   * Joint posture reference at a base height: interpolated from the posture table (held at its end rows outside
+   * it), else the target joint state.
    */
-  scalar_t clampBaseHeight(scalar_t height) const;
-
-  /** Joint posture reference at a base height: interpolated from the posture table, else the target joint state. */
   vector_t getPostureForHeight(scalar_t height) const;
 
   /**

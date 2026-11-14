@@ -94,17 +94,6 @@ void TargetTrajectoriesCalculatorBase::setTargetJointState(const vector_t target
 /******************************************************************************************************/
 /******************************************************************************************************/
 
-scalar_t TargetTrajectoriesCalculatorBase::clampBaseHeight(scalar_t height) const {
-  if (postureHeights_.empty()) {
-    return height;
-  }
-  return std::clamp(height, minBaseHeight_, maxBaseHeight_);
-}
-
-/******************************************************************************************************/
-/******************************************************************************************************/
-/******************************************************************************************************/
-
 vector_t TargetTrajectoriesCalculatorBase::getPostureForHeight(scalar_t height) const {
   if (postureHeights_.empty()) {
     return targetJointState_;

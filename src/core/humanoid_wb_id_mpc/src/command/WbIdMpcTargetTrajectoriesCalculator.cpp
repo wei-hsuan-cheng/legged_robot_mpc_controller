@@ -18,10 +18,9 @@ vector_t WbIdMpcTargetTrajectoriesCalculator::makeState(const vector6_t& basePos
   const auto nj = static_cast<Eigen::Index>(mpcRobotModelPtr_->getJointDim());
   vector_t state = vector_t::Zero(static_cast<Eigen::Index>(mpcRobotModelPtr_->getStateDim()));
   state.head<6>() = basePose;
-  // With a posture table the joint reference is the balanced posture of the (clamped) target height, so
-  // holding the posture and holding the height never pull in different directions.
-  state(2) = clampBaseHeight(basePose(2));
-  state.segment(6, nj) = getPostureForHeight(state(2));
+  // With a posture table the joint reference is the balanced posture of the target height, so holding the
+  // posture and holding the height never pull in different directions.
+  state.segment(6, nj) = getPostureForHeight(basePose(2));
   state.segment<6>(6 + nj) = baseVelocity;
   return state;
 }
