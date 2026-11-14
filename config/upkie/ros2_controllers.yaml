@@ -137,16 +137,20 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         # Joints: [left_hip, left_knee, left_wheel, right_hip, right_knee, right_wheel]; wheel angles
         # and wheel speeds carry no weight (unwrapped angles; the speed follows the base command).
         q:
-          # Balance first: height stays soft; retain posture regularization to discourage leg-fold reversal.
+          # Balance first. Height/tilt stay stiff: lowering them to 150 (balanced against the rest) or only the
+          # height to 150 made the 20 mm one-sided step fall (handoff, 2026-11-15).
           basePose: [0.0, 0.0, 3000.0, 0.0, 500.0, 2000.0]
           baseVelocity: [20.0, 20.0, 1.0, 10.0, 1.0, 1.0]
-          jointPositions: [1.0, 1.0, 0.0, 1.0, 1.0, 0.0]
+          # H2's posture ratio: the hip holds the legs against a fore/aft split (a wheel's spin leaves each leg free
+          # to sweep), the knee stays nearly free to set the height. The reference follows the target height
+          # (reference.postureHeights).
+          jointPositions: [3.0, 0.1, 0.0, 3.0, 0.1, 0.0]
           jointVelocities: [0.01, 0.01, 0.0, 0.01, 0.01, 0.0]
 
         qFinal:
           basePose: [0.0, 0.0, 3000.0, 0.0, 500.0, 2000.0]
           baseVelocity: [20.0, 20.0, 1.0, 10.0, 1.0, 1.0]
-          jointPositions: [2.0, 2.0, 0.0, 2.0, 2.0, 0.0]
+          jointPositions: [6.0, 0.2, 0.0, 6.0, 0.2, 0.0]
           jointVelocities: [0.01, 0.01, 0.0, 0.01, 0.01, 0.0]
 
         # R on u = [wrench_left, wrench_right, base acceleration, joint acceleration, joint torque].
@@ -189,7 +193,9 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           axleAxis: [0.0, 0.0, 1.0]
           normalPositionGain: 50.0
           normalVelocityGain: 50.0
-          tangentialVelocityGain: 50.0
+          # Tread-slip feedback. At 50 a wheel blocked by a step and spinning made the MPC plan up to 46 N of traction
+          # it could not get, pushing the leg back past the stuck wheel; 5 pushes a third as hard and climbs sooner.
+          tangentialVelocityGain: 5.0
           normalAccelerationGain: 1.0
           tangentialAccelerationGain: 1.0
 
@@ -255,6 +261,28 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         # Balanced crouch (config/upkie/initial_pose.yaml): level trunk at 0.30 m, knees forward.
         defaultJointState:
           [-0.6021396734839873, -0.9655142016056263, 0.0, 0.6021396734839873, 0.9655142016056263, 0.0]
+
+        # Posture reference by target height (config/upkie/compute_posture_table.py): the balanced symmetric
+        # posture of each height (level trunk, tires on the floor, tire contact under the CoM). A fixed 0.30 m
+        # posture far from the target height makes splitting the legs fore/aft cheaper than staying symmetric.
+        # Target heights are clamped to this range; 0.33 m keeps a 0.5 rad knee bend from the straight-leg singularity.
+        postureHeights:
+          [0.200, 0.210, 0.220, 0.230, 0.240, 0.250, 0.260, 0.270, 0.280, 0.290, 0.300, 0.310, 0.320, 0.330]
+        postureJointStates:
+          [-1.197768, -1.822225, 0.0, 1.197768, 1.822225, 0.0,
+           -1.144376, -1.752835, 0.0, 1.144376, 1.752835, 0.0,
+           -1.090652, -1.681207, 0.0, 1.090652, 1.681207, 0.0,
+           -1.036318, -1.607038, 0.0, 1.036318, 1.607038, 0.0,
+           -0.981065, -1.529952, 0.0, 0.981065, 1.529952, 0.0,
+           -0.924537, -1.449477, 0.0, 0.924537, 1.449477, 0.0,
+           -0.866303, -1.365009, 0.0, 0.866303, 1.365009, 0.0,
+           -0.805822, -1.275744, 0.0, 0.805822, 1.275744, 0.0,
+           -0.742381, -1.180590, 0.0, 0.742381, 1.180590, 0.0,
+           -0.674983, -1.077975, 0.0, 0.674983, 1.077975, 0.0,
+           -0.602140, -0.965514, 0.0, 0.602140, 0.965514, 0.0,
+           -0.521408, -0.839245, 0.0, 0.521408, 0.839245, 0.0,
+           -0.428167, -0.691629, 0.0, 0.428167, 0.691629, 0.0,
+           -0.311139, -0.504236, 0.0, 0.311139, 0.504236, 0.0]
 
       gait:
         phaseTransitionStanceTime: 0.0
