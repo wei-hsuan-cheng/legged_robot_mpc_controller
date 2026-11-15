@@ -294,10 +294,9 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         maxDisplacementVelocityX: 1.0
         maxDisplacementVelocityY: 0.0
         maxRotationVelocity: 3.1416
-        defaultBaseHeight: 0.30
+        defaultBaseHeight: 0.22
         # Commanded height range: GUI slider, command clamp and MPC height reference. Must lie inside postureHeights.
-        # 0.33 m keeps a 0.5 rad knee bend from the straight-leg singularity (about 0.34 m); 0.22 m is the lowest tested.
-        minBaseHeight: 0.22
+        minBaseHeight: 0.2
         maxBaseHeight: 0.33
         basePosePositionTolerance: 0.02
         basePoseOrientationTolerance: 0.03
