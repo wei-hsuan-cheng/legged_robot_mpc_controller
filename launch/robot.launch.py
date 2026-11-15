@@ -1,4 +1,4 @@
-"""Robot-independent MuJoCo/MPC launch; select Unitree G1, H2 or the Upkie wheeled biped with robotName.
+"""Robot-independent MuJoCo/MPC launch; select Unitree G1, H2 or the Upkie wheeled-biped with robotName.
 
 Robot configuration, scenes and CppAD caches are selected together. The selected
 controller YAML owns the reference height used by both MPC and the command GUI.
@@ -70,7 +70,7 @@ def generate_launch_description():
             "robotName",
             default_value="g1",
             choices=["g1", "h2", "upkie"],
-            description="Robot model and configuration: Unitree G1, H2, or the Upkie wheeled biped.",),
+            description="Robot model and configuration: Unitree G1, H2, or the Upkie wheeled-biped.",),
         DeclareLaunchArgument("rviz", default_value="true"),
         DeclareLaunchArgument("rvizconfig", default_value=rviz_default),
         DeclareLaunchArgument("use_fake_hardware", default_value="false"),

@@ -1,4 +1,4 @@
-# Wheeled Biped (Upkie) WB-ID MPC: Handoff
+# Wheeled-Biped (Upkie) WB-ID MPC: Handoff
 
 Branch `feat/wheeled_biped`, based on `jazzy` at `ae134c0`.
 The original [implementation checklist](design_notes/wheeled_biped/wheeled_biped_first_step.md) and [research survey](design_notes/wheeled_biped/wheeled_biped_wb_id_mpc_survey.md) are preserved as working notes under [design_notes/wheeled_biped](design_notes/wheeled_biped/README.md), separate from the formal implementation documentation.
@@ -1012,7 +1012,7 @@ source install/setup.bash
 #    RViz windows. The MPC takes over about 5 s after the controller starts; GT is only published for comparison.
 ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=upkie mpcFreq:=200
 #    The GUI's forward axis is normalised by maxDisplacementVelocityX (1.0 m/s); keep vy at 0
-#    (a wheeled biped cannot move sideways). Yaw rate turns by differential wheel speed.
+#    (a wheeled-biped cannot move sideways). Yaw rate turns by differential wheel speed.
 
 # 2. The same from a script instead of the GUI (another terminal):
 ros2 topic pub -r 20 /humanoid/walking_velocity_command ocs2_msgs/msg/WalkingVelocityCommand \

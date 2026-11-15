@@ -1,5 +1,5 @@
 <!--
-Upkie wheeled biped, converted from mjlab_upkie (Marc Duclusaud, Apache-2.0) at commit
+Upkie wheeled-biped, converted from mjlab_upkie (Marc Duclusaud, Apache-2.0) at commit
 d7895789a601943f78b3b9bcdc4def7b444f9913, src/mjlab_upkie/robot/upkie/robot.xml.
 See description/urdf/robots/upkie/MODEL_SOURCE.md for the changes.
 -->

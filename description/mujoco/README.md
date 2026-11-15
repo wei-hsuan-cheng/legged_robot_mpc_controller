@@ -38,7 +38,7 @@ The RViz staircase belongs to `description/urdf/terrains/`, and its format-neutr
 | --- | --- |
 | `robots/g1/g1_29dof.xml` | Robot bodies, joints, actuators and sensors; meshes live in `description/meshes/robots/g1/` |
 | `robots/h2/h2_31dof.xml` | Official Unitree H2 with matching URDF pelvis inertia and sole frames; meshes live in `description/meshes/robots/h2/` |
-| `robots/upkie/upkie.xml` | Six-actuator wheeled biped, torque motors, sensors and robot-specific integration/contact settings; meshes live in `description/meshes/robots/upkie/` |
+| `robots/upkie/upkie.xml` | Six-actuator wheeled-biped, torque motors, sensors and robot-specific integration/contact settings; meshes live in `description/meshes/robots/upkie/` |
 | `common/backgrounds/background_day.xml` | Original daytime sky, lighting, camera and physical floor |
 | `common/backgrounds/background_night.xml` | Studio lighting, camera, satin floor and robot finish |
 | `common/backgrounds/background_night_upkie.xml` | The same night appearance and floor physics, with lights targeting `base` instead of `pelvis` and viewer framing scaled for Upkie |

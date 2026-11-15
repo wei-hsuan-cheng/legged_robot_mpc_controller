@@ -101,7 +101,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         within this of g [m/s^2].", validation: {gt: [0.0]}}
     settleFilterHz: {type: double, default_value: 2.0, description: "Cutoff of the first-order low-pass applied
         to the IMU rest tests [Hz].", validation: {gt: [0.0]}}
-    standUpTrajectoryFile: {type: string, default_value: "", description: "Planned stand-up (a wheeled biped that
+    standUpTrajectoryFile: {type: string, default_value: "", description: "Planned stand-up (a wheeled-biped that
         cannot stand on a joint hold): YAML with a stand_up map of joint_names, time, position, velocity, effort,
         kp, kd and handover_time. When set, the bring-up runs with either floating-base source: Passive holds the
         idle pose for idleSeconds, then the MPC starts solving and the trajectory plays back (PD + feed-forward with

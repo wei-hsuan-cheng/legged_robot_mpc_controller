@@ -57,7 +57,7 @@ ocs2::humanoid::WbIdMpcInterface::Config buildWholeBodyInverseDynamicsMpcConfig(
   model.fixedJointNames = p.model.fixedJointNames;
   model.contactNames6DoF = p.model.contactNames6DoF;
   model.contactParentJointNames = p.model.contactParentJointNames;
-  // A robot without arms (the wheeled biped) leaves the arm-swing joints empty.
+  // A robot without arms (the wheeled-biped) leaves the arm-swing joints empty.
   const auto& armSwingJoints = p.reference.armSwing.jointNames;
   if (armSwingJoints.size() != 4 && !(armSwingJoints.empty() && !p.reference.armSwing.enabled)) {
     throw std::invalid_argument(

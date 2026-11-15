@@ -1,6 +1,6 @@
 # Upkie Model Source
 
-The wheeled biped is Upkie: one hip, one knee and one driven wheel per side, six actuators in total.
+The wheeled-biped is Upkie: one hip, one knee and one driven wheel per side, six actuators in total.
 
 | Item | Source |
 | --- | --- |

@@ -35,7 +35,7 @@
 <p align="center">
   <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/upkie_standup_course.gif?raw=true" width="700" alt="H2 walking on uneven terrain with proprioception only" />
   <br />
-  <b>Wheeled Biped Upkie (with rolling-contact conditions)</b><br />Swings itself up, balances, and drives through uneven terrains with steps and ramps
+  <b>Wheeled-Biped <a href="https://github.com/upkie/upkie">Upkie</a> (with rolling-contact conditions)</b><br />Swings itself up, balances, and drives through uneven terrains with steps and ramps
 </p>
 
 
@@ -172,7 +172,7 @@ The default edge-neighbor height differences are bounded to 2-5 cm; see [paramet
 This only changes the environment and supplies no terrain map to ordinary `base_twist` control.
 
 
-### Wheeled Biped
+### Wheeled-Biped
 
 Upkie uses the WB-ID controller with six actuated joints and continuous rolling support.
 Use **200 Hz MPC**, 1 kHz MRT and the default 2 kHz physics/PD loop:
@@ -182,7 +182,7 @@ ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=upkie mpcFreq
 ```
 
 By default Upkie spawns kneeling (`config/upkie/initial_pose.yaml`), the wheel-aware linear KF initialises there, and the planned stand-up (`bringUp.standUpTrajectoryFile` in its YAML) hands the robot to the MPC about 5 s after the controller starts; then drive it with the GUI.
-No ground truth is used in control; a wheeled biped cannot stand still on a joint hold while its estimator initialises, so there is no standing spawn.
+No ground truth is used in control; a wheeled-biped cannot stand still on a joint hold while its estimator initialises, so there is no standing spawn.
 
 The GUI height range is 0.22-0.33 m; forward speed, yaw rate and height are supported, not independent sideways driving.
 Height is a soft base-origin target, not a hard equality or a terrain-relative clearance command.

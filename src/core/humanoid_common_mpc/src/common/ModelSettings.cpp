@@ -153,7 +153,7 @@ ModelSettings::ModelSettings(const Params& params, const std::string& urdfFile, 
   this->mpc_joint_dim = this->mpcModelJointNames.size();
   this->full_joint_dim = this->fullJointNames.size();
 
-  // A robot without arms (e.g. a wheeled biped) leaves all four arm-swing names empty.
+  // A robot without arms (e.g. a wheeled-biped) leaves all four arm-swing names empty.
   const bool noArmNames = j_l_shoulder_y_name.empty() && j_r_shoulder_y_name.empty() && j_l_elbow_y_name.empty() &&
                           j_r_elbow_y_name.empty();
   hasArmSwingJoints = !noArmNames;
