@@ -32,6 +32,12 @@
   <b>Unitree H2</b><br />Uneven terrain locomotion with proprioception only
 </p>
 
+<p align="center">
+  <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/upkie_standup_course.gif?raw=true" width="700" alt="H2 walking on uneven terrain with proprioception only" />
+  <br />
+  <b>Wheeled Biped Upkie (with rolling-contact conditions)</b><br />Swings itself up, balances, and drives through uneven terrains with steps and ramps
+</p>
+
 
 ## MPC Formulations
 
