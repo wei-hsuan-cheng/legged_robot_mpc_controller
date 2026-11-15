@@ -2,7 +2,7 @@
 
 This note describes the floating-base estimator that drives the Upkie WB-ID MPC in `feat/wheeled_biped`, inspected on 2026-11-15.
 It expands [formulation Section 7.5](wheeled_biped_whole_body_inverse_dynamics_mpc.md#75-rolling-contact-state-estimation) with the complete filter equations, the code line that implements each one, and how the filter differs from the papers it follows.
-The configuration is the `humanoid_linear_kf` block of [config/upkie/ros2_controllers.yaml](../config/upkie/ros2_controllers.yaml#L15-L45); closed-loop results are in the [handoff](wheeled_biped_handoff.md#wheel-aware-linear-kf).
+The configuration is the `humanoid_linear_kf` block of [config/upkie/ros2_controllers.yaml](../config/upkie/ros2_controllers.yaml#L15-L53); closed-loop results are in the [handoff](wheeled_biped_handoff.md#wheel-aware-linear-kf).
 Line references are to commit `bbb6f25`.
 
 
@@ -207,7 +207,7 @@ Iterating the Riccati recursion offline with the shipped values gives:
 | one wheel | 1.0 % | 101 ms (crossover 1.6 Hz) | 97 ms | 10 mm / 0.031 m/s |
 
 Stage 2 is therefore a complementary filter: above about 2 Hz the velocity is integrated IMU acceleration, below it the wheels' rolling kinematics; the height is integrated IMU motion pulled toward the tires' contact plane.
-The reported std is well above the measured error (Section 11) because the noise values are the parameter defaults, carried over from legged_control's quadruped values and not identified for Upkie, and the simulated sensors are noise-free.
+The reported std is well above the measured error (Section 11) because the noise values are the parameter defaults (written out in the Upkie YAML), carried over from legged_control's quadruped values and not identified for Upkie, and the simulated sensors are noise-free.
 Treat the covariance as a conservative bound, not a calibrated one.
 
 
@@ -231,7 +231,7 @@ $$
 It runs at the kneeling idle, where the knees and both tires rest on the floor ([formulation Section 7.4](wheeled_biped_whole_body_inverse_dynamics_mpc.md#74-optional-planned-stand-up)), so the tire-height rows are valid from the first tick.
 A standing spawn cannot start the estimator: an unbalanced wheeled robot does not stand still while the filter initialises.
 
-**Readiness.** [`evaluateReadiness`](../src/humanoid_state_estimation/humanoid_state_estimator.cpp#L46-L68) waits `readiness.minSeconds` (1 s for Upkie), then requires height std below 0.05 m and velocity std below 0.20 m/s ([config L36-L41](../config/upkie/ros2_controllers.yaml#L36-L41)); the steady values of Section 8 pass both.
+**Readiness.** [`evaluateReadiness`](../src/humanoid_state_estimation/humanoid_state_estimator.cpp#L46-L68) waits `readiness.minSeconds` (1 s for Upkie), then requires height std below 0.05 m and velocity std below 0.20 m/s ([config L36-L41](../config/upkie/ros2_controllers.yaml#L46-L50)); the steady values of Section 8 pass both.
 The roll/pitch guard is inert for this filter: stage 1 has no covariance and `attitude_std` stays zero.
 
 
@@ -242,9 +242,9 @@ The roll/pitch guard is inert for this filter: stage 1 has no covariance and `at
 | `contactModel` | `rolling_wheel` | [L80-L90](../src/humanoid_state_estimation/linear_kf_floating_base_estimator.cpp#L80-L90) |
 | `wheel.radius`, `wheel.centerOffset`, `wheel.axleAxis` | 0.055 m, $[0,0,-0.0312]$ m, $[0,0,1]$ | [L451-L457](../src/humanoid_state_estimation/linear_kf_floating_base_estimator.cpp#L451-L457) |
 | `imuExtrinsics`, `imuFrame` | `true`, `imu` | [L65-L78](../src/humanoid_state_estimation/linear_kf_floating_base_estimator.cpp#L65-L78) |
-| `imuProcessNoisePosition`, `imuProcessNoiseVelocity` | 0.02, 0.02 (defaults) | [L477-L479](../src/humanoid_state_estimation/linear_kf_floating_base_estimator.cpp#L477-L479) |
-| `footSensorNoiseVelocity`, `footHeightSensorNoise` | 0.1, 0.01 (defaults) | [L494-L495](../src/humanoid_state_estimation/linear_kf_floating_base_estimator.cpp#L494-L495) |
-| `swingNoiseMultiplier` | 100 (default) | [L493](../src/humanoid_state_estimation/linear_kf_floating_base_estimator.cpp#L493) |
+| `imuProcessNoisePosition`, `imuProcessNoiseVelocity` | 0.02, 0.02 | [L477-L479](../src/humanoid_state_estimation/linear_kf_floating_base_estimator.cpp#L477-L479) |
+| `footSensorNoiseVelocity`, `footHeightSensorNoise` | 0.1, 0.01 | [L494-L495](../src/humanoid_state_estimation/linear_kf_floating_base_estimator.cpp#L494-L495) |
+| `swingNoiseMultiplier` | 100 | [L493](../src/humanoid_state_estimation/linear_kf_floating_base_estimator.cpp#L493) |
 | `contact.source` | `scheduled` | [controller L255-L263](../src/humanoid_state_estimation/humanoid_state_estimator_controller.cpp#L255-L263) |
 | `readiness.minSeconds` | 1.0 | [readiness L56](../src/humanoid_state_estimation/humanoid_state_estimator.cpp#L56) |
 
@@ -265,6 +265,13 @@ Against simulator ground truth, with noise-free simulated sensors (handoff and [
 | 2-degree ramp, uneven field (estimate vs world z) | RMS 18 mm, 13 mm, by design (Section 7) | - | - |
 
 Driving the MPC with no GT in the loop, it passed rolling and braking, turning, pitch pushes, the 20 mm strip, the ramp, the uneven field, all four gaits and the one-minute terrain course.
+
+**Raised ground.** On a 3-degree ramp to a plateau 0.50 m above $z=0$ (estimator in control, 0.3 m/s, then 24 s standing on the plateau), GT world z rose from 0.30 to 0.80 m while the estimate stayed at 300 mm (299.9 ± 0.1 on the ramp, 300.1 on the plateau).
+The MPC held 0.30 m above the local ground the whole way, with pitch below 0.012 rad.
+The velocity rows do not see the climb either: on a slope the lowest tire point is not the contact, and its material velocity is about the climb rate, so the rows read $v_z\approx0$ (estimate 0.0006 against GT 0.0147 m/s), while the horizontal speed matches (0.282 against 0.281 m/s).
+The height is therefore always the height above the ground under the wheels, never world height; a remembered elevation decays with a time constant of about 0.1 s (99 % gone in 0.3 s).
+The robot does not crouch on high ground or stretch on low ground, and the odometry gives no world z.
+The same holds for G1/H2's point model: its stance velocity rows do see the climb, but the foot-height rows pin every stance contact to $z=0$, and a remembered elevation decays in about 0.1 s as well (99 % in 0.4-0.5 s, from the filter equations).
 
 
 ## 12. Relation to the References
@@ -288,7 +295,7 @@ Each difference is a deliberate simplification for this robot and controller:
 
 1. **No driving-share states.** Hosseini et al. split the base velocity into a stepping part and a driving part because their footstep planner needs the velocity without driving (Eq. 26). The WB-ID MPC consumes only the total base velocity and plans no footholds, so the split would add six states with no consumer. The sum of their two velocity measurements (Eq. 6) carries the same information as the single tread-velocity row here.
 2. **No contact positions.** Their legs step and plant, so landmarks pay off during stance; Upkie's support is rolling nearly all the time, and a rolling contact is no landmark (Section 5).
-3. **An explicit height row instead of a height trust.** The MPC models a plane at zero under the wheels; reading the height against that same plane keeps the two consistent, for the same reason G1 ships `height.source: kinematic`. The cost is that terrain reads as height: on the ramp the estimate is the height above the wheels' plane, not world z.
+3. **An explicit height row instead of a height trust.** The MPC models a plane at zero under the wheels; reading the height against that same plane keeps the two consistent, for the same reason G1 ships `height.source: kinematic`. The cost is that terrain reads as height: on the ramp the estimate is the height above the wheels' plane, not world z. Their height trust addresses a different case, one contact on a bump: it stops believing that contact's height, while here every supporting contact is pinned to the plane with the same constant $\sigma_h$, so one wheel on a step moves the estimate by about half the step height.
 4. **Binary contact trust.** The MPC's schedule is the only contact source, and the gaits lift a wheel for 0.12-0.18 s. A phase window like their Eq. 8 is the published remedy for the touchdown spikes in Section 11, and is not implemented.
 
 Not in either reference: the IMU mounting removal with its centripetal lever-arm term, and the tilted-axle lowest point (from the MPC's own wheel geometry).

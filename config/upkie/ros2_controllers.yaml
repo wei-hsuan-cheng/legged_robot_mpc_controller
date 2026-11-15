@@ -34,6 +34,15 @@ humanoid_linear_kf:
     odomTopic: /humanoid/state_estimate/odom
     odomFrame: odom
     publishRate: 100.0
+    # Noise (the parameter defaults). Their ratio sets the IMU/kinematics crossover, about 2.2 Hz with both wheels
+    # down: the IMU acceleration carries faster motion, the wheel rows slower (docs/wheeled_biped_state_estimation.md
+    # Section 8). A larger footHeightSensorNoise lowers the height crossover (by its square root) and lets the IMU
+    # follow slow terrain height longer. footProcessNoisePosition, footSensorNoisePosition and footRadius are point-model only.
+    imuProcessNoisePosition: 0.02
+    imuProcessNoiseVelocity: 0.02
+    footSensorNoiseVelocity: 0.1    # per-wheel tread-velocity rows
+    footHeightSensorNoise: 0.01     # per-wheel height rows (tire on the plane z = 0)
+    swingNoiseMultiplier: 100.0     # both of a wheel's rows while the schedule has it off the ground
     readiness:
       minSeconds: 1.0
       rollPitchStdDevMax: 0.10
