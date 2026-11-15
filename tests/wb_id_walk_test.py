@@ -153,6 +153,9 @@ def main():
     parser.add_argument("--gait-sequence", type=json.loads, default=[],
                         help='Gait requests after takeover on /humanoid/gait_command: [[seconds, "template"], ...]; '
                              '"" returns to the velocity ladder; permits --speed 0')
+    parser.add_argument("--command-sequence", type=json.loads, default=[],
+                        help='Joystick-style commands after takeover: [[seconds, vx m/s, yaw rate rad/s, height m], ...], '
+                             'each held until the next; replaces the --axis ladder; permits --speed 0')
     parser.add_argument("--mpc-rate", type=int, default=100)
     parser.add_argument("--launch-file", default="robot.launch.py")
     parser.add_argument("--robot-name", choices=["g1", "h2", "upkie"], default="g1")
@@ -189,7 +192,8 @@ def main():
         parser.error("wrench sequence and recovery pause must fit inside the walking test")
     args.config = args.config or Path(__file__).resolve().parents[1] / "config" / args.robot_name / "ros2_controllers.yaml"
     height_override = args.height
-    if args.hold <= 0 or args.ramp < 0 or (args.speed == 0 and not args.height_sequence and not args.gait_sequence):
+    if args.hold <= 0 or args.ramp < 0 or (args.speed == 0 and not args.height_sequence and not args.gait_sequence
+                                           and not args.command_sequence):
         parser.error("hold must be positive, ramp nonnegative, and speed nonzero")
     config = yaml.safe_load(args.config.read_text())
     params = config[CONTROLLER]["ros__parameters"]
@@ -225,6 +229,16 @@ def main():
                 not isinstance(point[1], str) or not 0 <= point[0] < total_duration or point[0] <= previous_time):
             parser.error('gait-sequence needs increasing nonnegative times within the run and template names: [[t, "name"], ...]')
         previous_time = point[0]
+    previous_time = -1.0
+    limits = params["ocs2"]["reference"]
+    for point in args.command_sequence:
+        if (not isinstance(point, list) or len(point) != 4 or
+                not all(isinstance(v, (int, float)) and math.isfinite(v) for v in point) or
+                not 0 <= point[0] < total_duration or point[0] <= previous_time or point[3] <= 0 or
+                abs(point[1]) > limits["maxDisplacementVelocityX"] or abs(point[2]) > limits["maxRotationVelocity"]):
+            parser.error("command-sequence needs increasing nonnegative times within the run, vx and yaw rate within "
+                         "the configured command limits and positive heights")
+        previous_time = point[0]
     if args.swing_duration is not None:
         if args.swing_duration <= 0 or args.double_support <= 0:
             parser.error("swing duration and double support must be positive")
@@ -235,7 +249,6 @@ def main():
     prefix.parent.mkdir(parents=True, exist_ok=True)
     config_path = Path(str(prefix) + ".yaml")
     config_path.write_text(yaml.safe_dump(config, sort_keys=False))
-    limits = params["ocs2"]["reference"]
     scale = limits[{"vx": "maxDisplacementVelocityX", "vy": "maxDisplacementVelocityY", "yaw": "maxRotationVelocity"}[args.axis]]
     if abs(args.speed) > scale:
         parser.error("speed exceeds the configured command limit")
@@ -318,6 +331,7 @@ def main():
                         probe.command(0.0, 0.0, args.height)
                         continue
                     start = probe.gt[0]
+                    result["takeover_time"] = start
                     deadline = time.monotonic() + 6 * (args.settle + 2 * args.ramp + args.hold + args.rest) + 60
                 elapsed = probe.gt[0] - start
                 if arm_publisher is not None and not arm_sent and elapsed >= args.arm_target_delay:
@@ -362,8 +376,15 @@ def main():
                         gait_publisher.publish(String(data=gait))
                         gait_sent = gait
                         print(f"GAIT {gait or '(ladder)'} t={elapsed:.2f}", flush=True)
-                probe.command(command if args.axis == "vx" else 0.0, command if args.axis == "vy" else 0.0,
-                              height_command, command if args.axis == "yaw" else 0.0)
+                joystick = next((point for point in reversed(args.command_sequence) if elapsed >= point[0]), None)
+                if joystick is not None:
+                    probe.command(joystick[1] / limits["maxDisplacementVelocityX"], 0.0, joystick[3],
+                                  joystick[2] / limits["maxRotationVelocity"])
+                elif args.command_sequence:
+                    probe.command(0.0, 0.0, height_command)
+                else:
+                    probe.command(command if args.axis == "vx" else 0.0, command if args.axis == "vy" else 0.0,
+                                  height_command, command if args.axis == "yaw" else 0.0)
                 _, x, y, z, roll, pitch, yaw, *_ = probe.gt
                 if elapsed >= next_report:
                     print(f"t={elapsed:.1f} xyz=({x:.3f},{y:.3f},{z:.3f}) rpy=({roll:.3f},{pitch:.3f},{yaw:.3f})", flush=True)
