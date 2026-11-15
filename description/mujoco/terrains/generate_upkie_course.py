@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the Upkie joystick-demo course (uneven fields, ramps, a 2 cm step) as a MuJoCo terrain module.
+"""Generate the Upkie joystick-demo course (uneven fields, ramps, a 1 cm step, a one-wheel ramp) as a MuJoCo module.
 
 The uneven fields reuse generate_uneven_terrain.py with the tile style of config/terrains/upkie; the layout is
 config/terrains/upkie/course_params.yaml. MuJoCo only: the MPC uses no terrain map, so no RViz model is generated.
@@ -42,11 +42,12 @@ def build_mjcf(config, params_dir):
     thickness = 0.05
     for ramp in config["ramps"]:
         (x0, x1), (z0, z1) = ramp["x"], ramp["z"]
+        y0, y1 = ramp.get("y", [-half_width, half_width])
         length, angle = math.hypot(x1 - x0, z1 - z0), math.atan2(z1 - z0, x1 - x0)
         # A slab rotated about y whose top face runs from (x0, z0) to (x1, z1).
-        center = [(x0 + x1) / 2 + thickness * math.sin(angle), 0.0, (z0 + z1) / 2 - thickness * math.cos(angle)]
+        center = [(x0 + x1) / 2 + thickness * math.sin(angle), (y0 + y1) / 2, (z0 + z1) / 2 - thickness * math.cos(angle)]
         ET.SubElement(world, "geom", name=ramp["name"], type="box", pos=uneven.fmt(center),
-                      size=uneven.fmt([length / 2, half_width, thickness]), euler=uneven.fmt([0, -angle, 0]),
+                      size=uneven.fmt([length / 2, (y1 - y0) / 2, thickness]), euler=uneven.fmt([0, -angle, 0]),
                       material="studio_terrain", rgba=COLORS["ramp"], friction=friction)
     for plateau in config["plateaus"]:
         (x0, x1), top = plateau["x"], plateau["top"]

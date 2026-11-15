@@ -70,12 +70,13 @@ Prioritize base pitch/roll and fall avoidance over exact height, straight-line p
 
 ## Joystick demo course
 
-`--terrain upkie_course` combines the features along world +x, each 6 m wide (y = -3..3 m) so turning does not leave them:
-a flat spawn area at x = -0.5..0.5 m, uneven fields at x = 0.5..1.5 m and, for reversing, x = -1.75..-0.5 m (same tile style as the field above, seeds 7 and 11), a ramp up to 40 mm at x = 1.6..2.4 m, a plateau with a 20 mm step up at x = 2.9 m and back down at x = 3.5 m, and a ramp down to the floor at x = 4.0..4.8 m.
+`--terrain upkie_course` combines the features along world +x, the full-width ones 6 m wide (y = -3..3 m):
+flat floor behind the spawn (the stand-up catch can roll back over 1 m), an uneven field at x = 0.5..1.5 m (same tile style as the field above, seed 7), a ramp up to 40 mm at x = 1.6..2.4 m, a plateau with a 10 mm step up at x = 2.9 m and back down at x = 3.5 m, and a ramp down to the floor at x = 4.0..4.8 m (both wheels on them).
+Then a narrow 40 mm ramp up and down at x = 5.4..7.0 m, y = 0.04..0.34 m: driving along y = 0 it carries only the +y wheel (wheels at y = +-0.19 m) while the other stays on the floor.
 The layout is `course_params.yaml`; regenerate the module with
 
 ```bash
 python3 description/mujoco/terrains/generate_upkie_course.py   # --check verifies it is current
 ```
 
-`tests/upkie_demo.py course` runs the kneeling stand-up there and then a seeded random joystick schedule (drive, jump while driving, walk, trot) with the wheel KF in closed loop; see its docstring and the handoff.
+`tests/upkie_demo.py course` runs the kneeling stand-up there, a height test, a straight pass over both ramp cases and random joystick play with two jump blocks on the floor beyond, with the wheel KF in closed loop; see its docstring and the handoff.
