@@ -4,7 +4,7 @@
   standup  kneeling idle -> planned stand-up -> MPC, then stand at the default height
   course   the same stand-up on the flat start of the upkie_course terrain, then, at the default height unless stated:
              1. height test standing still: maxBaseHeight, minBaseHeight, back to defaultBaseHeight (2 s each)
-             2. ramp pass, straight along y = 0 at 0.3 m/s: the uneven field, the full-width ramp, plateau, 1 cm step
+             2. ramp pass, straight along y = 0 at 0.3 m/s: the uneven field, the full-width ramp, plateau, step
                 and ramp down (both wheels), then the narrow ramp under one wheel (the other stays on the floor). The
                 stand-up catch leaves the heading off by up to about 0.2 rad, so the harness steers this pass like an
                 operator, holding the spawn line from the robot's own state estimate (wb_id_walk_test line hold)
@@ -115,7 +115,7 @@ def ramp_pass_labels(replay, begin, end):
     ramps = {r["name"]: r["x"] for r in course["ramps"]}
     field = next(f["x"] for f in course["uneven_fields"] if f["name"] == "uneven_front")
     marks = [(field[0], "Ramp pass: uneven field"),
-             (ramps["ramp_up"][0], "Ramp pass: both wheels on the ramp, plateau and 1 cm step"),
+             (ramps["ramp_up"][0], "Ramp pass: both wheels on the ramp, plateau and step"),
              (ramps["ramp_down"][1], "Ramp pass: flat floor"),
              (ramps["one_wheel_ramp_up"][0], "Ramp pass: one wheel on the ramp, the other on the flat floor"),
              (ramps["one_wheel_ramp_down"][1], "Ramp pass: flat floor")]

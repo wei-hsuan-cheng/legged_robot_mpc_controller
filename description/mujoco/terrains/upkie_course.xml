@@ -101,8 +101,8 @@
     </body>
     <geom name="ramp_up" type="box" pos="2.00249688085 0 -0.0299376169439" size="0.40049968789 3 0.05" euler="0 -0.0499583957219 0" material="studio_terrain" rgba="0.85 0.9 1 1" friction="0.8 0.005 0.0001" />
     <geom name="ramp_down" type="box" pos="4.39750311915 0 -0.0299376169439" size="0.40049968789 3 0.05" euler="0 0.0499583957219 0" material="studio_terrain" rgba="0.85 0.9 1 1" friction="0.8 0.005 0.0001" />
-    <geom name="one_wheel_ramp_up" type="box" pos="5.80249688085 0.19 -0.0299376169439" size="0.40049968789 0.15 0.05" euler="0 -0.0499583957219 0" material="studio_terrain" rgba="0.85 0.9 1 1" friction="0.8 0.005 0.0001" />
-    <geom name="one_wheel_ramp_down" type="box" pos="6.59750311915 0.19 -0.0299376169439" size="0.40049968789 0.15 0.05" euler="0 0.0499583957219 0" material="studio_terrain" rgba="0.85 0.9 1 1" friction="0.8 0.005 0.0001" />
+    <geom name="one_wheel_ramp_up" type="box" pos="5.80620173673 0.19 0.000386106164317" size="0.403112887415 0.15 0.05" euler="0 -0.124354994547 0" material="studio_terrain" rgba="0.85 0.9 1 1" friction="0.8 0.005 0.0001" />
+    <geom name="one_wheel_ramp_down" type="box" pos="6.59379826327 0.19 0.000386106164317" size="0.403112887415 0.15 0.05" euler="0 0.124354994547 0" material="studio_terrain" rgba="0.85 0.9 1 1" friction="0.8 0.005 0.0001" />
     <geom name="plateau_low_a" type="box" pos="2.65 0 -0.03" size="0.25 3 0.07" material="studio_terrain" rgba="0.9 0.9 0.9 1" friction="0.8 0.005 0.0001" />
     <geom name="step_high" type="box" pos="3.2 0 -0.025" size="0.3 3 0.075" material="studio_terrain" rgba="1 0.9 0.8 1" friction="0.8 0.005 0.0001" />
     <geom name="plateau_low_b" type="box" pos="3.75 0 -0.03" size="0.25 3 0.07" material="studio_terrain" rgba="0.9 0.9 0.9 1" friction="0.8 0.005 0.0001" />

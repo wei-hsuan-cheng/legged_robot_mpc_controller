@@ -72,11 +72,12 @@ Prioritize base pitch/roll and fall avoidance over exact height, straight-line p
 
 `--terrain upkie_course` combines the features along world +x, the full-width ones 6 m wide (y = -3..3 m):
 flat floor behind the spawn (the stand-up catch can roll back over 1 m), an uneven field at x = 0.5..1.5 m (same tile style as the field above, seed 7), a ramp up to 40 mm at x = 1.6..2.4 m, a plateau with a 10 mm step up at x = 2.9 m and back down at x = 3.5 m, and a ramp down to the floor at x = 4.0..4.8 m (both wheels on them).
-Then a narrow 40 mm ramp up and down at x = 5.4..7.0 m, y = 0.04..0.34 m: driving along y = 0 it carries only the +y wheel (wheels at y = +-0.19 m) while the other stays on the floor.
+Then a narrow ramp up to 100 mm and down (7.1 degrees) at x = 5.4..7.0 m, y = 0.04..0.34 m: driving along y = 0 it carries only the +y wheel (wheels at y = +-0.19 m) while the other stays on the floor.
 The layout is `course_params.yaml`; regenerate the module with
 
 ```bash
 python3 description/mujoco/terrains/generate_upkie_course.py   # --check verifies it is current
 ```
 
-`tests/upkie_demo.py course` runs the kneeling stand-up there, a height test, a straight pass over both ramp cases and random joystick play with two jump blocks on the floor beyond, with the wheel KF in closed loop; see its docstring and the handoff.
+`tests/upkie_demo.py course` runs the kneeling stand-up there, a height test, a straight pass over both ramp cases and random joystick play (pure `wheel_drive`) on the floor beyond, with the wheel KF in closed loop; see its docstring and the handoff.
+Its recorded results used a 40 mm one-wheel ramp (now 100 mm). The step stays at 10 mm: a 40 mm step made the robot fall, and a 20 mm full-width step taken head-on stalled or fell.
