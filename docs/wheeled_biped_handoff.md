@@ -6,6 +6,52 @@ Update this file at each milestone.
 The implemented equations, current weights, rolling-contact equalities and execution limits are collected in [Wheeled-Biped WB-ID MPC](wheeled_biped_whole_body_inverse_dynamics_mpc.md).
 
 
+## Forward Control Frame (2026-11-15, Claude, after 08:05)
+
+The user reported front and back reversed: the knees point to Upkie's back, but the base frame's +x, and so the GUI's forward vx, pointed toward the knees.
+Checked in the model: at the 0.30 m posture the knee joints sit at base x = +0.096 m, ahead of the hips at x = 0, and a positive vx command drove along base +x.
+So the robot's true front is base -x, and the joints named `left_*` are on the robot's right when it faces its front.
+
+### What was done, and why this way
+
+Commands are now given in a control frame `base_forward`, the base turned by pi about z, whose +x points away from the knees (`target.commandFrame: base_forward`, `target.commandFrameYaw: pi`).
+The rotation is applied once, where commands enter the controller ([`ros2_procedural_mpc_motion_manager.cpp`](../src/common/ros2_procedural_mpc_motion_manager.cpp)): twist (vx, vy) is rotated into the base frame, the yaw rate and height are unchanged, and a base-pose command gives the control frame's orientation.
+The launch publishes `base_forward` as a static TF child of `base`, so RViz shows the true front.
+The robot spawns turned by pi (`upkie.xml` base `quat="0 0 0 1"`), so its front faces world +x and the test terrain; the URDF generator ignores the root body's pose, so `upkie.urdf` is byte-identical.
+The harness and `evaluate_upkie_run.py` measure forward along the control frame.
+
+Planning and estimation stay in the URDF base frame, and need no change: a fixed turn about the vertical leaves the height and the zero pitch/roll references, the joint-space posture table and stand-up plan, the frame-free wheel equalities, the IMU mounting (relative to the base) and the base-frame KF as they are.
+Re-rooting the model at the forward frame would regenerate the URDF and every CppAD library, re-derive the IMU mounting and re-export the stand-up plan for identical behaviour, and the `left_*` names would still be mirrored.
+`commandFrameYaw` defaults to 0, so G1/H2 are unchanged (H2 drive smoke run passes).
+
+Convention for reading older sections of this file: they call base +x "forward", which is the true back.
+For example "pitched back 0.71 rad" at the stand-up handover means the trunk leaned 0.71 rad toward the true front, and the catch's "overshoots forward at 1-2 m/s" is rolling backward.
+In true terms the stand-up is: kneel with the knees behind the wheels and the trunk leaning back, push so the trunk pivots forward over the axles while the robot rolls about 6 cm backward, catch while rolling backward, then rise while rolling forward.
+
+### Results (same tests, after the change)
+
+Every run below moves along the control frame's +x: positive forward displacement means travel away from the knees; in the 0.3 m/s roll the knee joints trail the base by 0.096-0.101 m along the direction of travel.
+
+| run (estimator closed loop from the kneeling stand-up unless GT) | verdict | forward / yaw | max pitch / roll after the catch | other |
+| --- | --- | --- | --- | --- |
+| roll 0.3 m/s and brake | pass | +2.06 of 2.10 m | 0.007 / 0.000 | estimate vs GT: height RMS 0.1 mm, vx RMS 0.002 m/s |
+| yaw 1.0 rad/s at 0.22 m | pass | 7.17 of 9.0 rad | 0.002 / 0.001 | height 0.220 m |
+| pitch push sequence | pass | - | 0.085 / 0.001 | |
+| 20 mm strip | pass | +2.32 of 2.40 m | 0.006 / 0.000 | |
+| ramp | pass | +2.21 of 2.40 m | 0.005 / 0.002 | estimated height is above the wheels' plane, so it differs from world z on the slope (RMS 18 mm) |
+| uneven field 0.3 m/s | pass | +3.11 of 3.30 m | 0.007 / 0.005 | same (RMS 13 mm) |
+| `jump` x4 in place / x1 rolling | pass | rolling +1.46 of 1.40 m | 0.044 / 0.009 | 0.16-0.21 s flight |
+| `walk` at rest / rolling | pass | rolling +1.42 of 1.40 m | 0.016 / 0.021 | 5 lifts each, 0.13-0.15 s |
+| `trot` at rest / rolling | pass | rolling +1.65 of 1.40 m | 0.023 / 0.065 (at rest) | 13 and 15 lifts, 0.11-0.18 s |
+| GT: 0.38 m and 0.18 m requests | heights clamped to 0.330 / 0.220 m (verdict scores the request) | +2.66 of 2.70 m; 7.18 of 9.0 rad | 0.007 / 0.001 | |
+| GT: 20 mm strip, pushes | pass | +2.26 of 2.40 m | 0.013 / 0.006; push 0.080 | |
+| H2 drive (shared code changed) | pass | | | |
+
+`trot` at rest reached 0.065 rad roll here against 0.032 rad before; one run each, so not separable from run-to-run variation yet.
+The stand-up videos were re-rendered with true front/back subtitles and a "FRONT" marker for the user (not in the repository).
+Nothing is committed yet.
+
+
 ## Estimated State, Stand-up, Hop and Single Support (2026-11-15, Claude)
 
 Milestones 5-8 of "Next steps" now pass in simulation (MPC 200 Hz, flat unless stated).

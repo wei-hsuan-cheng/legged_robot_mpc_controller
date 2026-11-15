@@ -34,6 +34,11 @@ Simulator ground truth is only logged alongside as a benchmark, or used for GT-d
 
 ### 2.1 Generalized coordinates
 
+The base frame $B$ is the URDF/MJCF `base` link, whose $+x$ points toward the knees: that is Upkie's back.
+The model, the costs, the constraints and the estimator all use $B$; only commands use the forward-facing control frame `base_forward`, $B$ turned by $\pi$ about $z$ (Section 5.5).
+Pitch and roll below are therefore about $B$'s axes: positive pitch tilts the trunk toward the knees (backward), and the joints named `left_*` are on the robot's right when it faces its front.
+The robot spawns turned by $\pi$, so its front faces world $+x$.
+
 The base is Pinocchio's Translation + SphericalZYX composite joint:
 
 $$
@@ -477,7 +482,18 @@ The state/velocity/contact-force tracking principle is comparable to [Khazoom et
 
 ### 5.5 Command conditioning
 
-Normalized topic/GUI commands $c_x,c_y,c_\psi\in[-1,1]$ are scaled to:
+Topic/GUI commands are given in the control frame `base_forward` (`target.commandFrame`), the base turned by $\beta=$ `target.commandFrameYaw` $=\pi$ about $z$, so positive $c_x$ drives away from the knees.
+Their planar part is rotated into the base frame where they enter the controller,
+
+$$
+\begin{bmatrix}c_x\\c_y\end{bmatrix}_B=R_z(\beta)\begin{bmatrix}c_x\\c_y\end{bmatrix}_{\mathrm{cmd}},
+$$
+
+the yaw rate and the height are unchanged, and a base-pose command gives the control frame's orientation, so the base target is $R_{W\,\mathrm{cmd}}R_z(-\beta)$.
+The launch publishes `base_forward` as a static TF child of `base`.
+Planning and estimation need no change: a fixed turn about the vertical leaves the height and the zero pitch/roll references, the joint-space posture table and stand-up plan, the frame-free wheel equalities and the base-frame estimator as they are.
+
+Normalized commands $c_x,c_y,c_\psi\in[-1,1]$ (in the base frame after that rotation) are scaled to:
 
 $$
 v_x^{\mathrm{cmd}}=1.0c_x,
@@ -682,8 +698,9 @@ An optional trajectory-file path implements idle hold, planned stand-up playback
 The height command filter resets to the measured base height at handover rather than stepping immediately to the nominal $0.30\ \mathrm{m}$ height.
 This playback is not a stand-up trajectory optimized online by the MPC.
 It passes in the complete stack with ground truth and with the estimator; the default configuration leaves it disabled (standing spawn), and estimator runs must enable it because an unbalanced wheeled robot cannot stand still while the filter initialises.
-At the handover the body is at about 0.09 m, pitched back 0.71 rad; the posture table starts at 0.10 m so the posture reference matches the height ramp.
-The catch saturates both wheel torques, and the MPC swings one leg forward and the other back for about 0.7 s, a catching step, before the legs rejoin; forbidding that split with a cost made every catch fall.
+Kneeling, the knees rest on the floor behind the wheels and the trunk leans back (pitch $+0.42$ rad); the push pivots the trunk forward over the axles while the robot rolls about 6 cm backward.
+At the handover the body is at about 0.09 m with the trunk leaning 0.70 rad forward (pitch $-0.70$ rad), rolling backward; the posture table starts at 0.10 m so the posture reference matches the height ramp.
+The catch straightens the trunk while rolling backward with both wheel torques saturated, and the MPC swings one leg forward and the other back for about 0.7 s, a catching step in which one wheel leaves the ground briefly, before the legs rejoin; forbidding that split with a cost made every catch fall.
 The exporter includes the actual post-step knee-lift sample, so the current $0.6965\ \mathrm{s}$ handover lies within the exported time range.
 Trajectory loading rejects nonfinite samples and timestamps that are not strictly increasing.
 When using ground-truth feedback, the bring-up tilt check and gravity-compensating hold use the base-link orientation, not the orientation of the rotated IMU site.
