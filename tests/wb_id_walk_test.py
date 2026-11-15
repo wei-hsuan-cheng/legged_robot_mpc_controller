@@ -45,7 +45,7 @@ def attitude(q):
 
 
 class Probe(Node):
-    def __init__(self, writer, record_joints=False, record_tracking=False):
+    def __init__(self, writer, record_joints=False, record_tracking=False, record_estimate=False):
         super().__init__("wb_id_walk_probe")
         self.gt = None
         self.last_wall = time.monotonic()
@@ -67,6 +67,7 @@ class Probe(Node):
         self.create_subscription(WrenchStamped, FEEDBACK_TOPIC, self.observe_wrench, qos)
         if record_joints:
             self.create_subscription(JointState, "/joint_states", self.observe_joints, qos)
+        if record_joints or record_estimate:
             self.create_subscription(Odometry, "/humanoid/state_estimate/odom", self.observe_estimate, qos)
         if record_tracking:
             # Match the existing latched metadata publisher; high-rate data stays best effort.
@@ -139,6 +140,22 @@ class Probe(Node):
         self.publisher.publish(msg)
 
 
+def line_hold_pose(probe, source):
+    """(x, y, yaw) the operator steers by: the robot's own estimate, or GT when GT drives the controller."""
+    if source == "state_estimator":
+        return None if probe.estimate is None else (*probe.estimate["position"][:2], probe.estimate["rpy"][2])
+    return None if probe.gt is None else (probe.gt[1], probe.gt[2], probe.gt[6])
+
+
+def line_hold_yaw_rate(pose, origin, frame_yaw, limit, heading_gain=2.0, lateral_gain=2.0, max_rate=0.6):
+    """Yaw rate that steers forward driving back onto the line through origin along its command-frame heading."""
+    heading0 = origin[2] + frame_yaw
+    lateral = -(pose[0] - origin[0]) * math.sin(heading0) + (pose[1] - origin[1]) * math.cos(heading0)
+    heading_error = math.remainder(pose[2] - origin[2], 2 * math.pi)
+    rate = -heading_gain * (heading_error + math.atan(lateral_gain * lateral))
+    return max(-min(max_rate, limit), min(min(max_rate, limit), rate))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--axis", choices=["vx", "vy", "yaw"], default="vx")
@@ -155,7 +172,10 @@ def main():
                              '"" returns to the velocity ladder; permits --speed 0')
     parser.add_argument("--command-sequence", type=json.loads, default=[],
                         help='Joystick-style commands after takeover: [[seconds, vx m/s, yaw rate rad/s, height m], ...], '
-                             'each held until the next; replaces the --axis ladder; permits --speed 0')
+                             'each held until the next; replaces the --axis ladder; permits --speed 0. A fifth element 1 '
+                             'steers along the line through the first estimated pose (the spawn), like an operator watching '
+                             'the robot: the yaw rate then comes from the estimated heading and lateral offset (GT with '
+                             '--source ground_truth_state)')
     parser.add_argument("--mpc-rate", type=int, default=100)
     parser.add_argument("--launch-file", default="robot.launch.py")
     parser.add_argument("--robot-name", choices=["g1", "h2", "upkie"], default="g1")
@@ -232,7 +252,7 @@ def main():
     previous_time = -1.0
     limits = params["ocs2"]["reference"]
     for point in args.command_sequence:
-        if (not isinstance(point, list) or len(point) != 4 or
+        if (not isinstance(point, list) or len(point) not in (4, 5) or
                 not all(isinstance(v, (int, float)) and math.isfinite(v) for v in point) or
                 not 0 <= point[0] < total_duration or point[0] <= previous_time or point[3] <= 0 or
                 abs(point[1]) > limits["maxDisplacementVelocityX"] or abs(point[2]) > limits["maxRotationVelocity"]):
@@ -289,7 +309,10 @@ def main():
         with log_path.open("w") as log, Path(str(prefix) + ".csv").open("w") as csv_file:
             writer = csv.writer(csv_file)
             writer.writerow(["phase", "time", "x", "y", "z", "roll", "pitch", "yaw", "vx_body", "vy_body", "vz_body", "wz_body"])
-            probe = Probe(writer, args.record_joints, args.record_tracking)
+            line_hold = any(len(point) == 5 and point[4] for point in args.command_sequence)
+            probe = Probe(writer, args.record_joints, args.record_tracking, record_estimate=line_hold)
+            line_origin = None
+            frame_yaw = float(params.get("target", {}).get("commandFrameYaw", 0.0))
             arm_publisher = probe.create_publisher(MpcTargets, "/humanoid/mpc_targets", QoSProfile(
                 depth=1, reliability=ReliabilityPolicy.BEST_EFFORT)) if args.arm_target is not None else None
             arm_sent = False
@@ -321,6 +344,9 @@ def main():
                 if time.monotonic() - probe.last_wall > 10:
                     verdict = "STALE_ODOM"
                     break
+                operator_pose = line_hold_pose(probe, args.source)
+                if line_hold and line_origin is None and operator_pose is not None:
+                    line_origin = operator_pose  # the spawn: the first pose the estimator reports, before the stand-up
                 if start is None:
                     startup_log = log_path.read_text(errors="replace")
                     ready = "-> locomotion" in startup_log
@@ -378,8 +404,11 @@ def main():
                         print(f"GAIT {gait or '(ladder)'} t={elapsed:.2f}", flush=True)
                 joystick = next((point for point in reversed(args.command_sequence) if elapsed >= point[0]), None)
                 if joystick is not None:
+                    yaw_rate = joystick[2]
+                    if len(joystick) == 5 and joystick[4] and line_origin is not None and operator_pose is not None:
+                        yaw_rate = line_hold_yaw_rate(operator_pose, line_origin, frame_yaw, limits["maxRotationVelocity"])
                     probe.command(joystick[1] / limits["maxDisplacementVelocityX"], 0.0, joystick[3],
-                                  joystick[2] / limits["maxRotationVelocity"])
+                                  yaw_rate / limits["maxRotationVelocity"])
                 elif args.command_sequence:
                     probe.command(0.0, 0.0, height_command)
                 else:

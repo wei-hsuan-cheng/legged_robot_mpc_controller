@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
-"""Upkie demos: the kneeling stand-up, and joystick-style driving with gaits on the terrain course.
+"""Upkie demos: the kneeling stand-up, and a locomotion test on the terrain course.
 
   standup  kneeling idle -> planned stand-up -> MPC, then stand at the default height
-  course   the same stand-up on the flat start of the upkie_course terrain (uneven fields, ramps, a 2 cm step), then a
-           seeded random joystick schedule: drive / jump-while-driving / drive / jump-while-driving (3.75 s each),
-           walk 10 s, trot 10 s, stop. Each segment (1.2-2.5 s) is a pure translation, a pure rotation, both, or no
-           motion; vx is forward with p 0.8 and the yaw sign steers back toward the course heading with p 0.7, like
-           someone driving down the course. Each drive block goes to maxBaseHeight for 1 s and back to
-           defaultBaseHeight; jumps, walk and trot stay at defaultBaseHeight.
-  scan     list seeds whose nominal path (commands integrated as a unicycle) reaches every course feature
+  course   the same stand-up on the flat start of the upkie_course terrain, then, at the default height unless stated:
+             1. height test standing still: maxBaseHeight, minBaseHeight, back to defaultBaseHeight (2 s each)
+             2. ramp pass, straight along y = 0 at 0.3 m/s: the uneven field, the full-width ramp, plateau, 1 cm step
+                and ramp down (both wheels), then the narrow ramp under one wheel (the other stays on the floor). The
+                stand-up catch leaves the heading off by up to about 0.2 rad, so the harness steers this pass like an
+                operator, holding the spawn line from the robot's own state estimate (wb_id_walk_test line hold)
+             3. random joystick play, pure wheel_drive, on the floor beyond for 24 s, then stop. Each 1.2-2.5 s
+                segment is a pure translation, a pure rotation, coupled motion (both) or no motion; vx is forward
+                with p 0.8. The video covers 60 s from standing. (The jump, walk and trot gaits are left out.)
+  scan     list seeds whose play part has at least two each of pure rotation, pure translation and coupled motion,
+           turns both ways and drives in reverse at least once
 
 The wheel KF drives the MPC in closed loop by default (--source ground_truth_state for GT); GT is only logged.
 Writes PREFIX.json (verdict and metrics), PREFIX_replay.json, PREFIX_labels.json (captions for the video) and, for
@@ -23,7 +27,6 @@ Videos (MuJoCo 3.13, Pillow, ffmpeg; e.g. on the host after copying the PREFIX_*
 """
 import argparse
 import json
-import math
 from pathlib import Path
 import random
 import subprocess
@@ -36,63 +39,44 @@ sys.path.insert(0, str(ROOT / "tests"))
 from mujoco_scene import write_scene  # noqa: E402
 
 SETTLE = 4.0  # [s] after the MPC takes over: the catch and the rise to the default height
-BLOCKS = [("drive", 3.75), ("jump", 3.75), ("drive", 3.75), ("jump", 3.75), ("walk", 10.0), ("trot", 10.0)]
-RANGES = {"drive": (0.15, 0.45, 0.30, 1.00), "jump": (0.05, 0.25, 0.20, 0.60),  # |vx| min/max, |yaw rate| min/max
-          "walk": (0.05, 0.20, 0.20, 0.60), "trot": (0.05, 0.20, 0.20, 0.60)}
-KIND_TEXT = {"translation": "pure translation", "rotation": "pure rotation", "combined": "translation + rotation",
-             "neutral": "no motion command", "stop": "stop"}
-BLOCK_TEXT = {"drive": "Drive (wheel_drive), joystick", "jump": "Jump while driving (jump)", "walk": "Walk (walk)",
-              "trot": "Trot (trot)", "stop": "Stop (wheel_drive)"}
+HEIGHT_TEST = 2.0  # [s] standing still at each of maxBaseHeight, minBaseHeight and defaultBaseHeight
+RAMP_PASS_SPEED, RAMP_PASS_SECONDS = 0.3, 26.0  # from about x = -0.2 m to past the one-wheel ramp (ends at x = 7.0 m)
+PLAY_SECONDS = 24.0
+VX_RANGE, YAW_RATE_RANGE = (0.15, 0.40), (0.30, 1.00)  # |vx| [m/s] and |yaw rate| [rad/s] of the random segments
+SEED = 6  # default play seed (see scan)
+KIND_TEXT = {"line": "pure translation along the course line", "translation": "pure translation",
+             "rotation": "pure rotation", "coupled": "coupled motion",
+             "neutral": "no motion command", "height": "height test, standing still", "stop": "stop"}
+BLOCK_TEXT = {"drive": "Random joystick (wheel_drive)", "stop": "Stop (wheel_drive)"}
 
 
-def joystick_schedule(seed, default_height, max_height):
+def course_schedule(seed, reference):
+    default = reference["defaultBaseHeight"]
+    commands = [[SETTLE + i * HEIGHT_TEST, 0.0, 0.0, reference[key], "height"]
+                for i, key in enumerate(("maxBaseHeight", "minBaseHeight", "defaultBaseHeight"))]
+    t = SETTLE + 3 * HEIGHT_TEST
+    commands.append([t, RAMP_PASS_SPEED, 0.0, default, "line"])
+    gaits, blocks = [[SETTLE, ""]], [[SETTLE, "height"], [t, "ramp"]]
+    t += RAMP_PASS_SECONDS
     rng = random.Random(seed)
-    gaits, commands, blocks, t, heading = [], [], [], SETTLE, 0.0
-    heights = [(SETTLE, default_height)]
-    for gait, length in BLOCKS:
-        gaits.append([round(t, 3), "" if gait == "drive" else gait])
-        blocks.append([round(t, 3), gait])
-        if gait == "drive":
-            heights += [(round(t, 3), max_height), (round(t + 1.0, 3), default_height)]
-        end = t + length
-        while t < end - 1e-9:
-            duration = min(rng.uniform(1.2, 2.5), end - t)
-            if end - (t + duration) < 0.8:
-                duration = end - t
-            kind = rng.choices(["combined", "translation", "rotation", "neutral"], [0.45, 0.3, 0.15, 0.1])[0]
-            vmin, vmax, wmin, wmax = RANGES[gait]
-            vx = rng.uniform(vmin, vmax) * (1 if rng.random() < 0.8 else -1)
-            steer = -math.copysign(1, heading) if abs(heading) > 0.05 else rng.choice([-1, 1])
-            wz = rng.uniform(wmin, wmax) * (steer if rng.random() < 0.7 else -steer)
-            vx, wz = {"translation": (vx, 0.0), "rotation": (0.0, wz), "neutral": (0.0, 0.0)}.get(kind, (vx, wz))
-            commands.append([round(t, 3), round(vx, 3), round(wz, 3), kind])
-            heading += 0.8 * wz * duration  # yaw tracking is about 80 %
-            t += duration
+    gaits.append([round(t, 3), ""])
+    blocks.append([round(t, 3), "drive"])
+    end = t + PLAY_SECONDS
+    while t < end - 1e-9:
+        duration = min(rng.uniform(1.2, 2.5), end - t)
+        if end - (t + duration) < 0.8:
+            duration = end - t
+        kind = rng.choices(["coupled", "translation", "rotation", "neutral"], [0.4, 0.3, 0.2, 0.1])[0]
+        vx = rng.uniform(*VX_RANGE) * (1 if rng.random() < 0.8 else -1)
+        wz = rng.uniform(*YAW_RATE_RANGE) * rng.choice([-1.0, 1.0])
+        vx, wz = {"translation": (vx, 0.0), "rotation": (0.0, wz), "neutral": (0.0, 0.0)}.get(kind, (vx, wz))
+        commands.append([round(t, 3), round(vx, 3), round(wz, 3), default, kind])
+        t += duration
     gaits.append([round(t, 3), ""])
     blocks.append([round(t, 3), "stop"])
-    commands.append([round(t, 3), 0.0, 0.0, "stop"])
-    sequence, kinds = [], []
-    for time in sorted({c[0] for c in commands} | {h[0] for h in heights}):
-        command = next(c for c in reversed(commands) if c[0] <= time)
-        height = next(h for h in reversed(heights) if h[0] <= time)[1]
-        sequence.append([time, command[1], command[2], height])
-        kinds.append(command[3])
-    return {"seed": seed, "end": round(t + 3.0, 3), "command_sequence": sequence, "kinds": kinds,
-            "gait_sequence": gaits, "blocks": blocks}
-
-
-def nominal_path(schedule, speed_ratio=0.85, yaw_ratio=0.8):
-    sequence, x, y, heading, points = schedule["command_sequence"], 0.0, 0.0, 0.0, []
-    for k, (t, vx, wz, _) in enumerate(sequence):
-        t1 = sequence[k + 1][0] if k + 1 < len(sequence) else schedule["end"]
-        steps = max(1, int((t1 - t) / 0.05))
-        for _ in range(steps):
-            dt = (t1 - t) / steps
-            heading += yaw_ratio * wz * dt
-            x += speed_ratio * vx * math.cos(heading) * dt
-            y += speed_ratio * vx * math.sin(heading) * dt
-            points.append((t, x, y))
-    return points
+    commands.append([round(t, 3), 0.0, 0.0, default, "stop"])
+    return {"seed": seed, "end": round(t + 3.0, 3), "command_sequence": [c[:4] + [1] * (c[4] == "line") for c in commands],
+            "kinds": [c[4] for c in commands], "gait_sequence": gaits, "blocks": blocks}
 
 
 def harness_command(args, prefix, extra):
@@ -126,6 +110,24 @@ def stand_up_labels(result, params, replay, source):
     return phases, subtitles
 
 
+def ramp_pass_labels(replay, begin, end):
+    """Phase captions of the ramp pass from where the robot actually was (base x along the course)."""
+    course = yaml.safe_load((ROOT / "config/terrains/upkie/course_params.yaml").read_text())["upkie_course"]
+    ramps = {r["name"]: r["x"] for r in course["ramps"]}
+    field = next(f["x"] for f in course["uneven_fields"] if f["name"] == "uneven_front")
+    marks = [(field[0], "Ramp pass: uneven field"),
+             (ramps["ramp_up"][0], "Ramp pass: both wheels on the ramp, plateau and 1 cm step"),
+             (ramps["ramp_down"][1], "Ramp pass: flat floor"),
+             (ramps["one_wheel_ramp_up"][0], "Ramp pass: one wheel on the ramp, the other on the flat floor"),
+             (ramps["one_wheel_ramp_down"][1], "Ramp pass: flat floor")]
+    phases = [[begin, "Ramp pass: straight ahead"]]
+    for x_mark, text in marks:
+        when = next((s["time"] for s in replay if begin <= s["time"] <= end and s["position"][0] >= x_mark), None)
+        if when is not None:
+            phases.append([when, text])
+    return phases
+
+
 def run_standup(args):
     params = load_params()
     default = params["ocs2"]["reference"]["defaultBaseHeight"]
@@ -136,32 +138,39 @@ def run_standup(args):
         replay = json.loads(Path(f"{args.prefix}_replay.json").read_text())
         phases, subtitles = stand_up_labels(result, params, replay, args.source)
         write_labels(args.prefix, "none", replay[0]["time"] + 0.2, result["takeover_time"] + 3.9, phases, subtitles,
-                     camera_distance=1.25, front_marker=True)
+                     camera_distance=1.25)
     return status
 
 
 def run_course(args):
     params = load_params()
     reference = params["ocs2"]["reference"]
-    schedule = joystick_schedule(args.seed, reference["defaultBaseHeight"], reference["maxBaseHeight"])
+    schedule = course_schedule(args.seed, reference)
     Path(f"{args.prefix}_schedule.json").write_text(json.dumps(schedule, indent=1) + "\n")
     scene = write_scene(Path(f"{args.prefix}_scene.xml"), "upkie", "upkie_course")
     rest = 3.0
     extra = ["--axis", "vx", "--speed", "0", "--settle", str(SETTLE), "--ramp", "0",
              "--hold", f"{schedule['end'] - SETTLE - rest:g}", "--rest", f"{rest:g}", "--scene", str(scene),
-             "--command-sequence", json.dumps([c for c in schedule["command_sequence"]]),
+             "--command-sequence", json.dumps(schedule["command_sequence"]),
              "--gait-sequence", json.dumps(schedule["gait_sequence"])]
     status, result = run_harness(args, extra)
     if "takeover_time" in result:
         takeover = result["takeover_time"]
+        replay = json.loads(Path(f"{args.prefix}_replay.json").read_text())
         driver = "wheel KF in the loop" if args.source == "state_estimator" else "ground-truth base"
         phases = [[takeover, f"Standing after the stand-up ({driver})"]]
-        phases += [[takeover + t, BLOCK_TEXT[name] + (f"  |  seed {args.seed}" if name == "drive" else "")]
-                   for t, name in schedule["blocks"]]
-        subtitles = [[takeover + t, f"vx {vx:+.2f} m/s   yaw rate {wz:+.2f} rad/s   height {h:.2f} m   ({KIND_TEXT[kind]})"]
-                     for (t, vx, wz, h), kind in zip(schedule["command_sequence"], schedule["kinds"])]
-        write_labels(args.prefix, "upkie_course", takeover + SETTLE - 1.0, takeover + schedule["end"], phases, subtitles,
-                     camera_distance=1.6, camera_elevation=-14.0, front_marker=False)
+        for (t, name), (t_next, _) in zip(schedule["blocks"], schedule["blocks"][1:] + [[schedule["end"], ""]]):
+            if name == "height":
+                phases.append([takeover + t, "Height test (wheel_drive): max, min, default"])
+            elif name == "ramp":
+                phases += ramp_pass_labels(replay, takeover + t, takeover + t_next)
+            else:
+                phases.append([takeover + t, BLOCK_TEXT[name] + (f"  |  seed {args.seed}" if name != "stop" else "")])
+        yaw_text = lambda wz, kind: "yaw rate: line hold" if kind == "line" else f"yaw rate {wz:+.2f} rad/s"
+        subtitles = [[takeover + t, f"vx {vx:+.2f} m/s   {yaw_text(wz, kind)}   height {h:.2f} m   ({KIND_TEXT[kind]})"]
+                     for (t, vx, wz, h, *_), kind in zip(schedule["command_sequence"], schedule["kinds"])]
+        write_labels(args.prefix, "upkie_course", takeover + SETTLE - 1.0, takeover + SETTLE + 59.0, phases, subtitles,
+                     camera_distance=1.6, camera_elevation=-14.0)
     return status
 
 
@@ -190,24 +199,24 @@ def load_params():
 
 def scan(args):
     reference = load_params()["ocs2"]["reference"]
-    print("seed  x@jump1 x@walk x@trot  max x  min x  max|y|  (course: uneven 0.5-1.5, ramp 1.6-2.4, step 2.9-3.5 m)")
+    print("seed  pure rotation / pure translation / coupled segments in the play part")
     for seed in range(1, args.scan + 1):
-        schedule = joystick_schedule(seed, reference["defaultBaseHeight"], reference["maxBaseHeight"])
-        points = nominal_path(schedule)
-        at = lambda block: next(p[1] for p in points if p[0] >= dict((n, t) for t, n in reversed(schedule["blocks"]))[block] - 1e-9)
-        xs, ys = [p[1] for p in points], [abs(p[2]) for p in points]
-        if max(xs) >= 3.2 and min(xs) > -1.6 and max(ys) < 1.8 and 0.9 <= at("walk") <= 2.6:
-            print(f"{seed:4d}  {at('jump'):6.2f} {at('walk'):6.2f} {at('trot'):6.2f} {max(xs):6.2f} {min(xs):6.2f} {max(ys):6.2f}")
+        schedule = course_schedule(seed, reference)
+        play = [(c, k) for c, k in zip(schedule["command_sequence"], schedule["kinds"]) if c[0] > SETTLE + 3 * HEIGHT_TEST]
+        counts = [sum(k == kind for _, k in play) for kind in ("rotation", "translation", "coupled")]
+        both_turns = any(c[2] > 0 for c, _ in play) and any(c[2] < 0 for c, _ in play)
+        if min(counts) >= 2 and both_turns and any(c[1] < 0 for c, _ in play):
+            print(f"{seed:4d}  {counts[0]:13d} {counts[1]:16d} {counts[2]:7d}")
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("demo", choices=["standup", "course", "scan"])
     parser.add_argument("--prefix", default=None, help="output prefix (default /tmp/upkie_<demo>)")
-    parser.add_argument("--seed", type=int, default=216, help="joystick schedule seed (course); 216 crosses every feature")
+    parser.add_argument("--seed", type=int, default=SEED, help=f"random play seed (course), default {SEED}")
     parser.add_argument("--source", choices=["state_estimator", "ground_truth_state"], default="state_estimator")
     parser.add_argument("--stand-seconds", type=float, default=4.0, help="standing time after the settle (standup)")
-    parser.add_argument("--scan", type=int, default=400, help="number of seeds to scan (scan)")
+    parser.add_argument("--scan", type=int, default=200, help="number of seeds to scan (scan)")
     args = parser.parse_args()
     args.prefix = args.prefix or f"/tmp/upkie_{args.demo}"
     if args.demo == "scan":

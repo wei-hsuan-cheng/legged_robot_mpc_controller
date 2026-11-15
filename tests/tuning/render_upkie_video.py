@@ -98,8 +98,6 @@ def main():
             draw.rectangle([0, 0, W, 96], fill=(0, 0, 0))
             draw.text((20, 10), label_at(phases, t), fill=(255, 230, 80), font=big)
             draw.text((20, 54), label_at(subs, t), fill=(200, 230, 255), font=small)
-            if labels.get("front_marker"):
-                draw.text((20, H // 2 - 14), "<-- FRONT", fill=(120, 255, 140), font=big)
             draw.rectangle([0, H - 44, W, H], fill=(0, 0, 0))
             info = f"sim t = {t:5.2f} s   base z = {data.qpos[2]:.3f} m" + (f"   ({args.speed:g}x speed)" if args.speed != 1 else "")
             draw.text((20, H - 38), info, fill=(220, 220, 220), font=small)
