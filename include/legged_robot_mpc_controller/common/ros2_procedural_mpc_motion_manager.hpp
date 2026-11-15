@@ -35,6 +35,10 @@ public:
     BasePoseTargetToTargetTrajectories base_pose_target_to_target_trajectories,
     const std::string& default_target_mode);
 
+  /// Rotation [rad] about the base z axis of the frame commands are given in: twist commands are in that frame
+  /// and base pose commands give that frame's orientation. 0 (default): the base frame itself.
+  void setCommandFrameYaw(double yaw) { command_frame_yaw_ = yaw; }
+
   void subscribe(
     const rclcpp_lifecycle::LifecycleNode::SharedPtr& node,
     const rclcpp::QoS& qos,
@@ -67,6 +71,7 @@ private:
   std::vector<std::string> declared_frame_relation_target_frames_;
   std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
+  double command_frame_yaw_{0.0};
 };
 
 }  // namespace legged_robot_mpc_controller

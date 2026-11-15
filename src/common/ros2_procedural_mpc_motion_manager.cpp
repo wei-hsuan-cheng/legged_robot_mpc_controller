@@ -7,6 +7,7 @@
 #include <stdexcept>
 #include <utility>
 
+#include <Eigen/Geometry>
 #include <tf2/time.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
@@ -113,7 +114,15 @@ void Ros2ProceduralMpcMotionManager::subscribe(
     walking_velocity_topic,
     qos,
     [this](const ocs2_msgs::msg::WalkingVelocityCommand::SharedPtr message) {
-      setVelocityCommand(boundedCommandFromMessage(*message));
+      ocs2_msgs::msg::WalkingVelocityCommand base = *message;
+      if (command_frame_yaw_ != 0.0) {
+        // Planar velocity in the command frame, rotated into the base frame; the yaw rate is about the shared z axis.
+        const double c = std::cos(command_frame_yaw_);
+        const double s = std::sin(command_frame_yaw_);
+        base.linear_velocity_x = c * message->linear_velocity_x - s * message->linear_velocity_y;
+        base.linear_velocity_y = s * message->linear_velocity_x + c * message->linear_velocity_y;
+      }
+      setVelocityCommand(boundedCommandFromMessage(base));
     });
 
   base_pose_command_subscription_ = node->create_subscription<geometry_msgs::msg::PoseStamped>(
@@ -128,7 +137,12 @@ void Ros2ProceduralMpcMotionManager::subscribe(
           global_pose = tf_buffer_->transform(
             global_pose, global_frame, tf2::durationFromSec(0.05));
         }
-        setBasePoseCommand(basePoseCommandFromMessage(global_pose));
+        auto command = basePoseCommandFromMessage(global_pose);
+        // The pose is the command frame's; the base shares its origin and is turned back by its yaw offset.
+        command.orientation =
+          (command.orientation * Eigen::Quaterniond(Eigen::AngleAxisd(-command_frame_yaw_, Eigen::Vector3d::UnitZ())))
+            .normalized();
+        setBasePoseCommand(command);
       } catch (const std::exception& error) {
         RCLCPP_WARN(
           node->get_logger(), "Rejected base pose command: %s", error.what());

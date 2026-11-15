@@ -226,6 +226,7 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
           common::loadTerrainModel(parameters_.ocs2.gait.terrainWalkingFile),
           common::loadTerrainFootholdPlannerSettings(parameters_.ocs2.gait.terrainWalkingFile)));
     }
+    motion_manager->setCommandFrameYaw(parameters_.target.commandFrameYaw);
     motion_manager_ = std::move(motion_manager);
     rclcpp::QoS command_qos(1);
     command_qos.best_effort();

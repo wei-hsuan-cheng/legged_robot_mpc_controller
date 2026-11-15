@@ -62,6 +62,11 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
       modeTopic: /humanoid/target_mode
       defaultMode: base_twist
       globalFrame: odom
+      # The URDF base's +x points toward the knees, which is Upkie's back. Commands (GUI and scripts) are given in
+      # base_forward, the base turned by pi about z, whose +x is the robot's front; the MPC and the estimator stay in
+      # the base frame. Spawned turned by pi (upkie.xml), so the front faces +x of the world and the test terrain.
+      commandFrame: base_forward
+      commandFrameYaw: 3.141592653589793
 
     robot:
       commandInterface: effort_pd

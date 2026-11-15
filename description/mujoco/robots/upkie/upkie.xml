@@ -22,7 +22,9 @@ See description/urdf/robots/upkie/MODEL_SOURCE.md for the changes.
 
   <worldbody>
     <!-- Link trunk -->
-    <body name="base" pos="0 0 0" quat="1 0 0 0" childclass="upkie">
+    <!-- Spawned turned by pi about z: the base +x points toward the knees (Upkie's back), so the robot's front faces
+         world +x. Only the initial pose; the URDF generator ignores the root body's pose. -->
+    <body name="base" pos="0 0 0" quat="0 0 0 1" childclass="upkie">
       <freejoint name="floating_base_joint"/>
       <inertial pos="0.000135877 0.000596249 0.0877119" mass="2.6415" fullinertia="0.0217792 0.0127537 0.0147651 6.48606e-05 0.000263842 -3.98875e-05"/>
       <!-- Part back_cover -->

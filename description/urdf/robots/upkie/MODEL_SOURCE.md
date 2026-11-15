@@ -22,6 +22,7 @@ The MJCF is the simulation reference, so the MPC URDF is generated from it rathe
 | Bodies renamed `base`, `{left,right}_femur`, `{left,right}_tibia`, `{left,right}_wheel_link`; free joint `floating_base_joint` | One name per side; distinct link and joint names for Pinocchio frame lookups |
 | Position servos (legs) and velocity servos (wheels) replaced by unit-gear `motor`s, `ctrlrange` = `forcerange` = +/-16 N m hip/knee and +/-1.7 N m wheel | The controller commands torque. `effort_pd` writes PD + feed-forward to `ctrl` every physics step, so the cap applies to the summed command |
 | Sensors `imu_quat`, `imu_gyro`, `imu_acc` at the upstream `imu` site | The names the ros2_control IMU sensor reads, as for G1/H2 |
+| The base body spawns turned by pi about z (`quat="0 0 0 1"`) | The base +x points toward the knees, Upkie's back; turned, the front faces world +x and the test terrain. Commands use the `base_forward` control frame (`target.commandFrameYaw: pi`). The URDF generator ignores the root body's pose, so `upkie.urdf` is unchanged |
 | Tire collision geoms `{left,right}_foot_collision` are a 64-sided convex prism mesh `tire_collision` (circumradius 0.055 m, half-width 0.022 m, same pose) instead of `cylinder` primitives | MuJoCo's cylinder-box collision never produces the edge contact of a tire meeting a step: see below |
 
 Joint armature (0.005 kg m^2), friction loss (0.1 N m), joint ranges, inertias, the 55 mm x 44 mm tire size and `noslip_iterations=4` are unchanged.

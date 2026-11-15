@@ -239,6 +239,7 @@ def generate_launch_description():
         if robot_name.perform(context) == "h2" and LaunchConfiguration("enableLidar").perform(context).lower() == "true":
             raise ValueError("The official H2 model does not include the G1 Mid-360 lidar.")
         reference = config[controller]["ros__parameters"]["ocs2"]["reference"]
+        target = config[controller]["ros__parameters"].get("target", {})
         height_override = LaunchConfiguration("refBaseHeight").perform(context)
         height = float(height_override or reference["defaultBaseHeight"])
         if not math.isfinite(height) or height <= 0.0:
@@ -260,6 +261,8 @@ def generate_launch_description():
             SetLaunchConfiguration("guiMaxVx", str(reference["maxDisplacementVelocityX"])),
             SetLaunchConfiguration("guiMaxVy", str(reference["maxDisplacementVelocityY"])),
             SetLaunchConfiguration("guiMaxYawRate", str(reference["maxRotationVelocity"])),
+            SetLaunchConfiguration("commandFrame", str(target.get("commandFrame", ""))),
+            SetLaunchConfiguration("commandFrameYaw", str(float(target.get("commandFrameYaw", 0.0)))),
         ]
 
     mpc_params_file = {
@@ -428,6 +431,19 @@ def generate_launch_description():
         parameters=[{"use_sim_time": use_sim_time}],
     )
 
+    # The control frame commands are given in (target.commandFrame, turned by target.commandFrameYaw about the base z
+    # axis), as a static child of the base body, so RViz and other tools see the robot's own forward axis.
+    command_frame_node = Node(
+        package="tf2_ros",
+        executable="static_transform_publisher",
+        name="command_frame_tf",
+        output="screen",
+        arguments=["--frame-id", LaunchConfiguration("gt_body_frame"), "--child-frame-id", LaunchConfiguration("commandFrame"),
+                   "--yaw", LaunchConfiguration("commandFrameYaw")],
+        parameters=[{"use_sim_time": use_sim_time}],
+        condition=IfCondition(PythonExpression(['"', LaunchConfiguration("commandFrame"), '" != ""'])),
+    )
+
     return LaunchDescription(
         declared_arguments
         + [
@@ -438,6 +454,7 @@ def generate_launch_description():
             controller_sequence_mujoco,
             robot_state_publisher_node,
             world_to_odom_node,
+            command_frame_node,
             environment_state_publisher_node,
             base_command_gui_node,
             rviz_node,

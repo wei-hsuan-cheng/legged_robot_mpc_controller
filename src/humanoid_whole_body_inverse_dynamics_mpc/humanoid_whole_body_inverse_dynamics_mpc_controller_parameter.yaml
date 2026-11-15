@@ -17,6 +17,13 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
     defaultMode: {type: string, default_value: "base_twist", description: "Target mode selected when the controller
         starts", validation: {one_of<>: [["base_twist", "base_pose"]]}}
     globalFrame: {type: string, default_value: "world", description: "Global frame used by MPC base-pose targets"}
+    commandFrame: {type: string, default_value: "", description: "Name of the control frame commands are given in,
+        fixed to the base and turned by commandFrameYaw; the launch publishes it as a static TF child of the base.
+        Empty: commands are in the base frame"}
+    commandFrameYaw: {type: double, default_value: 0.0, description: "Rotation [rad] of that control frame about the
+        base z axis. Twist commands (vx, vy) are rotated into the base frame and base pose commands give the control
+        frame's orientation; planning and estimation stay in the base frame. Upkie: pi, so +x points away from the
+        knees"}
     gaitTopic: {type: string, default_value: "/humanoid/gait_command", description: "std_msgs/String: a gait template
         name held instead of the velocity ladder (e.g. a hop); an empty string returns to the ladder. Empty topic
         name = no subscription"}
