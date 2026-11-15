@@ -1,7 +1,7 @@
 # Upkie stand-up from the kneeling idle pose, planned by plan_stand_up.py; do not edit by hand.
 # Parameters [hip1, knee1, T_fold, hip2, knee2, T_push, wheel torque]: [-0.504292, -2.68676, 0.533319, -0.207212, -2.195829, 0.376591, 1.361214]
 # Knee lift-off (handover) at 0.697 s: CoM +0.056 m from the wheel contact, moving -0.421 m/s, xi +0.012 m, pitch -0.712 rad, pitch rate -0.674 rad/s, CoM height 0.104 m.
-# Largest servo command / limit: 0.80. Idle spawn height (initial_pose_idle.yaml): 0.1346 m.
+# Largest servo command / limit: 0.80. Idle spawn height (initial_pose.yaml): 0.1346 m.
 stand_up:
   joint_names: [left_hip, left_knee, left_wheel, right_hip, right_knee, right_wheel]
   handover_time: 0.6965

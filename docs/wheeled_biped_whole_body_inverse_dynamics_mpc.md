@@ -693,12 +693,12 @@ A model-based feedforward fallback also adds the configured smoothed joint frict
 Changing to direct `qfrc_applied` bypass would invalidate the actuator-clipping interpretation above.
 
 
-### 7.4 Optional planned stand-up
+### 7.4 Planned stand-up
 
 An optional trajectory-file path implements idle hold, planned stand-up playback, policy handover, blend and locomotion.
 The height command filter resets to the measured base height at handover rather than stepping immediately to the nominal $0.30\ \mathrm{m}$ height.
 This playback is not a stand-up trajectory optimized online by the MPC.
-It passes in the complete stack with ground truth and with the estimator; the default configuration leaves it disabled (standing spawn), and estimator runs must enable it because an unbalanced wheeled robot cannot stand still while the filter initialises.
+It passes in the complete stack with ground truth and with the estimator, and it is the default: Upkie's only spawn pose is the kneeling one (`config/upkie/initial_pose.yaml`) and its YAML sets `bringUp.standUpTrajectoryFile`, because an unbalanced wheeled robot cannot stand still while the filter initialises.
 Kneeling, the knees rest on the floor behind the wheels and the trunk leans back (pitch $+0.42$ rad); the push pivots the trunk forward over the axles while the robot rolls about 6 cm backward.
 At the handover the body is at about 0.09 m with the trunk leaning 0.70 rad forward (pitch $-0.70$ rad), rolling backward; the posture table starts at 0.10 m so the posture reference matches the height ramp.
 The catch straightens the trunk while rolling backward with both wheel torques saturated, and the MPC swings one leg forward and the other back for about 0.7 s, a catching step in which one wheel leaves the ground briefly, before the legs rejoin; forbidding that split with a cost made every catch fall.

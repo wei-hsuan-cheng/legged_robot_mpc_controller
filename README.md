@@ -140,7 +140,7 @@ use_mujoco_sim:=true | false             # false: plain ros2_control_node (fake 
 use_fake_hardware:=false | true          # mock_components/GenericSystem when not using MuJoCo
 ros2ControlCommandInterface:=effort | effort_pd | position
 mujocoEffortCommandMode:=actuator | qfrc_applied
-initialPoseFile:=<...>/initial_pose.yaml # default: config/<robotName>/initial_pose.yaml
+initialPoseFile:=<...>/initial_pose.yaml # default: config/<robotName>/initial_pose.yaml (Upkie: kneeling)
 refBaseHeight:=<height_m>               # optional; default height is read from controller YAML
 rviz:=true | false
 mujoco_headless:=false | true
@@ -172,13 +172,13 @@ Upkie uses the WB-ID controller with six actuated joints and continuous rolling 
 Use **200 Hz MPC**, 1 kHz MRT and the default 2 kHz physics/PD loop:
 
 ```bash
-ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=upkie \
-  floatingBaseSource:=ground_truth_state floatingBaseEstimator:=none \
-  mpcFreq:=200 mrtFreq:=1000 \
-  rviz:=true mujoco_headless:=false baseCommandGui:=true
+ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=upkie mpcFreq:=200
 ```
 
-The GUI height range is 0.22-0.38 m; forward speed, yaw rate and height are supported, not independent sideways driving.
+By default Upkie spawns kneeling (`config/upkie/initial_pose.yaml`), the wheel-aware linear KF initialises there, and the planned stand-up (`bringUp.standUpTrajectoryFile` in its YAML) hands the robot to the MPC about 5 s after the controller starts; then drive it with the GUI.
+No ground truth is used in control; a wheeled biped cannot stand still on a joint hold while its estimator initialises, so there is no standing spawn.
+
+The GUI height range is 0.22-0.33 m; forward speed, yaw rate and height are supported, not independent sideways driving.
 Height is a soft base-origin target, not a hard equality or a terrain-relative clearance command.
 See the [Upkie model](./docs/wheeled_biped_whole_body_inverse_dynamics_mpc.md) and [handoff/test commands](./docs/wheeled_biped_handoff.md) for tested limits and remaining work.
 The [small-wheel terrain profiles](./config/terrains/upkie/README.md) leave the existing humanoid terrains unchanged and provide no terrain map to MPC.

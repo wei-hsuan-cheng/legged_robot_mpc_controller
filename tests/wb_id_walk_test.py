@@ -200,7 +200,7 @@ def main():
     parser.add_argument("--config", type=Path, help="Controller YAML (default: config/<robot-name>/ros2_controllers.yaml)")
     parser.add_argument("--set", action="append", default=[], metavar="KEY=JSON", help="Override a dotted controller parameter in a temporary YAML")
     parser.add_argument("--launch-arg", action="append", default=[], metavar="NAME:=VALUE",
-                        help="Extra robot.launch.py argument, e.g. initialPoseFile:=/abs/initial_pose_idle.yaml")
+                        help="Extra robot.launch.py argument, e.g. initialPoseFile:=/abs/my_pose.yaml")
     args = parser.parse_args()
     if args.scene is None:
         args.scene = str(write_scene(Path(args.prefix + "_scene.xml"), args.robot_name))

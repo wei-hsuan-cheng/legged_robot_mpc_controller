@@ -228,7 +228,7 @@ P_0=100\,I_6
 $$
 
 ([L185-L189](../src/humanoid_state_estimation/linear_kf_floating_base_estimator.cpp#L185-L189)).
-It runs at the kneeling idle, where the knees and both tires rest on the floor ([formulation Section 7.4](wheeled_biped_whole_body_inverse_dynamics_mpc.md#74-optional-planned-stand-up)), so the tire-height rows are valid from the first tick.
+It runs at the kneeling idle, Upkie's default spawn, where the knees and both tires rest on the floor ([formulation Section 7.4](wheeled_biped_whole_body_inverse_dynamics_mpc.md#74-planned-stand-up)), so the tire-height rows are valid from the first tick.
 A standing spawn cannot start the estimator: an unbalanced wheeled robot does not stand still while the filter initialises.
 
 **Readiness.** [`evaluateReadiness`](../src/humanoid_state_estimation/humanoid_state_estimator.cpp#L46-L68) waits `readiness.minSeconds` (1 s for Upkie), then requires height std below 0.05 m and velocity std below 0.20 m/s ([config L36-L41](../config/upkie/ros2_controllers.yaml#L46-L50)); the steady values of Section 8 pass both.

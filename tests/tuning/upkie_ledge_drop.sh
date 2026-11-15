@@ -1,6 +1,7 @@
 #!/bin/bash
 # Upkie rolls off a 5 cm and a 10 cm ledge at 0.3 m/s (docs/results/upkie_ledge_drop.md): once with the wheel KF
-# driving the MPC, once with GT driving and the KF logged alongside. Each run starts from the kneeling stand-up.
+# driving the MPC, once with GT driving and the KF logged alongside. Each run starts from the kneeling stand-up
+# (Upkie's default spawn and bring-up).
 # Run in the container from any directory; plot afterwards with tests/tuning/plot_upkie_ledge_drop.py OUT_DIR.
 #   usage: upkie_ledge_drop.sh [OUT_DIR=/tmp/upkie_ledge]
 set -u
@@ -27,8 +28,6 @@ PY
     python3 "$R/tests/wb_id_walk_test.py" --robot-name upkie --prefix "$OUT/upkie_ledge_${h}_${src}" \
       --mpc-rate 200 --record-joints --record-tracking --max-yaw-error 100 --minimum-height 0.05 \
       --startup-timeout 900 $S \
-      --set "bringUp.standUpTrajectoryFile=\"$R/config/upkie/stand_up_trajectory.yaml\"" \
-      --launch-arg "initialPoseFile:=$R/config/upkie/initial_pose_idle.yaml" \
       --axis vx --speed 0 --settle 4 --ramp 0 --hold 29 --rest 3 --scene "$OUT/ledge_${h}_scene.xml" \
       --command-sequence '[[4.0, 0.3, 0.0, 0.30, 1], [30.0, 0.0, 0.0, 0.30]]'
     echo "RUN ledge_${h}_${src} exit $?"

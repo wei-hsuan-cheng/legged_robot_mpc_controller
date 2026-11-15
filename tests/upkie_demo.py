@@ -82,9 +82,8 @@ def course_schedule(seed, reference):
 def harness_command(args, prefix, extra):
     command = [sys.executable, str(ROOT / "tests/wb_id_walk_test.py"), "--robot-name", "upkie", "--prefix", str(prefix),
                "--mpc-rate", "200", "--record-joints", "--record-tracking", "--max-yaw-error", "100",
-               "--minimum-height", "0.05", "--startup-timeout", "900", "--source", args.source,
-               "--set", f'bringUp.standUpTrajectoryFile="{ROOT / "config/upkie/stand_up_trajectory.yaml"}"',
-               "--launch-arg", f"initialPoseFile:={ROOT / 'config/upkie/initial_pose_idle.yaml'}"]
+               "--minimum-height", "0.05", "--startup-timeout", "900", "--source", args.source]
+    # The kneeling spawn and planned stand-up are Upkie's launch defaults.
     if args.source == "state_estimator":
         command += ["--estimator", "humanoid_linear_kf"]
     return command + extra

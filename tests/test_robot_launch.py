@@ -93,6 +93,19 @@ class RobotLaunchTest(unittest.TestCase):
         context, _ = self.resolve('h2')
         self.assertEqual(context.launch_configurations['commandFrame'], '')
 
+    def test_upkie_starts_kneeling_with_the_planned_stand_up(self):
+        # Plain launch: the linear KF drives, the robot spawns kneeling and plays the planned stand-up.
+        context, _ = self.resolve('upkie')
+        values = context.launch_configurations
+        self.assertEqual((values['floatingBaseSource'], values['floatingBaseEstimator']),
+                         ('state_estimator', 'humanoid_linear_kf'))
+        pose = yaml.safe_load(Path(values['initialPoseFile']).read_text())
+        self.assertLess(pose['upkie_base']['z'], 0.2)
+        config = yaml.safe_load(Path(values['controllersParamsFile']).read_text())
+        stand_up = Path(config[WB_ID]['ros__parameters']['bringUp']['standUpTrajectoryFile'])
+        self.assertEqual(stand_up.parts[-3:], ('config', 'upkie', 'stand_up_trajectory.yaml'))
+        self.assertTrue(stand_up.is_file())
+
     def test_scene_path_remains_unrestricted(self):
         for robot in ('g1', 'h2'):
             context, description = self.resolve(robot, mujocoModelFile='/tmp/my_scene.xml')

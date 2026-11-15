@@ -6,6 +6,15 @@ Update this file at each milestone.
 The implemented equations, current weights, rolling-contact equalities and execution limits are collected in [Wheeled-Biped WB-ID MPC](wheeled_biped_whole_body_inverse_dynamics_mpc.md).
 
 
+## Default Bring-up: Kneeling Spawn, Stand-up, Linear KF (2026-11-15, Claude)
+
+A plain `ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=upkie mpcFreq:=200` now spawns Upkie kneeling, initialises the linear KF there, plays the planned stand-up and hands over to the MPC, with no ground truth in control.
+`config/upkie/initial_pose.yaml` is the kneeling idle pose (the former `initial_pose_idle.yaml`; the standing pose file is gone, its joint values remain the YAML's `defaultJointState`), and the Upkie YAML sets `bringUp.standUpTrajectoryFile` to `$(find-pkg-share legged_robot_mpc_controller)/config/upkie/stand_up_trajectory.yaml`.
+The launch file is unchanged; `floatingBaseSource` and `floatingBaseEstimator` already defaulted to `state_estimator` and `humanoid_linear_kf`.
+Scripts no longer pass the stand-up arguments; `upkie_acceptance_suite.sh` now starts kneeling too, with `--minimum-height 0.05` for the catch at about 0.09 m.
+Verified with a plain headless launch: kneeling spawn at 0.1346 m, idle, standing up, blend, locomotion, standing at 0.300 m on the estimate, MPC about 190 Hz; `tests/test_robot_launch.py` covers the defaults.
+
+
 ## Estimator Note and H2 Regression (2026-11-15, Claude)
 
 [Wheeled-biped state estimation](wheeled_biped_state_estimation.md) derives the wheel-aware linear KF with code line references, its steady-state gains and its differences from Cheetah 3, legged_control and Hosseini et al.
@@ -232,17 +241,16 @@ The 0.3 s lift survives but roll grows as expected (CoM 0.15 m inside the stance
 ```bash
 H=src/legged_robot_mpc_controller/tests/wb_id_walk_test.py
 CFG=/root/ocs2_ros2_ws/install/legged_robot_mpc_controller/share/legged_robot_mpc_controller/config/upkie
-SU="--set bringUp.standUpTrajectoryFile=\"$CFG/stand_up_trajectory.yaml\" --launch-arg initialPoseFile:=$CFG/initial_pose_idle.yaml"
-# estimator driving the MPC, from the kneeling idle: roll, jump while rolling, brake
+# estimator driving the MPC, from the kneeling idle (the default spawn and stand-up): roll, jump while rolling, brake
 python3 $H --robot-name upkie --mpc-rate 200 --record-joints --record-tracking --max-yaw-error 100 \
-  --source state_estimator --estimator humanoid_linear_kf --minimum-height 0.05 --startup-timeout 900 $SU \
+  --source state_estimator --estimator humanoid_linear_kf --minimum-height 0.05 --startup-timeout 900 \
   --axis vx --speed 0.2 --hold 6 --ramp 1 --settle 6 --rest 4 --gait-sequence '[[9,"jump"],[9.9,""]]' --prefix /tmp/upkie_jump_est
 # GT driving, estimator logged alongside: add --source ground_truth_state --log-estimator --estimator humanoid_linear_kf
 python3 src/legged_robot_mpc_controller/tests/tuning/compare_upkie_estimate.py /tmp/upkie_jump_est --plot
 python3 src/legged_robot_mpc_controller/tests/tuning/analyze_upkie_flight.py /tmp/upkie_jump_est --plot
 ```
 
-Interactive: `floatingBaseSource:=state_estimator floatingBaseEstimator:=humanoid_linear_kf initialPoseFile:=<idle pose>` with `bringUp.standUpTrajectoryFile` set in the YAML; request a gait with `ros2 topic pub --once /humanoid/gait_command std_msgs/String "{data: jump}"` and release it with `"{data: ''}"`.
+Interactive: the plain launch (`robotName:=upkie mpcFreq:=200`) spawns kneeling, stands up and runs on the linear KF; request a gait with `ros2 topic pub --once /humanoid/gait_command std_msgs/String "{data: jump}"` and release it with `"{data: ''}"`.
 A standing spawn cannot run on the estimator: the robot cannot stand unbalanced while the filter initialises, so start from the kneeling idle.
 
 ### Open after this checkpoint
@@ -914,7 +922,7 @@ As in Ascento (an apply-torque phase until the body has the energy to reach upri
 
 The parameters minimise the pendulum's divergent component at knee lift-off, `xi = (x_com - x_wheel) + v_rel / omega`; with `xi ~ 0` the body coasts towards CoM-over-wheel.
 Exported plan: handover (knee lift-off) at 0.696 s, xi +0.012 m, pitch -0.71 rad (nose up), pitch rate -0.67 rad/s, CoM height 0.104 m, largest servo command 0.80 of the limits.
-[`plan_stand_up.py`](../config/upkie/plan_stand_up.py) (offline, MuJoCo Python) reproduces it and has a `--search` option; output [`stand_up_trajectory.yaml`](../config/upkie/stand_up_trajectory.yaml), idle spawn [`initial_pose_idle.yaml`](../config/upkie/initial_pose_idle.yaml).
+[`plan_stand_up.py`](../config/upkie/plan_stand_up.py) (offline, MuJoCo Python) reproduces it and has a `--search` option; output [`stand_up_trajectory.yaml`](../config/upkie/stand_up_trajectory.yaml), idle spawn [`initial_pose.yaml`](../config/upkie/initial_pose.yaml).
 
 Controller flow with `bringUp.standUpTrajectoryFile` set: Passive (idle hold with the plan's gains, `idleSeconds` 3 s) -> StandUp (playback of measured q, v and applied torque from the planning rollout; the MPC starts solving at its start) -> at `handover_time`, if a policy is valid, Blend (`blendSeconds` 0.05) -> Locomotion, with the height reference restarted at the measured height and ramped at 0.1 m/s to 0.30 m; no valid policy -> Fault.
 `tiltLimit` is 1.2 rad for Upkie because the trunk leans back 0.71 rad at the handover.
@@ -925,8 +933,6 @@ To run (not yet done; minimum height must allow the low crouch):
 python3 src/legged_robot_mpc_controller/tests/wb_id_walk_test.py --robot-name upkie --source ground_truth_state \
   --minimum-height 0.05 --startup-timeout 900 --record-tracking \
   --axis vx --speed 0.05 --hold 1 --ramp 1 --settle 10 --rest 4 \
-  --set 'bringUp.standUpTrajectoryFile="/root/ocs2_ros2_ws/install/legged_robot_mpc_controller/share/legged_robot_mpc_controller/config/upkie/stand_up_trajectory.yaml"' \
-  --launch-arg initialPoseFile:=/root/ocs2_ros2_ws/install/legged_robot_mpc_controller/share/legged_robot_mpc_controller/config/upkie/initial_pose_idle.yaml \
   --prefix /tmp/upkie_standup
 ```
 
@@ -939,10 +945,9 @@ In the `ros_jazzy` container, from `/root/ocs2_ros2_ws` (launch from there: the 
 
 ```bash
 source install/setup.bash
-# 1. Wheel drive with the GUI: standing spawn, ground-truth base, MuJoCo and RViz windows.
-ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=upkie mpcFreq:=200 mrtFreq:=1000 \
-  floatingBaseSource:=ground_truth_state floatingBaseEstimator:=none \
-  rviz:=true mujoco_headless:=false baseCommandGui:=true
+# 1. Wheel drive with the GUI: kneeling spawn, planned stand-up, linear KF in control (all defaults), MuJoCo and
+#    RViz windows. The MPC takes over about 5 s after the controller starts; GT is only published for comparison.
+ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=upkie mpcFreq:=200
 #    The GUI's forward axis is normalised by maxDisplacementVelocityX (1.0 m/s); keep vy at 0
 #    (a wheeled biped cannot move sideways). Yaw rate turns by differential wheel speed.
 

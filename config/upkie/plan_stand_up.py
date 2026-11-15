@@ -6,7 +6,7 @@
     python3 plan_stand_up.py --search 10          # cross-entropy search first, then export
 
 Why a planned push-off. Kneeling (both knee-motor housings and both wheels on the floor, the pose
-of initial_pose_idle.yaml) the whole-body CoM is 5-16 cm ahead of the wheel contacts for every
+of initial_pose.yaml) the whole-body CoM is 5-16 cm ahead of the wheel contacts for every
 hip/knee configuration that keeps the knees down, with the knees carrying 29-93% of the weight
 (checked over the reachable joint ranges). The CoM can therefore not be moved over the wheels
 quasi-statically, and the wheel torque alone (2 x 1.7 N m) cannot lift the knees: the wheels
@@ -211,7 +211,7 @@ def export(rollout, p, path=OUT):
         f"# Knee lift-off (handover) at {lift['t']:.3f} s: CoM {lift['com_offset']:+.3f} m from the wheel contact, "
         f"moving {lift['relative_velocity']:+.3f} m/s, xi {lift['xi']:+.3f} m, pitch {lift['pitch']:+.3f} rad, "
         f"pitch rate {lift['pitch_rate']:+.3f} rad/s, CoM height {lift['com_height']:.3f} m.",
-        f"# Largest servo command / limit: {saturation:.2f}. Idle spawn height (initial_pose_idle.yaml): {spawn:.4f} m.",
+        f"# Largest servo command / limit: {saturation:.2f}. Idle spawn height (initial_pose.yaml): {spawn:.4f} m.",
         "stand_up:",
         f"  joint_names: [{', '.join(JOINTS)}]",
         f"  handover_time: {lift['t']:.4f}",
