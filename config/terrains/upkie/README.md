@@ -67,3 +67,15 @@ The tire collision is a convex prism since 2026-11-14: MuJoCo's primitive cylind
 With the 2026-11-15 configuration (posture by height, hip/knee posture 3/0.1, tread-slip gain 5) the ramp, the 10 mm strip, the seed-7 field at 0.3 and 0.15 m/s, the 20 mm strip (narrow, 1 m wide, and driving off its far end) all pass; see the handoff's leg-crossing section.
 A one-wheel drop off a strip's side edge has not been exercised yet, and each case has 1-4 runs, not a repeat-tested envelope.
 Prioritize base pitch/roll and fall avoidance over exact height, straight-line position or heading tracking.
+
+## Joystick demo course
+
+`--terrain upkie_course` combines the features along world +x, each 6 m wide (y = -3..3 m) so turning does not leave them:
+a flat spawn area at x = -0.5..0.5 m, uneven fields at x = 0.5..1.5 m and, for reversing, x = -1.75..-0.5 m (same tile style as the field above, seeds 7 and 11), a ramp up to 40 mm at x = 1.6..2.4 m, a plateau with a 20 mm step up at x = 2.9 m and back down at x = 3.5 m, and a ramp down to the floor at x = 4.0..4.8 m.
+The layout is `course_params.yaml`; regenerate the module with
+
+```bash
+python3 description/mujoco/terrains/generate_upkie_course.py   # --check verifies it is current
+```
+
+`tests/upkie_demo.py course` runs the kneeling stand-up there and then a seeded random joystick schedule (drive, jump while driving, walk, trot) with the wheel KF in closed loop; see its docstring and the handoff.

@@ -1,0 +1,16 @@
+# Upkie joystick-demo course along world +x (the robot spawns at the origin facing +x): uneven fields front and
+# back, a ramp up, a plateau with a 2 cm step up and down, and a ramp down. Flat spawn area x = -0.5..0.5 m.
+upkie_course:
+  half_width: 3.0                # every feature spans y = -3..3 m, so turning does not leave the course
+  tiles: uneven_terrain_params.yaml  # tile style of the uneven fields (relative to this file)
+  uneven_fields:
+    - {name: uneven_front, x: [0.5, 1.5], seed: 7}
+    - {name: uneven_back, x: [-1.75, -0.5], seed: 11}
+  ramps:                         # top face from (x0, z0) to (x1, z1)
+    - {name: ramp_up, x: [1.6, 2.4], z: [0.0, 0.04]}
+    - {name: ramp_down, x: [4.0, 4.8], z: [0.04, 0.0]}
+  plateaus:
+    - {name: plateau_low_a, x: [2.4, 2.9], top: 0.04}
+    - {name: step_high, x: [2.9, 3.5], top: 0.06}
+    - {name: plateau_low_b, x: [3.5, 4.0], top: 0.04}
+  friction: [0.8, 0.005, 0.0001]
