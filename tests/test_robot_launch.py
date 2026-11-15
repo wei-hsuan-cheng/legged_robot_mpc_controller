@@ -85,6 +85,14 @@ class RobotLaunchTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'outside'):
             self.resolve('upkie', refBaseHeight='0.38')
 
+    def test_command_frame_comes_from_yaml(self):
+        context, _ = self.resolve('upkie')
+        values = context.launch_configurations
+        self.assertEqual(values['commandFrame'], 'base_forward')
+        self.assertAlmostEqual(float(values['commandFrameYaw']), 3.141592653589793)
+        context, _ = self.resolve('h2')
+        self.assertEqual(context.launch_configurations['commandFrame'], '')
+
     def test_scene_path_remains_unrestricted(self):
         for robot in ('g1', 'h2'):
             context, description = self.resolve(robot, mujocoModelFile='/tmp/my_scene.xml')

@@ -375,10 +375,12 @@ def main():
                     break
                 if elapsed >= args.settle + 2 * args.ramp + args.hold + args.rest:
                     dx, dy = x - movement_start[1], y - movement_start[2]
+                    # Forward and lateral are the command frame's axes (target.commandFrameYaw about the base z).
                     yaw0 = movement_start[6]
-                    displacement = dx * math.cos(yaw0) + dy * math.sin(yaw0) if args.axis == "vx" else -dx * math.sin(yaw0) + dy * math.cos(yaw0)
+                    heading0 = yaw0 + float(params.get("target", {}).get("commandFrameYaw", 0.0))
+                    displacement = dx * math.cos(heading0) + dy * math.sin(heading0) if args.axis == "vx" else -dx * math.sin(heading0) + dy * math.cos(heading0)
                     expected = args.speed * (args.hold + args.ramp)
-                    cross_axis = -dx * math.sin(yaw0) + dy * math.cos(yaw0) if args.axis == "vx" else dx * math.cos(yaw0) + dy * math.sin(yaw0)
+                    cross_axis = -dx * math.sin(heading0) + dy * math.cos(heading0) if args.axis == "vx" else dx * math.cos(heading0) + dy * math.sin(heading0)
                     yaw_error = max(abs(math.remainder(s[6] - yaw0, 2 * math.pi)) for s in probe.samples)
                     result.update(displacement=displacement, expected_displacement=expected,
                                   cross_axis_displacement=cross_axis, max_observed_yaw_error=yaw_error)

@@ -55,7 +55,9 @@ if table_h.size:
 else:
     q_ref = np.tile(q_default, (t.size, 1))
 
-yaw = col("obs_base/yaw"); h = np.stack([np.cos(yaw), np.sin(yaw)], 1)
+# Forward is the command frame's +x (target.commandFrameYaw about the base z axis), as the controller reads commands.
+yaw = col("obs_base/yaw") + params.get("target", {}).get("commandFrameYaw", 0.0)
+h = np.stack([np.cos(yaw), np.sin(yaw)], 1)
 v_fwd = h[:, 0] * col("obs_base/vx") + h[:, 1] * col("obs_base/vy")
 v_lat = -h[:, 1] * col("obs_base/vx") + h[:, 0] * col("obs_base/vy")
 p_v_fwd = h[:, 0] * col("plan_base/vx") + h[:, 1] * col("plan_base/vy")
