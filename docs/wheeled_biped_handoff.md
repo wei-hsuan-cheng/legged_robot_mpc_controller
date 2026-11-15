@@ -22,10 +22,50 @@ Timing: run about 8 min, RViz capture about 7 min (its window shows on the VM de
 The stop on the step is timed (`FULL_STOP_ON_STEP` in `upkie_demo.py`), not position-triggered; the robot's progress repeated within about 2 cm between runs.
 Measured in the recorded run: 8 wheel crossings of the edge, 1.83 turns at 1.5 rad/s mean (3.28 turns at 2.75 rad/s on the flat step top), up to 0.5 m sideways drift, roll at most 0.048 rad, the second "min" height reached 0.27 m instead of 0.22 m while crossing the edge.
 
+### Reproduce the demo and the video
+
+One-time setup on the Mac, for the renderer (MuJoCo must be 3.13, the version the simulator links):
+
 ```bash
-# in ros_jazzy (record), then on the Mac (render; MuJoCo 3.13, numpy, Pillow, ffmpeg)
-/root/src/mpc/legged_robot_mpc_controller/tests/upkie_demo_video.sh record upkie_course
-PYTHON=~/.venvs/upkie_render/bin/python tests/upkie_demo_video.sh render upkie_course
+python3 -m venv ~/.venvs/upkie_render
+~/.venvs/upkie_render/bin/pip install mujoco==3.13.0 numpy pillow
+which ffmpeg || brew install ffmpeg
+```
+
+1. Record, in the VM (about 15 min). The RViz window appears on the VM desktop during the capture and the screenshots take whatever is on screen there, so keep it uncovered:
+
+   ```bash
+   docker exec -it ros_jazzy bash
+   /root/src/mpc/legged_robot_mpc_controller/tests/upkie_demo_video.sh record upkie_course
+   ```
+
+2. Render, on the Mac (about 4 min):
+
+   ```bash
+   cd ~/src/mpc/legged_robot_mpc_controller
+   PYTHON=~/.venvs/upkie_render/bin/python tests/upkie_demo_video.sh render upkie_course
+   open demo_videos/upkie_course
+   ```
+
+`upkie_course` is the folder name under `demo_videos/`; use another to keep several takes.
+It holds `run.json` (verdict and metrics), `run_replay.json`, `run_labels.json`, `run.out` (harness log), `bag/` and `bag.log`, `rviz/` (frames, about 270 MB, and `rviz.log`), `upkie_course.mp4` (captions) and `upkie_course_clean.mp4` (3D only).
+`record` exits with the demo's status, nonzero when the robot fell; it still captures RViz as long as the MPC took over.
+
+What to change:
+
+| What | Where |
+| --- | --- |
+| Demo timing: stop at the step edge, seconds per height step, turn-back and finish durations | `FULL_STOP_ON_STEP` (17.0 s after the MPC takes over), `FULL_SPIN_HEIGHT_SECONDS`, `FULL_REALIGN_SECONDS`, `FULL_FINISH_SECONDS` in `tests/upkie_demo.py` |
+| Course | `config/terrains/upkie/course_params.yaml`, then `python3 description/mujoco/terrains/generate_upkie_course.py` |
+| Camera (must match in both) | `config/rviz/upkie_video.rviz` (Orbit Distance, Pitch, Focal Point Z) and `FOLLOW_Z`, `FOLLOW_DISTANCE`, `FOLLOW_ELEVATION` in `tests/tuning/render_upkie_video.py` |
+| RViz content and colors | the displays and Background Color in `config/rviz/upkie_video.rviz` |
+
+Known issue: RViz shows the robot model in plain white for the first frames (about 3 s in the 2026-11-15 take, frame 93) before its materials appear.
+Trim it afterwards from the first colored frame, the same for both videos so the rows stay in sync:
+
+```bash
+ffmpeg -i demo_videos/upkie_course/upkie_course.mp4 -vf "trim=start_frame=93,setpts=PTS-STARTPTS" \
+  -c:v libx264 -crf 20 -pix_fmt yuv420p demo_videos/upkie_course/upkie_course_trim.mp4
 ```
 
 

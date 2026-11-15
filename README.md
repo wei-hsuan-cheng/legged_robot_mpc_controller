@@ -181,6 +181,7 @@ No ground truth is used in control; a wheeled biped cannot stand still on a join
 The GUI height range is 0.22-0.33 m; forward speed, yaw rate and height are supported, not independent sideways driving.
 Height is a soft base-origin target, not a hard equality or a terrain-relative clearance command.
 See the [Upkie model](./docs/wheeled_biped_whole_body_inverse_dynamics_mpc.md) and [handoff/test commands](./docs/wheeled_biped_handoff.md) for tested limits and remaining work.
+The stand-up and terrain-course demo, recorded as one video with RViz (estimate, MPC plan, future ghosts) over MuJoCo, is reproduced with `tests/upkie_demo_video.sh record|render`; see the handoff's [demo video pipeline](./docs/wheeled_biped_handoff.md#demo-video-pipeline-2026-11-15-claude).
 The [small-wheel terrain profiles](./config/terrains/upkie/README.md) leave the existing humanoid terrains unchanged and provide no terrain map to MPC.
 
 
