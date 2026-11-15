@@ -417,6 +417,10 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           slew limits [ax, ay (m/s^2), height rate (m/s), yaw acceleration (rad/s^2)] applied to the scaled walking
           command (base_twist/terrain_walk), next to the maxDisplacementVelocity/maxRotationVelocity scaling;
           zero disables an axis", validation: {fixed_size<>: [4], element_bounds<>: [0.0, 100.0]}}
+      takeoverHeightRate: {type: double, default_value: 0.0, description: "Height rate [m/s] of the reference's rise
+          from the measured height at MPC takeover (after a planned stand-up) to the commanded height;
+          velocityCommandRateLimits applies once it arrives. 0: velocityCommandRateLimits throughout",
+          validation: {bounds<>: [0.0, 100.0]}}
       defaultBaseHeight: {type: double, default_value: 0.7925, description: "Default pelvis height above ground
           [m]"}
       basePosePositionTolerance: {type: double, default_value: 0.02, description: "Planar position error below which

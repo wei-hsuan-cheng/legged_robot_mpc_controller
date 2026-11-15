@@ -47,6 +47,7 @@ WalkingVelocityTarget::WalkingVelocityTarget(const ReferenceConfig& referenceCon
       minBaseHeight_(referenceConfig.minBaseHeight),
       maxBaseHeight_(referenceConfig.maxBaseHeight),
       commandRateLimits_(referenceConfig.commandRateLimits),
+      takeoverHeightRate_(referenceConfig.takeoverHeightRate),
       previousCommand_(0.0, 0.0, referenceConfig.defaultBaseHeight, 0.0),
       velocityCommandFilter_(5, vector4_t(0.0, 0.0, referenceConfig.defaultBaseHeight, 0.0)) {}
 
@@ -90,8 +91,10 @@ WalkingVelocityTarget::Output WalkingVelocityTarget::evaluate(scalar_t initTime,
       if (commandRateLimits_(i) > 0.0) previousCommand_(i) = 0.0;
     }
     const scalar_t resetHeight = resetHeight_.exchange(std::numeric_limits<scalar_t>::quiet_NaN());
-    if (std::isfinite(resetHeight) && commandRateLimits_(2) > 0.0) {
+    risingFromResetHeight_ = false;
+    if (std::isfinite(resetHeight) && (commandRateLimits_(2) > 0.0 || takeoverHeightRate_ > 0.0)) {
       previousCommand_(2) = resetHeight;
+      risingFromResetHeight_ = takeoverHeightRate_ > 0.0;
     }
     previousTime_ = initTime;
     velocityCommandFilter_.reset(previousCommand_);
@@ -100,10 +103,13 @@ WalkingVelocityTarget::Output WalkingVelocityTarget::evaluate(scalar_t initTime,
   // Do not turn a solver stall into an arbitrarily large reference step.
   const scalar_t dt = std::clamp(initTime - previousTime_, 0.0, 0.05);
   for (int i = 0; i < 4; ++i) {
-    if (commandRateLimits_(i) > 0.0) {
-      const scalar_t increment = commandRateLimits_(i) * dt;
-      conditionedCommand(i) = std::clamp(conditionedCommand(i), previousCommand_(i) - increment,
-                                         previousCommand_(i) + increment);
+    const scalar_t rateLimit = (i == 2 && risingFromResetHeight_) ? takeoverHeightRate_ : commandRateLimits_(i);
+    if (rateLimit > 0.0) {
+      const scalar_t increment = rateLimit * dt;
+      const scalar_t unlimited = conditionedCommand(i);
+      conditionedCommand(i) = std::clamp(unlimited, previousCommand_(i) - increment, previousCommand_(i) + increment);
+      // The takeover rise ends once the height reference reaches the command without being limited.
+      if (i == 2 && risingFromResetHeight_ && dt > 0.0 && conditionedCommand(i) == unlimited) risingFromResetHeight_ = false;
     }
   }
   previousCommand_ = conditionedCommand;

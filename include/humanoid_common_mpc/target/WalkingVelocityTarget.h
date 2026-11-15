@@ -90,6 +90,8 @@ class WalkingVelocityTarget {
   scalar_t minBaseHeight_;
   scalar_t maxBaseHeight_;
   vector4_t commandRateLimits_;
+  scalar_t takeoverHeightRate_;
+  bool risingFromResetHeight_{false};
   vector4_t previousCommand_;
   scalar_t previousTime_{std::numeric_limits<scalar_t>::quiet_NaN()};
 
