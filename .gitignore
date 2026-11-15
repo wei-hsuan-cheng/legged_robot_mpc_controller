@@ -8,3 +8,6 @@
 tuning_results/
 
 chore/
+
+# Demo videos (tests/upkie_demo_video.sh): run logs, bags, RViz frames, renders
+demo_videos/

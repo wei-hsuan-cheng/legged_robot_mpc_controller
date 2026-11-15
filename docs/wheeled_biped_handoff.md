@@ -6,6 +6,29 @@ Update this file at each milestone.
 The implemented equations, current weights, rolling-contact equalities and execution limits are collected in [Wheeled-Biped WB-ID MPC](wheeled_biped_whole_body_inverse_dynamics_mpc.md).
 
 
+## Demo Video Pipeline (2026-11-15, Claude)
+
+`tests/upkie_demo.py full` is one run from the kneeling spawn: stand-up, drive along the course line over the uneven field and the full-width ramp, stop at the far edge of the middle step and spin across its 1 cm edge at 180 deg/s while the height goes max, min, max, min, default, turn back to the line, cross the 10 cm one-wheel ramp, stop.
+`tests/upkie_demo_video.sh` turns it into a two-row video, RViz on top (estimated state, MPC optimized trajectory, future ghosts) and MuJoCo below, with the same camera and field of view and frames matched by sim time.
+Nothing is filmed live: the run is headless and logged, and both rows are rendered afterwards.
+
+1. `record`, in the container: the harness runs the demo with the wheel KF in control and writes the GT base pose and joint angles at 100 Hz (`run_replay.json`) and the captions (`run_labels.json`); a `ros2 bag` records `/tf`, `/tf_static`, `/robot_description` and the `/performance_visualization` markers alongside.
+2. Still `record`: [`render_rviz_replay.py`](../tests/tuning/render_rviz_replay.py) starts RViz with [`upkie_video.rviz`](../config/rviz/upkie_video.rviz) (a side camera following `base`) and, for every video frame, publishes that sim time's `/clock`, base TF and markers, drives a local `robot_state_publisher` with the replay's joint angles, waits for RViz to draw and screenshots its 1280x720 render area with `xwd`.
+   The recorded link TF is not used because `robot_state_publisher` throttles it to 20 Hz, which visibly lags the legs during the spin.
+3. `render`, on the host: [`render_upkie_video.py`](../tests/tuning/render_upkie_video.py) `--rviz-frames` replays the run in MuJoCo 3.13 with the same camera (focal point 0.1 m below the base, 1.6 m, 14 degrees down, from world -y, vertical FoV 45 degrees as in RViz), stacks it under the RViz frame of the same index, and writes the captioned and the clean video.
+
+Everything lands in the git-ignored `demo_videos/NAME/`; the repository is the same folder on the host and in the container.
+Timing: run about 8 min, RViz capture about 7 min (its window shows on the VM desktop; keep it uncovered), render about 4 min.
+The stop on the step is timed (`FULL_STOP_ON_STEP` in `upkie_demo.py`), not position-triggered; the robot's progress repeated within about 2 cm between runs.
+Measured in the recorded run: 8 wheel crossings of the edge, 1.83 turns at 1.5 rad/s mean (3.28 turns at 2.75 rad/s on the flat step top), up to 0.5 m sideways drift, roll at most 0.048 rad, the second "min" height reached 0.27 m instead of 0.22 m while crossing the edge.
+
+```bash
+# in ros_jazzy (record), then on the Mac (render; MuJoCo 3.13, numpy, Pillow, ffmpeg)
+/root/src/mpc/legged_robot_mpc_controller/tests/upkie_demo_video.sh record upkie_course
+PYTHON=~/.venvs/upkie_render/bin/python tests/upkie_demo_video.sh render upkie_course
+```
+
+
 ## Default Bring-up: Kneeling Spawn, Stand-up, Linear KF (2026-11-15, Claude)
 
 A plain `ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=upkie mpcFreq:=200` now spawns Upkie kneeling, initialises the linear KF there, plays the planned stand-up and hands over to the MPC, with no ground truth in control.
