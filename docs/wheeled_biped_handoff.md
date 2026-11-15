@@ -15,37 +15,37 @@ The first run with the 2 m/s height limit fell right after the stand-up handover
 `ocs2.reference.takeoverHeightRate` (Upkie 0.1 m/s, default 0 = off for G1/H2) now sets the rate of that rise only; the command limit applies once the reference reaches the command.
 With it the stand-up and 0.3 m/s roll are unchanged: +2.06 of 2.10 m, 0.29 m reached 2.08 s after takeover, max pitch/roll after the catch 0.007/0.000 rad.
 
-### Joystick demo on a terrain course
+### Locomotion demo on a terrain course (pure wheel_drive)
 
-- `--terrain upkie_course` (`config/terrains/upkie/course_params.yaml`, `generate_upkie_course.py`): flat spawn at x = -0.5..0.5 m, uneven fields at 0.5..1.5 m and -1.75..-0.5 m, ramp up to 40 mm at 1.6..2.4 m, plateau with a 20 mm step up at 2.9 m and down at 3.5 m, ramp down at 4.0..4.8 m, all 6 m wide.
+- `--terrain upkie_course` (`config/terrains/upkie/course_params.yaml`, `generate_upkie_course.py`) along world +x from the spawn: an uneven field at 0.5..1.5 m; a ramp up to 40 mm at 1.6..2.4 m, a plateau with a 10 mm step up at 2.9 m and down at 3.5 m, and a ramp down at 4.0..4.8 m, all 6 m wide (both wheels); then a narrow 40 mm ramp up and down at 5.4..7.0 m, y = 0.04..0.34 m, under the +y wheel only (wheels at y = +-0.19 m), the other wheel on the floor.
+  Flat floor behind the spawn and beyond 7.0 m.
 - `tests/upkie_demo.py standup|course|scan` runs the demos with the wheel KF in closed loop from the kneeling stand-up (`--source ground_truth_state` for GT).
-  The course schedule is seeded and random like joystick play: drive / jump while driving / drive / jump while driving (3.75 s each), walk 10 s, trot 10 s, stop; 1.2-2.5 s segments of pure translation, pure rotation, both or none, forward with p 0.8, yaw steering back toward the course with p 0.7.
-  Each drive block goes to `maxBaseHeight` (0.33 m) for 1 s and back to `defaultBaseHeight`; jump, walk and trot stay at 0.30 m (user's spec).
-  Seed 216 crosses every feature; `scan` lists others.
-- `wb_id_walk_test.py --command-sequence '[[t, vx, yaw rate, height], ...]'` drives these piecewise-constant commands.
-- `tests/tuning/render_upkie_video.py PREFIX` renders the run to MP4 with the captions the demo writes (`PREFIX_labels.json`).
-  It replays the logged states offscreen (the simulation runs headless); camera: free camera following the base from the side, azimuth 90 deg, MuJoCo's default 45 deg vertical field of view.
+  `course`, pure `wheel_drive` (the user dropped jump, walk and trot from this test; their designs need more work): a height test standing still (0.33, 0.22, 0.30 m, 2 s each), a straight pass at 0.3 m/s over the field, the full-width ramp/plateau/step/ramp down and the one-wheel ramp, then 24 s of seeded random joystick play on the floor beyond (1.2-2.5 s segments of pure translation, pure rotation, coupled motion or none).
+  Default seed 6: both turn directions, a reverse segment, 4 pure rotations, 3 pure translations, 4 coupled; `scan` lists others.
+- The stand-up catch leaves the heading 0.18-0.21 rad off and varies by about 0.03 rad between runs, too much for an open-loop pass to hit a 0.3 m wide ramp 6 m away.
+  The harness therefore steers the pass like an operator: `--command-sequence` entries with a fifth element 1 take their yaw rate from the robot's own estimated heading and lateral offset from the spawn line (`wb_id_walk_test.line_hold_yaw_rate`; GT only when GT drives the controller).
+- `tests/tuning/render_upkie_video.py PREFIX` renders a run to MP4 with the captions the demo writes (`PREFIX_labels.json`; the ramp-pass captions come from where the robot actually was).
+  It replays the logged states offscreen (the simulation runs headless); free camera following the base from the side, azimuth 90 deg, so world +x (Upkie's front at spawn) is on the right; MuJoCo's default 45 deg vertical field of view.
+  The "<-- FRONT" marker of the earlier stand-up videos pointed the wrong way and was removed.
 
 ### Results (wheel KF in control, from the kneeling stand-up)
 
 | run | verdict | notes |
 | --- | --- | --- |
 | `standup` | pass | catch: hips split up to 1.42 rad, right wheel off 0.18 s, both off 90 ms, rolls 24 cm back at up to 0.78 m/s; standing at 0.30 m 2.15 s after takeover |
-| `course`, seed 216 | pass | crosses the field, ramp, step and ramp down (x = 4.78 m at the end); worst moment a jump while turning -0.58 rad/s on the 20 mm step edge: roll 0.29, pitch 0.23 rad, recovered |
-| `course`, seed 95 | fall | jump while turning +0.40 rad/s on the uneven field (x = 0.85 m) |
-| `course`, seed 56 | fall | straight jump landing on the edge between the uneven field and the ramp (x = 1.58 m) |
-| jump at 0.30 m on flat: driving 0.09 m/s + turning 0.40 rad/s; spinning 0.40 rad/s | pass, pass | |
-| jump at 0.323 m on flat: in place; driving + turning | pass (one 0.70 rad pitch bounce); fall | 1.7 cm from the straight-leg singularity, little stroke to push off and land |
+| `course`, seeds 6 and 2 | pass, pass | height test 0.330 / 0.220 / 0.300 m measured; pass at 0.29 m/s within 0.05-0.08 m of the line; field, ramps, plateau, 10 mm step and one-wheel ramp with max roll 0.004 rad and pitch 0.015 rad; on the one-wheel ramp the +y wheel rose 40 mm while the base stayed level (roll 0.002 rad); play max roll/pitch 0.002/0.006 rad |
+| `course`, seed 9 (back field still in place) | pass | |
+| `course`, seed 6 (back uneven field 0.5 m behind the spawn) | fall | 2.1 s after takeover: the stand-up catch rolled back 1.1 m (usually 0.25-0.35 m) onto that field; the field was removed |
 
-Seed 216 also passed with yaw-acceleration limits 2 and 40 and random heights (two earlier runs).
-Drive, walk and trot crossed every edge of the course in seed 216 without trouble.
+### Found on the way
 
-### Open: jumps that land on terrain edges
-
-Jumps are clean on flat ground, turning or not, but 2 of 3 seeds fell and the third nearly did when a landing straddled a tile, step or field edge.
-The MPC has no terrain map, so the planned touchdown assumes flat ground at the estimated height, and the planned tire clearance is only about 10 mm.
-Candidates: keep jumps off rough ground (an operator or planner rule), a terrain-aware touchdown height, more clearance, and a landing that tolerates an early or one-sided touchdown.
-Jumps also need a lower height cap than the 0.33 m command limit (0.30 m is safe); a per-gait height limit in the gait config would enforce it.
+- **Full-width 20 mm step head-on** (both wheels hit the edge together), holding the line: 0.15 m/s stalls at the edge, 0.2 and 0.3 m/s fall, also with GT, so not the estimator; 10 mm passes at 0.3 m/s.
+  At 0.3 m/s the wheels stop at the edge (0.29 -> 0.12 m/s), then the robot surges to 0.58 m/s, pops up and collapses from 0.34 to 0.08 m.
+  Oblique crossings of the 20 mm step passed (one wheel at a time), as does the 20 mm one-wheel strip; the course step is 10 mm until this is solved.
+- **Jump gait** (out of this test for now): it drifts forward 0.3-0.5 m/s with a zero speed command; jumping while driving moves 1.3-3x the commanded speed; one fall on flat floor 0.5 s after switching from `jump` back to `wheel_drive` (surge to 1.57 m/s, base collapsed); 2 of 3 earlier course seeds fell when a landing straddled a terrain edge; above about 0.31 m the legs lack stroke (0.323 m: in place one 0.70 rad pitch bounce, with turning a fall).
+  Jumps at 0.30 m on flat ground, driving + turning or spinning in place, pass.
+- **Yaw tracking while driving** is about 50% of the command (driving speed about 100%).
+- **Stand-up catch roll-back** varies run to run (0.25-1.1 m); keep the area behind a kneeling start flat.
 
 ## Forward Control Frame (2026-11-15, Claude, after 08:05)
 
