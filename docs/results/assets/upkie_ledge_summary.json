@@ -1,0 +1,62 @@
+{
+ "05_est": {
+  "verdict": "SUCCESS",
+  "wheels_unloaded_before_impact_s": 0.15,
+  "height_on_platform_m": 0.3,
+  "kf_error_after_impact_mm": [
+   -4.8,
+   3.9
+  ],
+  "kf_within_5mm_after_s": 0.0,
+  "pitch_max_after_impact": 0.036,
+  "world_z_drop_m": 0.051,
+  "wheel_torque_max": 1.1,
+  "knee_torque_max": 2.6,
+  "normal_force_peak": 318.6
+ },
+ "05_gt": {
+  "verdict": "SUCCESS",
+  "wheels_unloaded_before_impact_s": 0.06,
+  "height_on_platform_m": 0.256,
+  "kf_error_after_impact_mm": [
+   -5.8,
+   3.9
+  ],
+  "kf_within_5mm_after_s": 0.0,
+  "pitch_max_after_impact": 0.055,
+  "world_z_drop_m": 0.017,
+  "wheel_torque_max": 0.57,
+  "knee_torque_max": 2.76,
+  "normal_force_peak": 260.5
+ },
+ "10_est": {
+  "verdict": "SUCCESS",
+  "wheels_unloaded_before_impact_s": 0.13,
+  "height_on_platform_m": 0.3,
+  "kf_error_after_impact_mm": [
+   -16.0,
+   6.9
+  ],
+  "kf_within_5mm_after_s": 0.17,
+  "pitch_max_after_impact": 0.046,
+  "world_z_drop_m": 0.101,
+  "wheel_torque_max": 1.7,
+  "knee_torque_max": 5.73,
+  "normal_force_peak": 391.9
+ },
+ "10_gt": {
+  "verdict": "SUCCESS",
+  "wheels_unloaded_before_impact_s": 0.25,
+  "height_on_platform_m": 0.208,
+  "kf_error_after_impact_mm": [
+   -6.4,
+   4.7
+  ],
+  "kf_within_5mm_after_s": 0.0,
+  "pitch_max_after_impact": 0.049,
+  "world_z_drop_m": 0.011,
+  "wheel_torque_max": 1.19,
+  "knee_torque_max": 4.4,
+  "normal_force_peak": 274.9
+ }
+}

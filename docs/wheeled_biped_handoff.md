@@ -21,6 +21,10 @@ The baseline predates H2's switch from the walk to the trot ladder (`ae134c0`), 
 Same performance: the walk entry is smoother than the baseline's (no 1 m/s forward spike or 6 cm height dip), and the worst mid-walk roll (run 3, 0.16 rad on the tiles) matches the baseline's peak.
 Rendered frames at each run's worst moment show normal trotting with flat footholds and no leg crossing.
 
+[Ledge drop](results/upkie_ledge_drop.md): Upkie drives off a 5 cm and a 10 cm edge at 0.3 m/s, wheel KF driving and GT driving, all 4 pass.
+The KF hides the drop from the MPC (error -16/+7 mm, within 5 mm in 0.17 s, the same decay as when it is only logged); GT driving crouches by the platform height and reaches down at the edge.
+Run with `tests/tuning/upkie_ledge_drop.sh`, plot with `tests/tuning/plot_upkie_ledge_drop.py`.
+
 
 ## Faster Commands and the Joystick Demo (2026-11-15, Claude)
 

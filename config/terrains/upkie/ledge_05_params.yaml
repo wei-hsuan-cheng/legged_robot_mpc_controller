@@ -1,0 +1,11 @@
+# Ledge-drop test (tests/tuning/upkie_ledge_drop.sh): a 2.9-degree ramp up to a 0.05 m platform, 2 m of platform,
+# then a sharp edge at x = 5.0 m down to the floor. generate_upkie_course.py format; the MJCF is generated at run time.
+upkie_course:
+  half_width: 3.0
+  tiles: uneven_terrain_params.yaml
+  uneven_fields: []
+  ramps:
+    - {name: ledge_ramp_up, x: [2.0, 3.0], z: [0.0, 0.05]}
+  plateaus:
+    - {name: ledge_platform, x: [3.0, 5.0], top: 0.05}
+  friction: [0.8, 0.005, 0.0001]

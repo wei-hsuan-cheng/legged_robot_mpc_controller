@@ -273,6 +273,10 @@ The height is therefore always the height above the ground under the wheels, nev
 The robot does not crouch on high ground or stretch on low ground, and the odometry gives no world z.
 The same holds for G1/H2's point model: its stance velocity rows do see the climb, but the foot-height rows pin every stance contact to $z=0$, and a remembered elevation decays in about 0.1 s as well (99 % in 0.4-0.5 s, from the filter equations).
 
+**Ledge drop.** Driving off a 5 cm and a 10 cm edge at 0.3 m/s ([results](results/upkie_ledge_drop.md)), the estimate's error against the true height above the ground stays within -16/+7 mm around the landing and is back within 5 mm in at most 0.17 s.
+It has the same shape and decay whether the KF drives the MPC or is only logged while GT drives, so the estimate-to-plan loop showed no amplification.
+With GT driving, the flat-ground MPC crouches by the platform height on top and reaches down at the edge.
+
 
 ## 12. Relation to the References
 
