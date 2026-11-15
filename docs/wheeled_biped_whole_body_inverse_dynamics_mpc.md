@@ -504,7 +504,8 @@ v_y^{\mathrm{cmd}}=0.1c_y,
 $$
 
 Units are $\mathrm{m/s}$ for translation and $\mathrm{rad/s}$ for yaw rate; the height command is absolute, with nominal $z_d=0.30\ \mathrm{m}$.
-The shared command filter and slew limiter condition the references, with rate limits $[0.5,0.5,0.1,2.0]$ for $[v_x,v_y,z,\dot\psi]$.
+The shared command filter and slew limiter condition the references, with rate limits $[10,10,2,40]$ for $[\dot v_x,\dot v_y,\dot z,\ddot\psi]$ ($\mathrm{m/s^2}$, $\mathrm{m/s}$, $\mathrm{rad/s^2}$), so joystick and GUI moves take effect within a few solves.
+After the stand-up handover the height reference restarts at the measured height (about $0.09\ \mathrm{m}$) and rises to the command at `takeoverHeightRate` $=0.1\ \mathrm{m/s}$; the $2\ \mathrm{m/s}$ command limit applies once it arrives, because a near-step rise makes the catch fall.
 At each solve, the target trajectory re-anchors to the current base pose and integrates the conditioned command, with knots at $t_0$, $t_0+0.7T$ and $t_0+T$.
 The velocity references have zero world vertical velocity and zero pitch/roll rates, even while a changing height command moves the height reference between solves.
 Upkie supports forward driving, differential turning and leg-length height adjustment in principle, not independent sideways translation.
