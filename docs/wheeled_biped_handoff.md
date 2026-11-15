@@ -6,6 +6,22 @@ Update this file at each milestone.
 The implemented equations, current weights, rolling-contact equalities and execution limits are collected in [Wheeled-Biped WB-ID MPC](wheeled_biped_whole_body_inverse_dynamics_mpc.md).
 
 
+## Estimator Note and H2 Regression (2026-11-15, Claude)
+
+[Wheeled-biped state estimation](wheeled_biped_state_estimation.md) derives the wheel-aware linear KF with code line references, its steady-state gains and its differences from Cheetah 3, legged_control and Hosseini et al.
+
+H2 regression with the shared code of this branch: `humanoid_linear_kf` in control, the uneven field without the ramp, vx 0.2 m/s, the 2026-10-31 `nonuniform_1031/final_linear/balanced_rough_1` protocol and scene, unchanged H2 YAML.
+The baseline predates H2's switch from the walk to the trot ladder (`ae134c0`), so the gait differs.
+
+| run | verdict | distance | walk vx | min z | max roll / pitch | max yaw error | MPC rate |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 2026-10-31 baseline (walk ladder) | success | 2.61 m | 0.280 m/s | 0.934 m | 0.156 / 0.099 | 0.088 | 94.1 Hz |
+| HEAD, 3 runs (trot ladder) | success 3/3 | 2.60-2.76 m | 0.256-0.307 m/s | 0.956-0.997 m | 0.060-0.160 / 0.023-0.067 | 0.109-0.160 | 93.7 Hz |
+
+Same performance: the walk entry is smoother than the baseline's (no 1 m/s forward spike or 6 cm height dip), and the worst mid-walk roll (run 3, 0.16 rad on the tiles) matches the baseline's peak.
+Rendered frames at each run's worst moment show normal trotting with flat footholds and no leg crossing.
+
+
 ## Faster Commands and the Joystick Demo (2026-11-15, Claude)
 
 ### Command rate limits
@@ -107,6 +123,7 @@ Each wheel therefore measures the base velocity (minus the velocity of that mate
 This is the proprioceptive model the MPC already uses: height above the wheels' contact plane, flat ground at zero.
 `imuExtrinsics: true` removes Upkie's rotated, offset IMU mounting (URDF frame `imu`) from attitude, rate and acceleration; the MPC's bring-up tilt check does the same through `floatingBase.imuFrame`.
 G1/H2 keep `contactModel: point` and `imuExtrinsics: false`, so their filters are unchanged.
+Equations, code lines, gains and the comparison with the papers: [wheeled-biped state estimation](wheeled_biped_state_estimation.md).
 
 Logged against GT while GT drives the MPC:
 
@@ -622,7 +639,7 @@ No controller code, parameters, model assets, build or simulation were changed o
 
 ## Rolling-contact Estimator Scope (2026-11-14)
 
-Documented the need for rolling-contact estimation and its primary reference in [formulation Section 7.5](wheeled_biped_whole_body_inverse_dynamics_mpc.md#75-rolling-contact-state-estimation-required-future-adaptation).
+Documented the need for rolling-contact estimation and its primary reference in [formulation Section 7.5](wheeled_biped_whole_body_inverse_dynamics_mpc.md#75-rolling-contact-state-estimation).
 [Hosseini, Rodriguez and Behnke, State Estimation for Hybrid Locomotion of Driving-Stepping Quadrupeds, IRC 2022](https://www.ais.uni-bonn.de/~hosseini/se-dsq/IEEE_IRC_22_StateEstimationForDrivingSteppingQuadrupeds.pdf), Fig. 1 and its wheel-aware state-estimation formulation, is a direct reference for adapting legged Kalman-filter measurements to wheel geometry and rolling motion.
 Source inspection confirms that our current linear KF assumes stationary planted-contact landmarks; selecting it unchanged is not a validated wheel-drive estimator.
 The required main output remains floating-base pose and velocity, but tire-center motion must be distinguished from the approximately zero material tread velocity under no slip.

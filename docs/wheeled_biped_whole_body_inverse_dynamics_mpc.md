@@ -720,7 +720,8 @@ $$
 $$
 
 Here $v_{h,i}^{W}$ is the tire-centre velocity, $\omega_i^{W}$ the wheel link's angular velocity including spin, and $\rho_i^{W}$ the centre-to-contact offset of Section 4.1 (the lowest point of the tire circle).
-This follows the wheel-aware adaptation of legged filters in [Hosseini, Rodriguez and Behnke, State Estimation for Hybrid Locomotion of Driving-Stepping Quadrupeds, IRC 2022](https://www.ais.uni-bonn.de/~hosseini/se-dsq/IEEE_IRC_22_StateEstimationForDrivingSteppingQuadrupeds.pdf).
+The idea follows the wheel-aware adaptation of legged filters in [Hosseini, Rodriguez and Behnke, State Estimation for Hybrid Locomotion of Driving-Stepping Quadrupeds, IRC 2022](https://www.ais.uni-bonn.de/~hosseini/se-dsq/IEEE_IRC_22_StateEstimationForDrivingSteppingQuadrupeds.pdf); the equations are simpler than theirs.
+The full derivation with code line references, the steady-state gains and the differences from that paper are in [wheeled-biped state estimation](wheeled_biped_state_estimation.md).
 
 **Stage 1, attitude.** The IMU's own attitude, with its mounting removed (`imuExtrinsics: true`, URDF frame `imu`):
 
@@ -848,6 +849,7 @@ Paper locations refer to the linked arXiv versions; PDF page numbers are viewer 
 | Supporting versus swinging wheels | [Bjelonic et al., Whole-Body MPC and Online Gait Sequence Generation for Wheeled-Legged Robots, III-A4, Eqs. (5)-(6), PDF page 4](https://arxiv.org/pdf/2010.06322#page=4) | [Mode activation](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdWheelContactConstraintCppAd.cpp#L108); full spin dynamics retained here rather than their fixed-angle moving-contact simplification |
 | Tracking objective and fast inner servo | [Khazoom et al., Tailoring Solution Accuracy for Fast Whole-body Model Predictive Control of Legged Robots, II-B2 Eq. (3) and II-D3 Eq. (15)](https://arxiv.org/html/2407.10789v1) | [Configured costs/gains](../config/upkie/ros2_controllers.yaml#L36); Upkie weights and servo rates are local, and the QP solver here is HPIPM rather than their OSQP/ADMM |
 | Accounting for motor friction and rotor inertia | [Molnar et al., VI-D, sim-to-real discrepancies](https://arxiv.org/html/2511.19709v1#S6.SS4) and [MuJoCo joint armature semantics](https://mujoco.readthedocs.io/en/3.3.2/XMLreference.html#body-joint-armature) | [Model parameters](../config/upkie/ros2_controllers.yaml#L90); amplitudes match the imported simulator model, not identified hardware |
+| Rolling-wheel state estimation | [Bledt et al., Cheetah 3, Section III-H](https://doi.org/10.1109/IROS.2018.8593885) two-stage filter; [Hosseini, Rodriguez and Behnke, Section IV-B, Eqs. (5)-(6), (10)](https://arxiv.org/abs/2211.11390) wheel adaptation | [updateRollingWheels](../src/humanoid_state_estimation/linear_kf_floating_base_estimator.cpp#L462); state $[p;v]$ only, one tread-velocity and one height row per wheel, no driving-share or contact-position states ([estimation note, Section 12](wheeled_biped_state_estimation.md#12-relation-to-the-references)) |
 | Differentiable Coulomb friction | [Pyrhonen, Mikkola and Naets, System identification and force estimation of robotic manipulator using semirecursive multibody formulation, Section 2.1 Eq. (10), published online 2024](https://link.springer.com/article/10.1007/s11044-024-10017-1#Equ10) | [CppAD tanh term](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdRneaConstraintCppAd.cpp#L98); no viscous term here and a different transition-scale convention |
 
 
