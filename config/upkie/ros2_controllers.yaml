@@ -302,7 +302,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         basePoseOrientationTolerance: 0.03
         # [ax, ay (m/s^2), height rate (m/s), yaw acceleration (rad/s^2)] on GUI/topic commands.
         velocityCommandRateLimits:
-          [10.0, 10.0, 0.5, 40.0]
+          [2.0, 2.0, 0.5, 10.0]
         # The stand-up catch's rise from about 0.09 m to the commanded height; at 2 m/s it is a near step and the catch
         # falls.
         takeoverHeightRate: 0.1
