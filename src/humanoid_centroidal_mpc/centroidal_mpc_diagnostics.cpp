@@ -324,8 +324,8 @@ ocs2::vector_t CentroidalMpcDiagnostics::normalizedMomentum(
 
 void CentroidalMpcDiagnostics::recordState(
   const StateSample & sample,
-  const state_estimation::FloatingBaseEstimate & estimate,
-  const state_estimation::InekfFloatingBaseEstimator::Diagnostics & filter)
+  const legged_robot_state_estimator::state_estimation::FloatingBaseEstimate & estimate,
+  const legged_robot_state_estimator::state_estimation::EstimatorDiagnostics & filter)
 {
   if (!settings_.enabled || !state_log_.isOpen()) {
     return;

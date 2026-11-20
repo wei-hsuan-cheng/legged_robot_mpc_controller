@@ -6,10 +6,10 @@ controller_manager:
       type: joint_state_broadcaster/JointStateBroadcaster
 
     humanoid_inekf:
-      type: legged_robot_mpc_controller/HumanoidInEkfController
+      type: legged_robot_state_estimator/HumanoidInEkfController
 
     humanoid_linear_kf:
-      type: legged_robot_mpc_controller/HumanoidLinearKfController
+      type: legged_robot_state_estimator/HumanoidLinearKfController
 
     humanoid_whole_body_inverse_dynamics_mpc_controller:
       type: legged_robot_mpc_controller/HumanoidWholeBodyInverseDynamicsMpcController

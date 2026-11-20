@@ -374,7 +374,7 @@ The references below map that table to the current implementation; only the pair
 | Planar-relative base tracking | [BaseMotionTrackingCost.cpp:51](../src/core/humanoid_common_mpc/src/cost/BaseMotionTrackingCost.cpp#L51) |
 | Mapped terrain planner inactive outside its explicit mode | [mode gate:189](../src/core/humanoid_common_mpc/src/reference_manager/ProceduralMpcMotionManager.cpp#L189), [world-up fallback:307](../include/humanoid_common_mpc/reference_manager/SwitchedModelReferenceManager.h#L307) |
 | Current flat support-height assumption | [option:641](../config/g1/ros2_controllers.yaml#L641), [reference fallback:126](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L126) |
-| Linear KF flat contact-height observation | [zero heights:159](../src/humanoid_state_estimation/linear_kf_floating_base_estimator.cpp#L159), [measurement:303](../src/humanoid_state_estimation/linear_kf_floating_base_estimator.cpp#L303) |
+| Linear KF flat contact-height observation | [zero heights:159](https://github.com/wei-hsuan-cheng/legged_robot_state_estimator/blob/main/src/linear_kf_floating_base_estimator.cpp#L159), [measurement:303](https://github.com/wei-hsuan-cheng/legged_robot_state_estimator/blob/main/src/linear_kf_floating_base_estimator.cpp#L303) |
 | Scheduled estimator contacts | [contact source:168](../config/g1/ros2_controllers.yaml#L168) |
 | Automatic recording and scoring | [run_case.sh:35](../tests/tuning/run_case.sh#L35), [command schedule:76](../tests/tuning/tune_probe.py#L76) |
 | Whole-run comparison and recorded-state images | [plot_ramp.py:17](../tests/tuning/plot_ramp.py#L17), [replay:69](../tests/tuning/plot_ramp.py#L69) |

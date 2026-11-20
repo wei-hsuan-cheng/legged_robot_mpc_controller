@@ -70,8 +70,8 @@ bool uses_state_estimator(const std::string& source)
 }
 
 std::string estimator_report(
-  const legged_robot_mpc_controller::estimator_interfaces::EstimatorStatus& status,
-  const legged_robot_mpc_controller::state_estimation::EstimatorDiagnostics& d)
+  const legged_robot_state_estimator::estimator_interfaces::EstimatorStatus& status,
+  const legged_robot_state_estimator::state_estimation::EstimatorDiagnostics& d)
 {
   char line[256];
   std::snprintf(
@@ -299,7 +299,7 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_configu
         "floatingBase.source is state_estimator but floatingBase.estimator is none; launch with "
         "floatingBaseEstimator:=humanoid_inekf (or humanoid_linear_kf)");
     }
-    estimator_values_.assign(estimator_interfaces::names().size(), 0.0);
+    estimator_values_.assign(legged_robot_state_estimator::estimator_interfaces::names().size(), 0.0);
     RCLCPP_INFO(
       get_node()->get_logger(),
       "[HumanoidCentroidalMpcController] floating base: %s | estimator controller: %s (%s)",
@@ -388,7 +388,7 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_configu
     RCLCPP_ERROR(
       get_node()->get_logger(),
       "[HumanoidCentroidalMpcController] if this is std::bad_array_new_length, remove "
-      "build/ and install/ for legged_state_estimator and legged_robot_mpc_controller "
+      "build/ and install/ for legged_robot_state_estimator, its dependencies and legged_robot_mpc_controller "
       "and rebuild: a partially rebuilt workspace mixes old code with a changed class "
       "layout.");
     return controller_interface::CallbackReturn::ERROR;
@@ -419,7 +419,7 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_activat
   estimator_interface_index_.clear();
   if (has_estimator()) {
     const std::string& estimator = parameters_.floatingBase.estimator;
-    for (const auto& name : estimator_interfaces::names()) {
+    for (const auto& name : legged_robot_state_estimator::estimator_interfaces::names()) {
       const auto it = std::find_if(
         state_interfaces_.begin(), state_interfaces_.end(), [&](const auto& interface) {
           return interface.get_prefix_name() == estimator && interface.get_interface_name() == name;
@@ -438,7 +438,7 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_activat
   estimator_command_index_.clear();
   if (has_estimator()) {
     const std::string& estimator = parameters_.floatingBase.estimator;
-    for (const auto& name : estimator_interfaces::reference_names()) {
+    for (const auto& name : legged_robot_state_estimator::estimator_interfaces::reference_names()) {
       const auto it = std::find_if(
         command_interfaces_.begin(), command_interfaces_.end(), [&](const auto& interface) {
           return interface.get_prefix_name() == estimator && interface.get_interface_name() == name;
@@ -454,7 +454,7 @@ controller_interface::CallbackReturn HumanoidCentroidalMpcController::on_activat
         static_cast<std::size_t>(std::distance(command_interfaces_.begin(), it)));
     }
   }
-  last_estimate_ = state_estimation::FloatingBaseEstimate{};
+  last_estimate_ = legged_robot_state_estimator::state_estimation::FloatingBaseEstimate{};
   estimator_driving_control_ = false;
   if (diagnostics_) {
     try {
@@ -685,7 +685,7 @@ HumanoidCentroidalMpcController::command_interface_configuration() const
   // makes the controller manager put the estimator in chained mode.
   if (has_estimator()) {
     config.type = controller_interface::interface_configuration_type::INDIVIDUAL;
-    for (const auto& name : estimator_interfaces::reference_names()) {
+    for (const auto& name : legged_robot_state_estimator::estimator_interfaces::reference_names()) {
       config.names.emplace_back(parameters_.floatingBase.estimator + "/" + name);
     }
   }
@@ -731,7 +731,7 @@ HumanoidCentroidalMpcController::state_interface_configuration() const
   // The estimator controller's exported state. Claiming it is what makes the
   // controller manager run that controller first in every tick.
   if (has_estimator()) {
-    for (const auto& name : estimator_interfaces::names()) {
+    for (const auto& name : legged_robot_state_estimator::estimator_interfaces::names()) {
       config.names.emplace_back(parameters_.floatingBase.estimator + "/" + name);
     }
   }
@@ -1214,7 +1214,7 @@ void HumanoidCentroidalMpcController::read_state_estimator()
     }
     estimator_values_[i] = *value;
   }
-  estimator_interfaces::unpack(estimator_values_, last_estimate_, estimator_diagnostics_, estimator_status_);
+  legged_robot_state_estimator::estimator_interfaces::unpack(estimator_values_, last_estimate_, estimator_diagnostics_, estimator_status_);
   // Valid only once it has acted on this controller's latest request: an estimate
   // from before the request describes a robot that has since been stood up.
   last_estimate_.valid = last_estimate_.valid && estimator_initialized_for_request();
@@ -1228,7 +1228,7 @@ void HumanoidCentroidalMpcController::request_estimator_initialization()
 
 void HumanoidCentroidalMpcController::write_estimator_references(double time)
 {
-  if (estimator_command_index_.size() != estimator_interfaces::reference_names().size()) {
+  if (estimator_command_index_.size() != legged_robot_state_estimator::estimator_interfaces::reference_names().size()) {
     return;
   }
   // Until the MPC drives, the bring-up has the robot standing on both feet, and the
@@ -1238,9 +1238,9 @@ void HumanoidCentroidalMpcController::write_estimator_references(double time)
   const bool mpc_driving = !uses_state_estimator(parameters_.floatingBase.source) ||
     phase == BringUpPhase::Blend || phase == BringUpPhase::Locomotion;
   const auto contact = mpc_driving ? contact_flags_at(time) : ocs2::contact_flag_t{true, true};
-  auto& left = command_interfaces_[estimator_command_index_[estimator_interfaces::kContactLeft]];
-  auto& right = command_interfaces_[estimator_command_index_[estimator_interfaces::kContactRight]];
-  auto& epoch = command_interfaces_[estimator_command_index_[estimator_interfaces::kInitializeEpoch]];
+  auto& left = command_interfaces_[estimator_command_index_[legged_robot_state_estimator::estimator_interfaces::kContactLeft]];
+  auto& right = command_interfaces_[estimator_command_index_[legged_robot_state_estimator::estimator_interfaces::kContactRight]];
+  auto& epoch = command_interfaces_[estimator_command_index_[legged_robot_state_estimator::estimator_interfaces::kInitializeEpoch]];
   (void)left.set_value(contact[0] ? 1.0 : 0.0);
   (void)right.set_value(contact[1] ? 1.0 : 0.0);
   (void)epoch.set_value(static_cast<double>(estimator_epoch_));

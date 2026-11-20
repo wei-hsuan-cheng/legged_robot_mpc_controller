@@ -116,7 +116,7 @@ $$
 
 The explicit terrain-plan branch uses mapped support heights and does not pass through this limiter.
 Both flags remain unchanged in this checkpoint.
-The current linear KF observes contact heights as zero, so its good flat-ground behavior does not establish correct world height on ramps or stairs; see [linear_kf_floating_base_estimator.cpp](../src/humanoid_state_estimation/linear_kf_floating_base_estimator.cpp).
+The current linear KF observes contact heights as zero, so its good flat-ground behavior does not establish correct world height on ramps or stairs; see [linear_kf_floating_base_estimator.cpp](https://github.com/wei-hsuan-cheng/legged_robot_state_estimator/blob/main/src/linear_kf_floating_base_estimator.cpp).
 The InEKF's kinematic/blended ground-height options can also impose a flat-ground assumption; merely selecting a different estimator is not a verified fix.
 First isolate this checkpoint with `ground_truth_state`, then separately validate a terrain-compatible estimator height path.
 The map and state must share a registered world/odometry frame; proprioceptive planar/yaw drift relative to a fixed map is not solved here.

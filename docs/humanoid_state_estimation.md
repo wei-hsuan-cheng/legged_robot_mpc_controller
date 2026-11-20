@@ -4,7 +4,10 @@ This document describes the proprioceptive floating-base state estimator used by
 It fuses the pelvis IMU with leg kinematics and contact information through a **contact-aided Invariant Extended Kalman Filter (InEKF)** to estimate the base pose and velocity.
 For simulation debugging, `floatingBaseSource:=ground_truth_state` can replace estimator feedback with ground truth (GT), but this bypass is not available for real-world deployment.
 
-The filter itself is the library [`legged_state_estimator`](https://github.com/mayataka/legged_state_estimator) (Hartley et al., *Contact-Aided Invariant EKF for Legged Robot State Estimation*, RSS 2018). The controller-side integration — sensor plumbing, joint remapping, IMU↔pelvis frame handling, bootstrapping and publishing — lives in [`humanoid_state_estimation/`](../src/humanoid_state_estimation/).
+The InEKF follows Hartley et al., *Contact-Aided Invariant EKF for Legged Robot State Estimation*, RSS 2018; backend dependencies are owned by the shared estimator package.
+The shared [`legged_robot_state_estimator`](https://github.com/wei-hsuan-cheng/legged_robot_state_estimator) package owns both ROS estimator plugins, sensor plumbing, joint remapping, frame handling, initialization, publishing, and state-interface definitions.
+The plugins are `legged_robot_state_estimator/HumanoidInEkfController` and `legged_robot_state_estimator/HumanoidLinearKfController`; their instances are configured in this repository's `config/<robot>/ros2_controllers.yaml`.
+TurboMPC consumes the same estimator package and interface.
 
 ## What is observable, and why the rest does not matter
 
@@ -37,21 +40,22 @@ flowchart TD
 </td>
 <td width="62%" valign="top">
 
-Each control tick, [`update_state_estimator()`](../src/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller.cpp#L558-L648):
+Each estimator-controller tick, [`update_and_write_commands()`](https://github.com/wei-hsuan-cheng/legged_robot_state_estimator/blob/main/src/humanoid_state_estimator_controller.cpp#L220):
 
 1. Propagates the InEKF state with the raw pelvis gyro + accelerometer.
 2. Updates the leg forward kinematics from the joint encoders.
-3. Estimates per-foot contact from the joint torques (logistic regression).
+3. Uses scheduled contacts, torque-based contact estimates, or contact sensors according to `contact.source`.
 4. Corrects the filter with the "stance contact is world-fixed" measurement.
 5. Reads back the estimated **IMU-frame** pose and velocity.
 6. Converts the IMU-frame estimate to the **pelvis** (floating-base) frame.
-7. Writes the result into the MPC observation and publishes it as odometry for evaluation.
+7. Exports the estimate through state interfaces and publishes odometry for evaluation; the MPC reads the interfaces to build its observation.
 
 </td>
 </tr>
 </table>
 
-The estimator is built in [`on_configure()`](../src/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller.cpp#L210-L246) when `stateEstimator.enabled` or `floatingBase.source == "state_estimator"`, and is a member of the controller: [`state_estimator_`](../include/legged_robot_mpc_controller/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller.hpp#L124).
+The estimator is a separate chainable ROS controller configured by [`HumanoidStateEstimatorController::on_configure()`](https://github.com/wei-hsuan-cheng/legged_robot_state_estimator/blob/main/src/humanoid_state_estimator_controller.cpp#L78).
+The MPC selects its feedback through `floatingBase.source: state_estimator` and claims the estimator's exported interfaces.
 
 ## Filter Model
 
@@ -68,13 +72,13 @@ $$
 \dot{\mathbf v}=\mathbf R\,\tilde{\mathbf a}+\mathbf g,\qquad
 \dot{\mathbf p}=\mathbf v,
 $$
-with $\mathbf g=(0,0,-9.81)^{\mathsf T}$. The "invariant" property is that the estimation-error dynamics are (to first order) independent of the state, giving strong convergence. This step consumes the raw pelvis IMU measurements passed to [`estimator_->update()`](../src/humanoid_state_estimation/inekf_floating_base_estimator.cpp#L188).
+with $\mathbf g=(0,0,-9.81)^{\mathsf T}$. The "invariant" property is that the estimation-error dynamics are (to first order) independent of the state, giving strong convergence. This step consumes the raw pelvis IMU measurements passed to [`estimator_->update()`](https://github.com/wei-hsuan-cheng/legged_robot_state_estimator/blob/main/src/inekf_floating_base_estimator.cpp#L188).
 
 ### Contact-aided correction
 
 While foot $i$ is in stance, the InEKF assumes its contact point is **fixed in the world**. The forward-kinematic contact position relative to the base, $\mathbf f_i(\mathbf q)$, provides a measurement whose residual constrains base position, velocity, and (together with gravity) the full pose. Crucially the filter does **not** assume flat ground: a foot re-anchors at whatever height it lands, so stairs and uneven terrain are handled natively without any terrain model — the terrain model remains a *planner-only* concern.
 
-Contact state per foot may come from the joint torques (logistic regression inside the library) or, as configured by default, from the **MPC gait schedule** (`stateEstimator.contact.source: scheduled`), which is deterministic and matches the MIT Humanoid approach.
+Contact state per foot may come from the joint torques (logistic regression inside the library) or, as configured by default, from the **MPC gait schedule** (`contact.source: scheduled` in the estimator's parameter block), which is deterministic and matches the MIT Humanoid approach.
 
 The InEKF requires exactly **four point contacts**, so each flat foot contributes a **heel and a toe** point (as in the MIT Humanoid whole-body work). These are added to the URDF at the sole, offset from the ankle-roll link, with names distinct from the MPC's own contact frames to avoid a Pinocchio frame-name collision: [`foot_l_heel_est` … `foot_r_toe_est`](../description/urdf/robots/g1/g1_29dof.urdf#L1003-L1026).
 
@@ -82,14 +86,14 @@ The InEKF requires exactly **four point contacts**, so each flat foot contribute
 
 The single most important integration detail: **the InEKF estimates the IMU frame, but the MPC uses the pelvis** (the URDF floating-base root).
 On the G1 the IMU sits at $\mathbf t_{PI}=(0.04525,\,0,\,-0.08339)\,\text{m}$ below the pelvis, so a naive comparison shows an $\approx 8.3\,\text{cm}$ height offset.
-The wrapper removes this with the fixed transform $X_{PI}=(\mathbf R_{PI},\mathbf t_{PI})$ of the IMU frame in the pelvis frame, computed once from the model at construction: [constructor FK](../src/humanoid_state_estimation/inekf_floating_base_estimator.cpp#L96-L107).
+The wrapper removes this with the fixed transform $X_{PI}=(\mathbf R_{PI},\mathbf t_{PI})$ of the IMU frame in the pelvis frame, computed once from the model at construction: [constructor FK](https://github.com/wei-hsuan-cheng/legged_robot_state_estimator/blob/main/src/inekf_floating_base_estimator.cpp#L96-L107).
 
 At initialization, the incoming **pelvis** pose is converted to the **IMU** frame before seeding the filter,
 $$
 \mathbf R_I=\mathbf R_P\,\mathbf R_{PI},\qquad
 \mathbf p_I=\mathbf p_P+\mathbf R_P\,\mathbf t_{PI},
 $$
-in [`initialize()`](../src/humanoid_state_estimation/inekf_floating_base_estimator.cpp#L150-L170). On output, the estimated IMU pose is converted back to the pelvis, with a rigid-body lever-arm correction for the linear velocity,
+in [`initialize()`](https://github.com/wei-hsuan-cheng/legged_robot_state_estimator/blob/main/src/inekf_floating_base_estimator.cpp#L150-L170). On output, the estimated IMU pose is converted back to the pelvis, with a rigid-body lever-arm correction for the linear velocity,
 $$
 \mathbf R_P=\mathbf R_I\,\mathbf R_{PI}^{\mathsf T},\qquad
 \mathbf p_P=\mathbf p_I-\mathbf R_P\,\mathbf t_{PI},
@@ -98,13 +102,13 @@ $$
 \boldsymbol\omega_{P}^{\text{world}}=\mathbf R_I\,\boldsymbol\omega_I^{\text{local}},\qquad
 \mathbf v_P^{\text{world}}=\mathbf v_I^{\text{world}}+\boldsymbol\omega_P^{\text{world}}\times(\mathbf p_P-\mathbf p_I),
 $$
-in [`update()`](../src/humanoid_state_estimation/inekf_floating_base_estimator.cpp#L192-L209). (For the G1 $\mathbf R_{PI}=\mathbf I$, but the transform is computed generally.)
+in [`update()`](https://github.com/wei-hsuan-cheng/legged_robot_state_estimator/blob/main/src/inekf_floating_base_estimator.cpp#L192-L209). (For the G1 $\mathbf R_{PI}=\mathbf I$, but the transform is computed generally.)
 
-The four contact landmarks are seeded at their **true world heights** from FK at the initial pose, so the filter is consistent with the actual foot geometry and with per-foot start heights on stairs: [`contactGroundHeights()`](../src/humanoid_state_estimation/inekf_floating_base_estimator.cpp#L129-L148).
+The four contact landmarks are seeded at their **true world heights** from FK at the initial pose, so the filter is consistent with the actual foot geometry and with per-foot start heights on stairs: [`contactGroundHeights()`](https://github.com/wei-hsuan-cheng/legged_robot_state_estimator/blob/main/src/inekf_floating_base_estimator.cpp#L129-L148).
 
 ## Joint Ordering
 
-The controller provides joint values in its own `robot.jointNames` order (23 actuated joints), while the estimator's URDF model orders 29 joints by the Pinocchio tree. The wrapper builds a name→index map once and remaps every joint vector (position, velocity, torque), zero-filling URDF joints the controller does not actuate (e.g. wrists): [constructor map](../src/humanoid_state_estimation/inekf_floating_base_estimator.cpp#L72-L85) and [`remapToEstimatorOrder()`](../src/humanoid_state_estimation/inekf_floating_base_estimator.cpp#L117-L127).
+The controller provides joint values in its own `robot.jointNames` order (23 actuated joints), while the estimator's URDF model orders 29 joints by the Pinocchio tree. The wrapper builds a name→index map once and remaps every joint vector (position, velocity, torque), zero-filling URDF joints the controller does not actuate (e.g. wrists): [constructor map](https://github.com/wei-hsuan-cheng/legged_robot_state_estimator/blob/main/src/inekf_floating_base_estimator.cpp#L72-L85) and [`remapToEstimatorOrder()`](https://github.com/wei-hsuan-cheng/legged_robot_state_estimator/blob/main/src/inekf_floating_base_estimator.cpp#L117-L127).
 
 ## Sensor Plumbing (Simulation)
 
@@ -113,18 +117,19 @@ The estimator inputs come from `ros2_control` state interfaces exposed by `mujoc
 - **Pelvis IMU** — a `<sensor name="pelvis_imu">` in [`g1.ros2_control_macro.xacro`](../description/urdf/robots/g1/g1.ros2_control_macro.xacro#L126-L141) maps the MuJoCo `imu-pelvis-*` sensors to `orientation.*`, `angular_velocity.*`, and `linear_acceleration.*`. The MuJoCo model already has the gyro/accelerometer on the `imu_in_pelvis` site; a [`framequat`](../description/mujoco/robots/g1/g1_29dof.xml#L297) was added because the IMU mapping requires a quaternion sensor. The IMU site pose matches the URDF `imu_in_pelvis` frame exactly.
 - **Joint torque** — the joint macro already exposes an `effort` state interface, read for the torque-based contact estimator.
 
-These are claimed in [`state_interface_configuration()`](../src/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller.cpp#L363-L402) whenever the estimator is active. The same wiring applies on hardware: real IMU, encoders, and joint-torque sensing replace the MuJoCo sources with no controller change.
+These are claimed by the estimator's [`state_interface_configuration()`](https://github.com/wei-hsuan-cheng/legged_robot_state_estimator/blob/main/src/humanoid_state_estimator_controller.cpp#L46).
+The same wiring applies on hardware: real IMU, encoders, and joint-torque sensing replace the MuJoCo sources with no controller change.
 
 ## Bootstrapping and Selection
 
 The current bring-up requests estimator initialization after the robot has settled on its feet, then waits for the estimator's matching initialization epoch and readiness before starting MPC.
-This replaces the older simulator-pose bootstrap described in earlier versions of this document.
 The deployed control path uses `floatingBase.source: state_estimator` and reads the estimator controller's exported state interfaces.
 See the current [settling/convergence phases](../src/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller.cpp#L1006) and [initialization epoch check](../src/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller.cpp#L1257).
 
 ## Configuration and Tuning
 
-All parameters live under `stateEstimator` in the controller config (`config/g1/ros2_controllers.yaml`). The most important tuning finding on the G1:
+Estimator parameters live under `humanoid_inekf.ros__parameters` or `humanoid_linear_kf.ros__parameters` in [config/g1/ros2_controllers.yaml](../config/g1/ros2_controllers.yaml).
+The most important tuning finding on the G1:
 
 > The pelvis accelerometer swings **±5 m/s²** while merely standing (stiff PD + contact vibration). The library default `accelerometer_noise = 0.1` makes the filter over-trust it, which pulls the estimated height down by ~4 cm. Raising `noise.accelerometer` to `1.5` and hard low-passing the accelerometer (`lpf.linAccelCutoff` `250 → 30 Hz`), while trusting the contact height-anchor more (`noise.contact`, `noise.contactPosition`), removes the droop **and** cuts body-velocity error ~3×.
 
@@ -184,13 +189,18 @@ $$
 z^{\text{base}} = (1-w)\, z^{\text{base}}_{\text{InEKF}} + w\, z^{\text{base}}_{\text{kin}} .
 $$
 
-See [`kinematicBaseHeight()`](../src/humanoid_state_estimation/inekf_floating_base_estimator.cpp#L206-L243) and the fusion in [`updateImpl()`](../src/humanoid_state_estimation/inekf_floating_base_estimator.cpp#L300-L318). Configured by `stateEstimator.height.source` (`inekf` | `kinematic` | `blend`, default **blend**), `height.kinematicWeight` (default 0.9) and `height.groundZ`. This is purely proprioceptive — no ground truth — and reduced the closed-loop height error from ~6.6 mm/33.6 mm to **1.8 mm/6.6 mm**, which is what made closed-loop walking work.
+See [`kinematicBaseHeight()`](https://github.com/wei-hsuan-cheng/legged_robot_state_estimator/blob/main/src/inekf_floating_base_estimator.cpp#L206-L243) and the fusion in [`updateImpl()`](https://github.com/wei-hsuan-cheng/legged_robot_state_estimator/blob/main/src/inekf_floating_base_estimator.cpp#L300-L318).
+Configure `height.source` (`inekf` | `kinematic` | `blend` | `anchored`), `height.kinematicWeight`, and `height.groundZ` in the estimator's parameter block.
+The G1 configuration selects `kinematic`; the schema default is `anchored`.
+This is purely proprioceptive and reduced the recorded closed-loop height error from ~6.6 mm/33.6 mm to **1.8 mm/6.6 mm**.
 
 ### The warm-up window (why the estimate must not drive control immediately)
 
 The original closed-loop failure was a **filter initialization transient**, not tuning and not the height bias. The InEKF is seeded with zero velocity and unknown IMU biases, so its first ~2 s carry roughly **±0.15 m/s of phantom base velocity**. Because the centroidal state is normalized momentum $h = A(q)\,v/m$, that velocity error enters the *dominant* state directly; the MPC fights a base it believes is sliding, and the robot fell at t ≈ 2 s while standing, before any walking command — with the height estimate still accurate to 3–14 mm at the moment of the fall.
 
-`stateEstimator.warmupSeconds` (default 3.0 s) keeps the MPC on the state-interface base until the filter converges, then hands over ([warm-up gate](../src/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller.cpp#L686-L700)). Measured at hand-off, the phantom velocity has fallen to ~0.01–0.03 m/s and the robot no longer destabilizes. On hardware this corresponds to holding the robot at a known pose until the filter has converged.
+`readiness.minSeconds` (5.0 s in the G1 configuration) gates estimator readiness together with roll/pitch, height, and velocity standard-deviation limits.
+The MPC waits for the matching initialization epoch and readiness before starting locomotion.
+On hardware this corresponds to holding the robot in a settled stance while the filter warms up.
 
 ## Terrain limitation of the kinematic height anchor
 
@@ -221,7 +231,7 @@ z_{\text{anchor},i} \leftarrow z^{\text{base}}_{\text{InEKF}} + \big[{}^{B}p_{C_
 \ \text{ at touchdown.}
 $$
 
-Re-anchoring at *every* touchdown folds the filter's own height noise into the reference and destroys the noise rejection this term exists to provide (measured: flat-ground height error 1.8 mm → 6.9 mm, and the robot fell). A deadband therefore gates the update: a contact re-anchors only when the measured landing height differs from its current anchor by more than `height.anchorUpdateThreshold` (default 0.05 m — above the ~0.03 m filter noise, well below a 0.17 m riser). See [`kinematicBaseHeight()`](../src/humanoid_state_estimation/inekf_floating_base_estimator.cpp).
+Re-anchoring at *every* touchdown folds the filter's own height noise into the reference and destroys the noise rejection this term exists to provide (measured: flat-ground height error 1.8 mm → 6.9 mm, and the robot fell). A deadband therefore gates the update: a contact re-anchors only when the measured landing height differs from its current anchor by more than `height.anchorUpdateThreshold` (default 0.05 m — above the ~0.03 m filter noise, well below a 0.17 m riser). See [`kinematicBaseHeight()`](https://github.com/wei-hsuan-cheng/legged_robot_state_estimator/blob/main/src/inekf_floating_base_estimator.cpp).
 
 **Measured outcome — this does not yet make stairs work:**
 
@@ -245,8 +255,9 @@ All inputs are proprioceptive — IMU (roll/pitch), joint encoders, and contact 
 
 | Concern | Location |
 |---|---|
-| Estimate struct | [`humanoid_state_estimation/floating_base_estimate.hpp`](../include/legged_robot_mpc_controller/humanoid_state_estimation/floating_base_estimate.hpp) |
-| InEKF wrapper | [`humanoid_state_estimation/inekf_floating_base_estimator.{hpp,cpp}`](../src/humanoid_state_estimation/inekf_floating_base_estimator.cpp) |
+| Estimate struct | [`floating_base_estimate.hpp`](https://github.com/wei-hsuan-cheng/legged_robot_state_estimator/blob/main/include/legged_robot_state_estimator/floating_base_estimate.hpp) |
+| InEKF wrapper | [`inekf_floating_base_estimator.cpp`](https://github.com/wei-hsuan-cheng/legged_robot_state_estimator/blob/main/src/inekf_floating_base_estimator.cpp) |
+| Estimator ROS controller | [`humanoid_state_estimator_controller.cpp`](https://github.com/wei-hsuan-cheng/legged_robot_state_estimator/blob/main/src/humanoid_state_estimator_controller.cpp) |
 | Controller integration | [`humanoid_centroidal_mpc_controller.cpp`](../src/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller.cpp) |
-| Parameters | [`humanoid_centroidal_mpc_controller_parameter.yaml`](../src/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller_parameter.yaml) |
+| Estimator parameter schemas | [`humanoid_inekf_parameter.yaml`](https://github.com/wei-hsuan-cheng/legged_robot_state_estimator/blob/main/config/humanoid_inekf_parameter.yaml), [`humanoid_linear_kf_parameter.yaml`](https://github.com/wei-hsuan-cheng/legged_robot_state_estimator/blob/main/config/humanoid_linear_kf_parameter.yaml) |
 | IMU / contact frames | [`g1_29dof.urdf`](../description/urdf/robots/g1/g1_29dof.urdf), [`g1.ros2_control_macro.xacro`](../description/urdf/robots/g1/g1.ros2_control_macro.xacro), [`g1_29dof.xml`](../description/mujoco/robots/g1/g1_29dof.xml) |

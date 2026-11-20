@@ -15,6 +15,7 @@ set(THIS_PACKAGE_INCLUDE_DEPENDS
   generate_parameter_library
   geometry_msgs
   hardware_interface
+  legged_robot_state_estimator
   nav_msgs
   ocs2_centroidal_model
   ocs2_core
@@ -43,7 +44,6 @@ find_package(ament_cmake REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(Boost REQUIRED COMPONENTS system filesystem log log_setup)
 find_package(yaml-cpp REQUIRED)
-find_package(legged_state_estimator REQUIRED)
 
 foreach(dependency IN ITEMS ${THIS_PACKAGE_INCLUDE_DEPENDS})
   find_package(${dependency} REQUIRED)
@@ -54,12 +54,6 @@ generate_parameter_library(humanoid_centroidal_mpc_controller_parameters
 )
 generate_parameter_library(humanoid_whole_body_inverse_dynamics_mpc_controller_parameters
   src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller_parameter.yaml
-)
-generate_parameter_library(humanoid_inekf_parameters
-  src/humanoid_state_estimation/humanoid_inekf_parameter.yaml
-)
-generate_parameter_library(humanoid_linear_kf_parameters
-  src/humanoid_state_estimation/humanoid_linear_kf_parameter.yaml
 )
 
 file(GLOB_RECURSE HUMANOID_COMMON_CORE_SOURCES CONFIGURE_DEPENDS
@@ -161,12 +155,6 @@ add_library(${PROJECT_NAME} SHARED
   src/common/diagnostics_csv_logger.cpp
   src/common/ros2_procedural_mpc_motion_manager.cpp
   src/common/target/mpc_targets_parser.cpp
-  src/humanoid_state_estimation/inekf_floating_base_estimator.cpp
-  src/humanoid_state_estimation/linear_kf_floating_base_estimator.cpp
-  src/humanoid_state_estimation/humanoid_state_estimator.cpp
-  src/humanoid_state_estimation/humanoid_inekf.cpp
-  src/humanoid_state_estimation/humanoid_linear_kf.cpp
-  src/humanoid_state_estimation/humanoid_state_estimator_controller.cpp
   src/humanoid_centroidal_mpc/centroidal_mpc_config_builder.cpp
   src/humanoid_centroidal_mpc/centroidal_mpc_diagnostics.cpp
   src/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller.cpp
@@ -188,11 +176,9 @@ target_link_libraries(${PROJECT_NAME}
     Eigen3::Eigen
     humanoid_centroidal_mpc_controller_parameters
     humanoid_whole_body_inverse_dynamics_mpc_controller_parameters
-    humanoid_inekf_parameters
-    humanoid_linear_kf_parameters
     legged_robot_humanoid_centroidal_core
     legged_robot_humanoid_wb_id_core
-    legged_state_estimator::legged_state_estimator
+    legged_robot_state_estimator::legged_robot_state_estimator
     yaml-cpp
 )
 ament_target_dependencies(${PROJECT_NAME} PUBLIC ${THIS_PACKAGE_INCLUDE_DEPENDS})
@@ -240,8 +226,6 @@ install(TARGETS
   ${PROJECT_NAME}
   humanoid_centroidal_mpc_controller_parameters
   humanoid_whole_body_inverse_dynamics_mpc_controller_parameters
-  humanoid_inekf_parameters
-  humanoid_linear_kf_parameters
   legged_robot_humanoid_common_core
   legged_robot_humanoid_centroidal_core
   legged_robot_humanoid_wb_id_core

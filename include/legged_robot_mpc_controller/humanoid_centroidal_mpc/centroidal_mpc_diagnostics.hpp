@@ -18,8 +18,8 @@
 #include <humanoid_centroidal_mpc/CentroidalMpcInterface.h>
 
 #include "legged_robot_mpc_controller/common/diagnostics_csv_logger.hpp"
-#include "legged_robot_mpc_controller/humanoid_state_estimation/floating_base_estimate.hpp"
-#include "legged_robot_mpc_controller/humanoid_state_estimation/inekf_floating_base_estimator.hpp"
+#include "legged_robot_state_estimator/floating_base_estimate.hpp"
+#include "legged_robot_state_estimator/floating_base_estimator_interface.hpp"
 
 namespace legged_robot_mpc_controller
 {
@@ -131,8 +131,8 @@ public:
    */
   void recordState(
     const StateSample & sample,
-    const state_estimation::FloatingBaseEstimate & estimate,
-    const state_estimation::InekfFloatingBaseEstimator::Diagnostics & filter);
+    const legged_robot_state_estimator::state_estimation::FloatingBaseEstimate & estimate,
+    const legged_robot_state_estimator::state_estimation::EstimatorDiagnostics & filter);
 
   /**
    * Whether the optimizer actually solved the problem it was given.

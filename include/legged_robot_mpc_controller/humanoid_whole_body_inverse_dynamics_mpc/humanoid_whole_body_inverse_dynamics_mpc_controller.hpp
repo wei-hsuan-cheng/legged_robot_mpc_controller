@@ -39,7 +39,7 @@
 
 #include "legged_robot_mpc_controller/common/ros2_procedural_mpc_motion_manager.hpp"
 #include "legged_robot_mpc_controller/common/yaw_unwrapper.hpp"
-#include "legged_robot_mpc_controller/humanoid_state_estimation/estimator_state_interfaces.hpp"
+#include "legged_robot_state_estimator/estimator_state_interfaces.hpp"
 #include "legged_robot_mpc_controller/humanoid_whole_body_inverse_dynamics_mpc_controller_parameters.hpp"
 #include "legged_robot_mpc_controller/visualization/performance_visualization.hpp"
 
@@ -232,9 +232,9 @@ private:
   bool has_estimator() const { return parameters_.floatingBase.estimator != "none"; }
   std::vector<std::size_t> estimator_interface_index_;
   std::vector<double> estimator_values_;
-  state_estimation::FloatingBaseEstimate last_estimate_;
-  state_estimation::EstimatorDiagnostics estimator_diagnostics_;
-  estimator_interfaces::EstimatorStatus estimator_status_;
+  legged_robot_state_estimator::state_estimation::FloatingBaseEstimate last_estimate_;
+  legged_robot_state_estimator::state_estimation::EstimatorDiagnostics estimator_diagnostics_;
+  legged_robot_state_estimator::estimator_interfaces::EstimatorStatus estimator_status_;
   bool estimator_driving_control_{false};
   std::vector<std::size_t> estimator_command_index_;
   std::uint32_t estimator_epoch_{0};

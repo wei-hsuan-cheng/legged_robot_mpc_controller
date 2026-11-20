@@ -193,7 +193,7 @@ Caveat for all estimator results: the simulated IMU and encoders are noise-free,
 
 ### Wheel-aware linear KF
 
-[`LinearKfFloatingBaseEstimator`](../src/humanoid_state_estimation/linear_kf_floating_base_estimator.cpp) gained `contactModel: rolling_wheel`.
+[`LinearKfFloatingBaseEstimator`](https://github.com/wei-hsuan-cheng/legged_robot_state_estimator/blob/main/src/linear_kf_floating_base_estimator.cpp) gained `contactModel: rolling_wheel`.
 A tire's contact point moves with the robot, so it is no landmark; what stays at rest without slip is the tread material at the contact.
 Each wheel therefore measures the base velocity (minus the velocity of that material point relative to the base, wheel spin included) and the base height (the lowest point of the tire circle on the plane z = 0), and the state is base position and velocity only.
 This is the proprioceptive model the MPC already uses: height above the wheels' contact plane, flat ground at zero.
