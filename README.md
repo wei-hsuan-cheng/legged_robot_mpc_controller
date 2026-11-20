@@ -64,6 +64,7 @@ Public headers live under `include/legged_robot_mpc_controller/`, matching the m
 | `visualization/` | Trajectories, robot ghosts, and collision markers |
 
 See [layout regression results](./docs/results/wb_id_layout_regression.md) for the matched before/after simulation tests and the remaining G1 timing caveat.
+See [package health scan](./docs/results/package_health_scan.md) for the subsequent dead-code cleanup, joint/contact index fixes, and build checks.
 
 
 ## Supported Robots

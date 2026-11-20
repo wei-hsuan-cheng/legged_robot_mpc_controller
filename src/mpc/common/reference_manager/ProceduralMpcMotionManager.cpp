@@ -54,10 +54,10 @@ ProceduralMpcMotionManager::ProceduralMpcMotionManager(GaitMap gaitMap,
       switchedModelReferenceManagerPtr_(switchedModelReferenceManagerPtr),
       gaitSchedulePtr_(switchedModelReferenceManagerPtr_->getGaitSchedule()),
       mpcRobotModelPtr_(&mpcRobotModel),
+      gaitMap_(std::move(gaitMap)),
       walkingVelocityTarget_(referenceConfig, std::move(velocityTargetToTargetTrajectories)),
       basePoseTarget_(referenceConfig, mpcRobotModel, std::move(basePoseTargetToTargetTrajectories)),
       referenceConfig_(referenceConfig) {
-  gaitMap_ = std::move(gaitMap);
   // preSolverRun() indexes the ladder and falls back to rung 0, the rest gait ("stance" on the legged robots,
   // "wheel_drive" on Upkie); the loader validates the file, this guards direct construction.
   if (gaitModeStates_.empty()) {

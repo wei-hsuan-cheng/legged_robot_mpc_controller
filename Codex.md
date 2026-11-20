@@ -1,6 +1,25 @@
 # WB-ID MPC Walking Robustness Handoff
 
 
+## Package Health Cleanup (2026-11-20 Asia/Taipei)
+
+Validation checkpoint on `jazzy`, based on `e2ad99e`, prepared for the requested commit and push.
+The full static scan found two real `reserve()`-then-index vector bugs in the active/full joint map and contact-frame index helper.
+A new native regression failed against the previous library on the old G1 joint-map size, before applying the fixes.
+Both vectors now have their required size, and fixed-joint lists reject unknown/duplicate/all-fixed inputs before active-joint counting.
+Removed two unreferenced headers, the unused gait-list field, generated code-tree caches, and the fake dependency-discovery shim in `cmake/`.
+Normal CMake discovery finds the real installed `tl-expected` config/header.
+Added missing direct dependencies and cache exclusions for resource installation; active terrain modes, recordings, archives, and agent files were retained.
+Complete G1/H2/Upkie controller and estimator YAML are identical to HEAD; no physics, solver tuning, or generated-model cache changes were requested.
+Python checks passed 136 with 10 optional skips, the parameter-contract script passed, Cppcheck selected checks are clean, and Python undefined-name/syntax lint passed.
+Release rebuild completed with two jobs (9 minutes 16 seconds), and all eight native regressions passed against the refreshed installation.
+All installed G1/H2/Upkie scenes loaded with the MuJoCo C++ SDK; robot and environment xacros expanded, launch-argument discovery passed, and installed libraries have no missing dependencies.
+No robot simulations were launched or stepped; all owned build/check processes are finished, and manual testing is left to the user.
+The complete package was freshly installed and colcon environment hooks regenerated; retired headers and source caches are absent from the installed tree.
+The full ament scan passed Cppcheck/CMake/XML lint but still failed repository-wide Flake8/PEP257/Uncrustify style checks; the new test files pass their relevant style checks.
+See [package health results](docs/results/package_health_scan.md) for the current status and remaining license/timing caveats.
+
+
 ## WB-ID Layout Validation (2026-11-20 Asia/Taipei)
 
 Validation checkpoint on `jazzy`, based on `691fd44`, prepared for the requested commit and push.

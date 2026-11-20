@@ -169,7 +169,6 @@ class ProceduralMpcMotionManager : public SolverSynchronizedModule {
   std::shared_ptr<GaitSchedule> gaitSchedulePtr_;
   const MpcRobotModelBase<scalar_t>* mpcRobotModelPtr_;
 
-  std::vector<std::string> gaitList_;
   std::map<std::string, ModeSequenceTemplate> gaitMap_;
 
   // Owns the command -> TargetTrajectories path (scale, filter, generate) for both the

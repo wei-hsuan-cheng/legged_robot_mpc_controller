@@ -1,6 +1,7 @@
-*.cpython-310.pyc
 **/__pycache__/
 **/*.py[cod]
+**/.pytest_cache/
+auto_generated/
 
 # macOS
 .DS_Store

@@ -32,6 +32,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <cmath>
 #include <stdexcept>
+#include <unordered_set>
 
 #include <ocs2_pinocchio_interface/PinocchioInterface.h>
 
@@ -59,17 +60,25 @@ static std::unordered_map<std::string, size_t> createJointIndexMap(const std::ve
 static std::vector<std::string> initializeJointNames(const std::vector<std::string>& fullJointNames,
                                                      const std::vector<std::string>& fixedJointNames,
                                                      bool verbose) {
-  if (verbose) std::cout << "Initialize the following active MPC joints: " << std::endl;
-  size_t n_joints = fullJointNames.size() - fixedJointNames.size();
-  if (verbose) std::cout << "Num active joints: " << n_joints << std::endl;
-  std::vector<std::string> mpcModelJointNames;
-  if (n_joints > 0) {
-    mpcModelJointNames.reserve(n_joints);
-  } else {
+  std::unordered_set<std::string> fixedJoints;
+  for (const auto& joint : fixedJointNames) {
+    if (std::find(fullJointNames.begin(), fullJointNames.end(), joint) == fullJointNames.end()) {
+      throw std::invalid_argument("[ModelSettings] unknown fixed joint: " + joint);
+    }
+    if (!fixedJoints.insert(joint).second) {
+      throw std::invalid_argument("[ModelSettings] duplicate fixed joint: " + joint);
+    }
+  }
+  if (fixedJoints.size() >= fullJointNames.size()) {
     throw std::invalid_argument("Number of joints must be greater than zero");
   }
+  if (verbose) std::cout << "Initialize the following active MPC joints: " << std::endl;
+  const size_t n_joints = fullJointNames.size() - fixedJoints.size();
+  if (verbose) std::cout << "Num active joints: " << n_joints << std::endl;
+  std::vector<std::string> mpcModelJointNames;
+  mpcModelJointNames.reserve(n_joints);
   for (const auto& joint : fullJointNames) {
-    if (std::find(fixedJointNames.begin(), fixedJointNames.end(), joint) == fixedJointNames.end()) {
+    if (fixedJoints.count(joint) == 0) {
       // If the joint is not found in fixedJointNames, add it to mpcModelJointNames
       if (verbose) std::cout << joint << std::endl;
       mpcModelJointNames.emplace_back(joint);
@@ -80,11 +89,10 @@ static std::vector<std::string> initializeJointNames(const std::vector<std::stri
 
 std::vector<size_t> initializeMpcToFullJointIndices(const std::vector<std::string>& fullJointNames,
                                                     const std::vector<std::string>& mpcModelJointNames) {
-  std::unordered_map<std::string, size_t> fullJointIndexMap = createJointIndexMap(fullJointNames);
-  std::vector<size_t> mpcModelJointIndices;
-  mpcModelJointIndices.reserve(mpcModelJointNames.size());
+  const auto fullJointIndexMap = createJointIndexMap(fullJointNames);
+  std::vector<size_t> mpcModelJointIndices(mpcModelJointNames.size());
   for (size_t i = 0; i < mpcModelJointNames.size(); ++i) {
-    mpcModelJointIndices[i] = fullJointIndexMap[mpcModelJointNames[i]];
+    mpcModelJointIndices[i] = fullJointIndexMap.at(mpcModelJointNames[i]);
   }
   return mpcModelJointIndices;
 }
@@ -132,7 +140,7 @@ ModelSettings::ModelSettings(const Params& params, const std::string& urdfFile, 
 
   if (verbose) {
     std::cout << "Initializing MPC by fixing joints: " << std::endl;
-    for (std::string fixedJoint : fixedJointNames) std::cout << fixedJoint << std::endl;
+    for (const auto& fixedJoint : fixedJointNames) std::cout << fixedJoint << std::endl;
   }
 
   // Get full joint order from a full pinocchio interface, this removes any joints marked as fix in the urdf.

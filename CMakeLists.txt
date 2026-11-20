@@ -1,8 +1,6 @@
 cmake_minimum_required(VERSION 3.14)
 project(legged_robot_mpc_controller LANGUAGES CXX)
 
-list(PREPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
@@ -11,6 +9,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(THIS_PACKAGE_INCLUDE_DEPENDS
   ament_index_cpp
+  builtin_interfaces
   controller_interface
   generate_parameter_library
   geometry_msgs
@@ -33,6 +32,7 @@ set(THIS_PACKAGE_INCLUDE_DEPENDS
   std_msgs
   std_srvs
   tf2_msgs
+  tf2
   tf2_ros
   tf2_geometry_msgs
   urdf
@@ -148,8 +148,13 @@ pluginlib_export_plugin_description_file(
 install(DIRECTORY include/
   DESTINATION include
 )
-install(DIRECTORY launch/
-  DESTINATION share/${PROJECT_NAME}/launch
+install(DIRECTORY launch config docs description
+  DESTINATION share/${PROJECT_NAME}
+  PATTERN "__pycache__" EXCLUDE
+  PATTERN "*.pyc" EXCLUDE
+  PATTERN "*.pyo" EXCLUDE
+  PATTERN ".pytest_cache" EXCLUDE
+  PATTERN ".DS_Store" EXCLUDE
 )
 install(PROGRAMS
   launch/base_command_gui.py
@@ -157,15 +162,6 @@ install(PROGRAMS
   launch/push_recovery_test.py
   launch/command/mpc_targets/joint_tracking_target.py
   DESTINATION lib/${PROJECT_NAME}
-)
-install(DIRECTORY config/
-  DESTINATION share/${PROJECT_NAME}/config
-)
-install(DIRECTORY docs/
-  DESTINATION share/${PROJECT_NAME}/docs
-)
-install(DIRECTORY description/
-  DESTINATION share/${PROJECT_NAME}/description
 )
 install(FILES legged_robot_mpc_controller_plugin.xml
   DESTINATION share/${PROJECT_NAME}
@@ -183,6 +179,11 @@ install(TARGETS
 )
 
 if(BUILD_TESTING)
+  add_executable(model_settings_test tests/model_settings_test.cpp)
+  target_link_libraries(model_settings_test PRIVATE legged_robot_humanoid_wb_id_core)
+  target_compile_options(model_settings_test PRIVATE -UNDEBUG)
+  add_test(NAME model_settings_test COMMAND model_settings_test
+    ${CMAKE_CURRENT_SOURCE_DIR}/description/urdf/robots)
   add_executable(wheel_model_consistency_test tests/wheel_model_consistency_test.cpp)
   target_link_libraries(wheel_model_consistency_test PRIVATE legged_robot_humanoid_wb_id_core)
   add_test(NAME wheel_model_consistency_test COMMAND wheel_model_consistency_test
