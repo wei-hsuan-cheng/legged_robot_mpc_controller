@@ -223,7 +223,8 @@ Release L2 and center both sticks, then hold L2 to drive.
 The selected controller YAML and effective nominal height are passed to teleop automatically.
 Stop any separately running `joy` driver or standalone teleop launch before using the integrated launch.
 The left stick controls forward/sideways motion, the right stick controls yaw, and D-pad up/down changes height while L2 is held.
-Circle stops velocity commands; Triangle restores nominal height while L2 is held.
+Circle stops velocity commands; L1 acts as Center only with L2 released, zeroing velocity/yaw and restoring nominal height.
+L1 presses while driving are ignored rather than queued; release L1 before re-enabling L2.
 L2 engages at 50% of its ROS trigger range and releases at 20%; the mapping and thresholds are configurable in the teleop package.
 Upkie ignores sideways input.
 Start with the [isolated topic check](https://github.com/wei-hsuan-cheng/legged_robot_teleop/blob/main/docs/testing.md) before controlling the robot.

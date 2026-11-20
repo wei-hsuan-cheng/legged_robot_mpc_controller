@@ -9,9 +9,10 @@ The robot launch now uses `baseCommandDevice:=gui|joystick|none`, default `gui`,
 The selector launches exactly one input frontend, or neither for scripted targets; external publishers still need to be stopped by the user.
 Integrated joystick launch receives the resolved controller YAML, robot name, nominal height, and simulation-time setting.
 The adapter sends the GUI's normalized velocity/yaw fields and height in meters, with default speed fractions of 0.25.
-L2 is hold-to-drive; Circle stops velocities; D-pad adjusts height; Triangle restores nominal height.
+L2 is hold-to-drive; Circle stops velocities; D-pad adjusts height; L1 Centers only with L2 released, zeroing velocities and restoring nominal height.
 The user selected L2 instead of the initial L1 default; it uses signed trigger axis 4 with 0.5 engage/0.2 release thresholds.
 The L2 implementation and corresponding tests rebuilt successfully; all 48 teleop checks passed without launching a robot.
+The subsequent L1 Center update rebuilt teleop and passed 52 checks, including ignored active-mode presses, no deferred reset, held-Center re-arm prevention, and Circle priority.
 Fresh centered-stick re-arming, a 0.25-second monotonic input watchdog, bounded height, and best-effort output are implemented in the separate package.
 It is not a hardware E-stop and cannot protect against adapter process death or downstream transport failure.
 No MPC numerical parameters, robot models, scenes, or estimator settings changed.
