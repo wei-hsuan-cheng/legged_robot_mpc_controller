@@ -82,7 +82,7 @@ See [H2 Integration and Validation](./docs/h2_wb_id_mpc.md) and [official model 
 ## Build and Install
 
 The floating-base estimator plugins are provided by the shared [`legged_robot_state_estimator`](https://github.com/wei-hsuan-cheng/legged_robot_state_estimator) package, also used by TurboMPC.
-The dependency manifest imports only this shared estimator package; its own manifest supplies its internal dependencies.
+The shared estimator package owns its internal dependency manifest, imported separately below.
 Robot-specific estimator settings remain in `config/<robot>/ros2_controllers.yaml`.
 Do not add a duplicate checkout of a package already in the workspace.
 
@@ -96,7 +96,7 @@ Do not add a duplicate checkout of a package already in the workspace.
   cd <workspace_dir>/src
   mkdir legged_robot_mpc_controller_dependencies
   vcs import < legged_robot_mpc_controller/legged_robot_mpc_controller.repos
-  vcs import legged_robot_mpc_controller_dependencies < legged_robot_mpc_controller_dependencies/legged_robot_state_estimator/legged_robot_state_estimator.repos
+  vcs import < legged_robot_mpc_controller_dependencies/legged_robot_state_estimator/legged_robot_state_estimator.repos
   ```
 
 - First install by `rosdep`
