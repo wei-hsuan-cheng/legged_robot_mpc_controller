@@ -1,14 +1,5 @@
 <library path="legged_robot_mpc_controller">
   <class
-    name="legged_robot_mpc_controller/HumanoidCentroidalMpcController"
-    type="legged_robot_mpc_controller::HumanoidCentroidalMpcController"
-    base_class_type="controller_interface::ChainableControllerInterface">
-    <description>
-      OCS2 floating-base humanoid centroidal MPC controller.
-    </description>
-  </class>
-
-  <class
     name="legged_robot_mpc_controller/HumanoidWholeBodyInverseDynamicsMpcController"
     type="legged_robot_mpc_controller::HumanoidWholeBodyInverseDynamicsMpcController"
     base_class_type="controller_interface::ChainableControllerInterface">

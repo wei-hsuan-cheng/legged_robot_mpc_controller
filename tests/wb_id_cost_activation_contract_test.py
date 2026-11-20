@@ -10,11 +10,11 @@ import yaml
 from wb_id_parameter_contract_test import NAME, ROOT, UniqueLoader, check_keys
 
 
-FOLDER = ROOT / "src/humanoid_whole_body_inverse_dynamics_mpc"
-SCHEMA = yaml.load((FOLDER / f"{NAME}_parameter.yaml").read_text(), Loader=UniqueLoader)[NAME]
+FOLDER = ROOT / "src/controller"
+SCHEMA = yaml.load((FOLDER / "parameters.yaml").read_text(), Loader=UniqueLoader)[NAME]
 PARAMS = yaml.load((ROOT / "config/g1/ros2_controllers.yaml").read_text(), Loader=UniqueLoader)[NAME]["ros__parameters"]
-BUILDER = (FOLDER / "whole_body_inverse_dynamics_mpc_config_builder.cpp").read_text()
-INTERFACE = (ROOT / "src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp").read_text()
+BUILDER = (FOLDER / "config_builder.cpp").read_text()
+INTERFACE = (ROOT / "src/mpc/wb_id/WbIdMpcInterface.cpp").read_text()
 
 
 def block(source, marker):
@@ -64,7 +64,7 @@ class CostActivationContractTest(unittest.TestCase):
 
     def test_foot_and_load_constructors_are_inside_activation_guards(self):
         for flag, constructor in (
-            ("activateTaskSpaceFootCost", "std::make_unique<CentroidalMpcEndEffectorFootCost>"),
+            ("activateTaskSpaceFootCost", "std::make_unique<EndEffectorFootCost>"),
             ("activateLegTorqueCost", "factory.getExternalTorqueQuadraticCost(i)"),
         ):
             guard = block(INTERFACE, f"if (config_.{flag})")

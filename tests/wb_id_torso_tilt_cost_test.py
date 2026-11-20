@@ -9,7 +9,7 @@ import numpy as np
 from wb_id_cost_activation_contract_test import BUILDER, INTERFACE, PARAMS, ROOT, SCHEMA, block
 
 
-SOURCE = (ROOT / "src/core/humanoid_wb_id_mpc/src/cost/WbIdTorsoTiltCost.cpp").read_text()
+SOURCE = (ROOT / "src/mpc/wb_id/cost/WbIdTorsoTiltCost.cpp").read_text()
 
 
 def rotation(axis, angle):

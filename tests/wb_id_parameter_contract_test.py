@@ -70,7 +70,7 @@ def check_keys(values, schema, prefix=""):
 
 def main():
     config = yaml.load((ROOT / "config/g1/ros2_controllers.yaml").read_text(), Loader=UniqueLoader)
-    schema = yaml.load((ROOT / f"src/humanoid_whole_body_inverse_dynamics_mpc/{NAME}_parameter.yaml").read_text(), Loader=UniqueLoader)[NAME]
+    schema = yaml.load((ROOT / "src/controller/parameters.yaml").read_text(), Loader=UniqueLoader)[NAME]
     params = config[NAME]["ros__parameters"]
     check_keys(params, schema)
     assert "wholeBody" not in params and "wholeBody" not in schema
@@ -87,7 +87,6 @@ def main():
     for stage in ("q", "qFinal", "r"):
         assert all(v >= 0 for values in costs[stage].values() for v in values)
     assert "captureFootPlacement" not in costs and "icpErrorWeight" not in costs
-    assert "centroidalModelType" not in params["ocs2"]["model"]
     # WB-ID foot stabilization belongs to constraints, not rigid-body model settings.
     assert "footConstraint" not in params["ocs2"]["model"]
     assert "footConstraint" not in schema["ocs2"]["model"]
@@ -120,10 +119,8 @@ def main():
         bands = gait["transitions"][rung]
         assert bands["linearVelocity"][0] <= bands["linearVelocity"][1] and bands["yawRate"][0] <= bands["yawRate"][1]
 
-    folder = ROOT / "src/humanoid_whole_body_inverse_dynamics_mpc"
-    builder = (folder / "whole_body_inverse_dynamics_mpc_config_builder.cpp").read_text()
-    assert "buildCentroidalMpcConfig" not in builder
-    assert "humanoid_centroidal_mpc_controller::" not in builder
+    folder = ROOT / "src/controller"
+    builder = (folder / "config_builder.cpp").read_text()
     assert "p.model.footConstraint" not in builder
     for name in foot_gains:
         assert f"p.constraints.footMotionEquality.{name}" in builder
@@ -149,7 +146,7 @@ def main():
     assert "policyTimeOffset" in params["ocs2"]["solver"]["rollout"]
     assert set(params["ocs2"]["solver"]["rollout"]) == {"policyTimeOffset"}
     assert set(schema["ocs2"]["solver"]["rollout"]) == {"policyTimeOffset"}
-    controller = (folder / (NAME + ".cpp")).read_text()
+    controller = (folder / "controller.cpp").read_text()
     assert controller.count("parameters_.ocs2.solver.rollout.policyTimeOffset") == 2
     assert "parameters_.control.policyTimeOffset" not in controller
     # One WB-ID limit array supplies both OCP soft bounds and feedforward clipping.
@@ -164,11 +161,6 @@ def main():
     assert "params.control.torqueLimit" not in builder
     assert "parameters_.control.torqueLimit" not in controller
     assert "clamp_torque(command.feedforward);" in controller
-    assert "torqueLimit" in config["humanoid_centroidal_mpc_controller"]["ros__parameters"]["control"]
-    # The other controller deliberately retains its existing parameter contract.
-    centroidal = config["humanoid_centroidal_mpc_controller"]["ros__parameters"]["ocs2"]
-    assert "footConstraint" in centroidal["model"] and "armJointNames" in centroidal["model"]
-    assert "contact" in centroidal["constraints"]
     # Every direct p.* access in the builder must exist in the standalone schema.
     for access in re.findall(r"\bp\.([A-Za-z_][\w.]*)", builder):
         node = schema["ocs2"]

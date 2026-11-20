@@ -1,8 +1,8 @@
 #include <cassert>
 #include <cmath>
 
-#include <humanoid_common_mpc/gait/GaitSchedule.h>
-#include <humanoid_common_mpc/swing_foot_planner/SwingTrajectoryPlanner.h>
+#include <legged_robot_mpc_controller/mpc/common/gait/GaitSchedule.h>
+#include <legged_robot_mpc_controller/mpc/common/swing_foot_planner/SwingTrajectoryPlanner.h>
 
 int main() {
   using namespace ocs2;

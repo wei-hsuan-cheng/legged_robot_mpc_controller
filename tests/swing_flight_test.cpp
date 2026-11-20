@@ -3,8 +3,8 @@
 #include <limits>
 #include <stdexcept>
 
-#include <humanoid_common_mpc/gait/MotionPhaseDefinition.h>
-#include <humanoid_common_mpc/swing_foot_planner/SwingTrajectoryPlanner.h>
+#include <legged_robot_mpc_controller/mpc/common/gait/MotionPhaseDefinition.h>
+#include <legged_robot_mpc_controller/mpc/common/swing_foot_planner/SwingTrajectoryPlanner.h>
 
 int main() {
   using namespace ocs2;

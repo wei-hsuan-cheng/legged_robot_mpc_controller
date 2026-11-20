@@ -14,7 +14,7 @@
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
 
-#include <humanoid_common_mpc/reference_manager/ProceduralMpcMotionManager.h>
+#include <legged_robot_mpc_controller/mpc/common/reference_manager/ProceduralMpcMotionManager.h>
 
 namespace legged_robot_mpc_controller
 {
@@ -48,17 +48,11 @@ public:
     const std::string& global_frame,
     const std::string& gait_topic = "");
 
-  /// Subscribes to the MpcTargets command topic (command_type dispatch: "joint"
-  /// arm targets, "frame_relation" relative-pose tracking of declared
-  /// source/target frame pairs, "joint_frame_relation", "default"). Kept
-  /// separate from subscribe() so controllers opt in with the tracked-joint
-  /// ordering and the declared pairs.
+  /// Subscribes to joint targets and default-posture reset commands.
   void subscribeMpcTargets(
     const rclcpp_lifecycle::LifecycleNode::SharedPtr& node,
     const std::string& mpc_targets_topic,
-    std::vector<std::string> tracked_arm_joint_names,
-    std::vector<std::string> declared_frame_relation_source_frames,
-    std::vector<std::string> declared_frame_relation_target_frames);
+    std::vector<std::string> tracked_arm_joint_names);
 
 private:
   rclcpp::Subscription<ocs2_msgs::msg::WalkingVelocityCommand>::SharedPtr velocity_command_subscription_;
@@ -67,8 +61,6 @@ private:
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr gait_subscription_;
   rclcpp::Subscription<ocs2_msgs::msg::MpcTargets>::SharedPtr mpc_targets_subscription_;
   std::vector<std::string> tracked_arm_joint_names_;
-  std::vector<std::string> declared_frame_relation_source_frames_;
-  std::vector<std::string> declared_frame_relation_target_frames_;
   std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
   double command_frame_yaw_{0.0};

@@ -1,6 +1,6 @@
 # Terrain-Aware Walking
 
-This document describes the online `terrain_walk` pipeline used by the G1 centroidal MPC controller. It explains how a velocity command becomes an MPC target trajectory, how the periodic contact sequence is generated, how footholds are replanned over the known terrain, and how those references enter the optimal control problem.
+This document describes the online `terrain_walk` pipeline used by the WB-ID MPC controller. It explains how a velocity command becomes an MPC target trajectory, how the periodic contact sequence is generated, how footholds are replanned over the known terrain, and how those references enter the optimal control problem.
 
 The important distinction is:
 
@@ -47,7 +47,7 @@ At each MPC update:
 </tr>
 </table>
 
-The target mode string is converted to `TargetMode::TerrainWalk` in the [motion-manager adapter](../src/common/ros2_procedural_mpc_motion_manager.cpp#L54-L72). The solver-thread pipeline is selected in [`ProceduralMpcMotionManager::preSolverRun()`](../src/core/humanoid_common_mpc/src/reference_manager/ProceduralMpcMotionManager.cpp#L132-L179).
+The target mode string is converted to `TargetMode::TerrainWalk` in the [motion-manager adapter](../src/common/ros2_procedural_mpc_motion_manager.cpp#L54-L72). The solver-thread pipeline is selected in [`ProceduralMpcMotionManager::preSolverRun()`](../src/mpc/common/reference_manager/ProceduralMpcMotionManager.cpp#L132-L179).
 
 ## Walking Command
 
@@ -74,7 +74,7 @@ h_b \\
 \end{bmatrix}.
 $$
 
-The scaling and solver-thread low-pass filtering are implemented in [`WalkingVelocityTarget::scaleCommand()`](../src/core/humanoid_common_mpc/src/target/WalkingVelocityTarget.cpp#L50-L81) and [`evaluate()`](../src/core/humanoid_common_mpc/src/target/WalkingVelocityTarget.cpp#L50-L81). The filter produces
+The scaling and solver-thread low-pass filtering are implemented in [`WalkingVelocityTarget::scaleCommand()`](../src/mpc/common/target/WalkingVelocityTarget.cpp#L50-L81) and [`evaluate()`](../src/mpc/common/target/WalkingVelocityTarget.cpp#L50-L81). The filter produces
 
 $$
 \mathbf c_f[k]
@@ -86,7 +86,7 @@ where $\mathcal F$ is the configured command filter. Scaling and filtering are p
 
 ### Base target trajectory
 
-For centroidal MPC, the conditioned command defines the pelvis-frame planar twist
+For WB-ID MPC, the conditioned command defines the pelvis-frame planar twist
 
 $$
 \boldsymbol\xi_b^{\mathrm{cmd}} =
@@ -107,7 +107,9 @@ $$
 \qquad 0\leq\tau\leq T_{\mathrm{MPC}}.
 $$
 
-The measured base velocity is not blended into this reference, so velocity-estimation noise remains feedback to the MPC initial state instead of moving the target itself. At each knot, the commanded horizontal velocity is rotated by that knot's target yaw to form the world-aligned normalized linear-momentum target, while the yaw-rate target retains the centroidal model's existing normalization. The knot times are
+The measured base velocity is not blended into this reference, so velocity-estimation noise remains feedback to the initial state rather than moving the target.
+At each knot, the command is rotated by the target yaw to form world linear-velocity targets, with ZYX Euler-rate targets for orientation.
+The knot times are
 
 $$
 t_0=t_{\mathrm{init}},\qquad
@@ -115,7 +117,7 @@ t_1=t_{\mathrm{init}}+0.7T_{\mathrm{MPC}},\qquad
 t_2=t_{\mathrm{init}}+T_{\mathrm{MPC}}.
 $$
 
-For `base_twist`, `terrain_walk`, and `stair_climb`, the base tracking cost ignores the unobservable global $x$, $y$, and yaw pose errors, but retains pelvis height, roll, pitch, and body-frame motion tracking. Explicit `base_pose` commands select full pose tracking. The command-only integration is implemented in [`integrateBodyTwistTargetBasePose()`](../src/core/humanoid_common_mpc/src/command/TargetTrajectoriesCalculatorBase.cpp#L132-L160) and [`commandedVelocityToTargetTrajectories()`](../src/core/humanoid_centroidal_mpc/src/command/CentroidalMpcTargetTrajectoriesCalculator.cpp#L104-L141), while the mode-dependent invariant residual is implemented in [`BaseMotionTrackingCost.cpp`](../src/core/humanoid_common_mpc/src/cost/BaseMotionTrackingCost.cpp#L24-L119).
+For `base_twist`, `terrain_walk`, and `stair_climb`, the base tracking cost ignores the unobservable global $x$, $y$, and yaw pose errors, but retains pelvis height, roll, pitch, and body-frame motion tracking. Explicit `base_pose` commands select full pose tracking. The command-only integration is implemented in [`integrateBodyTwistTargetBasePose()`](../src/mpc/common/command/TargetTrajectoriesCalculatorBase.cpp#L132-L160) and [`commandedVelocityToTargetTrajectories()`](../src/mpc/wb_id/command/WbIdMpcTargetTrajectoriesCalculator.cpp#L93), while the mode-dependent invariant residual is implemented in [`BaseMotionTrackingCost.cpp`](../src/mpc/common/cost/BaseMotionTrackingCost.cpp#L24-L117).
 
 ## Gait Sequence
 
@@ -146,7 +148,7 @@ The available mode mappings are:
 | `LF` | 1 | 0 | left support, right swing |
 | `STANCE` | 1 | 1 | double support |
 
-These mappings are defined by [`ModeNumber`](../include/humanoid_common_mpc/gait/MotionPhaseDefinition.h#L45-L74) and [`modeNumber2StanceLeg()`](../include/humanoid_common_mpc/gait/MotionPhaseDefinition.h#L45-L74).
+These mappings are defined by [`ModeNumber`](../include/legged_robot_mpc_controller/mpc/common/gait/MotionPhaseDefinition.h#L45-L74) and [`modeNumber2StanceLeg()`](../include/legged_robot_mpc_controller/mpc/common/gait/MotionPhaseDefinition.h#L45-L74).
 
 ### Terrain-walk template
 
@@ -178,7 +180,7 @@ $$
 T_g = 1.4\ \mathrm{s}.
 $$
 
-The source is the `terrain_walk` template in `ocs2.gait.templates` of [`ros2_controllers.yaml`](../config/g1/ros2_controllers.yaml#L470). Mode names are converted to mode numbers when loading the template in [`modeScheduleFromStrings()`](../src/core/humanoid_common_mpc/src/gait/ModeSequenceTemplate.cpp#L86-L99).
+The source is the `terrain_walk` template in `ocs2.gait.templates` of [`ros2_controllers.yaml`](../config/g1/ros2_controllers.yaml#L467). Mode names are converted to mode numbers when loading the template in [`modeScheduleFromStrings()`](../src/mpc/common/gait/ModeSequenceTemplate.cpp#L86-L99).
 
 ### Selecting and tiling the gait
 
@@ -194,7 +196,7 @@ $$
 
 It selects `terrain_walk` while moving and `stance` otherwise. 
 
-This bypasses the normal speed-dependent gait finite-state machine so the stair gait retains its long swing and double-support intervals: [`ProceduralMpcMotionManager.cpp`](../src/core/humanoid_common_mpc/src/reference_manager/ProceduralMpcMotionManager.cpp#L169-L203).
+This bypasses the normal speed-dependent gait finite-state machine so the stair gait retains its long swing and double-support intervals: [`ProceduralMpcMotionManager.cpp`](../src/mpc/common/reference_manager/ProceduralMpcMotionManager.cpp#L169-L203).
 
 For template switching times $\tau_j$, the event times of cycle $k$ are
 
@@ -210,7 +212,7 @@ $$
 
 When changing gaits, an optional intermediate `STANCE` phase is inserted before the new template.
 The existing future schedule is truncated, then the selected template is tiled beyond the MPC horizon.
-This is implemented by [`insertModeSequenceTemplate()`](../src/core/humanoid_common_mpc/src/gait/GaitSchedule.cpp#L52), [`getModeSchedule()`](../src/core/humanoid_common_mpc/src/gait/GaitSchedule.cpp#L86), and [`tileModeSequenceTemplate()`](../src/core/humanoid_common_mpc/src/gait/GaitSchedule.cpp#L118).
+This is implemented by [`insertModeSequenceTemplate()`](../src/mpc/common/gait/GaitSchedule.cpp#L52), [`getModeSchedule()`](../src/mpc/common/gait/GaitSchedule.cpp#L86), and [`tileModeSequenceTemplate()`](../src/mpc/common/gait/GaitSchedule.cpp#L118).
 Per-template `swingHeight` metadata follows those same schedule edits; omitted overrides inherit `gait.swingTrajectory.swingHeight`.
 
 The reference manager requests a schedule over an interval wider than the current horizon:
@@ -221,7 +223,7 @@ $$
 T_h=t_{\mathrm{final}}-t_{\mathrm{init}},
 $$
 
-so swing construction has the neighboring phases needed at both boundaries: [`SwitchedModelReferenceManager.cpp`](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L143-L171).
+so swing construction has the neighboring phases needed at both boundaries: [`SwitchedModelReferenceManager.cpp`](../src/mpc/common/reference_manager/SwitchedModelReferenceManager.cpp#L143-L171).
 
 ## Ground-Truth Terrain Model
 
@@ -239,7 +241,7 @@ x_{\mathrm{start}}+\sum_{j=0}^{i-1}d_j+\frac{d_i}{2}\\
 \end{bmatrix}.
 $$
 
-The center is rotated and translated into the world frame using the staircase yaw and base position. The construction is implemented in [`buildTerrainModelFromStairs()`](../src/core/humanoid_common_mpc/src/reference_manager/TerrainFootholdPlanner.cpp#L50-L83).
+The center is rotated and translated into the world frame using the staircase yaw and base position. The construction is implemented in [`buildTerrainModelFromStairs()`](../src/mpc/common/reference_manager/TerrainFootholdPlanner.cpp#L50-L83).
 
 For a world point $\mathbf p_{xy}$, the height query returns the highest region containing the point:
 
@@ -255,11 +257,11 @@ z_g,\,
 \right).
 $$
 
-See [`GroundTruthTerrainModel::heightAt()`](../src/core/humanoid_common_mpc/src/reference_manager/TerrainFootholdPlanner.cpp#L37-L46).
+See [`GroundTruthTerrainModel::heightAt()`](../src/mpc/common/reference_manager/TerrainFootholdPlanner.cpp#L37-L46).
 The staircase geometry and planner parameters live in shared [`config/terrains/`](../config/terrains/README.md), with [`terrain_walking/g1.yaml`](../config/terrains/terrain_walking/g1.yaml#L20-L49) and [`terrain_walking/h2.yaml`](../config/terrains/terrain_walking/h2.yaml#L21-L50) preserving each robot's height, stance width and foot margin.
 The files are parsed by [`loadTerrainFootholdPlannerSettings()`](../src/common/config_builder_utils.cpp#L120-L149).
 
-The planner is attached during configuration by the [centroidal controller](../src/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller.cpp#L259-L271) or the [WB-ID controller](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L172-L176).
+The planner is attached during configuration by the [WB-ID controller](../src/controller/controller.cpp).
 
 ## Online Foothold Planning
 
@@ -276,7 +278,7 @@ $$
 \right),
 $$
 
-where $\mathcal M$ is the terrain model and $\mathcal G$ is the mode schedule. The API and solver-thread ownership are documented in [`TerrainFootholdPlanner.h`](../include/humanoid_common_mpc/reference_manager/TerrainFootholdPlanner.h#L83-L105). Current foot positions are obtained by Pinocchio forward kinematics in [`computeFeetPositions()`](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L246-L258).
+where $\mathcal M$ is the terrain model and $\mathcal G$ is the mode schedule. The API and solver-thread ownership are documented in [`TerrainFootholdPlanner.h`](../include/legged_robot_mpc_controller/mpc/common/reference_manager/TerrainFootholdPlanner.h#L83-L105). Current foot positions are obtained by Pinocchio forward kinematics in [`computeFeetPositions()`](../src/mpc/common/reference_manager/SwitchedModelReferenceManager.cpp#L242-L254).
 
 ### Capture-point correction
 
@@ -307,7 +309,7 @@ p_{\mathrm{cp,max}}
 \end{cases}
 $$
 
-See [`TerrainFootholdPlanner::update()`](../src/core/humanoid_common_mpc/src/reference_manager/TerrainFootholdPlanner.cpp#L173-L190).
+See [`TerrainFootholdPlanner::update()`](../src/mpc/common/reference_manager/TerrainFootholdPlanner.cpp#L173-L190).
 
 ### Nominal foothold
 
@@ -345,7 +347,7 @@ $$
 +\mathbb 1_{\mathrm{first}}\Delta\mathbf p_{\mathrm{cp}},
 $$
 
-where $d_f=0.06\,\mathrm{m}$, $s_L=+1$, and $s_R=-1$. Near the staircase, the lateral coordinate is anchored to its centerline to prevent base drift from collapsing the stance width. The implementation is in [`TerrainFootholdPlanner.cpp`](../src/core/humanoid_common_mpc/src/reference_manager/TerrainFootholdPlanner.cpp#L235-L266).
+where $d_f=0.06\,\mathrm{m}$, $s_L=+1$, and $s_R=-1$. Near the staircase, the lateral coordinate is anchored to its centerline to prevent base drift from collapsing the stance width. The implementation is in [`TerrainFootholdPlanner.cpp`](../src/mpc/common/reference_manager/TerrainFootholdPlanner.cpp#L235-L266).
 
 ### Terrain projection
 
@@ -370,7 +372,7 @@ r^\star
 \right),
 $$
 
-where $\Pi_r$ is projection into the usable rectangle and $b_r$ is a positive bonus for a higher tread. Ground candidates are excluded inside the staircase footprint because the ground does not physically exist below a tread. See [`projectFoothold()`](../src/core/humanoid_common_mpc/src/reference_manager/TerrainFootholdPlanner.cpp#L87-L151).
+where $\Pi_r$ is projection into the usable rectangle and $b_r$ is a positive bonus for a higher tread. Ground candidates are excluded inside the staircase footprint because the ground does not physically exist below a tread. See [`projectFoothold()`](../src/mpc/common/reference_manager/TerrainFootholdPlanner.cpp#L87-L151).
 
 ### Reachable step-up and approach step
 
@@ -400,7 +402,7 @@ $$
 }.
 $$
 
-The approach point is pushed out of an overhanging higher tread so the foot cannot be commanded into a riser. The logic is implemented in [`TerrainFootholdPlanner.cpp`](../src/core/humanoid_common_mpc/src/reference_manager/TerrainFootholdPlanner.cpp#L268-L325).
+The approach point is pushed out of an overhanging higher tread so the foot cannot be commanded into a riser. The logic is implemented in [`TerrainFootholdPlanner.cpp`](../src/mpc/common/reference_manager/TerrainFootholdPlanner.cpp#L268-L325).
 
 ### Replanning and commitment
 
@@ -412,7 +414,7 @@ t_{\mathrm{lo}}
 t_0+T_{\mathrm{commit}},
 $$
 
-and the same lift-off/touchdown event pair remains active. Once latched, its lift-off and touchdown positions stay fixed throughout the swing. This avoids reference jumps caused by re-anchoring to an in-flight measured foot. The commitment is released after touchdown. See [`TerrainFootholdPlanner.cpp`](../src/core/humanoid_common_mpc/src/reference_manager/TerrainFootholdPlanner.cpp#L192-L233).
+and the same lift-off/touchdown event pair remains active. Once latched, its lift-off and touchdown positions stay fixed throughout the swing. This avoids reference jumps caused by re-anchoring to an in-flight measured foot. The commitment is released after touchdown. See [`TerrainFootholdPlanner.cpp`](../src/mpc/common/reference_manager/TerrainFootholdPlanner.cpp#L192-L233).
 
 ## References Given to the MPC
 
@@ -479,7 +481,7 @@ $$
 \gamma_v\mathbf v_{b,xy}^{\mathrm{ref}}.
 $$
 
-This prevents the target base from running too far ahead of reachable footholds. The complete adaptation is in [`SwitchedModelReferenceManager.cpp`](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L173-L228).
+This prevents the target base from running too far ahead of reachable footholds. The complete adaptation is in [`SwitchedModelReferenceManager.cpp`](../src/mpc/common/reference_manager/SwitchedModelReferenceManager.cpp#L173-L225).
 
 ### Swing-foot horizontal reference
 
@@ -508,7 +510,7 @@ $$
 \right).
 $$
 
-Thus, the reference reaches the touchdown early and holds there for the remaining swing. On open flat ground this extra foothold reference is disabled and ordinary velocity-command walking is preserved: [`getSwingFootReference()`](../src/core/humanoid_common_mpc/src/reference_manager/TerrainFootholdPlanner.cpp#L385-L403).
+Thus, the reference reaches the touchdown early and holds there for the remaining swing. On open flat ground this extra foothold reference is disabled and ordinary velocity-command walking is preserved: [`getSwingFootReference()`](../src/mpc/common/reference_manager/TerrainFootholdPlanner.cpp#L385-L403).
 
 The foot tracking residual includes position, orientation-to-plane, linear velocity, and angular velocity errors:
 
@@ -525,7 +527,7 @@ d_R(\mathbf R_f,\mathbf n)\\
 \ell_f=\frac{1}{2}\left\|\mathbf W_f^{1/2}\mathbf e_f\right\|_2^2.
 $$
 
-The planned foothold and dynamic XY weight are injected by [`CentroidalMpcEndEffectorFootCost::getParameters()`](../src/core/humanoid_centroidal_mpc/src/cost/CentroidalMpcEndEffectorFootCost.cpp#L127-L160), while the residual is evaluated in [`costVectorFunction()`](../src/core/humanoid_centroidal_mpc/src/cost/CentroidalMpcEndEffectorFootCost.cpp#L92-L121).
+The planned foothold and dynamic XY weight are injected by [`EndEffectorFootCost::getParameters()`](../src/mpc/common/cost/EndEffectorFootCost.cpp#L127-L159), while the residual is evaluated in [`costVectorFunction()`](../src/mpc/common/cost/EndEffectorFootCost.cpp#L92-L120).
 
 To avoid pinning a foot to an unreachable target, its foothold weight is scaled by the planned horizontal reach $r$:
 
@@ -541,11 +543,11 @@ s_{\min},1
 \right),
 $$
 
-with $r_{\mathrm{commit}}=0.20\,\mathrm{m}$, $r_{\mathrm{far}}=0.34\,\mathrm{m}$, and $s_{\min}=0.05$. See [`getSwingFootholdReference()`](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L265-L295).
+with $r_{\mathrm{commit}}=0.20\,\mathrm{m}$, $r_{\mathrm{far}}=0.34\,\mathrm{m}$, and $s_{\min}=0.05$. See [`getSwingFootholdReference()`](../src/mpc/common/reference_manager/SwitchedModelReferenceManager.cpp#L261-L291).
 
 ### Swing-foot vertical reference
 
-The planned support heights are sampled at every phase boundary and passed to the swing planner: [`TerrainFootholdPlanner::getHeightSequences()`](../src/core/humanoid_common_mpc/src/reference_manager/TerrainFootholdPlanner.cpp#L407-L428) and [`SwitchedModelReferenceManager.cpp`](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L230-L233).
+The planned support heights are sampled at every phase boundary and passed to the swing planner: [`TerrainFootholdPlanner::getHeightSequences()`](../src/mpc/common/reference_manager/TerrainFootholdPlanner.cpp#L407-L428) and [`SwitchedModelReferenceManager.cpp`](../src/mpc/common/reference_manager/SwitchedModelReferenceManager.cpp#L227-L230).
 
 For a complete swing, the vertical trajectory is a two-part cubic spline with nodes
 
@@ -566,63 +568,84 @@ $$
 
 where $s_T$ is the swing-duration scaling.
 Using the higher contact surface raises the reference apex above both endpoints while stepping up, but does not guarantee collision-free tracking.
-The spline construction is in [`SwingTrajectoryPlanner::update()`](../src/core/humanoid_common_mpc/src/swing_foot_planner/SwingTrajectoryPlanner.cpp#L103).
+The spline construction is in [`SwingTrajectoryPlanner::update()`](../src/mpc/common/swing_foot_planner/SwingTrajectoryPlanner.cpp#L103).
 The nominal height can be overridden per gait; the phase at lift-off selects the height for the complete swing.
 
 ## How the MPC Follows the Gait
 
-The mode schedule changes the OCP itself; it is not only a reference used for visualization.
+The mode schedule activates the foot constraints in the WB-ID optimal-control problem.
+The state is $\mathbf x=[\mathbf q;\mathbf v]$ and the input is $\mathbf u=[\mathbf W_L;\mathbf W_R;\mathbf a;\boldsymbol\tau_j]$.
 
-For foot $i$:
 
-### Stance phase: $\sigma_i(t)=1$
+### Stance Phase
 
-The stance-foot twist constraint is active:
+When foot $i$ is in stance, its stabilized acceleration equality is
 
-$$
-\mathbf v_i(\mathbf x,\mathbf u)=\mathbf 0,
-$$
-
-with optional position/orientation stabilization. Its activation follows the contact flag in [`ZeroVelocityConstraintCppAd::isActive()`](../src/core/humanoid_centroidal_mpc/src/constraint/ZeroVelocityConstraintCppAd.cpp#L61-L77). The friction-cone soft constraint is also active only in contact: [`FrictionForceConeConstraint::isActive()`](../src/core/humanoid_common_mpc/src/constraint/FrictionForceConeConstraint.cpp#L70-L85).
-
-### Swing phase: $\sigma_i(t)=0$
-
-The contact wrench is constrained to zero:
-
-$$
-\mathbf w_i(\mathbf u)=\mathbf 0.
-$$
-
-See [`ZeroWrenchConstraint`](../src/core/humanoid_common_mpc/src/constraint/ZeroWrenchConstraint.cpp#L59-L83). The normal swing velocity/height tracking constraint is active only out of contact: [`NormalVelocityConstraintCppAd::isActive()`](../src/core/humanoid_centroidal_mpc/src/constraint/NormalVelocityConstraintCppAd.cpp#L61-L87).
-
-Its stabilized vertical relation has the form
-
-$$
-\dot z_i-\dot z_i^{\mathrm{ref}}
-+k_z\left(z_i-z_i^{\mathrm{ref}}\right)=0.
-$$
-
-The time-varying $z_i^{\mathrm{ref}}$ and $\dot z_i^{\mathrm{ref}}$ are read from the swing splines by [`HumanoidPreComputation::request()`](../src/core/humanoid_common_mpc/src/HumanoidPreComputation.cpp#L96-L123).
-
-All foot constraints and the task-space foot cost are registered in the centroidal OCP in [`CentroidalMpcInterface.cpp`](../src/core/humanoid_centroidal_mpc/src/CentroidalMpcInterface.cpp#L185-L212).
-
-The solver consequently optimizes the centroidal state, joint configuration, contact wrenches, and motion inputs against:
-
-$$
-\min_{\mathbf x(\cdot),\mathbf u(\cdot)}
-\quad
-\Phi\!\left(\mathbf x(t_f)\right)
+$
+K_a
+\begin{bmatrix}
+\mathbf a_i\\
+\boldsymbol\alpha_i
+\end{bmatrix}
 +
-\int_{t_0}^{t_f}
-\ell\!\left(
-t,\mathbf x(t),\mathbf u(t);
-\mathbf x^{\mathrm{ref}},
-\mathbf p_f^{\mathrm{ref}},
-\boldsymbol\sigma
-\right)\,dt,
-$$
+K_d
+\begin{bmatrix}
+\mathbf v_i\\
+\boldsymbol\omega_i
+\end{bmatrix}
++
+K_p
+\begin{bmatrix}
+0\\0\\z_i-z_i^{\mathrm{ref}}\\
+\mathbf e_{\mathrm{tilt},i}
+\end{bmatrix}
+=\mathbf 0.
+$
 
-subject to the centroidal dynamics and the mode-dependent contact constraints above.
+The position feedback acts only on height, and the orientation feedback aligns the sole normal without prescribing heading.
+The equality depends on generalized acceleration through $\mathbf a_i=J_i\mathbf a+\dot J_i\mathbf v$.
+See [WbIdFootAccelerationConstraintCppAd](../src/mpc/wb_id/constraint/WbIdFootAccelerationConstraintCppAd.cpp).
+The stance wrench is subject to the configured friction and contact-moment penalties.
+
+
+### Swing Phase
+
+When foot $i$ is in swing, its contact wrench is zero:
+
+$
+\mathbf W_i=\mathbf 0.
+$
+
+The vertical foot motion follows the swing spline through
+
+$
+k_a(\ddot z_i-\ddot z_i^{\mathrm{ref}})
++k_d(\dot z_i-\dot z_i^{\mathrm{ref}})
++k_p(z_i-z_i^{\mathrm{ref}})=0.
+$
+
+Horizontal swing position remains an optimization result unless an optional foothold reference supplies an XY tracking cost.
+The soft foot task-space residual is implemented in [EndEffectorFootCost](../src/mpc/common/cost/EndEffectorFootCost.cpp).
+The constraints and costs are registered in [WbIdMpcInterface](../src/mpc/wb_id/WbIdMpcInterface.cpp).
+
+
+### Full-Body Optimization
+
+The solver minimizes running and terminal costs subject to double-integrator state dynamics, full-body inverse-dynamics equalities, and the mode-dependent contact constraints:
+
+$
+\min_{\mathbf x(\cdot),\mathbf u(\cdot)}
+\Phi(\mathbf x(t_f))
++\int_{t_0}^{t_f}\ell(t,\mathbf x,\mathbf u)\,dt,
+\qquad
+\dot{\mathbf q}=\mathbf v,\quad
+\dot{\mathbf v}=\mathbf a.
+$
+
+Floating-base RNEA rows apply throughout the horizon.
+Actuated-joint RNEA rows and torque penalties follow the configured initial torque window.
+See [WB-ID formulation](humanoid_whole_body_inverse_dynamics_mpc.md) for the complete equations and activation switches.
+
 
 ## Online Terrain Walk vs. Fixed Stair Climb
 
@@ -638,17 +661,17 @@ subject to the centroidal dynamics and the mode-dependent contact constraints ab
 
 ## Configuration and Test
 
-The common [`robot.launch.py`](../launch/robot.launch.py#L55-L63) selects the shared stair-climbing and terrain-walking variants using `robotName`, preserving the [launch override arguments](../launch/robot.launch.py#L133-L134).
-The current default controller file is [`ros2_controllers.yaml`](../config/g1/ros2_controllers.yaml#L605-L606), where the centroidal controller receives these paths under `ocs2.gait`.
+The common [`robot.launch.py`](../launch/robot.launch.py#L54-L62) selects the shared stair-climbing and terrain-walking variants using `robotName`, preserving the [launch override arguments](../launch/robot.launch.py#L123-L124).
+The current default controller file is [`ros2_controllers.yaml`](../config/g1/ros2_controllers.yaml#L602-L603), where the WB-ID controller receives these paths under `ocs2.gait`.
 Simulator staircase geometry lives in [`description/mujoco/terrains/`](../description/mujoco/terrains/), and RViz geometry lives in [`description/urdf/terrains/`](../description/urdf/terrains/), with both xacros reading the shared [`config/terrains/stairs_params.yaml`](../config/terrains/stairs_params.yaml#L18).
 Robot models live under each format's `robots/g1/` directory, with shared meshes in [`description/meshes/robots/g1/`](../description/meshes/robots/g1/), as shown in the [description layout](../description/README.md).
 Scene composition is documented in the [MuJoCo guide](../description/mujoco/README.md).
 
-Start the centroidal controller, select terrain mode, and publish a forward walking command:
+Start the WB-ID controller, select terrain mode, and publish a forward walking command:
 
 ```bash
 ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=g1 \
-  mpcControllerName:=humanoid_centroidal_mpc_controller
+  mpcControllerName:=humanoid_whole_body_inverse_dynamics_mpc_controller
 
 ros2 topic pub --once /humanoid/target_mode \
   std_msgs/msg/String "{data: terrain_walk}"
@@ -659,29 +682,23 @@ ros2 topic pub -r 25 /humanoid/walking_velocity_command \
     desired_pelvis_height: 0.72, angular_velocity_z: 0.0}"
 ```
 
-The autonomous regression launches the same controller, commands forward velocity, stops after the pelvis climbs the staircase, and checks that the robot remains upright: [`tests/terrain_walk_test.sh`](../tests/terrain_walk_test.sh#L1-L22) and [`tests/terrain_walk_test.sh`](../tests/terrain_walk_test.sh#L70-L165).
+Terrain-mode behavior must be checked separately from blind `base_twist` locomotion, which receives no terrain map.
 
-Run it from a sourced workspace with:
-
-```bash
-ros2 run legged_robot_mpc_controller terrain_walk_test.sh \
-  /tmp/terrain_walk.log 90
-```
 
 ## Main Source Map
 
 | Responsibility | Source |
 | --- | --- |
 | ROS commands and target-mode parsing | [`ros2_procedural_mpc_motion_manager.cpp`](../src/common/ros2_procedural_mpc_motion_manager.cpp#L18-L27) |
-| Velocity target conditioning | [`WalkingVelocityTarget.cpp`](../src/core/humanoid_common_mpc/src/target/WalkingVelocityTarget.cpp#L40-L81) |
-| Centroidal target trajectory | [`CentroidalMpcTargetTrajectoriesCalculator.cpp`](../src/core/humanoid_centroidal_mpc/src/command/CentroidalMpcTargetTrajectoriesCalculator.cpp#L104-L174) |
-| Terrain-walk gait selection | [`ProceduralMpcMotionManager.cpp`](../src/core/humanoid_common_mpc/src/reference_manager/ProceduralMpcMotionManager.cpp#L132-L203) |
-| Gait schedule tiling | [`GaitSchedule.cpp`](../src/core/humanoid_common_mpc/src/gait/GaitSchedule.cpp#L52) |
-| Terrain model and foothold planning | [`TerrainFootholdPlanner.cpp`](../src/core/humanoid_common_mpc/src/reference_manager/TerrainFootholdPlanner.cpp#L37-L347) |
-| Base and swing reference integration | [`SwitchedModelReferenceManager.cpp`](../src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp#L143-L295) |
-| Swing-height splines | [`SwingTrajectoryPlanner.cpp`](../src/core/humanoid_common_mpc/src/swing_foot_planner/SwingTrajectoryPlanner.cpp#L88) |
-| Foot tracking cost | [`CentroidalMpcEndEffectorFootCost.cpp`](../src/core/humanoid_centroidal_mpc/src/cost/CentroidalMpcEndEffectorFootCost.cpp#L92-L160) |
-| Mode-dependent OCP constraints | [`CentroidalMpcInterface.cpp`](../src/core/humanoid_centroidal_mpc/src/CentroidalMpcInterface.cpp#L185-L212) |
+| Velocity target conditioning | [`WalkingVelocityTarget.cpp`](../src/mpc/common/target/WalkingVelocityTarget.cpp#L40-L81) |
+| Whole-body target trajectory | [`WbIdMpcTargetTrajectoriesCalculator.cpp`](../src/mpc/wb_id/command/WbIdMpcTargetTrajectoriesCalculator.cpp#L93) |
+| Terrain-walk gait selection | [`ProceduralMpcMotionManager.cpp`](../src/mpc/common/reference_manager/ProceduralMpcMotionManager.cpp#L132-L203) |
+| Gait schedule tiling | [`GaitSchedule.cpp`](../src/mpc/common/gait/GaitSchedule.cpp#L52) |
+| Terrain model and foothold planning | [`TerrainFootholdPlanner.cpp`](../src/mpc/common/reference_manager/TerrainFootholdPlanner.cpp#L37-L347) |
+| Base and swing reference integration | [`SwitchedModelReferenceManager.cpp`](../src/mpc/common/reference_manager/SwitchedModelReferenceManager.cpp#L143-L291) |
+| Swing-height splines | [`SwingTrajectoryPlanner.cpp`](../src/mpc/common/swing_foot_planner/SwingTrajectoryPlanner.cpp#L88) |
+| Foot tracking cost | [`EndEffectorFootCost.cpp`](../src/mpc/common/cost/EndEffectorFootCost.cpp#L92-L159) |
+| Mode-dependent OCP constraints | [`WbIdMpcInterface.cpp`](../src/mpc/wb_id/WbIdMpcInterface.cpp) |
 
 ---
 
@@ -727,7 +744,7 @@ flowchart TD
     C2["Periodic gait schedule"]:::ready
     C3["Online foothold planner"]:::ready
     C4["Support-relative base target<br/>and swing trajectories"]:::ready
-    C5["Centroidal SQP MPC<br/>contact costs and constraints"]:::ready
+    C5["WB-ID SQP MPC<br/>contact costs and constraints"]:::ready
     C1 --> C2 --> C3 --> C4 --> C5
   end
 

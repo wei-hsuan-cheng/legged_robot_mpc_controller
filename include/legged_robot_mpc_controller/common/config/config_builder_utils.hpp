@@ -8,11 +8,11 @@
 
 #include <ocs2_core/Types.h>
 
-#include <humanoid_common_mpc/command/TargetTrajectoriesCalculatorBase.h>
-#include <humanoid_common_mpc/gait/ModeSequenceTemplate.h>
-#include <humanoid_common_mpc/reference_manager/ProceduralMpcMotionManager.h>
-#include <humanoid_common_mpc/reference_manager/StairClimbingPlan.h>
-#include <humanoid_common_mpc/reference_manager/TerrainFootholdPlanner.h>
+#include <legged_robot_mpc_controller/mpc/common/command/TargetTrajectoriesCalculatorBase.h>
+#include <legged_robot_mpc_controller/mpc/common/gait/ModeSequenceTemplate.h>
+#include <legged_robot_mpc_controller/mpc/common/reference_manager/ProceduralMpcMotionManager.h>
+#include <legged_robot_mpc_controller/mpc/common/reference_manager/StairClimbingPlan.h>
+#include <legged_robot_mpc_controller/mpc/common/reference_manager/TerrainFootholdPlanner.h>
 
 namespace legged_robot_mpc_controller::common
 {

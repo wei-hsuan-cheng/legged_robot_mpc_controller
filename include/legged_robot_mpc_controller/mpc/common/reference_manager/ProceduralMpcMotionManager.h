@@ -1,0 +1,202 @@
+/******************************************************************************
+Copyright (c) 2025, Manuel Yves Galliker. All rights reserved.
+Copyright (c) 2024, 1X Technologies. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+
+* Neither the name of the copyright holder nor the names of its
+  contributors may be used to endorse or promote products derived from
+  this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+******************************************************************************/
+
+#pragma once
+
+#include <limits>
+
+#include <atomic>
+#include <functional>
+#include <memory>
+#include <mutex>
+#include <string>
+#include <vector>
+
+#include <ocs2_core/reference/TargetTrajectories.h>
+#include <ocs2_mpc/SystemObservation.h>
+
+#include <legged_robot_mpc_controller/mpc/common/command/WalkingVelocityCommand.h>
+#include <legged_robot_mpc_controller/mpc/common/command/BasePoseCommand.h>
+#include <legged_robot_mpc_controller/mpc/common/gait/GaitSchedule.h>
+#include <legged_robot_mpc_controller/mpc/common/gait/ModeSequenceTemplate.h>
+
+#include <ocs2_oc/synchronized_module/SolverSynchronizedModule.h>
+#include "legged_robot_mpc_controller/mpc/common/model/MpcRobotModelBase.h"
+#include "legged_robot_mpc_controller/mpc/common/command/TargetTrajectoriesCalculatorBase.h"
+#include "legged_robot_mpc_controller/mpc/common/target/WalkingVelocityTarget.h"
+#include "legged_robot_mpc_controller/mpc/common/target/BasePoseTarget.h"
+#include "legged_robot_mpc_controller/mpc/common/reference_manager/SwitchedModelReferenceManager.h"
+
+namespace ocs2::humanoid {
+
+class ProceduralMpcMotionManager : public SolverSynchronizedModule {
+ public:
+  using VelocityTargetToTargetTrajectories =
+      std::function<TargetTrajectories(const vector4_t& velocityTarget, scalar_t initTime, scalar_t finalTime, const vector_t& initState)>;
+  using BasePoseTargetToTargetTrajectories =
+      std::function<TargetTrajectories(const vector6_t& basePoseTarget, scalar_t initTime, scalar_t finalTime, const vector_t& initState)>;
+
+  enum class TargetMode { BaseTwist, BasePose, StairClimb, TerrainWalk };
+
+  /** One rung of the gait ladder: a gait template and the command band it serves. */
+  struct GaitModeStateConfig {
+    std::string gaitCommand = "stance";
+    scalar_t minLinVelCmd;
+    scalar_t maxLinVelCmd;
+    scalar_t minAngVelCmd;
+    scalar_t maxAngVelCmd;
+    scalar_t linVelErrorThresh;
+    scalar_t angVelErrorThresh;
+  };
+
+  /**
+   * Velocity-based gait selection, from the controller's `ocs2.gait.transitions`
+   * parameters (see config/g1/ros2_controllers.yaml for the semantics).
+   */
+  struct GaitTransitionConfig {
+    //! Ordered from slowest to fastest; the first rung is the rest gait (e.g. "stance"). The FSM
+    //! moves at most one rung per change.
+    std::vector<GaitModeStateConfig> ladder;
+    //! Minimum time between two gait changes [s].
+    scalar_t minDwellTime = 0.2;
+    //! A new gait is spliced in at the first event after initTime + this fraction of
+    //! the horizon (GaitScheduleUpdater::updateGaitSchedule).
+    scalar_t switchDelayHorizonFraction = 0.7;
+  };
+
+  /**
+   * Constructor
+   *
+   * @param [in] gaitMap: The named gait templates (ocs2.gait.templates).
+   * @param [in] gaitTransitionConfig: The gait ladder and switching timing (ocs2.gait.transitions).
+   * @param [in] referenceFile: The file path containing the default references and velocity limits.
+   * @param [in] velocityTargetToTargetTrajectories: A function which transforms the commanded velocities to TargetTrajectories.
+   * @param [in] switchedModelReferenceManagerPtr: A pointer to the switched model reference manager used to update gait and references
+   */
+  ProceduralMpcMotionManager(GaitMap gaitMap,
+                             GaitTransitionConfig gaitTransitionConfig,
+                             const ReferenceConfig& referenceConfig,
+                             std::shared_ptr<SwitchedModelReferenceManager> switchedModelReferenceManagerPtr,
+                             const MpcRobotModelBase<scalar_t>& mpcRobotModel,
+                             VelocityTargetToTargetTrajectories velocityTargetToTargetTrajectories,
+                             BasePoseTargetToTargetTrajectories basePoseTargetToTargetTrajectories);
+
+  ProceduralMpcMotionManager(const ProceduralMpcMotionManager& mpcMotionManager) = delete;
+
+  /**
+   * Method called right before the solver runs
+   *
+   * @param initTime : start time of the MPC horizon
+   * @param finalTime : Final time of the MPC horizon
+   * @param initState : State at the start of the MPC horizon
+   * @param referenceManager : The ReferenceManager which manages both ModeSchedule and TargetTrajectories.
+   */
+  void preSolverRun(scalar_t initTime,
+                    scalar_t finalTime,
+                    const vector_t& initState,
+                    const ReferenceManagerInterface& referenceManager) override;
+
+  /**
+   * Method called right after the solver runs
+   *
+   * @param primalSolution : primalSolution
+   */
+  void postSolverRun(const PrimalSolution& primalSolution) override {};
+
+  /// Store the latest bounded walking command; conditioning happens in preSolverRun. Thread-safe.
+  void setVelocityCommand(const WalkingVelocityCommand& command);
+
+  /// Reset walking-command filter history on the next solver update. Thread-safe. A finite
+  /// initialHeight restarts the height reference there (see WalkingVelocityTarget).
+  void requestVelocityTargetFilterReset(scalar_t initialHeight = std::numeric_limits<scalar_t>::quiet_NaN());
+
+  void setBasePoseCommand(const BasePoseCommand& command);
+
+  /// Stores the semantic stair climbing parameters; the plan itself is compiled
+  /// and anchored on the solver thread when TargetMode::StairClimb is selected.
+  /// Thread-safe.
+  void setStairClimbingConfig(StairClimbingConfig config);
+
+  void setTargetMode(TargetMode mode);
+
+  /// Hold a named gait template instead of the velocity-selected ladder rung (e.g. a hop or a
+  /// single-support test); an empty name returns to the ladder from stance. Thread-safe; takes
+  /// effect at the next solve, spliced in like a ladder change.
+  void requestGait(const std::string& gait);
+
+  TargetMode getTargetMode() const { return targetMode_.load(std::memory_order_acquire); }
+
+  static bool transitionToFasterGait(const vector4_t& velCommandVec, const vector6_t& baseVelocity, const GaitModeStateConfig& cfg);
+
+  static bool transitionToSlowerGait(const vector4_t& velCommandVec, const vector6_t& baseVelocity, const GaitModeStateConfig& cfg);
+
+ protected:
+  //! The gait ladder, from ocs2.gait.transitions (GaitTransitionConfig::ladder).
+  const std::vector<GaitModeStateConfig> gaitModeStates_;
+  const scalar_t minGaitDwellTime_;
+  const scalar_t gaitSwitchDelayHorizonFraction_;
+
+  size_t currentGaitMode_{0};
+
+  std::shared_ptr<SwitchedModelReferenceManager> switchedModelReferenceManagerPtr_;
+  std::shared_ptr<GaitSchedule> gaitSchedulePtr_;
+  const MpcRobotModelBase<scalar_t>* mpcRobotModelPtr_;
+
+  std::vector<std::string> gaitList_;
+  std::map<std::string, ModeSequenceTemplate> gaitMap_;
+
+  // Owns the command -> TargetTrajectories path (scale, filter, generate) for both the
+  // reference update and the gait selection below.
+  WalkingVelocityTarget walkingVelocityTarget_;
+  BasePoseTarget basePoseTarget_;
+  std::atomic<TargetMode> targetMode_{TargetMode::BaseTwist};
+
+  std::string restGait_{"stance"};  //!< the ladder's first rung
+  std::string currentGaitCommand_{"stance"};
+  std::string lastGaitCommand_{"stance"};
+  scalar_t lastGaitChangeTime_{0.0};
+
+  std::mutex requestedGaitMutex_;
+  std::string requestedGait_;        // written by requestGait(), read by the solver thread
+  bool requestedGaitActive_{false};  // solver thread only
+
+  // Stair climbing: semantic config is shared with the ROS thread; the compiled
+  // plan is owned by the solver thread (created / cleared in preSolverRun).
+  const ReferenceConfig referenceConfig_;
+  std::mutex stairClimbingConfigMutex_;
+  std::shared_ptr<const StairClimbingConfig> stairClimbingConfig_;
+  std::shared_ptr<const StairClimbingPlan> activeStairClimbingPlan_;
+  bool stairClimbFinishedLogged_{false};
+
+  /// Handles TargetMode::StairClimb inside preSolverRun (solver thread).
+  void runStairClimbing(scalar_t initTime, const vector_t& initState);
+};
+
+}  // namespace ocs2::humanoid

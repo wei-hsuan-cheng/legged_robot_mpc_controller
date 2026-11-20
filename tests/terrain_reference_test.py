@@ -109,15 +109,15 @@ class TerrainReferenceTest(unittest.TestCase):
             self.assertAlmostEqual(velocity, numeric, places=8)
 
     def test_normal_and_cache_wiring(self):
-        constraint = (ROOT / "src/core/humanoid_wb_id_mpc/src/constraint/WbIdFootAccelerationConstraintCppAd.cpp").read_text()
+        constraint = (ROOT / "src/mpc/wb_id/constraint/WbIdFootAccelerationConstraintCppAd.cpp").read_text()
         self.assertIn("getContactNormal(contactIndex_, time)", constraint)
         self.assertIn("p.segment<3>(11)", constraint)
         self.assertIn("_wb_id_stance_acceleration_v2", constraint)
-        friction = (ROOT / "src/core/humanoid_common_mpc/src/constraint/FrictionForceConeConstraint.cpp").read_text()
+        friction = (ROOT / "src/mpc/common/constraint/FrictionForceConeConstraint.cpp").read_text()
         self.assertEqual(friction.count("computeLocalForceDerivatives(rotation)"), 2)
         self.assertIn("getContactNormal(contactPointIndex_, time)", friction)
         self.assertNotIn("is not implemented", friction)
-        reference = (ROOT / "src/core/humanoid_common_mpc/src/reference_manager/SwitchedModelReferenceManager.cpp").read_text()
+        reference = (ROOT / "src/mpc/common/reference_manager/SwitchedModelReferenceManager.cpp").read_text()
         self.assertIn("getAnticipatedSupportVelocity(knotTime)(2)", reference)
         self.assertIn("originalTargets.getDesiredState(time)", reference)
 

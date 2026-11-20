@@ -34,7 +34,6 @@ def generate_launch_description():
     # Never share generated libraries between models with different dimensions.
     lib_folder_default = PathJoinSubstitution(["auto_generated", robot_name])
     whole_body_controller = "humanoid_whole_body_inverse_dynamics_mpc_controller"
-    centroidal_controller = "humanoid_centroidal_mpc_controller"
 
     # Official model filenames differ; all other robot-specific paths follow robotName.
     urdf_name = PythonExpression([
@@ -91,10 +90,9 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "mpcControllerName",
             default_value=whole_body_controller,
-            choices=[whole_body_controller, centroidal_controller],
+            choices=[whole_body_controller],
             description="MPC ros2 controller to load and activate: "
-                        "whole-body inverse-dynamics MPC (x = [q, v], u = [W, a, tau]), or "
-                        "centroidal MPC.",),
+                        "whole-body inverse-dynamics MPC (x = [q, v], u = [W, a, tau]).",),
         DeclareLaunchArgument(
             "libFolder",
             default_value=lib_folder_default,
@@ -107,14 +105,6 @@ def generate_launch_description():
             description="Floating-base feedback source for the MPC: "
                         "ground_truth_state (simulator/hardware body state) | state_estimator (the "
                         "estimator named by floatingBaseEstimator)."),
-        DeclareLaunchArgument(
-            "diagnosticsLog", default_value="false",
-            description="Write the per-tick CSV diagnostics (estimator internals + per-cost-term breakdown) for a tuning/diagnosis run",
-        ),
-        DeclareLaunchArgument(
-            "diagnosticsLogPrefix", default_value="/tmp/centroidal_mpc_diag_%t",
-            description="Output path prefix for the diagnostics CSVs; '_state.csv'/'_cost.csv' are appended and '%t' expands to the run start time",
-        ),
         DeclareLaunchArgument(
             "floatingBaseEstimator", default_value="humanoid_linear_kf",
             choices=["none", "humanoid_inekf", "humanoid_linear_kf"],

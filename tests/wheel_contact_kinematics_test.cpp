@@ -4,7 +4,7 @@
 #include <iostream>
 #include <stdexcept>
 
-#include "humanoid_wb_id_mpc/common/WheelContactKinematics.h"
+#include "legged_robot_mpc_controller/mpc/wb_id/model/WheelContactKinematics.h"
 
 using Eigen::Vector3d;
 namespace wheel = ocs2::humanoid::wheel;

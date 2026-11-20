@@ -329,8 +329,8 @@ A standing spawn cannot run on the estimator: the robot cannot stand unbalanced 
 Pushed as 3943180, 30b2410 and b7de5eb.
 Shipped in `config/upkie/ros2_controllers.yaml`: posture by height (0.20-0.33 m table), commanded heights 0.22-0.33 m (`minBaseHeight`/`maxBaseHeight`), hip/knee posture 3/0.1 (terminal 6/0.2), `tangentialVelocityGain` 5; base height/pitch/roll weights unchanged at 3000/500/2000.
 Every user observation is fixed in simulation (GT base, MPC 200 Hz) and the full flat/terrain regression passes; tables below.
-Changed: [`TargetTrajectoriesCalculatorBase`](../include/humanoid_common_mpc/command/TargetTrajectoriesCalculatorBase.h) (optional posture-by-height table and height clamp), [`WbIdMpcTargetTrajectoriesCalculator.cpp`](../src/core/humanoid_wb_id_mpc/src/command/WbIdMpcTargetTrajectoriesCalculator.cpp) (uses it), the WB-ID parameter schema and controller (`ocs2.reference.postureHeights` / `postureJointStates`), the table generator [`config/upkie/compute_posture_table.py`](../config/upkie/compute_posture_table.py) and the table in the Upkie YAML.
-Without a table nothing changes, so H2/G1 behave as before; the centroidal controller is untouched.
+Changed: [`TargetTrajectoriesCalculatorBase`](../include/legged_robot_mpc_controller/mpc/common/command/TargetTrajectoriesCalculatorBase.h) (optional posture-by-height table and height clamp), [`WbIdMpcTargetTrajectoriesCalculator.cpp`](../src/mpc/wb_id/command/WbIdMpcTargetTrajectoriesCalculator.cpp) (uses it), the WB-ID parameter schema and controller (`ocs2.reference.postureHeights` / `postureJointStates`), the table generator [`config/upkie/compute_posture_table.py`](../config/upkie/compute_posture_table.py) and the table in the Upkie YAML.
+Without a table nothing changes, so H2/G1 behave as before.
 
 ### What shapes the leg posture: H2 versus Upkie (the user's question)
 
@@ -365,7 +365,7 @@ The joint reference is interpolated at the target height, and commanded heights 
 
 ### Height range in the YAML
 
-`ocs2.reference.minBaseHeight` / `maxBaseHeight` replace `maxDeltaPelvisHeight` in both controllers' schemas and in every robot YAML.
+`ocs2.reference.minBaseHeight` / `maxBaseHeight` bound the commanded height in the WB-ID schema and every robot YAML.
 They are absolute heights above the ground the model assumes, and `defaultBaseHeight` must lie between them.
 They set the GUI slider ends and its published-command clamp, the clamp of position-command heights, and the clamp of the walking command's height in the MPC.
 That clamp acts on the command before its rate limit, so the stand-up handover, which restarts the height ramp at the measured 0.10 m, still ramps up from there; a first version clamped the MPC reference itself, which turned that ramp into a 12 cm step and made the robot fall at the catch.
@@ -495,9 +495,9 @@ This is a new failure mode, a one-wheel lateral drop, partly set up by the 0.28 
 
 x, y and yaw are gauge states here, as for H2/G1:
 
-- In `base_twist` the target is re-anchored at the current pose every solve and integrated from the body-frame command ([WbIdMpcTargetTrajectoriesCalculator.cpp](../src/core/humanoid_wb_id_mpc/src/command/WbIdMpcTargetTrajectoriesCalculator.cpp)).
-- `BaseMotionTrackingCost` in RelativeTwist mode drops world x/y/yaw errors and compares horizontal velocity in each frame's heading ([BaseMotionTrackingCost.cpp](../src/core/humanoid_common_mpc/src/cost/BaseMotionTrackingCost.cpp)).
-- The plain quadratic cost has a zero base block ([config builder](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp)).
+- In `base_twist` the target is re-anchored at the current pose every solve and integrated from the body-frame command ([WbIdMpcTargetTrajectoriesCalculator.cpp](../src/mpc/wb_id/command/WbIdMpcTargetTrajectoriesCalculator.cpp)).
+- `BaseMotionTrackingCost` in RelativeTwist mode drops world x/y/yaw errors and compares horizontal velocity in each frame's heading ([BaseMotionTrackingCost.cpp](../src/mpc/common/cost/BaseMotionTrackingCost.cpp)).
+- The plain quadratic cost has a zero base block ([config builder](../src/controller/config_builder.cpp)).
 - The rolling, lateral no-slip and friction-cone rows use velocities and the world-up normal only, so a yaw rotation or x/y shift leaves them unchanged.
 
 Roll and pitch are regulated to absolute zero, which is fine because the IMU observes them.
@@ -879,11 +879,11 @@ The upstream URDF (5.339 kg, 50 mm tire, different inertias and joint ranges) is
 
 ## Controller changes
 
-### Rolling-wheel contact ([`WbIdWheelContactConstraintCppAd`](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdWheelContactConstraintCppAd.cpp))
+### Rolling-wheel contact ([`WbIdWheelContactConstraintCppAd`](../src/mpc/wb_id/constraint/WbIdWheelContactConstraintCppAd.cpp))
 
 The contact frames are the tire centres on the wheel links (`contactParentJointNames` = wheel joints, `frameTranslation` 31.2 mm along the axle); they spin with the wheel but their position does not.
 The wrench `[f; m]` stays at the tire centre, so the RNEA rows are unchanged; `m = rho x f` makes `J_h^T [f; m] = J_c^T f`.
-Shared kinematics (contact offset `rho`, its rate, material velocity/acceleration) are in [`WheelContactKinematics.h`](../include/humanoid_wb_id_mpc/common/WheelContactKinematics.h).
+Shared kinematics (contact offset `rho`, its rate, material velocity/acceleration) are in [`WheelContactKinematics.h`](../include/legged_robot_mpc_controller/mpc/wb_id/model/WheelContactKinematics.h).
 
 | Term | Rows | Active |
 | --- | --- | --- |
@@ -900,8 +900,8 @@ Friction cone and torque/velocity limits are the existing terms.
 
 | Change | Where | Default (G1/H2 unaffected) |
 | --- | --- | --- |
-| Joint armature in the Pinocchio model (RNEA/CRBA include it) | `ocs2.model.jointArmature`, [createPinocchioModel.cpp](../src/core/humanoid_common_mpc/src/pinocchio_model/createPinocchioModel.cpp) | empty |
-| Coulomb joint friction `f_c tanh(v / v_s)` in the joint RNEA rows and the ID fallback | `ocs2.model.jointFriction`, `jointFrictionVelocity`, [WbIdRneaConstraintCppAd.cpp](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdRneaConstraintCppAd.cpp) | empty (separate CppAD library name when on) |
+| Joint armature in the Pinocchio model (RNEA/CRBA include it) | `ocs2.model.jointArmature`, [createPinocchioModel.cpp](../src/mpc/common/model/createPinocchioModel.cpp) | empty |
+| Coulomb joint friction `f_c tanh(v / v_s)` in the joint RNEA rows and the ID fallback | `ocs2.model.jointFriction`, `jointFrictionVelocity`, [WbIdRneaConstraintCppAd.cpp](../src/mpc/wb_id/constraint/WbIdRneaConstraintCppAd.cpp) | empty (separate CppAD library name when on) |
 | Wheel joints get +/-inf position bounds and must have zero posture weight | config builder, factory | only with `wheelContact` |
 | Arm-swing joints optional (robot without arms) | ModelSettings, builder | 4 names still required when arm swing is on |
 | `computeJointTorques` takes the contact frame names (was hard-coded `foot_l/r_contact`: out-of-range read and intermittent segfault on Upkie) | DynamicsHelperFunctions | humanoid names |

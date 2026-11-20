@@ -1,0 +1,373 @@
+#include "legged_robot_mpc_controller/controller/config_builder.hpp"
+
+#include <algorithm>
+#include <iterator>
+#include <stdexcept>
+#include <utility>
+#include <vector>
+
+#include <ocs2_core/integration/SensitivityIntegrator.h>
+
+#include "legged_robot_mpc_controller/common/config/config_builder_utils.hpp"
+
+namespace legged_robot_mpc_controller
+{
+
+namespace
+{
+
+using common::assembleDiagonalMatrix;
+using common::checkJointArraySize;
+using common::findArmJointIndices;
+using common::selectAtIndices;
+using common::toVector;
+using common::zeroAtIndices;
+using ocs2::scalar_t;
+using ocs2::vector3_t;
+using ocs2::vector_t;
+
+std::vector<double> perJoint(const std::vector<double>& values, size_t count, double defaultValue, const std::string& name)
+{
+  if (values.empty()) {
+    return std::vector<double>(count, defaultValue);
+  }
+  checkJointArraySize(values, count, name);
+  return values;
+}
+
+}  // namespace
+
+ocs2::humanoid::WbIdMpcInterface::Config buildWholeBodyInverseDynamicsMpcConfig(
+  const humanoid_whole_body_inverse_dynamics_mpc_controller::Params& params)
+{
+  const auto& p = params.ocs2;
+  const size_t numJoints = params.robot.jointNames.size();
+
+  ocs2::humanoid::WbIdMpcInterface::Config config;
+  config.urdfFile = params.paths.urdfFile;
+  config.verbose = p.interface.verbose;
+
+  // --- model settings ---
+  auto& model = config.modelParams;
+  model.robotName = p.model.robotName;
+  model.verboseCppAd = p.codegen.verbose;
+  model.recompileLibrariesCppAd = p.codegen.recompileLibraries;
+  model.modelFolderCppAd = params.paths.libFolder;
+  model.phaseTransitionStanceTime = p.gait.phaseTransitionStanceTime;
+  model.fixedJointNames = p.model.fixedJointNames;
+  model.contactNames6DoF = p.model.contactNames6DoF;
+  model.contactParentJointNames = p.model.contactParentJointNames;
+  // A robot without arms (the wheeled-biped) leaves the arm-swing joints empty.
+  const auto& armSwingJoints = p.reference.armSwing.jointNames;
+  if (armSwingJoints.size() != 4 && !(armSwingJoints.empty() && !p.reference.armSwing.enabled)) {
+    throw std::invalid_argument(
+      "[whole_body_inverse_dynamics_mpc_config_builder] reference.armSwing.jointNames must contain exactly 4 entries "
+      "[left_shoulder_y, right_shoulder_y, left_elbow_y, right_elbow_y], or be empty with armSwing.enabled false");
+  }
+  if (armSwingJoints.size() == 4) {
+    model.j_l_shoulder_y_name = armSwingJoints[0];
+    model.j_r_shoulder_y_name = armSwingJoints[1];
+    model.j_l_elbow_y_name = armSwingJoints[2];
+    model.j_r_elbow_y_name = armSwingJoints[3];
+  }
+  if (!p.model.jointArmature.empty()) {
+    checkJointArraySize(p.model.jointArmature, numJoints, "ocs2.model.jointArmature");
+  }
+  model.jointArmature = p.model.jointArmature;
+  if (!p.model.jointFriction.empty()) {
+    checkJointArraySize(p.model.jointFriction, numJoints, "ocs2.model.jointFriction");
+  }
+  model.jointFriction = p.model.jointFriction;
+  model.jointFrictionVelocity = p.model.jointFrictionVelocity;
+
+  auto& foot = model.footConstraintConfig;
+  foot.positionErrorGain_z = p.constraints.footMotionEquality.positionErrorGain_z;
+  foot.orientationErrorGain = p.constraints.footMotionEquality.orientationErrorGain;
+  foot.linearVelocityErrorGain_z = p.constraints.footMotionEquality.linearVelocityErrorGain_z;
+  foot.linearVelocityErrorGain_xy = p.constraints.footMotionEquality.linearVelocityErrorGain_xy;
+  foot.angularVelocityErrorGain = p.constraints.footMotionEquality.angularVelocityErrorGain;
+  foot.linearAccelerationErrorGain_z = p.constraints.footMotionEquality.linearAccelerationErrorGain_z;
+  foot.linearAccelerationErrorGain_xy = p.constraints.footMotionEquality.linearAccelerationErrorGain_xy;
+  foot.angularAccelerationErrorGain = p.constraints.footMotionEquality.angularAccelerationErrorGain;
+
+  model.contactFrameTranslation =
+    vector3_t(p.model.contactGeometry.frameTranslation[0], p.model.contactGeometry.frameTranslation[1],
+              p.model.contactGeometry.frameTranslation[2]);
+  // yaml order: [x_max, x_min, y_max, y_min]
+  model.contactRectangleXMax = p.model.contactGeometry.rectangle[0];
+  model.contactRectangleXMin = p.model.contactGeometry.rectangle[1];
+  model.contactRectangleYMax = p.model.contactGeometry.rectangle[2];
+  model.contactRectangleYMin = p.model.contactGeometry.rectangle[3];
+
+  // --- solver settings ---
+  auto& sqp = config.sqpSettings;
+  sqp.nThreads = static_cast<size_t>(p.solver.sqp.nThreads);
+  sqp.dt = p.solver.sqp.dt;
+  if (p.solver.sqp.timeGrid.activate) {
+    if (p.solver.sqp.timeGrid.maxStep < sqp.dt) {
+      throw std::invalid_argument("solver.sqp.timeGrid.maxStep must be >= solver.sqp.dt");
+    }
+    sqp.dtMax = p.solver.sqp.timeGrid.maxStep;
+    sqp.dtGrowth = p.solver.sqp.timeGrid.growthFactor;
+    sqp.dtFineHorizon = p.solver.sqp.timeGrid.fineHorizon;
+  }
+  sqp.sqpIteration = static_cast<size_t>(p.solver.sqp.sqpIteration);
+  sqp.deltaTol = p.solver.sqp.deltaTol;
+  sqp.g_max = p.solver.sqp.g_max;
+  sqp.g_min = p.solver.sqp.g_min;
+  sqp.projectStateInputEqualityConstraints = p.solver.sqp.projectStateInputEqualityConstraints;
+  sqp.printSolverStatistics = p.solver.sqp.printSolverStatistics;
+  sqp.printSolverStatus = p.solver.sqp.printSolverStatus;
+  sqp.printLinesearch = p.solver.sqp.printLinesearch;
+  sqp.useFeedbackPolicy = p.solver.sqp.useFeedbackPolicy;
+  sqp.integratorType = ocs2::sensitivity_integrator::fromString(p.solver.sqp.integratorType);
+  sqp.threadPriority = p.solver.sqp.threadPriority;
+
+  auto& mpc = config.mpcSettings;
+  mpc.timeHorizon_ = p.mpc.timeHorizon;
+  mpc.solutionTimeWindow_ = p.mpc.solutionTimeWindow;
+  mpc.coldStart_ = p.mpc.coldStart;
+  mpc.debugPrint_ = p.mpc.debugPrint;
+  mpc.mpcDesiredFrequency_ = static_cast<scalar_t>(p.mpc.mpcDesiredFrequency);
+  mpc.mrtDesiredFrequency_ = static_cast<scalar_t>(p.mpc.mrtDesiredFrequency);
+
+  // --- gait / mode schedule ---
+  config.initialModeSchedule =
+    ocs2::humanoid::modeScheduleFromStrings(p.gait.initialEventTimes, p.gait.initialModeSequence);
+  config.defaultModeSequenceTemplate =
+    ocs2::humanoid::modeSequenceTemplateFromStrings(p.gait.defaultSwitchingTimes, p.gait.defaultModeSequence);
+
+  // --- swing trajectory ---
+  auto& swing = config.swingTrajectoryConfig;
+  swing.liftOffVelocity = p.gait.swingTrajectory.liftOffVelocity;
+  swing.touchDownVelocity = p.gait.swingTrajectory.touchDownVelocity;
+  swing.swingHeight = p.gait.swingTrajectory.swingHeight;
+  swing.touchDownHeightOffset = p.gait.swingTrajectory.touchDownHeightOffset;
+  swing.swingTimeScale = p.gait.swingTrajectory.swingTimeScale;
+  swing.impactProximityFactorLiftOffVelocity = p.gait.swingTrajectory.impactProximityFactorLiftOffVelocity;
+  swing.impactProximityFactorTouchDownVelocity = p.gait.swingTrajectory.impactProximityFactorTouchDownVelocity;
+  swing.impactProximityFactorMidPointValue = p.gait.swingTrajectory.impactProximityFactorMidPointValue;
+
+  // x = [q, v]. The controller replaces this construction-time state from sensors.
+  checkJointArraySize(p.reference.defaultJointState, numJoints, "reference.defaultJointState");
+  const auto nv = static_cast<Eigen::Index>(6 + numJoints);
+  config.initialState = vector_t::Zero(2 * nv);
+  config.initialState(2) = p.reference.defaultBaseHeight;
+  config.initialState.segment(6, static_cast<Eigen::Index>(numJoints)) = toVector(p.reference.defaultJointState);
+
+  // Acceleration-level stance/swing constraints in generalized coordinates.
+  auto& gains = config.footAccelerationGains;
+  gains.positionZ = foot.positionErrorGain_z;
+  gains.orientation = foot.orientationErrorGain;
+  gains.linearVelocityXY = foot.linearVelocityErrorGain_xy;
+  gains.linearVelocityZ = foot.linearVelocityErrorGain_z;
+  gains.angularVelocity = foot.angularVelocityErrorGain;
+  gains.linearAccelerationXY = foot.linearAccelerationErrorGain_xy;
+  gains.linearAccelerationZ = foot.linearAccelerationErrorGain_z;
+  gains.angularAcceleration = foot.angularAccelerationErrorGain;
+
+  config.torqueWindowDuration = p.constraints.inverseDynamics.torqueConstraintNodes > 0 ?
+    (static_cast<double>(p.constraints.inverseDynamics.torqueConstraintNodes) - 0.5) * p.solver.sqp.dt : -1.0;
+  if (!p.constraints.jointTorqueLimits.limits.empty()) {
+    checkJointArraySize(p.constraints.jointTorqueLimits.limits, numJoints, "ocs2.constraints.jointTorqueLimits.limits");
+    config.torqueLimits = toVector(p.constraints.jointTorqueLimits.limits);
+  }
+  config.torqueLimitBarrierConfig.mu = p.constraints.jointTorqueLimits.mu;
+  config.torqueLimitBarrierConfig.delta = p.constraints.jointTorqueLimits.delta;
+  config.torqueScaling = p.constraints.jointTorqueLimits.torqueScaling;
+  config.velocityScaling = p.constraints.jointVelocityLimits.velocityScaling;
+  config.jointVelocityLimitBarrierConfig.mu = p.constraints.jointVelocityLimits.mu;
+  config.jointVelocityLimitBarrierConfig.delta = p.constraints.jointVelocityLimits.delta;
+
+  // --- costs ---
+  checkJointArraySize(p.costs.q.jointPositions, numJoints, "costs.q.jointPositions");
+  checkJointArraySize(p.costs.qFinal.jointPositions, numJoints, "costs.qFinal.jointPositions");
+
+  // Arm joints (shoulder/elbow) are tracked by the dedicated JointTrackingCost, so
+  // move their weights out of the generic joint-position blocks (behavior-preserving).
+  const std::vector<size_t> armJointIndices = findArmJointIndices(params.robot.jointNames);
+  const std::vector<double> qJointsGeneric = zeroAtIndices(p.costs.q.jointPositions, armJointIndices);
+  const std::vector<double> qFinalJointsGeneric = zeroAtIndices(p.costs.qFinal.jointPositions, armJointIndices);
+
+  // The single configured Q/Qf is split across model-aware evaluators without
+  // double counting: base pose/velocity, arm posture, and the remaining state.
+  const std::vector<double> zeros6(6, 0.0);
+  const auto qJointVelocities = perJoint(p.costs.q.jointVelocities, numJoints, 0.0, "costs.q.jointVelocities");
+  const auto qFinalJointVelocities = perJoint(p.costs.qFinal.jointVelocities, numJoints, 0.0, "costs.qFinal.jointVelocities");
+  auto& costs = config.costConstraintConfig;
+  costs.Q = assembleDiagonalMatrix({zeros6, qJointsGeneric, zeros6, qJointVelocities}, p.costs.qScaling);
+  costs.QFinal = assembleDiagonalMatrix({zeros6, qFinalJointsGeneric, zeros6, qFinalJointVelocities}, p.costs.qScaling);
+  costs.baseMotionQ = assembleDiagonalMatrix({p.costs.q.basePose, p.costs.q.baseVelocity}, p.costs.qScaling);
+  costs.baseMotionQFinal = assembleDiagonalMatrix({p.costs.qFinal.basePose, p.costs.qFinal.baseVelocity}, p.costs.qScaling);
+  costs.armJointIndices = armJointIndices;
+  costs.armJointQ = assembleDiagonalMatrix(
+    {selectAtIndices(p.costs.q.jointPositions, armJointIndices)}, p.costs.qScaling);
+  costs.armJointQFinal = assembleDiagonalMatrix(
+    {selectAtIndices(p.costs.qFinal.jointPositions, armJointIndices)}, p.costs.qScaling);
+  costs.terminalCostScaling = p.costs.terminalCostScaling;
+  // u = [W_left, W_right, a_base, a_joints, tau_joints].
+  costs.R = assembleDiagonalMatrix(
+    {p.costs.r.contactWrenches, p.costs.r.baseAccelerations,
+     perJoint(p.costs.r.jointAccelerations, numJoints, 0.005, "costs.r.jointAccelerations"),
+     perJoint(p.costs.r.jointTorques, numJoints, 0.1, "costs.r.jointTorques")}, p.costs.rScaling);
+
+  // --- constraints ---
+  auto& armCollision = config.armSelfCollision;
+  const auto& armParams = p.constraints.armSelfCollision;
+  armCollision.activate = armParams.activate;
+  armCollision.minimumDistance = armParams.minimumDistance;
+  armCollision.implementation = armParams.implementation;
+  armCollision.mu = armParams.mu;
+  armCollision.delta = armParams.delta;
+  const auto readSpheres = [](const auto& group, auto& spheres) {
+    for (const auto& name : group.names) {
+      const auto& entry = group.names_map.at(name);
+      ocs2::humanoid::ArmBodyCollisionSphere sphere;
+      sphere.name = name;
+      sphere.linkName = entry.linkName;
+      if (entry.center.size() != 3) {
+        throw std::invalid_argument("armSelfCollision sphere " + name + " needs a three-element center");
+      }
+      sphere.center = Eigen::Vector3d(entry.center[0], entry.center[1], entry.center[2]);
+      sphere.radius = entry.radius;
+      spheres.push_back(std::move(sphere));
+    }
+  };
+  if (armCollision.activate) {
+    readSpheres(armParams.arms, armCollision.arms);
+    readSpheres(armParams.bodies, armCollision.bodies);
+  }
+  // Rolling wheels: the contact parent joints are the wheel joints. Their angles are unwrapped
+  // and unbounded, so they get no position bounds and no posture weight.
+  config.activateWheelContact = p.constraints.wheelContact.activate;
+  if (config.activateWheelContact) {
+    const auto& wheel = p.constraints.wheelContact;
+    auto& settings = config.wheelContactSettings;
+    settings.radius = wheel.radius;
+    settings.axleAxis = vector3_t(wheel.axleAxis[0], wheel.axleAxis[1], wheel.axleAxis[2]);
+    settings.normalPositionGain = wheel.normalPositionGain;
+    settings.normalVelocityGain = wheel.normalVelocityGain;
+    settings.tangentialVelocityGain = wheel.tangentialVelocityGain;
+    settings.normalAccelerationGain = wheel.normalAccelerationGain;
+    settings.tangentialAccelerationGain = wheel.tangentialAccelerationGain;
+    for (const auto& wheelJoint : p.model.contactParentJointNames) {
+      const auto it = std::find(params.robot.jointNames.begin(), params.robot.jointNames.end(), wheelJoint);
+      if (it == params.robot.jointNames.end()) {
+        throw std::invalid_argument("[whole_body_inverse_dynamics_mpc_config_builder] wheelContact: contact parent joint '" +
+                                    wheelJoint + "' must be an MPC joint (the wheel joint)");
+      }
+      const auto index = static_cast<size_t>(std::distance(params.robot.jointNames.begin(), it));
+      costs.unboundedJointIndices.push_back(index);
+      for (const auto* weights : {&p.costs.q.jointPositions, &p.costs.qFinal.jointPositions}) {
+        if ((*weights)[index] != 0.0) {
+          throw std::invalid_argument("[whole_body_inverse_dynamics_mpc_config_builder] wheelContact: the posture weight of wheel joint '" +
+                                      wheelJoint + "' must be 0 in costs.q/qFinal.jointPositions (wheel angles are unwrapped)");
+        }
+      }
+    }
+  }
+  config.activateInverseDynamics = p.constraints.inverseDynamics.activate;
+  config.activateFootMotionEquality = p.constraints.footMotionEquality.activate;
+  config.activateSwingFootZeroWrench = p.constraints.swingFootZeroWrench.activate;
+  config.activateFrictionCone = p.constraints.frictionCone.activate;
+  config.activateContactMomentXY = p.constraints.contactMomentXY.activate;
+  config.activateJointPositionLimits = p.constraints.jointPositionLimits.activate;
+  config.activateJointVelocityLimits = p.constraints.jointVelocityLimits.activate;
+  config.activateJointTorqueLimits = p.constraints.jointTorqueLimits.activate;
+  config.activateLegSelfCollision = p.constraints.legSelfCollision.activate;
+  costs.footCollisionConfig.leftAnkleFrame = p.constraints.legSelfCollision.leftAnkleFrame;
+  costs.footCollisionConfig.rightAnkleFrame = p.constraints.legSelfCollision.rightAnkleFrame;
+  costs.footCollisionConfig.footCollisionSphereRadius = p.constraints.legSelfCollision.footCollisionSphereRadius;
+  costs.footCollisionConfig.leftKneeFrame = p.constraints.legSelfCollision.leftKneeFrame;
+  costs.footCollisionConfig.rightKneeFrame = p.constraints.legSelfCollision.rightKneeFrame;
+  costs.footCollisionConfig.kneeCollisionSphereRadius = p.constraints.legSelfCollision.kneeCollisionSphereRadius;
+  costs.footCollisionConfig.minimumLateralSeparation = p.constraints.legSelfCollision.minimumLateralSeparation;
+  costs.footCollisionBarrierConfig.mu = p.constraints.legSelfCollision.mu;
+  costs.footCollisionBarrierConfig.delta = p.constraints.legSelfCollision.delta;
+
+  costs.jointLimitsBarrierConfig.mu = p.constraints.jointPositionLimits.mu;
+  costs.jointLimitsBarrierConfig.delta = p.constraints.jointPositionLimits.delta;
+
+  costs.contactMomentBarrierConfig.mu = p.constraints.contactMomentXY.mu;
+  costs.contactMomentBarrierConfig.delta = p.constraints.contactMomentXY.delta;
+
+  costs.frictionCoefficient = p.constraints.frictionCone.frictionCoefficient;
+  costs.frictionBarrierConfig.mu = p.constraints.frictionCone.mu;
+  costs.frictionBarrierConfig.delta = p.constraints.frictionCone.delta;
+
+  // --- optional per-leg external-load regularization (J_leg^T W) ---
+  config.activateLegTorqueCost = p.costs.legTorqueCost.activate;
+  if (config.activateLegTorqueCost) {
+    costs.leftLegTorqueCostConfig.activeJointNames = p.costs.legTorqueCost.leftActiveJointNames;
+    costs.leftLegTorqueCostConfig.weights =
+      p.costs.legTorqueCost.scaling * toVector(p.costs.legTorqueCost.leftWeights);
+    costs.rightLegTorqueCostConfig.activeJointNames = p.costs.legTorqueCost.rightActiveJointNames;
+    costs.rightLegTorqueCostConfig.weights =
+      p.costs.legTorqueCost.scaling * toVector(p.costs.legTorqueCost.rightWeights);
+  }
+
+  // --- task-space kinematics costs ---
+  config.activateTaskSpaceFootCost = p.costs.taskSpaceFootCost.activate;
+  if (config.activateTaskSpaceFootCost) {
+    if (p.costs.taskSpaceFootCost.weights.size() != 12) {
+      throw std::invalid_argument(
+        "[whole_body_inverse_dynamics_mpc_config_builder] costs.taskSpaceFootCost.weights must have 12 entries");
+    }
+    config.taskSpaceFootCostWeights = ocs2::humanoid::EndEffectorKinematicsWeights::fromVector(
+      Eigen::Map<const Eigen::Matrix<scalar_t, 12, 1>>(p.costs.taskSpaceFootCost.weights.data()),
+      config.verbose);
+  }
+
+  // Off by default: flat-ground footholds are then left entirely to the optimizer.
+  const auto& capture = p.costs.captureFootPlacement;
+  config.captureFootPlacement.enabled = capture.enabled;
+  config.captureFootPlacement.gain = capture.gain;
+  config.captureFootPlacement.stepWidth = capture.stepWidth;
+  config.captureFootPlacement.maxAdjustment = capture.maxAdjustment;
+  config.captureFootPlacement.trackingWeight = capture.trackingWeight;
+  config.captureFootPlacement.projectionHorizon = capture.projectionHorizon;
+  config.captureFootPlacement.stepLengthGain = capture.stepLengthGain;
+  config.captureFootPlacement.stanceTimeGain = capture.stanceTimeGain;
+  config.captureFootPlacement.footCenterOffset = capture.footCenterOffset;
+  config.captureFootPlacement.currentSwingOnly = capture.currentSwingOnly;
+
+  config.armSwing.enabled = p.reference.armSwing.enabled;
+  config.armSwing.shoulderPitchAmplitude = p.reference.armSwing.shoulderPitchAmplitude;
+  config.armSwing.elbowAmplitude = p.reference.armSwing.elbowAmplitude;
+  config.armSwing.phaseOffset = p.reference.armSwing.phaseOffset;
+  config.armSwing.maxOffset = p.reference.armSwing.maxOffset;
+
+  config.useTerrainHeightEstimate = p.reference.groundHeight.useEstimate;
+  config.maxTerrainHeightStep = p.reference.groundHeight.maxStepPerSolve;
+
+  config.torsoTiltCost.activate = p.costs.torsoTiltCost.activate;
+  config.torsoTiltCost.linkName = p.costs.torsoTiltCost.linkName;
+  config.torsoTiltCost.freeTiltAngle = p.costs.torsoTiltCost.freeTiltAngle;
+  config.torsoTiltCost.tiltWeight = p.costs.torsoTiltCost.tiltWeight;
+  config.torsoTiltCost.angularVelocityWeight = p.costs.torsoTiltCost.angularVelocityWeight;
+
+  for (const auto& costName : p.costs.taskSpaceCosts.names) {
+    if (costName.empty()) {
+      continue;
+    }
+    const auto& entry = p.costs.taskSpaceCosts.names_map.at(costName);
+    if (!entry.activate) {
+      continue;
+    }
+    if (entry.weights.size() != 12) {
+      throw std::invalid_argument(
+        "[whole_body_inverse_dynamics_mpc_config_builder] taskSpaceCosts." + costName + ".weights must have 12 entries");
+    }
+    ocs2::humanoid::WbIdMpcInterface::TaskSpaceCostConfig taskSpaceCost;
+    taskSpaceCost.activate = entry.activate;
+    taskSpaceCost.costName = costName;
+    taskSpaceCost.linkName = entry.linkName;
+    taskSpaceCost.weights = ocs2::humanoid::EndEffectorKinematicsWeights::fromVector(
+      Eigen::Map<const Eigen::Matrix<scalar_t, 12, 1>>(entry.weights.data()), config.verbose);
+    config.taskSpaceCosts.push_back(std::move(taskSpaceCost));
+  }
+
+  return config;
+}
+
+}  // namespace legged_robot_mpc_controller

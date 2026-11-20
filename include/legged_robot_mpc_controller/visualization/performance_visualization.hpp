@@ -11,7 +11,7 @@
 #include <rclcpp_lifecycle/lifecycle_node.hpp>
 #include <realtime_tools/realtime_thread_safe_box.hpp>
 
-#include <humanoid_common_mpc/common/MpcRobotModelBase.h>
+#include <legged_robot_mpc_controller/mpc/common/model/MpcRobotModelBase.h>
 
 #include "legged_robot_mpc_controller/visualization/optimized_state_trajectory_visualization.hpp"
 #include "legged_robot_mpc_controller/visualization/future_robot_model_visualization.hpp"

@@ -18,7 +18,6 @@ except ImportError:
 
 ROOT = Path(__file__).resolve().parents[1]
 WB_ID = 'humanoid_whole_body_inverse_dynamics_mpc_controller'
-CENTROIDAL = 'humanoid_centroidal_mpc_controller'
 
 
 @unittest.skipIf(LaunchContext is None, 'ROS launch is not installed')
@@ -77,8 +76,11 @@ class RobotLaunchTest(unittest.TestCase):
     def test_upkie_gui_height_range_comes_from_yaml(self):
         context, _ = self.resolve('upkie')
         values = context.launch_configurations
-        self.assertEqual(float(values['guiRefBaseHeight']), .30)
-        self.assertEqual((float(values['guiMinBaseHeight']), float(values['guiMaxBaseHeight'])), (.22, .33))
+        config = yaml.safe_load((ROOT / 'config/upkie/ros2_controllers.yaml').read_text())
+        reference = config[WB_ID]['ros__parameters']['ocs2']['reference']
+        self.assertEqual(float(values['guiRefBaseHeight']), reference['defaultBaseHeight'])
+        self.assertEqual((float(values['guiMinBaseHeight']), float(values['guiMaxBaseHeight'])),
+                         (reference['minBaseHeight'], reference['maxBaseHeight']))
         context, _ = self.resolve('upkie', refBaseHeight='0.28')
         self.assertEqual(float(context.launch_configurations['guiRefBaseHeight']), .28)
         self.assertEqual(float(context.launch_configurations['guiMaxBaseHeight']), .33)
@@ -121,7 +123,7 @@ class RobotLaunchTest(unittest.TestCase):
             self.assertEqual(len(links), len(set(links)))
             self.assertEqual(links.count('world'), 1)
             return root
-        self.assertGreater(len(expand(ROOT / 'description/urdf/env.urdf.xacro').findall('./link/visual')), 0)
+        expand(ROOT / 'description/urdf/env.urdf.xacro')  # A flat environment can contain only world.
         pieces = ['terrains/stairs.urdf.xacro', 'terrains/ramp.urdf.xacro', 'terrains/uneven_terrain.urdf.xacro',
                   'objects/boxes.urdf.xacro']
         includes = ''.join(f'<xacro:include filename="{ROOT / "description/urdf" / piece}"/>' for piece in pieces)
@@ -145,10 +147,11 @@ class RobotLaunchTest(unittest.TestCase):
             self.assertEqual(float(context.launch_configurations['guiRefBaseHeight']), .98)
 
     def test_controller_selection_and_invalid_inputs(self):
-        context, description = self.resolve('g1', CENTROIDAL)
-        self.assertEqual(float(context.launch_configurations['guiRefBaseHeight']), .795)
-        with self.assertRaisesRegex(ValueError, 'not configured'):
-            self.resolve('h2', CENTROIDAL)
+        for robot in ('g1', 'h2', 'upkie'):
+            _, description = self.resolve(robot)
+            argument = next(action for action in description.entities
+                            if isinstance(action, DeclareLaunchArgument) and action.name == 'mpcControllerName')
+            self.assertEqual(list(argument.choices), [WB_ID])
         with self.assertRaisesRegex(ValueError, 'Mid-360'):
             self.resolve('h2', enableLidar='true')
         for height in ('nan', 'inf', '0', '-1'):

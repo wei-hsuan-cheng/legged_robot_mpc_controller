@@ -7,7 +7,7 @@
 
 #include <ocs2_pinocchio_interface/PinocchioInterface.h>
 #include <pinocchio/multibody/fwd.hpp>
-#include <humanoid_common_mpc/common/MpcRobotModelBase.h>
+#include <legged_robot_mpc_controller/mpc/common/model/MpcRobotModelBase.h>
 #include <rclcpp_lifecycle/lifecycle_node.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
 

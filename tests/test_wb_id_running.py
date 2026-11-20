@@ -19,8 +19,7 @@ class RunningGaitTest(unittest.TestCase):
                     self.assertEqual(gait["templates"][name]["swingHeight"], height)
                 self.assertEqual(gait["swingTrajectory"]["swingHeight"], heights[0])
         for relative in (
-            "src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller_parameter.yaml",
-            "src/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller_parameter.yaml",
+            "src/controller/parameters.yaml",
         ):
             schema = yaml.safe_load((ROOT / relative).read_text())
             params = next(iter(schema.values()))
@@ -70,8 +69,8 @@ class RunningGaitTest(unittest.TestCase):
                 self.assertGreater(params["ocs2"]["constraints"]["legSelfCollision"]["minimumLateralSeparation"], 0)
 
     def test_h2_running_foothold_reference(self):
-        schema = yaml.safe_load((ROOT / "src/humanoid_whole_body_inverse_dynamics_mpc/"
-                                 "humanoid_whole_body_inverse_dynamics_mpc_controller_parameter.yaml").read_text())
+        schema = yaml.safe_load((ROOT / "src/controller/"
+                                 "parameters.yaml").read_text())
         defaults = next(iter(schema.values()))["ocs2"]["costs"]["captureFootPlacement"]
         self.assertFalse(defaults["enabled"]["default_value"])
         h2 = yaml.safe_load((ROOT / "config/h2/ros2_controllers.yaml").read_text())
@@ -89,7 +88,7 @@ class RunningGaitTest(unittest.TestCase):
                          g1["humanoid_whole_body_inverse_dynamics_mpc_controller"]["ros__parameters"]["ocs2"]["costs"])
 
     def test_inclusive_speed_boundary_tolerates_filter_roundoff(self):
-        source = (ROOT / "src/core/humanoid_common_mpc/src/reference_manager/ProceduralMpcMotionManager.cpp").read_text()
+        source = (ROOT / "src/mpc/common/reference_manager/ProceduralMpcMotionManager.cpp").read_text()
         self.assertIn("constexpr scalar_t speedBoundaryTolerance = 1e-9;", source)
         self.assertIn("std::abs(velCommandVec(0)) >= cfg.maxLinVelCmd - speedBoundaryTolerance", source)
         self.assertIn("std::abs(velCommandVec(1)) >= cfg.maxLinVelCmd - speedBoundaryTolerance", source)

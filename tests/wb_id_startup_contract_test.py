@@ -6,8 +6,8 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = (ROOT / "src/humanoid_whole_body_inverse_dynamics_mpc/"
-          "humanoid_whole_body_inverse_dynamics_mpc_controller.cpp").read_text()
+SOURCE = (ROOT / "src/controller/"
+          "controller.cpp").read_text()
 
 
 def body(name):

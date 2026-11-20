@@ -28,9 +28,7 @@ URDF = ET.parse(ROOT / 'description/urdf/robots/h2/h2_31dof.urdf').getroot()
 
 class H2ModelTest(unittest.TestCase):
     def test_wb_id_only_and_schema_compatible(self):
-        self.assertNotIn('humanoid_centroidal_mpc_controller', CONFIG)
-        self.assertNotIn('humanoid_centroidal_mpc_controller', CONFIG['controller_manager']['ros__parameters'])
-        schema = yaml.safe_load((ROOT / f'src/humanoid_whole_body_inverse_dynamics_mpc/{NAME}_parameter.yaml').read_text())[NAME]
+        schema = yaml.safe_load((ROOT / 'src/controller/parameters.yaml').read_text())[NAME]
         check_keys(PARAMS, schema)
         names = PARAMS['robot']['jointNames']
         self.assertEqual(len(names), 25)

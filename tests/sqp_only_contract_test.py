@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check that both legged MPC controllers expose only supported SQP paths."""
+"""Check that the WB-ID MPC controller expose only supported SQP paths."""
 
 from pathlib import Path
 import unittest
@@ -12,8 +12,7 @@ from wb_id_parameter_contract_test import check_keys, UniqueLoader
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTROLLERS = (
-    ("humanoid_centroidal_mpc", "humanoid_centroidal_mpc_controller", "CentroidalMpcInterface"),
-    ("humanoid_whole_body_inverse_dynamics_mpc", "humanoid_whole_body_inverse_dynamics_mpc_controller", "WbIdMpcInterface"),
+    ("controller", "humanoid_whole_body_inverse_dynamics_mpc_controller", "WbIdMpcInterface"),
 )
 
 
@@ -21,7 +20,7 @@ class SqpOnlyContract(unittest.TestCase):
     def test_schemas_only_allow_sqp(self):
         for folder, name, _ in CONTROLLERS:
             with self.subTest(controller=name):
-                schema = yaml.safe_load((ROOT / f"src/{folder}/{name}_parameter.yaml").read_text())[name]
+                schema = yaml.safe_load((ROOT / f"src/{folder}/parameters.yaml").read_text())[name]
                 self.assertEqual(schema["ocs2"]["mpc"]["solverType"]["validation"]["one_of<>"], [["sqp"]])
 
     def test_robot_config_keys_and_live_solver_settings(self):
@@ -31,7 +30,7 @@ class SqpOnlyContract(unittest.TestCase):
                 if name not in config:
                     continue
                 with self.subTest(robot=robot, controller=name):
-                    schema = yaml.load((ROOT / f"src/{folder}/{name}_parameter.yaml").read_text(), Loader=UniqueLoader)[name]
+                    schema = yaml.load((ROOT / f"src/{folder}/parameters.yaml").read_text(), Loader=UniqueLoader)[name]
                     params = config[name]["ros__parameters"]
                     check_keys(params["ocs2"], schema["ocs2"], "ocs2.")
                     ocs2 = params["ocs2"]
@@ -40,16 +39,13 @@ class SqpOnlyContract(unittest.TestCase):
                     self.assertIn("integratorType", sqp)
                     for key in ("inequalityConstraintMu", "inequalityConstraintDelta"):
                         self.assertNotIn(key, sqp)
-                    if name == "humanoid_centroidal_mpc_controller":
-                        self.assertNotIn("rollout", ocs2)
-                        self.assertIn("policyTimeOffset", params["control"])
 
     def test_no_unused_rollout_or_ddp_interface_plumbing(self):
         for folder, name, interface in CONTROLLERS:
-            core = "humanoid_centroidal_mpc" if interface == "CentroidalMpcInterface" else "humanoid_wb_id_mpc"
-            paths = (ROOT / f"include/{core}/{interface}.h",
-                     ROOT / f"src/core/{core}/src/{interface}.cpp",
-                     ROOT / f"src/{folder}/{name}.cpp")
+            core = "wb_id"
+            paths = (ROOT / f"include/legged_robot_mpc_controller/mpc/{core}/{interface}.h",
+                     ROOT / f"src/mpc/{core}/{interface}.cpp",
+                     ROOT / f"src/{folder}/controller.cpp")
             for path in paths:
                 with self.subTest(path=path):
                     source = path.read_text()
@@ -59,7 +55,7 @@ class SqpOnlyContract(unittest.TestCase):
 
     def test_controllers_keep_sqp_and_policy_evaluation(self):
         for folder, name, _ in CONTROLLERS:
-            source = (ROOT / f"src/{folder}/{name}.cpp").read_text()
+            source = (ROOT / f"src/{folder}/controller.cpp").read_text()
             self.assertIn("std::make_unique<ocs2::SqpMpc>", source)
             self.assertIn("mrt_interface_->evaluatePolicy(", source)
 

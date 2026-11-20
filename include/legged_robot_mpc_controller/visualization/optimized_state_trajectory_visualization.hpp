@@ -12,7 +12,7 @@
 #include <rclcpp/publisher.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
 
-#include <humanoid_common_mpc/common/MpcRobotModelBase.h>
+#include <legged_robot_mpc_controller/mpc/common/model/MpcRobotModelBase.h>
 
 namespace legged_robot_mpc_controller::visualization
 {

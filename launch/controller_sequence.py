@@ -224,7 +224,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--controller-manager', default='/controller_manager')
     parser.add_argument('--robot-description-topic', default='/robot_description')
-    parser.add_argument('--controller-name', default='humanoid_centroidal_mpc_controller')
+    parser.add_argument('--controller-name', default='humanoid_whole_body_inverse_dynamics_mpc_controller')
     parser.add_argument(
         '--estimator-name', default='none',
         help='Estimator controller the MPC reads; brought up first, since the MPC claims its exported state.')

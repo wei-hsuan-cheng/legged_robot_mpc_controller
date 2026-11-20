@@ -12,8 +12,8 @@ CONTROLLER = "humanoid_whole_body_inverse_dynamics_mpc_controller"
 
 class CollisionSphereVisualizationTest(unittest.TestCase):
     def test_yaml_controls_and_schema(self):
-        schema = yaml.safe_load((ROOT / "src/humanoid_whole_body_inverse_dynamics_mpc" /
-                                 (CONTROLLER + "_parameter.yaml")).read_text())[CONTROLLER]
+        schema = yaml.safe_load((ROOT / "src/controller" /
+                                 "parameters.yaml").read_text())[CONTROLLER]
         controls = schema["visualization"]["collisionSpheres"]
         self.assertFalse(controls["activate"]["default_value"])
         self.assertEqual(controls["alpha"]["validation"], {"gt": [0.0], "lt_eq": [1.0]})
@@ -24,8 +24,8 @@ class CollisionSphereVisualizationTest(unittest.TestCase):
         self.assertNotIn("collisionSpheres", (ROOT / "launch/robot.launch.py").read_text())
 
     def test_shared_geometry_from_ocp_config(self):
-        source = (ROOT / "src/humanoid_whole_body_inverse_dynamics_mpc" /
-                  (CONTROLLER + ".cpp")).read_text()
+        source = (ROOT / "src/controller" /
+                  "controller.cpp").read_text()
         self.assertIn("mpc_config.costConstraintConfig.footCollisionConfig", source)
         self.assertIn("spheres.activate && mpc_config.activateLegSelfCollision", source)
         self.assertIn("spheres.activate && mpc_config.armSelfCollision.activate", source)

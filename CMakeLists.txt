@@ -17,7 +17,6 @@ set(THIS_PACKAGE_INCLUDE_DEPENDS
   hardware_interface
   legged_robot_state_estimator
   nav_msgs
-  ocs2_centroidal_model
   ocs2_core
   ocs2_mpc
   ocs2_msgs
@@ -49,21 +48,15 @@ foreach(dependency IN ITEMS ${THIS_PACKAGE_INCLUDE_DEPENDS})
   find_package(${dependency} REQUIRED)
 endforeach()
 
-generate_parameter_library(humanoid_centroidal_mpc_controller_parameters
-  src/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller_parameter.yaml
-)
 generate_parameter_library(humanoid_whole_body_inverse_dynamics_mpc_controller_parameters
-  src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller_parameter.yaml
+  src/controller/parameters.yaml
 )
 
 file(GLOB_RECURSE HUMANOID_COMMON_CORE_SOURCES CONFIGURE_DEPENDS
-  src/core/humanoid_common_mpc/src/*.cpp
-)
-file(GLOB_RECURSE HUMANOID_CENTROIDAL_CORE_SOURCES CONFIGURE_DEPENDS
-  src/core/humanoid_centroidal_mpc/src/*.cpp
+  src/mpc/common/*.cpp
 )
 file(GLOB_RECURSE HUMANOID_WB_ID_CORE_SOURCES CONFIGURE_DEPENDS
-  src/core/humanoid_wb_id_mpc/src/*.cpp
+  src/mpc/wb_id/*.cpp
 )
 
 add_library(legged_robot_humanoid_common_core SHARED
@@ -90,37 +83,7 @@ ament_target_dependencies(legged_robot_humanoid_common_core PUBLIC
 target_link_libraries(legged_robot_humanoid_common_core PUBLIC Eigen3::Eigen ${Boost_LIBRARIES})
 target_compile_definitions(legged_robot_humanoid_common_core PUBLIC BOOST_MPL_LIMIT_LIST_SIZE=30)
 
-add_library(legged_robot_humanoid_centroidal_core SHARED
-  ${HUMANOID_CENTROIDAL_CORE_SOURCES}
-)
-target_compile_features(legged_robot_humanoid_centroidal_core PUBLIC cxx_std_20)
-target_include_directories(legged_robot_humanoid_centroidal_core
-  PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:include>
-)
-ament_target_dependencies(legged_robot_humanoid_centroidal_core PUBLIC
-  ament_index_cpp
-  ocs2_centroidal_model
-  ocs2_core
-  ocs2_mpc
-  ocs2_oc
-  ocs2_pinocchio_interface
-  ocs2_robotic_tools
-  ocs2_sqp
-  pinocchio
-  rclcpp
-)
-target_link_libraries(legged_robot_humanoid_centroidal_core
-  PUBLIC
-    Eigen3::Eigen
-    ${Boost_LIBRARIES}
-    legged_robot_humanoid_common_core
-)
-target_compile_definitions(legged_robot_humanoid_centroidal_core PUBLIC BOOST_MPL_LIMIT_LIST_SIZE=30)
-
-# Whole-body inverse-dynamics MPC core. Links the centroidal core for the
-# model-agnostic foot task-space cost it shares with the centroidal MPC.
+# Whole-body inverse-dynamics MPC core.
 add_library(legged_robot_humanoid_wb_id_core SHARED
   ${HUMANOID_WB_ID_CORE_SOURCES}
 )
@@ -146,20 +109,15 @@ target_link_libraries(legged_robot_humanoid_wb_id_core
     Eigen3::Eigen
     ${Boost_LIBRARIES}
     legged_robot_humanoid_common_core
-    legged_robot_humanoid_centroidal_core
 )
 target_compile_definitions(legged_robot_humanoid_wb_id_core PUBLIC BOOST_MPL_LIMIT_LIST_SIZE=30)
 
 add_library(${PROJECT_NAME} SHARED
   src/common/config_builder_utils.cpp
-  src/common/diagnostics_csv_logger.cpp
   src/common/ros2_procedural_mpc_motion_manager.cpp
   src/common/target/mpc_targets_parser.cpp
-  src/humanoid_centroidal_mpc/centroidal_mpc_config_builder.cpp
-  src/humanoid_centroidal_mpc/centroidal_mpc_diagnostics.cpp
-  src/humanoid_centroidal_mpc/humanoid_centroidal_mpc_controller.cpp
-  src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp
-  src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp
+  src/controller/config_builder.cpp
+  src/controller/controller.cpp
   src/visualization/optimized_state_trajectory_visualization.cpp
   src/visualization/future_robot_model_visualization.cpp
   src/visualization/collision_sphere_visualization.cpp
@@ -174,9 +132,7 @@ target_include_directories(${PROJECT_NAME}
 target_link_libraries(${PROJECT_NAME}
   PUBLIC
     Eigen3::Eigen
-    humanoid_centroidal_mpc_controller_parameters
     humanoid_whole_body_inverse_dynamics_mpc_controller_parameters
-    legged_robot_humanoid_centroidal_core
     legged_robot_humanoid_wb_id_core
     legged_robot_state_estimator::legged_robot_state_estimator
     yaml-cpp
@@ -197,16 +153,9 @@ install(DIRECTORY launch/
 )
 install(PROGRAMS
   launch/base_command_gui.py
-  launch/command_sequence.py
   launch/figure_eight_command.py
   launch/push_recovery_test.py
-  launch/analyze_diagnostics.py
   launch/command/mpc_targets/joint_tracking_target.py
-  launch/command/mpc_targets/frame_relation_tracking_target.py
-  launch/command/mpc_targets/joint_frame_relation_tracking_target.py
-  tests/stair_climbing_test.sh
-  tests/terrain_walk_test.sh
-  tests/state_estimator_closed_loop_test.sh
   DESTINATION lib/${PROJECT_NAME}
 )
 install(DIRECTORY config/
@@ -224,10 +173,8 @@ install(FILES legged_robot_mpc_controller_plugin.xml
 
 install(TARGETS
   ${PROJECT_NAME}
-  humanoid_centroidal_mpc_controller_parameters
   humanoid_whole_body_inverse_dynamics_mpc_controller_parameters
   legged_robot_humanoid_common_core
-  legged_robot_humanoid_centroidal_core
   legged_robot_humanoid_wb_id_core
   EXPORT export_${PROJECT_NAME}
   ARCHIVE DESTINATION lib
@@ -238,13 +185,17 @@ install(TARGETS
 if(BUILD_TESTING)
   add_executable(wheel_model_consistency_test tests/wheel_model_consistency_test.cpp)
   target_link_libraries(wheel_model_consistency_test PRIVATE legged_robot_humanoid_wb_id_core)
-  add_executable(wheel_contact_kinematics_test tests/wheel_contact_kinematics_test.cpp)
-  target_include_directories(wheel_contact_kinematics_test PRIVATE include)
-  target_link_libraries(wheel_contact_kinematics_test PRIVATE Eigen3::Eigen)
-  add_test(NAME wheel_contact_kinematics_test COMMAND wheel_contact_kinematics_test)
-  add_executable(arm_body_collision_test tests/arm_body_collision_test.cpp)
-  target_link_libraries(arm_body_collision_test PRIVATE legged_robot_humanoid_wb_id_core)
-  add_test(NAME arm_body_collision_test COMMAND arm_body_collision_test)
+  add_test(NAME wheel_model_consistency_test COMMAND wheel_model_consistency_test
+    ${CMAKE_CURRENT_SOURCE_DIR}/description/urdf/robots/upkie/upkie.urdf
+    ${CMAKE_CURRENT_BINARY_DIR}/test_codegen)
+  foreach(test_name IN ITEMS wheel_contact_kinematics_test arm_body_collision_test
+      swing_flight_test gait_swing_height_test running_gait_transition_test wb_id_torque_window_test)
+    add_executable(${test_name} tests/${test_name}.cpp)
+    target_link_libraries(${test_name} PRIVATE legged_robot_humanoid_wb_id_core)
+    # These regression executables use assert; keep their checks active in Release builds.
+    target_compile_options(${test_name} PRIVATE -UNDEBUG)
+    add_test(NAME ${test_name} COMMAND ${test_name})
+  endforeach()
   find_package(ament_lint_auto REQUIRED)
   set(ament_cmake_copyright_FOUND TRUE)
   set(ament_cmake_cpplint_FOUND TRUE)
@@ -257,7 +208,6 @@ ament_export_include_directories(include)
 ament_export_libraries(
   ${PROJECT_NAME}
   legged_robot_humanoid_common_core
-  legged_robot_humanoid_centroidal_core
   legged_robot_humanoid_wb_id_core
 )
 

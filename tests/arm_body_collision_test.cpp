@@ -16,8 +16,8 @@
 #include <ocs2_core/penalties/penalties/RelaxedBarrierPenalty.h>
 #include <ocs2_core/penalties/penalties/PieceWisePolynomialBarrierPenalty.h>
 
-#include "humanoid_wb_id_mpc/common/WbIdPinocchioMapping.h"
-#include "humanoid_wb_id_mpc/constraint/ArmBodyCollisionConstraint.h"
+#include "legged_robot_mpc_controller/mpc/wb_id/model/WbIdPinocchioMapping.h"
+#include "legged_robot_mpc_controller/mpc/wb_id/constraint/ArmBodyCollisionConstraint.h"
 
 using namespace ocs2;
 using namespace ocs2::humanoid;

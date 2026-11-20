@@ -24,7 +24,7 @@ The simulation-reference mass is $m=5.4605\ \mathrm{kg}$ and tire radius is $r=0
 The MPC URDF is generated from the MuJoCo model to match link frames, joint axes, inertias and tire geometry; see [model provenance](../description/urdf/robots/upkie/MODEL_SOURCE.md).
 The optimizer uses Pinocchio kinematics and inverse dynamics, CppAD-generated constraint derivatives, and OCS2 SQP with HPIPM.
 The asynchronous MPC worker publishes a policy that the ros2_control thread evaluates at the MRT frequency, followed by an `effort_pd` joint servo.
-There is no centroidal-momentum state, reduced cart-pendulum prediction model, or separate whole-body-control QP in this path.
+The prediction model uses the full-body state and inverse-dynamics equalities, without a separate whole-body-control QP.
 Feedback comes from the wheel-aware linear Kalman filter of Section 7.5 (IMU attitude, rate and acceleration plus leg and wheel encoders), started from the kneeling idle of Section 7.4.
 Simulator ground truth is only logged alongside as a benchmark, or used for GT-driven tuning runs; it is not available for real-world deployment.
 
@@ -85,7 +85,7 @@ Their orientations spin with the wheels, while their centers do not move merely 
 ### 2.3 Wrench coordinates: source and rationale
 
 The coordinate convention follows the existing controller and [Pinocchio's force-reference transformations](https://gepettoweb.laas.fr/doc/stack-of-tasks/pinocchio/devel/doxygen-html/algorithm_2utils_2force_8hpp_source.html), rather than a paper requirement to use body-frame forces.
-The [RNEA implementation](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdRneaConstraintCppAd.cpp#L88) explicitly requests the matching world-aligned Jacobian.
+The [RNEA implementation](../src/mpc/wb_id/constraint/WbIdRneaConstraintCppAd.cpp#L88) explicitly requests the matching world-aligned Jacobian.
 At the same tire-center origin, a body-axis wrench $W_i^{h_i}$ and the implemented wrench $W_i^W$ are related by:
 
 $$
@@ -226,7 +226,7 @@ $$
 
 This is the lowest point of a rigid thin disk, not a finite-width tire contact-patch model.
 The closest wheel-geometry reference is [Xin and Vijayakumar, Section IV-B3, Fig. 5 and the paragraph after Eq. (20), PDF page 5](https://arxiv.org/pdf/2003.03678#page=5), which constructs the contact direction from the wheel axle and ground normal.
-The normalized projection used here is a local geometric derivation, implemented in [contactOffset](../include/humanoid_wb_id_mpc/common/WheelContactKinematics.h#L43):
+The normalized projection used here is a local geometric derivation, implemented in [contactOffset](../include/legged_robot_mpc_controller/mpc/wb_id/model/WheelContactKinematics.h#L43):
 
 $$
 \rho_i=\underset{\|\rho\|=r,\ e_i^{\mathsf T}\rho=0}{\operatorname{arg\,min}}\ n^{\mathsf T}\rho.
@@ -272,7 +272,7 @@ Here $a_{c,i}=d v_{c,i}(q,v)/dt$ follows the instantaneous contact evaluation, r
 This derivative assumes a fixed ground normal; there is no $\dot n$ term.
 Pinocchio supplies the center's classical acceleration in world-aligned axes.
 For wheel-center/contact velocity, see [Xin and Vijayakumar, Section IV-B3, Eqs. (16)-(17), PDF page 5](https://arxiv.org/pdf/2003.03678#page=5).
-Their acceleration development continues in Eqs. (18)-(20), but this implementation is not a literal copy: it differentiates the currently selected lowest-point offset using [contactOffsetRate](../include/humanoid_wb_id_mpc/common/WheelContactKinematics.h#L50), then forms [aContact](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdWheelContactConstraintCppAd.cpp#L205).
+Their acceleration development continues in Eqs. (18)-(20), but this implementation is not a literal copy: it differentiates the currently selected lowest-point offset using [contactOffsetRate](../include/legged_robot_mpc_controller/mpc/wb_id/model/WheelContactKinematics.h#L50), then forms [aContact](../src/mpc/wb_id/constraint/WbIdWheelContactConstraintCppAd.cpp#L205).
 In particular, $\dot\rho$ is not generally $\omega\times\rho$; wheel spin leaves the selected lowest point unchanged for an upright wheel.
 This distinction must be checked through kinematic differentiation, not by assuming that the paper's acceleration expression and the code have identical meanings.
 
@@ -408,7 +408,7 @@ The tuning priority is avoiding falls and controlling pitch/roll, not exact heig
 For scale, a 5-degree pitch error costs about 1.90 and the same roll error about 7.62, versus 0.60 for a 2 cm height error in the running base cost.
 These are weighted soft preferences, not a strict task hierarchy or a stability guarantee; the optimizer may accept height and motion error to remain balanced.
 Returning the forward command to zero asks the robot to stop moving, not to return to a particular XY position.
-There is no separate CoM-position, capture-point, centroidal-momentum or integral drift-rejection objective in this configuration.
+There is no separate CoM-position, capture-point, or integral drift-rejection objective in this configuration.
 
 
 ### 5.2 Joint posture and motion
@@ -788,21 +788,21 @@ Rebuild `mujoco_ros2_control` as well as this package when adopting the correcte
 
 | Part | Code |
 | --- | --- |
-| State/input layout | [WbIdMpcRobotModel.h](../include/humanoid_wb_id_mpc/common/WbIdMpcRobotModel.h) |
-| Configuration, weights and wheel-angle masking | [whole_body_inverse_dynamics_mpc_config_builder.cpp](../src/humanoid_whole_body_inverse_dynamics_mpc/whole_body_inverse_dynamics_mpc_config_builder.cpp) |
-| OCP registration and activation | [WbIdMpcInterface.cpp](../src/core/humanoid_wb_id_mpc/src/WbIdMpcInterface.cpp) |
-| Double-integrator propagation | [WbIdDynamics.cpp](../src/core/humanoid_wb_id_mpc/src/dynamics/WbIdDynamics.cpp) |
-| Armature import | [createPinocchioModel.cpp](../src/core/humanoid_common_mpc/src/pinocchio_model/createPinocchioModel.cpp) |
-| RNEA and Coulomb friction | [WbIdRneaConstraintCppAd.cpp](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdRneaConstraintCppAd.cpp) |
-| Shared disk/contact geometry | [WheelContactKinematics.h](../include/humanoid_wb_id_mpc/common/WheelContactKinematics.h) |
-| Rolling, shared lateral and swing equalities | [WbIdWheelContactConstraintCppAd.cpp](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdWheelContactConstraintCppAd.cpp) |
-| Relative base-motion residual | [BaseMotionTrackingCost.cpp](../src/core/humanoid_common_mpc/src/cost/BaseMotionTrackingCost.cpp) |
-| Input nominal and generic cost | [StateInputQuadraticCost.cpp](../src/core/humanoid_common_mpc/src/cost/StateInputQuadraticCost.cpp) |
-| Friction cone and its regularization | [FrictionForceConeConstraint.h](../include/humanoid_common_mpc/constraint/FrictionForceConeConstraint.h), [implementation](../src/core/humanoid_common_mpc/src/constraint/FrictionForceConeConstraint.cpp) |
-| Position, friction and terminal cost construction | [HumanoidCostConstraintFactory.cpp](../src/core/humanoid_common_mpc/src/HumanoidCostConstraintFactory.cpp) |
-| Command integration and state reference | [WbIdMpcTargetTrajectoriesCalculator.cpp](../src/core/humanoid_wb_id_mpc/src/command/WbIdMpcTargetTrajectoriesCalculator.cpp) |
-| Initial state/input seed | [WbIdInitializer.cpp](../src/core/humanoid_wb_id_mpc/src/initialization/WbIdInitializer.cpp) |
-| Observation, execution, stand-up and tracking diagnostics | [humanoid_whole_body_inverse_dynamics_mpc_controller.cpp](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp) |
+| State/input layout | [WbIdMpcRobotModel.h](../include/legged_robot_mpc_controller/mpc/wb_id/model/WbIdMpcRobotModel.h) |
+| Configuration, weights and wheel-angle masking | [config_builder.cpp](../src/controller/config_builder.cpp) |
+| OCP registration and activation | [WbIdMpcInterface.cpp](../src/mpc/wb_id/WbIdMpcInterface.cpp) |
+| Double-integrator propagation | [WbIdDynamics.cpp](../src/mpc/wb_id/dynamics/WbIdDynamics.cpp) |
+| Armature import | [createPinocchioModel.cpp](../src/mpc/common/model/createPinocchioModel.cpp) |
+| RNEA and Coulomb friction | [WbIdRneaConstraintCppAd.cpp](../src/mpc/wb_id/constraint/WbIdRneaConstraintCppAd.cpp) |
+| Shared disk/contact geometry | [WheelContactKinematics.h](../include/legged_robot_mpc_controller/mpc/wb_id/model/WheelContactKinematics.h) |
+| Rolling, shared lateral and swing equalities | [WbIdWheelContactConstraintCppAd.cpp](../src/mpc/wb_id/constraint/WbIdWheelContactConstraintCppAd.cpp) |
+| Relative base-motion residual | [BaseMotionTrackingCost.cpp](../src/mpc/common/cost/BaseMotionTrackingCost.cpp) |
+| Input nominal and generic cost | [StateInputQuadraticCost.cpp](../src/mpc/common/cost/StateInputQuadraticCost.cpp) |
+| Friction cone and its regularization | [FrictionForceConeConstraint.h](../include/legged_robot_mpc_controller/mpc/common/constraint/FrictionForceConeConstraint.h), [implementation](../src/mpc/common/constraint/FrictionForceConeConstraint.cpp) |
+| Position, friction and terminal cost construction | [HumanoidCostConstraintFactory.cpp](../src/mpc/common/HumanoidCostConstraintFactory.cpp) |
+| Command integration and state reference | [WbIdMpcTargetTrajectoriesCalculator.cpp](../src/mpc/wb_id/command/WbIdMpcTargetTrajectoriesCalculator.cpp) |
+| Initial state/input seed | [WbIdInitializer.cpp](../src/mpc/wb_id/initialization/WbIdInitializer.cpp) |
+| Observation, execution, stand-up and tracking diagnostics | [controller.cpp](../src/controller/controller.cpp) |
 
 The handoff preserves the earlier 100 Hz flat-drive/push checkpoint and records the selected balance-first weights tested at requested MPC 200 Hz.
 Use `mpcFreq:=200 mrtFreq:=1000` for the current Upkie examples; measured VM rates are typically about 190-192 Hz, not a guaranteed exact 200 Hz.
@@ -840,17 +840,17 @@ Paper locations refer to the linked arXiv versions; PDF page numbers are viewer 
 
 | Choice | Primary reference and exact location | Actual implementation and important difference |
 | --- | --- | --- |
-| Configuration/velocity state and inverse-dynamics path equalities | [Molnar et al., Whole-Body Inverse Dynamics MPC for Legged Loco-Manipulation, IV-B1, Eqs. (4)-(5)](https://arxiv.org/html/2511.19709v1#S4.SS2.SSS1) | [RNEA rows](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdRneaConstraintCppAd.cpp#L81); this branch keeps absolute Euler coordinates, not the paper's tangent increment |
-| World-aligned wrench at a moving tire center | [Pinocchio, force reference conversion, LOCAL versus LOCAL_WORLD_ALIGNED](https://gepettoweb.laas.fr/doc/stack-of-tasks/pinocchio/devel/doxygen-html/algorithm_2utils_2force_8hpp_source.html) | [Jacobian/wrench product](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdRneaConstraintCppAd.cpp#L88); a library/interface convention, not a claim of body-axis wrench optimization |
-| Six-component wrench restricted to a tire point force | [Lynch and Park, Modern Robotics, Section 3.4, wrench transformations and power](https://modernrobotics.northwestern.edu/nu-gm-book-resource/3-4-wrenches/) | [Moment equality](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdWheelContactConstraintCppAd.cpp#L238); six entries retained locally for compatibility |
-| Wheel contact direction and no-slip velocity | [Xin and Vijayakumar, Online Dynamic Motion Planning and Control for Wheeled-Biped Robots, IV-B3, Fig. 5, Eqs. (16)-(20), PDF page 5](https://arxiv.org/pdf/2003.03678#page=5) | [Disk geometry](../include/humanoid_wb_id_mpc/common/WheelContactKinematics.h#L43), [slip and its derivative](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdWheelContactConstraintCppAd.cpp#L193); lowest-point normalization and offset differentiation are explicit local derivations |
-| Gap/slip error feedback in acceleration constraints | [Baumgarte, Stabilization of constraints and integrals of motion in dynamical systems, 1972, pp. 1-16](https://doi.org/10.1016/0045-7825(72)90018-7) | [Stabilized rows](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdWheelContactConstraintCppAd.cpp#L235); principle only, no paper-sourced gain values |
-| One shared lateral equality | No exact reference established | [Common-basis average](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdWheelContactConstraintCppAd.cpp#L212); local workaround requiring rank and per-wheel-slip validation |
-| Supporting versus swinging wheels | [Bjelonic et al., Whole-Body MPC and Online Gait Sequence Generation for Wheeled-Legged Robots, III-A4, Eqs. (5)-(6), PDF page 4](https://arxiv.org/pdf/2010.06322#page=4) | [Mode activation](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdWheelContactConstraintCppAd.cpp#L108); full spin dynamics retained here rather than their fixed-angle moving-contact simplification |
+| Configuration/velocity state and inverse-dynamics path equalities | [Molnar et al., Whole-Body Inverse Dynamics MPC for Legged Loco-Manipulation, IV-B1, Eqs. (4)-(5)](https://arxiv.org/html/2511.19709v1#S4.SS2.SSS1) | [RNEA rows](../src/mpc/wb_id/constraint/WbIdRneaConstraintCppAd.cpp#L81); this branch keeps absolute Euler coordinates, not the paper's tangent increment |
+| World-aligned wrench at a moving tire center | [Pinocchio, force reference conversion, LOCAL versus LOCAL_WORLD_ALIGNED](https://gepettoweb.laas.fr/doc/stack-of-tasks/pinocchio/devel/doxygen-html/algorithm_2utils_2force_8hpp_source.html) | [Jacobian/wrench product](../src/mpc/wb_id/constraint/WbIdRneaConstraintCppAd.cpp#L88); a library/interface convention, not a claim of body-axis wrench optimization |
+| Six-component wrench restricted to a tire point force | [Lynch and Park, Modern Robotics, Section 3.4, wrench transformations and power](https://modernrobotics.northwestern.edu/nu-gm-book-resource/3-4-wrenches/) | [Moment equality](../src/mpc/wb_id/constraint/WbIdWheelContactConstraintCppAd.cpp#L238); six entries retained locally for compatibility |
+| Wheel contact direction and no-slip velocity | [Xin and Vijayakumar, Online Dynamic Motion Planning and Control for Wheeled-Biped Robots, IV-B3, Fig. 5, Eqs. (16)-(20), PDF page 5](https://arxiv.org/pdf/2003.03678#page=5) | [Disk geometry](../include/legged_robot_mpc_controller/mpc/wb_id/model/WheelContactKinematics.h#L43), [slip and its derivative](../src/mpc/wb_id/constraint/WbIdWheelContactConstraintCppAd.cpp#L193); lowest-point normalization and offset differentiation are explicit local derivations |
+| Gap/slip error feedback in acceleration constraints | [Baumgarte, Stabilization of constraints and integrals of motion in dynamical systems, 1972, pp. 1-16](https://doi.org/10.1016/0045-7825(72)90018-7) | [Stabilized rows](../src/mpc/wb_id/constraint/WbIdWheelContactConstraintCppAd.cpp#L235); principle only, no paper-sourced gain values |
+| One shared lateral equality | No exact reference established | [Common-basis average](../src/mpc/wb_id/constraint/WbIdWheelContactConstraintCppAd.cpp#L212); local workaround requiring rank and per-wheel-slip validation |
+| Supporting versus swinging wheels | [Bjelonic et al., Whole-Body MPC and Online Gait Sequence Generation for Wheeled-Legged Robots, III-A4, Eqs. (5)-(6), PDF page 4](https://arxiv.org/pdf/2010.06322#page=4) | [Mode activation](../src/mpc/wb_id/constraint/WbIdWheelContactConstraintCppAd.cpp#L108); full spin dynamics retained here rather than their fixed-angle moving-contact simplification |
 | Tracking objective and fast inner servo | [Khazoom et al., Tailoring Solution Accuracy for Fast Whole-body Model Predictive Control of Legged Robots, II-B2 Eq. (3) and II-D3 Eq. (15)](https://arxiv.org/html/2407.10789v1) | [Configured costs/gains](../config/upkie/ros2_controllers.yaml#L181); Upkie weights and servo rates are local, and the QP solver here is HPIPM rather than their OSQP/ADMM |
 | Accounting for motor friction and rotor inertia | [Molnar et al., VI-D, sim-to-real discrepancies](https://arxiv.org/html/2511.19709v1#S6.SS4) and [MuJoCo joint armature semantics](https://mujoco.readthedocs.io/en/3.3.2/XMLreference.html#body-joint-armature) | [Model parameters](../config/upkie/ros2_controllers.yaml#L141); amplitudes match the imported simulator model, not identified hardware |
 | Rolling-wheel state estimation | [Bledt et al., Cheetah 3, Section III-H](https://doi.org/10.1109/IROS.2018.8593885) two-stage filter; [Hosseini, Rodriguez and Behnke, Section IV-B, Eqs. (5)-(6), (10)](https://arxiv.org/abs/2211.11390) wheel adaptation | [updateRollingWheels](https://github.com/wei-hsuan-cheng/legged_robot_state_estimator/blob/main/src/linear_kf_floating_base_estimator.cpp#L462); state $[p;v]$ only, one tread-velocity and one height row per wheel, no driving-share or contact-position states ([estimation note, Section 12](wheeled_biped_state_estimation.md#12-relation-to-the-references)) |
-| Differentiable Coulomb friction | [Pyrhonen, Mikkola and Naets, System identification and force estimation of robotic manipulator using semirecursive multibody formulation, Section 2.1 Eq. (10), published online 2024](https://link.springer.com/article/10.1007/s11044-024-10017-1#Equ10) | [CppAD tanh term](../src/core/humanoid_wb_id_mpc/src/constraint/WbIdRneaConstraintCppAd.cpp#L98); no viscous term here and a different transition-scale convention |
+| Differentiable Coulomb friction | [Pyrhonen, Mikkola and Naets, System identification and force estimation of robotic manipulator using semirecursive multibody formulation, Section 2.1 Eq. (10), published online 2024](https://link.springer.com/article/10.1007/s11044-024-10017-1#Equ10) | [CppAD tanh term](../src/mpc/wb_id/constraint/WbIdRneaConstraintCppAd.cpp#L98); no viscous term here and a different transition-scale convention |
 
 
 ### 9.2 Friction and armature parameter provenance

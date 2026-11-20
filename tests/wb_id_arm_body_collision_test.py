@@ -50,11 +50,6 @@ class ArmBodyCollisionTest(unittest.TestCase):
             self.assertGreater(replay.config["delta"], 0)
             self.assertIn(replay.config["implementation"], ("rbf", "polynomial"))
 
-    def test_centroidal_does_not_enable_new_term(self):
-        config = yaml.safe_load((ROOT / "config/g1/ros2_controllers.yaml").read_text())
-        centroidal = config["humanoid_centroidal_mpc_controller"]["ros__parameters"]
-        self.assertNotIn("armSelfCollision", centroidal["ocs2"]["constraints"])
-
 
 if __name__ == "__main__":
     unittest.main()

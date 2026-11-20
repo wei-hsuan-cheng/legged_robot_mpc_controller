@@ -59,7 +59,10 @@ class SceneLayoutTest(unittest.TestCase):
             robot = ET.parse(directory / filename)
             mesh_dir = directory / robot.find("compiler").get("meshdir")
             for mesh in robot.findall("./asset/mesh"):
-                self.assertTrue((mesh_dir / mesh.get("file")).is_file())
+                if mesh.get("file") is not None:
+                    self.assertTrue((mesh_dir / mesh.get("file")).is_file())
+                else:
+                    self.assertIsNotNone(mesh.get("vertex"), "Inline meshes must provide vertices")
 
     def test_urdf_mesh_uris(self):
         robot = ET.parse(ROBOT / "g1_29dof.urdf")

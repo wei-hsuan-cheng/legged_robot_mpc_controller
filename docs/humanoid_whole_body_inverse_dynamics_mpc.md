@@ -38,7 +38,7 @@ flowchart TB
 The solver runs asynchronously at the requested MPC frequency, while ros2_control evaluates the latest policy at the MRT/control frequency.
 The body-state feedback comes from the contact-aided InEKF estimate.
 For simulation debugging, `floatingBaseSource:=ground_truth_state` can replace estimator feedback with GT, but this bypass is not available for real-world deployment.
-The WB-ID execution path does not call the centroidal controller's weighted WBC QP.
+The execution path uses the optimized joint torques and low-level PD tracking directly.
 Requested rates are scheduling targets, so policy age matters when a solve runs slowly.
 During startup, valid observations continue to reach MPC while the joint servo holds the standing posture.
 Handover requires a policy whose timestamps cover the evaluation time; an expired startup horizon is reset on the solver worker and retried rather than evaluated outside its interval.
@@ -76,7 +76,7 @@ $$
 
 Each $W_c=[f_c^{\mathsf T},m_c^{\mathsf T}]^{\mathsf T}\in\mathbb R^6$ is a contact wrench expressed in world-aligned axes about the contact-frame origin.
 For the current 23-joint MPC model, $n_v=29$, $\dim x=58$ and $\dim u=12+29+23=64$.
-There is no centroidal-momentum state or momentum-to-velocity reconstruction in this controller.
+The state contains generalized coordinates and velocities directly.
 
 ### 2.3 Initial state from sensors
 
@@ -820,9 +820,7 @@ flowchart LR
 | Base pose | Connected to the explicit pose path and absolute-pose base cost |
 | Arm `joint` | Connected to running/terminal arm position costs |
 | Arm `default` | Clears external arm targets |
-| Arm `frame_relation` / `joint_frame_relation` | No WB-ID declared frame pairs or corresponding cost; nonempty frame-pair commands are rejected |
 | Torso stabilization | Gravity-relative free-tilt corridor and transverse angular damping; generic torso tracker disabled |
-| Centroidal momentum / ICP / WBC inner QP | Not part of this formulation |
 | Full-horizon torque feasibility | Requires full-horizon torque equations; limits still remain soft |
 | General perception and contact discovery | Not supplied by the OCP |
 | Whole-body collision and contact yaw-friction bounds | Not comprehensively enforced by the present constraint set |

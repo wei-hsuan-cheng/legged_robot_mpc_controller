@@ -85,7 +85,7 @@ The separate vertical swing spline retains the planned lift-off and touchdown he
 
 ## Initial Tuning
 
-These are unvalidated terrain-trial settings in the WB-ID section of [ros2_controllers.yaml](../config/g1/ros2_controllers.yaml), not changes to the centroidal configuration.
+These are unvalidated terrain-trial settings in the WB-ID section of [ros2_controllers.yaml](../config/g1/ros2_controllers.yaml).
 
 | Setting | Previous | Terrain trial |
 | --- | --- | --- |

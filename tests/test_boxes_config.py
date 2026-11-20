@@ -2,6 +2,7 @@
 
 import copy
 from pathlib import Path
+import shutil
 import tempfile
 import unittest
 import xml.etree.ElementTree as ET
@@ -21,12 +22,18 @@ ROOT = Path(__file__).resolve().parents[1]
 class BoxesConfigTest(unittest.TestCase):
     def expand(self, boxes):
         with tempfile.TemporaryDirectory() as directory:
-            params = Path(directory) / "boxes.yaml"
+            package = Path(directory)
+            params = package / "config/objects/boxes_params.yaml"
+            params.parent.mkdir(parents=True)
             params.write_text(yaml.safe_dump({"boxes": boxes}, sort_keys=False))
-            return [ET.fromstring(xacro.process_file(str(ROOT / relative),
-                                                    mappings={"boxes_params_file": str(params)}).toxml())
-                    for relative in ("description/mujoco/objects/boxes.xml.xacro",
-                                     "description/urdf/objects/boxes.urdf.xacro")]
+            documents = []
+            for relative in ("description/mujoco/objects/boxes.xml.xacro",
+                             "description/urdf/objects/boxes.urdf.xacro"):
+                target = package / relative
+                target.parent.mkdir(parents=True)
+                shutil.copyfile(ROOT / relative, target)
+                documents.append(ET.fromstring(xacro.process_file(str(target)).toxml()))
+            return documents
 
     def test_named_entries_preserve_current_box_values(self):
         boxes = yaml.safe_load((ROOT / "config/objects/boxes_params.yaml").read_text())["boxes"]
@@ -59,7 +66,7 @@ class BoxesConfigTest(unittest.TestCase):
         self.assertEqual([b.get("name") for b in mjcf.findall("./worldbody/body")], ["orange_box", "box_3"])
         mjcf, urdf = self.expand({})
         self.assertEqual(len(mjcf.findall("./worldbody/body")), 0)
-        self.assertEqual([link.get("name") for link in urdf.findall("./link")], ["world"])
+        self.assertEqual(urdf.findall("./link"), [])  # The environment wrapper owns world.
 
 
 if __name__ == "__main__":

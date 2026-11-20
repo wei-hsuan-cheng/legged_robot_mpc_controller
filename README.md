@@ -39,10 +39,10 @@
 </p>
 
 
-## MPC Formulations
+## MPC Formulation
 
-This repository contains examples for two MPC formulations: **whole-body inverse dynamics vs. centroidal dynamics (hierarchical)**.
-Both controllers use OCS2's SQP backend; DDP/SLQ/iLQR are not supported by this package.
+This repository implements **whole-body inverse dynamics MPC** using OCS2's SQP backend.
+DDP/SLQ/iLQR are not supported by this package.
 
 
 ### Whole-Body Inverse Dynamics MPC
@@ -51,15 +51,26 @@ The **whole-body inverse dynamics MPC** jointly optimizes floating-base and join
 See [WB-ID MPC Formulation and Signal Flow](./docs/humanoid_whole_body_inverse_dynamics_mpc.md) for equations and control diagrams, and [WB-ID MPC Implementation Guide](./docs/humanoid_whole_body_inverse_dynamics_mpc_impl.md) for code-line references and parameter mappings.
 
 
-### Centroidal Dynamics MPC
-The centroidal MPC optimizes over the **whole-body kinematics** and the center of mass dynamics, with a choice to either use a single rigid body model or the full centroidal dynamics. This specific approach builds up on the centroidal model in ocs2 by generalizing costs and constraints to a 6-DoF contact among others. A conscise explanation of the ocs2 centroidal model can be found in [(RA-L2021) Sleiman et. al., A Unified MPC Framework for Whole-Body Dynamic Locomotion and Manipulation](https://arxiv.org/abs/2103.00946).
+## Code Layout
+
+Public headers live under `include/legged_robot_mpc_controller/`, matching the modules in `src/`.
+
+| Module | Responsibility |
+| --- | --- |
+| `controller/` | ROS controller, configuration builder, and generated-parameter schema (`src/controller/parameters.yaml`) |
+| `common/` | ROS command adapters and configuration helpers |
+| `mpc/common/` | Robot models, costs, constraints, contacts, gaits, and reference generation |
+| `mpc/wb_id/` | Whole-body dynamics, inverse-dynamics constraints, initialization, and OCP assembly |
+| `visualization/` | Trajectories, robot ghosts, and collision markers |
+
+See [layout regression results](./docs/results/wb_id_layout_regression.md) for the matched before/after simulation tests and the remaining G1 timing caveat.
 
 
 ## Supported Robots
 
 | Robot | `robotName` | Physical Actuated DoFs | MPC-Active Joint DoFs | MPC Formulations | Nominal Pelvis Height |
 | --- | --- | --- | --- | --- | --- |
-| Unitree G1 | `g1` | 29 | 23 | WB-ID, centroidal | 0.795 m |
+| Unitree G1 | `g1` | 29 | 23 | WB-ID | 0.795 m |
 | Unitree H2 | `h2` | 31 | 25 | WB-ID | 1.02 m |
 
 The six wrist joints are fixed in each reduced MPC model and held by the joint servos; the floating base adds six configuration and six velocity coordinates, separate from the actuated-joint DoFs above.
@@ -114,12 +125,11 @@ Do not add a duplicate checkout of a package already in the workspace.
 
 ## Run MuJoCo Example
 
-Two MPC controllers are available, selected with `mpcControllerName`. Both walk with the same gait, references, estimator and bring-up; they differ in the model the MPC plans with.
+The WB-ID controller uses whole-body kinematics and inverse dynamics, with the robot selected by `robotName`.
 
 | `mpcControllerName` | MPC | state / input |
 |---|---|---|
 | `humanoid_whole_body_inverse_dynamics_mpc_controller` (default) | whole-body inverse dynamics + whole-body kinematics | `[q, v]` / `[W, a, tau_j]` |
-| `humanoid_centroidal_mpc_controller` (G1 only) | centroidal dynamics + whole-body kinematics | `[h/m, q]` / `[W, qd_j]` |
 
 **Launch the humanoid robot MPC**:
 
@@ -135,10 +145,10 @@ ros2 launch legged_robot_mpc_controller robot.launch.py \
   baseCommandGui:=true
 
 # robotName:=g1 | h2
-# mpcControllerName:=humanoid_whole_body_inverse_dynamics_mpc_controller | humanoid_centroidal_mpc_controller
+# mpcControllerName:=humanoid_whole_body_inverse_dynamics_mpc_controller
 ```
 
-The first launch of each controller generates and compiles its CppAD libraries (several minutes); later launches load them from the cache.
+The first launch for each robot generates and compiles its CppAD libraries (several minutes); later launches load them from the cache.
 
 
 **Useful launch args:**
@@ -147,7 +157,7 @@ The first launch of each controller generates and compiles its CppAD libraries (
 baseCommandGui:=true | false
 robotName:=g1 | h2
 spawnMpcController:=true | false         # false is only for environment smoke tests; the robot will not balance
-mpcControllerName:=humanoid_whole_body_inverse_dynamics_mpc_controller | humanoid_centroidal_mpc_controller
+mpcControllerName:=humanoid_whole_body_inverse_dynamics_mpc_controller
 use_mujoco_sim:=true | false             # false: plain ros2_control_node (fake hardware)
 use_fake_hardware:=false | true          # mock_components/GenericSystem when not using MuJoCo
 ros2ControlCommandInterface:=effort | effort_pd | position
@@ -267,10 +277,9 @@ ros2 topic pub --once /humanoid/base_pose_command \
 ``` -->
 
 
-### Arm joint / frame-relation targets (`/humanoid/mpc_targets`)
+### Arm Joint Targets (`/humanoid/mpc_targets`)
 
-Arm `joint` and `default` commands are implemented for both MPC controllers.
-`frame_relation` and `joint_frame_relation` are currently implemented for the centroidal controller only; WB-ID does not declare frame pairs or register their tracking costs.
+Arm `joint` and `default` commands are supported.
 WB-ID also has an optional `ocs2.constraints.armSelfCollision` sphere penalty for arms versus torso, pelvis and head, enabled in the G1/H2 YAMLs.
 It does not add arm-arm or arm-leg checks, and it is a soft safeguard, not a collision-free guarantee.
 See [arm/body collision margins](./docs/humanoid_whole_body_inverse_dynamics_mpc.md#58-arm-versus-body-sphere-margins) for geometry and penalty tuning.
@@ -281,8 +290,6 @@ See [collision sphere visualization](./docs/humanoid_whole_body_inverse_dynamics
 | `command_type` | Meaning |
 |---|---|
 | `joint` | Track arm joint positions. One trajectory; states cover exactly the tracked arm joints (shoulder + elbow), ordered by `joint_names`. Overrides the built-in gait arm swing. |
-| `frame_relation` | Track the relative pose of a leaf frame expressed in a reference frame. Convention (matching `mpc_controllers`): `source_frames[i]` is the reference (root) frame — a robot frame such as `pelvis`, or a global frame (`world`) — and `target_frames[i]` is the tracked leaf frame (a hand). One trajectory per pair; states are `[position xyz, quaternion xyzw]` of target expressed in source. Optional `frame_relation_tracking_weights` (6 per pair: position xyz, orientation xyz) override the configured defaults. |
-| `joint_frame_relation` | Both at once: the joint trajectory first in `target_trajectories`, then one per frame pair. |
 | `default` | Clear all external targets and revert to the built-in posture + gait arm swing. |
 
 
@@ -291,12 +298,6 @@ Sample target publishers in [`launch/command/mpc_targets/`](./launch/command/mpc
 ```bash
 # Sine arm-joint swing (command_type: joint)
 ros2 run legged_robot_mpc_controller joint_tracking_target.py
-
-# Hold both hands at pelvis-relative poses (command_type: frame_relation)
-ros2 run legged_robot_mpc_controller frame_relation_tracking_target.py
-
-# Fixed arm posture + left-hand pose target together (command_type: joint_frame_relation)
-ros2 run legged_robot_mpc_controller joint_frame_relation_tracking_target.py
 
 # Switch back to the built-in arm-swing reference
 ros2 topic pub --once /humanoid/mpc_targets ocs2_msgs/msg/MpcTargets "{command_type: 'default'}"
@@ -314,15 +315,6 @@ ros2 topic pub --once /humanoid/mpc_targets ocs2_msgs/msg/MpcTargets "{
                          state_trajectory: [{value: [0.3, 0.0, 0.0, 0.6, 0.3, 0.0, 0.0, 0.6]}],
                          input_trajectory: [{value: []}]}]}"
 
-# Move the left hand to a pelvis-relative pose (command_type: frame_relation;
-# source = reference frame, target = tracked leaf frame)
-ros2 topic pub --once /humanoid/mpc_targets ocs2_msgs/msg/MpcTargets "{
-  command_type: 'frame_relation',
-  source_frames: [pelvis],
-  target_frames: [left_rubber_hand],
-  target_trajectories: [{time_trajectory: [0.0],
-                         state_trajectory: [{value: [0.32, 0.15, 0.20, 0.0, 0.0, 0.0, 1.0]}],
-                         input_trajectory: [{value: []}]}]}"
 ```
 
 Supported target channels are soft costs balanced against the rest of the MPC; raise the command weights to track tighter.
@@ -360,7 +352,7 @@ For simulation debugging, `floatingBaseSource:=ground_truth_state` can replace e
 ## Acknowledgements
 
 - Reference implementation for the whole-body inverse dynamics MPC formulation: [`lukasmolnar/wb-mpc-locoman`](https://github.com/lukasmolnar/wb-mpc-locoman)
-- The original code implementation of humanoid centroidal MPC: [`manumerous/wb_humanoid_mpc`](https://github.com/manumerous/wb_humanoid_mpc)
+- Shared humanoid control components: [`manumerous/wb_humanoid_mpc`](https://github.com/manumerous/wb_humanoid_mpc)
 
 
 ## Contact

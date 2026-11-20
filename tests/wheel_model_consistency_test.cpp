@@ -13,11 +13,11 @@
 #include <pinocchio/algorithm/kinematics.hpp>
 #include <pinocchio/algorithm/rnea.hpp>
 
-#include "humanoid_common_mpc/pinocchio_model/createPinocchioModel.h"
-#include "humanoid_wb_id_mpc/common/WheelContactKinematics.h"
-#include "humanoid_wb_id_mpc/constraint/WbIdRneaConstraintCppAd.h"
-#include "humanoid_wb_id_mpc/constraint/WbIdWheelContactConstraintCppAd.h"
-#include "humanoid_wb_id_mpc/initialization/WbIdInitializer.h"
+#include "legged_robot_mpc_controller/mpc/common/model/createPinocchioModel.h"
+#include "legged_robot_mpc_controller/mpc/wb_id/model/WheelContactKinematics.h"
+#include "legged_robot_mpc_controller/mpc/wb_id/constraint/WbIdRneaConstraintCppAd.h"
+#include "legged_robot_mpc_controller/mpc/wb_id/constraint/WbIdWheelContactConstraintCppAd.h"
+#include "legged_robot_mpc_controller/mpc/wb_id/initialization/WbIdInitializer.h"
 
 using namespace ocs2;
 using namespace ocs2::humanoid;

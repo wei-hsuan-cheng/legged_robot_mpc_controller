@@ -74,7 +74,7 @@ The existing duration scaling remains $\min(1,T_{\mathrm{swing}}/0.4)$, and clea
 The schedule carries the height alongside each mode, so previously scheduled walking swings retain their height when future running phases are inserted.
 Every mode within one complete swing uses the height selected at lift-off, preserving spline continuity across flight boundaries.
 Other G1/H2 templates retain their respective 0.08/0.10 m defaults.
-The shared parser supports the optional property in both controller schemas without changing centroidal YAML values.
+The WB-ID schema and gait-map builder support the optional per-gait property.
 The new G1/H2 trot/run heights are user-requested starting values, not performance-validated tuning; all running results below used the previous universal G1/H2 heights of 0.08/0.10 m.
 The Jazzy Release build and both native AddressSanitizer regressions passed, including 100 schedule-transition cycles; these checks do not establish locomotion robustness.
 Higher swings demand faster leg motion and can increase torque, joint-limit and collision pressure; do not assume that doubling clearance preserves the previous robustness.
@@ -138,7 +138,7 @@ Without a target, even the regular 0.30 s gait landed the foot only 0.10-0.15 m 
 Every stance therefore netted propulsion (planned forward force +0.09 mg at 2.1 m/s), the robot sped past the command and fell within about 3 s.
 The swing hip was not at its torque limit (p95 242-263 of 360 Nm), so the short landings were the optimizer's choice, not a hardware limit.
 Sixty YAML-only trials (cost weights, torque window and barrier, cadence, swing height, height, friction, arm swing) could not fix this.
-The shared reference manager already had a capture-point foothold for the centroidal MPC; the WB-ID builder forced it off.
+The reference manager provides an optional capture-point foothold target.
 The WB-ID now exposes it (`ocs2.costs.captureFootPlacement`, off by default), and the reference manager gained three things it needed for running:
 
 - each airborne foot's own touchdown time, so in flight the foot that just lifted off is not aimed at the other foot's landing;

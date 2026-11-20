@@ -26,7 +26,7 @@ FLAGS = {
 
 class ConstraintActivationContractTest(unittest.TestCase):
     def test_existing_constraints_have_enabled_defaults_and_builder_mappings(self):
-        header = (ROOT / "include/humanoid_wb_id_mpc/WbIdMpcInterface.h").read_text()
+        header = (ROOT / "include/legged_robot_mpc_controller/mpc/wb_id/WbIdMpcInterface.h").read_text()
         self.assertEqual(set(PARAMS["ocs2"]["constraints"]), set(FLAGS) | {"armSelfCollision"})
         for name, (flag, _) in FLAGS.items():
             with self.subTest(constraint=name):
@@ -65,9 +65,9 @@ class ConstraintActivationContractTest(unittest.TestCase):
             self.assertNotIn("jointLimits", tree["ocs2"]["constraints"])
         self.assertIn("costs.jointLimitsBarrierConfig.mu = p.constraints.jointPositionLimits.mu;", BUILDER)
         self.assertIn("factory.getJointLimitsConstraint()", block(INTERFACE, "if (config_.activateJointPositionLimits)"))
-        factory = (ROOT / "src/core/humanoid_common_mpc/src/HumanoidCostConstraintFactory.cpp").read_text()
+        factory = (ROOT / "src/mpc/common/HumanoidCostConstraintFactory.cpp").read_text()
         self.assertIn("readPinocchioJointLimits", block(factory, "HumanoidCostConstraintFactory::getJointLimitsConstraint()"))
-        reader = (ROOT / "src/core/humanoid_common_mpc/src/pinocchio_model/pinocchioUtils.cpp").read_text()
+        reader = (ROOT / "src/mpc/common/model/pinocchioUtils.cpp").read_text()
         self.assertIn("model.upperPositionLimit.tail", reader)
         self.assertIn("model.lowerPositionLimit.tail", reader)
 
@@ -82,7 +82,7 @@ class ConstraintActivationContractTest(unittest.TestCase):
             self.assertTrue(math.isfinite(float(limits["velocity"])) and float(limits["velocity"]) > 0)
 
     def test_disabled_rnea_does_not_execute_free_policy_torques_or_disable_clipping(self):
-        controller = (ROOT / f"src/humanoid_whole_body_inverse_dynamics_mpc/{NAME}.cpp").read_text()
+        controller = (ROOT / "src/controller/controller.cpp").read_text()
         self.assertIn("feedforward_ == Feedforward::PolicyTorque && parameters_.ocs2.constraints.inverseDynamics.activate", controller)
         action = block(controller, "HumanoidWholeBodyInverseDynamicsMpcController::compute_mpc_joint_action(")
         self.assertIn("control_model_->getGeneralizedCoordinates(observation.state)", action)

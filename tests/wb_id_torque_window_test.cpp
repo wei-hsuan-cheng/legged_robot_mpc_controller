@@ -1,6 +1,6 @@
 #include <cassert>
 
-#include <humanoid_wb_id_mpc/constraint/WbIdTorqueWindow.h>
+#include <legged_robot_mpc_controller/mpc/wb_id/constraint/WbIdTorqueWindow.h>
 
 int main() {
   using ocs2::humanoid::WbIdTorqueWindow;

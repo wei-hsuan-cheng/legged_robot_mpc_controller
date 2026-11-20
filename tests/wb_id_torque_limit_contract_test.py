@@ -37,8 +37,8 @@ class TorqueLimitContractTest(unittest.TestCase):
         self.assertLess(INTERFACE.index("model.effortLimit.tail(nj)"), INTERFACE.index("if (setupOCP)"))
 
     def test_ocp_and_clamp_share_the_resolved_limits(self):
-        header = (ROOT / "include/humanoid_wb_id_mpc/WbIdMpcInterface.h").read_text()
-        controller = (ROOT / f"src/humanoid_whole_body_inverse_dynamics_mpc/{NAME}.cpp").read_text()
+        header = (ROOT / "include/legged_robot_mpc_controller/mpc/wb_id/WbIdMpcInterface.h").read_text()
+        controller = (ROOT / "src/controller/controller.cpp").read_text()
         self.assertIn("getTorqueLimits() const { return config_.torqueLimits; }", header)
         self.assertIn("torque_limit_ = mpc_interface_->getTorqueLimits();", controller)
         self.assertIn("clamp_torque(command.feedforward);", controller)

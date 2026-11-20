@@ -9,18 +9,18 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 NAME = "humanoid_whole_body_inverse_dynamics_mpc_controller"
-FOLDER = ROOT / "src/humanoid_whole_body_inverse_dynamics_mpc"
+FOLDER = ROOT / "src/controller"
 
 
 class TimeGridContract(unittest.TestCase):
     def test_uniform_is_schema_default(self):
-        schema = yaml.safe_load((FOLDER / f"{NAME}_parameter.yaml").read_text())[NAME]
+        schema = yaml.safe_load((FOLDER / "parameters.yaml").read_text())[NAME]
         grid = schema["ocs2"]["solver"]["sqp"]["timeGrid"]
         self.assertEqual(set(grid), {"activate", "maxStep", "growthFactor", "fineHorizon"})
         self.assertIs(grid["activate"]["default_value"], False)
 
     def test_mapping_and_independent_physical_torque_window(self):
-        builder = (FOLDER / "whole_body_inverse_dynamics_mpc_config_builder.cpp").read_text()
+        builder = (FOLDER / "config_builder.cpp").read_text()
         self.assertIn("if (p.solver.sqp.timeGrid.activate)", builder)
         for setting, parameter in (("dtMax", "maxStep"), ("dtGrowth", "growthFactor"), ("dtFineHorizon", "fineHorizon")):
             self.assertIn(f"sqp.{setting} = p.solver.sqp.timeGrid.{parameter}", builder)
@@ -29,7 +29,7 @@ class TimeGridContract(unittest.TestCase):
         self.assertIn("- 0.5) * p.solver.sqp.dt", builder)
 
     def test_torque_window_activation_remains_time_based(self):
-        window = (ROOT / "include/humanoid_wb_id_mpc/constraint/WbIdTorqueWindow.h").read_text()
+        window = (ROOT / "include/legged_robot_mpc_controller/mpc/wb_id/constraint/WbIdTorqueWindow.h").read_text()
         self.assertIn("if (duration_ < 0.0)", window)
         self.assertIn("return time < horizonStart_.load(std::memory_order_acquire) + duration_;", window)
         self.assertNotIn("fineHorizon", window)

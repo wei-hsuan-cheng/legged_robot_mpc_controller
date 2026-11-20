@@ -175,13 +175,9 @@ void Ros2ProceduralMpcMotionManager::subscribe(
 void Ros2ProceduralMpcMotionManager::subscribeMpcTargets(
   const rclcpp_lifecycle::LifecycleNode::SharedPtr& node,
   const std::string& mpc_targets_topic,
-  std::vector<std::string> tracked_arm_joint_names,
-  std::vector<std::string> declared_frame_relation_source_frames,
-  std::vector<std::string> declared_frame_relation_target_frames)
+  std::vector<std::string> tracked_arm_joint_names)
 {
   tracked_arm_joint_names_ = std::move(tracked_arm_joint_names);
-  declared_frame_relation_source_frames_ = std::move(declared_frame_relation_source_frames);
-  declared_frame_relation_target_frames_ = std::move(declared_frame_relation_target_frames);
 
   mpc_targets_subscription_ = node->create_subscription<ocs2_msgs::msg::MpcTargets>(
     mpc_targets_topic,
@@ -189,8 +185,7 @@ void Ros2ProceduralMpcMotionManager::subscribeMpcTargets(
     [this, node](const ocs2_msgs::msg::MpcTargets::SharedPtr message) {
       try {
         target::applyMpcTargets(
-          *message, tracked_arm_joint_names_, declared_frame_relation_source_frames_,
-          declared_frame_relation_target_frames_, *switchedModelReferenceManagerPtr_);
+          *message, tracked_arm_joint_names_, *switchedModelReferenceManagerPtr_);
         // RCLCPP_INFO(
         //   node->get_logger(), "Humanoid MPC targets command: %s", message->command_type.c_str());
       } catch (const std::exception& error) {

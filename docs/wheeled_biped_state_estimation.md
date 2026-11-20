@@ -213,7 +213,7 @@ Treat the covariance as a conservative bound, not a calibrated one.
 
 ## 9. Contacts, Initialisation and Readiness
 
-**Support flags.** With `contact.source: scheduled` the MPC writes one flag per wheel from its mode schedule in [`write_estimator_references`](../src/humanoid_whole_body_inverse_dynamics_mpc/humanoid_whole_body_inverse_dynamics_mpc_controller.cpp#L1213-L1228), both on the ground until it drives (idle and stand-up playback).
+**Support flags.** With `contact.source: scheduled` the MPC writes one flag per wheel from its mode schedule in [`write_estimator_references`](../src/controller/controller.cpp#L1212-L1227), both on the ground until it drives (idle and stand-up playback).
 A wheel scheduled off the ground keeps its four rows with $\mu_i=100$ (`swingNoiseMultiplier`), so its gain is nearly zero while the matrix sizes never change.
 In the `jump` flight phase both wheels are inflated and the filter runs on the IMU alone for 0.15-0.18 s.
 

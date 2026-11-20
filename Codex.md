@@ -1,27 +1,30 @@
 # WB-ID MPC Walking Robustness Handoff
 
 
+## WB-ID Layout Validation (2026-11-20 Asia/Taipei)
+
+Validation checkpoint on `jazzy`, based on `691fd44`, prepared for the requested commit and push.
+The package keeps WB-ID only, with one public header root, `include/legged_robot_mpc_controller/`, and mirrored `controller/`, `common/`, `mpc/common/`, `mpc/wb_id/`, and `visualization/` modules.
+The shared foot task-space cost is now `EndEffectorFootCost`, with unchanged equations and CppAD cache names.
+Runtime plugin identity, command topics, numeric WB-ID settings, estimator settings, robot descriptions, and physics are unchanged.
+Removed unused controller-specific costs, target channels, WBC code, launch choices, configuration, and obsolete documentation/tests.
+Release build succeeded in `ros_jazzy` at `/root/ocs2_ros2_ws`, with two jobs and native tests enabled.
+Seven native regressions and 129 Python checks passed; 10 optional Python checks were skipped, and the standalone parameter-contract script passed.
+G1 flat, H2 flat, H2 default ramp/uneven, and Upkie stand-up/drive/turn/stop were tested against the saved old build using Linear KF feedback.
+Every valid simulation completed balanced, with matched motion and no solver exceptions; H2/Upkie also passed all strict timing/health comparisons.
+An additional 25-second H2 pair confirmed both builds stop with an 8-second rest, ending below 0.001 m/s; the initial 3-second rest transient was not pointwise identical.
+G1 passed motion and steady-rate checks but failed the strict overrun-count comparison in all three pairs: 50/212, 327/392, and 28/394 old/new ticks.
+G1 walking median advance remained approximately 10 ms, but new-build tail spikes were larger; the cause is unresolved and full timing parity must not be claimed.
+Do not alter tuning just to suppress this comparison failure; investigate scheduling versus compute tail latency first.
+See [the validation report](docs/results/wb_id_layout_regression.md) for plots, exact metrics, acceptance limits, reproduction, and raw artifact prefixes.
+Old repeated tests selected the complete saved installation and verified loaded library paths; an interrupted mixed-library attempt is excluded.
+The normal installation contains the new build, with stale generated headers retired; all owned simulations are stopped.
+No OCS2, shared estimator, or TurboMPC source changes were made for this task.
+
+
 ## Collision Sphere Visualization (2026-10-31 Asia/Taipei)
 
-Added WB-ID-only `visualization.collisionSpheres: {activate, markerTopic, alpha}`; both shipped robots enable it with alpha 0.25.
-The controller builds marker geometry from the same parsed OCP config: all 10 leg spheres plus 16 arm spheres and 6/8 body spheres for G1/H2, respectively.
-Only enabled collision groups are drawn, but leg geometry remains visible during double support even when its sphere penalty is gait-gated off.
-No new collision pairs, optimizer terms, gains, solver settings, launch arguments or centroidal controls were added.
-The shared visualization worker now receives the observed state along with its existing policy snapshot and publishes from separately owned Pinocchio data.
-Markers show the observed pose, true configured radii without safety/buffer inflation, distinct leg/arm/body colors and one-second ROS-time expiry.
-Added a best-effort, volatile, depth-one `/performance_visualization/collisionSpheres` topic and a matching enabled `Collision Spheres` RViz display.
-Subscriber gating prevents collision FK/marker work without a subscriber; the existing 10 Hz WB-ID snapshot cap is unchanged.
-The alpha/activation controls are configure-time YAML settings, not live dynamic toggles.
-Completed verification after midnight, 2026-11-01 Asia/Taipei: Release build in Parallels Docker `ros_jazzy`, native collision CTest, 33 WB-ID contract tests, 5 arm/body geometry tests and 9 visualization contract tests passed.
-The first build exposed a missing Pinocchio multibody forward-declaration include in the new header; this was corrected before the successful rebuild and runtime tests.
-Live marker tests ran sequentially in isolated ROS domain 73, using InEKF, headless flat scenes, an 80 Hz MPC request and vx 0.1 m/s.
-Both 15-second walking trials returned SUCCESS and stayed upright; H2 peak roll/pitch were 0.00674/0.00744 rad, G1 0.00910/0.03732 rad.
-Five initial marker messages per robot passed exact count/diameter checks, finite poses, stable unique IDs, group colors, alpha, one-second expiry and configured relative offsets for spheres on the same rigid link.
-The publisher was discovered with best-effort/volatile QoS after the subscription-free startup interval; marker geometry work begins only after subscribing.
-G1 published 10 leg + 16 arm + 6 body spheres; H2 published 10 leg + 16 arm + 8 body spheres.
-This verified actual MarkerArray data, not an RViz GUI screenshot or a new solve-rate benchmark.
-Logs, config snapshots, marker JSON and walk results are retained in ignored `tuning_results/collision_spheres_20261101/` and Docker `/tmp/{g1,h2}_collision_spheres*`.
-All owned simulator/controller/build/test processes are stopped; no commit or push was made for this visualization change.
+
 
 ```text
 FEAT: visualize WB-ID arm and leg collision spheres in RViz
@@ -93,75 +96,12 @@ FEAT: add WB-ID arm-body sphere collision avoidance
 
 ### Investigation Notes
 
-Work is on `feat/arm_swing`; user first requested a draft under `/tmp`, then explicitly authorized applying, building and testing.
-Added WB-ID-only `constraints.armSelfCollision`, with named link-local arm and torso/pelvis/head spheres, configure-time activation, and `implementation: rbf` or `polynomial`.
-Existing leg self-collision, arm-swing references, solver settings and centroidal configuration are unchanged.
-Each arm sphere is checked against each body sphere in every gait, including stance; there are no new arm-arm or arm-leg pairs.
-The constraint uses analytic Pinocchio frame/offset Jacobians, independently owned worker Data/mappings, and conservative epsilon distance regularization.
-No new CppAD models or OCS2 changes are needed.
-The initial geometry has 16 arm spheres and 6 body spheres on G1 (96 rows), and 16 arm spheres and 8 body spheres on H2 (128 rows).
-These are approximate selected collision volumes, not a certified enclosing mesh model; proximal shoulder attachments and other unconfigured volumes are not fully represented.
-Offline initial-posture sphere surface gaps are 28.62 mm on G1 and 52.22 mm on H2, versus the configured 15 mm margin.
-Read `/Users/whcheng/src/mpc/dynamics_mpc_controller/docs/rbf.md`; current RBF start is `mu: 0.01`, `delta: 0.02`, giving boundary slope -1 and curvature 25.
-Polynomial `mu` has different units/scaling; it is not interchangeable numerically with RBF `mu`.
-The log barrier has feasible-region gradients; the polynomial is exactly inactive beyond its buffer.
-Jazzy package build succeeded; the new native test passed 100 randomized Jacobian comparisons (worst absolute error 1.66534e-10), base-pose invariance, clone isolation, coincident centers, activation, invalid configurations and penalty derivatives.
-An initial GT-feedback benchmark was invalid: GT bypasses estimator bring-up, the robot fell before the legacy harness's locomotion marker, and no valid command phases were reached.
-That process was stopped; do not use its timing as a locomotion comparison or blame the disabled collision term.
-Repeating paired enabled/disabled tests using `floatingBaseSource:=state_estimator`, InEKF, isolated flat scene, 125 Hz request and identical 100 Hz diagnostic logging.
-The valid H2 disabled baseline `/tmp/arm_body_h2_off_2` completed 28 s, vx command 0.5 m/s, achieved mean vx 0.5253 m/s, minimum base z 0.9872 m, peak roll/pitch 0.0128/0.0162 rad.
-The first RBF walking pair completed with mean reported actual rate 119.35 Hz disabled versus 116.15 Hz enabled, mean walking advance 7.868 versus 8.547 ms.
-However, RBF changed mean left shoulder roll from 0.2096 to 0.3456 rad under the same nominal 0.2 rad reference, consistent with its noncompact feasible-region gradient.
-The repeatable inward target `[0.2,-0.4,0,1.2, 0.2,-0.2,0,1.2]` produced minimum sphere gaps -17.83 mm with avoidance disabled, +12.10 mm with light RBF, and +26.33 mm with polynomial `mu=3000, delta=0.02`.
-All remained upright; the 0.01 m/s command is below locomotion activation, so the walking harness labels these intentional stationary arm tests `NO_TRACKING`, not a walking pass.
-The disabled case had 1789 overlapping replay samples; polynomial had zero sphere overlaps and zero requested-margin violations.
-Initially selected polynomial with mu 3000 for both robots to avoid continuously spreading the arms; G1 uses delta 0.01 (25 mm activation gap), H2 delta 0.02 (35 mm activation gap), both minimumDistance 0.015.
-G1 was subsequently strengthened to mu 6000 as recorded in the final checkpoint above.
-The narrower G1 buffer leaves its nominal 28.6 mm gap unpenalized.
-H2 generic-wrapper polynomial vx trials passed twice (28 s each, achieved vx 0.5240/0.5254 m/s), and vy 0.3 m/s passed for 26 s (pose-derived lateral speed 0.2867 m/s, minimum sphere gap 25.99 mm).
-Do not use raw published GT `walk_mean_vy` as lateral speed; its known frame issue remains, so use pose-derived displacement/speed.
-The generic wrapper polynomial trials cost more: actual 105.24/100.42 Hz versus disabled repeats 119.35/116.70 Hz, mean walking advance 9.381/9.837 versus 7.868/8.102 ms.
-To avoid multiplying dense Hessians by exactly zero polynomial rows, added local `ArmBodyCollisionSoftConstraint`, reusing OCS2 `MultidimensionalPenalty` on only active rows; every pair's distance is still checked and all noncompact RBF rows remain.
-This is an exact objective/gradient/Gauss-Newton-Hessian optimization, not a new avoidance rule or reduced constraint set.
-After rebuilding, native comparisons against generic `StateSoftConstraint` passed for both penalties over 100 random states, including 62 active and 38 fully inactive polynomial cases; worst distance-Jacobian error 1.66533e-10.
-G1 disabled vx baseline also passed, actual 87.56 Hz with its unchanged uniform grid (~54 nodes), versus H2's nonuniform ~38-node forward grid; compare each robot against itself, not across robots.
-The harness now recognizes successful direct-GT first advances too, rather than waiting indefinitely for an estimator-only bring-up marker after an early fall.
-Current task changes no retained G1/H2 parameter values: a structured comparison against HEAD, removing only the new armSelfCollision block, returned identical configurations for both robots.
-Final optimized-wrapper H2 vx passed (28 s, mean reported actual 112.34 Hz, walking advance 8.683 ms, achieved vx 0.5294 m/s, minimum sphere gap 27.43 mm).
-Its lateral regression passed (26 s, reported actual 111.80 Hz, walking advance 8.941 ms, pose-derived vy 0.2866 m/s for 0.3 commanded, minimum sphere gap 26.01 mm).
-Final-wrapper H2 inward target again remained upright with minimum sphere gap 26.39 mm and no requested-margin violations.
-G1 optimized-wrapper vx also passed (28 s, 95.13 Hz, advance 10.298 ms, achieved vx 0.4338 m/s, minimum gap 25.23 mm).
-G1 repeated disabled baseline measured 93.41 Hz, advance 10.570 ms; its earlier disabled case was 87.56 Hz, so VM variation is substantial and this is not evidence that adding collision improves solve speed.
-Actual worker Hz comes from `[MPC_TIMING]` wall-time logs, not the fixed 100 Hz diagnostic topic; advance statistics are from the constant-command walking phase.
-VM scheduling outliers remain (one optimized H2 recorded advance reached 93.8 ms); do not claim a hard 100 Hz deadline or deterministic timing from these averages.
-The first G1 inward target with mu 3000 had no sphere overlap but settled at 14.60 mm, 0.40 mm below the requested margin.
-Raised only G1 mu to 6000 while keeping delta 0.01: same -30 boundary slope as H2, no new nominal-posture penalty because the inactive buffer boundary is unchanged.
-Verification of that final G1 strength and timing repeats is complete, with final results summarized above.
-The final G1 mu 6000 inward-arm rerun passed the requested sphere margin: minimum 16.72 mm, no overlap or margin violations, upright throughout 20 s.
-Independent offline checks of MuJoCo collision geoms/convex meshes at 101 sampled poses found minimum arm/body clearance 20.56 mm for H2 avoidance-disabled inward motion, 30.96 mm for H2 enabled, and 18.42 mm for final G1 enabled.
-Therefore do not describe the disabled H2 sphere-proxy overlap as an observed physical mesh collision; the proxy is conservative for that pair/path.
-These sampled convex-geometry checks are not a continuous original-mesh certificate and do not remove the documented coverage limitations.
-`/tmp/legged_arm_body_collision_draft` also contains an exploratory inflated geometry proposal that produced nominal proxy overlaps and was NOT applied; the authoritative geometry is the current G1/H2 YAML, not that draft generator.
+
 
 
 ## Package-Wide SQP-Only Cleanup (2026-10-31 Asia/Taipei)
 
-The user confirmed SQP is the only intended backend in legged MPC, expanding the preceding WB-ID-only cleanup to both controller implementations.
-Both controllers already constructed `SqpMpc` exclusively; the schemas now match those runtime guards by accepting only `sqp`.
-Removed the centroidal DDP settings container/getter/include, unused `TimeTriggeredRollout` settings/object/getter and MRT `initRollout()` call.
-Removed its six unused ODE rollout keys and global SQP `inequalityConstraintMu/Delta` keys from the schema, builder and G1 YAML.
-Removed the package's direct `ocs2_ddp` CMake/export/manifest dependency; OCS2 dependencies may still bring DDP transitively, and the shared stack was not changed.
-Kept WB-ID `solver.rollout.policyTimeOffset`, centroidal `control.policyTimeOffset`, policy interpolation/feedback evaluation and all SQP settings with real consumers.
-Inspected `dynamics_mpc_controller` and `mpc_controllers`: both support actual DDP rollout, which is why their ODE settings are meaningful there; their SQP execution paths still use `evaluatePolicy()`.
-Therefore did not restore ODE rollout settings merely because the other packages expose them; no active SQP feature was removed or newly promised by this cleanup.
-Their global SQP barrier pair is also unused by the current OCS2 implementation; per-constraint barriers remain the functional penalty controls here.
-No new solver knobs or backend implementation were added, and neither of the other two repositories was modified.
-README, WB-ID implementation guide and solver contract tests now describe the package-wide SQP-only policy.
-Verification: 37 focused contract tests plus the standalone parameter-contract script passed; YAML comparisons against HEAD confirmed all retained G1/H2 parameter values are unchanged.
-Source/config search found no remaining DDP settings, ODE rollout plumbing or unused global barrier fields in the legged implementation; `git diff --check` passed.
-No workspace rebuild, simulation, commit or push was performed.
-Rebuild the package before using the changed generated schemas/interfaces; OCP auto-generated libraries do not need regeneration because the equations are unchanged.
-The preceding WB-ID-only entry's statement about leaving centroidal untouched describes the earlier stage and is superseded by this package-wide request.
+
 
 ```text
 REFACTOR: keep legged MPC solver configuration SQP-only
@@ -170,24 +110,7 @@ REFACTOR: keep legged MPC solver configuration SQP-only
 
 ## WB-ID Solver Parameter Cleanup (2026-10-31 Asia/Taipei)
 
-User requested removing genuinely unused settings from the quoted SQP/rollout blocks, including their code paths.
-Applied only to G1/H2 WB-ID; the G1 centroidal block was verified unchanged with a structured YAML comparison.
-Removed `solver.sqp.inequalityConstraintMu` and `.inequalityConstraintDelta` from the WB-ID YAMLs, schema and builder because the linked SQP implementation never reads those settings.
-Actual friction, CoP, collision and joint-limit penalties retain their own per-term weights and barrier parameters.
-Removed six unused ODE rollout settings: `AbsTolODE`, `RelTolODE`, `timeStep`, `integratorType`, `maxNumStepsPerSecond`, `checkNumericalStability`.
-WB-ID calls MRT `evaluatePolicy()` (state interpolation and input-controller evaluation), never `rolloutPolicy()`, including its bring-up and torque fallback paths.
-Consequently removed WB-ID `TimeTriggeredRollout` construction, settings/storage/getters and MRT `initRollout()` call rather than leaving hidden unused defaults.
-Preserved `solver.rollout.policyTimeOffset` and both runtime reads; it remains the policy look-ahead, not an integration step.
-Removed the unused WB-ID DDP-settings storage/accessor; the generated schema now accepts only the already implemented `sqp` backend, matching its existing runtime guard.
-Retained all remaining SQP switches, including print flags, feedback-policy selection, line-search thresholds and equality projection, because they have real consumers.
-No retained numerical values or OCP equations changed; this cleanup is not claimed to improve steady-state solve rate.
-Updated both WB-ID documents and parameter-map references, plus existing parameter-contract coverage and a new `tests/wb_id_solver_contract_test.py`.
-Verification: 32 contract tests, 5 leg-separation tests, 9 torso-cost tests and the standalone parameter-contract script passed; `git diff --check` passed.
-An initial broad unittest discovery also tried importing the ROS simulation harness and failed because local macOS Python lacks `rclpy`; the focused non-ROS suites above exclude that harness.
-No workspace rebuild, simulation, commit or push was performed for this cleanup.
-Rebuild `legged_robot_mpc_controller` before using the new YAML/schema/interface; OCP auto-generated libraries do not need regeneration.
-External WB-ID parameter files must remove the deleted keys; the centroidal parameter contract is unchanged.
-Preserve the user's current H2 YAML edits, including MPC block placement and time-grid comments.
+
 
 ```text
 REFACTOR: remove unused WB-ID solver and ODE rollout settings
@@ -572,42 +495,17 @@ Details and the reproduce command: [H2 to 2 m/s](docs/wb_id_running.md#h2-to-2-m
 
 ## Per-Gait Swing Clearance (2026-10-25)
 
-Added optional `ocs2.gait.templates.<name>.swingHeight` [m]; omitted or -1 inherits `ocs2.gait.swingTrajectory.swingHeight`, while zero is an explicit zero-clearance request.
-H2 overrides are walk0.10, trot0.15 and run0.20; all other H2 templates inherit0.10.
-G1 follows the same YAML style with walk0.08, trot0.09 and run0.10; its default fallback and all other templates remain0.08.
-These are the user's latest YAML edits at commit time, superseding the initially requested trot0.12/run0.16 values; no new simulation evidence is claimed for the revised values.
-This G1 follow-up changes configuration only, not C++, gait timings, costs or constraints; both robots' height overrides are covered by the configuration regression.
-The existing swingTimeScale0.4 remains unchanged: steady H2 walk0.30 s gets0.075 m clearance, trot0.50 s gets0.15 m, run0.40 s gets0.20 m.
-GaitSchedule carries per-phase heights through insertion, truncation and horizon extension; the swing planner chooses the lift-off phase's height for the entire contiguous swing, including flight modes.
-Both parameter schemas support the property because the gait-map builder is shared; centroidal YAML values are unchanged.
-Tests cover per-phase metadata alignment, old/future gait coexistence, future replacement, fallback, zero/invalid overrides, duration scaling, terrain endpoints and spline continuity.
-Validation passed: two-job Jazzy Release build in Docker `ros_jazzy` (6 min20 s), both native AddressSanitizer regressions including100 gait-transition cycles,37 focused WB-ID tests,40 discovery tests (four ROS-only skips) and the parameter contract.
-No walking/running simulation with these higher G1/H2 heights is claimed, and earlier running results used the universal0.08/0.10 m heights respectively.
-Stopped after the build and regressions at the user's request to test manually; no simulation was started for this change.
-The0.20 m run target may reduce robustness through higher velocity/torque/collision demands; no costs, constraints, base targets or gait timing were retuned in this change.
+
 
 
 ## G1/H2 Four-Stage Gait Ladder (2026-10-25, Untested)
 
-Both WB-ID controllers now select `[stance, walk, trot, run]`; this supersedes the six-stage selection described below.
-Both robots' linear bands are stance [-0.10,0.03], walk [0.02,0.45], trot [0.40,0.75], run [0.70,10.0] m/s, preserving adjacent overlap and run entry at 0.75 m/s.
-Walk yaw minimum is reduced from 0.15 to 0.05 rad/s to overlap stance's 0.10 rad/s upper boundary; otherwise direct stance/walk selection could chatter for small turning commands.
-Inactive slow_walk and slow_trot transition settings/templates remain available but are not selected by either ladder.
-G1's stance upper speed also changes from 0.10 to 0.03 m/s to match H2; its centroidal YAML is unchanged.
-No costs, constraints, gait timings, measured margins, core C++ or command limits changed in this follow-up.
-Configuration tests were updated for the common four-stage ladder; no build or simulation validation is claimed for this revised selection policy.
-Required OCS2 dependency fix: `a68c8a6cb` on `ocs2_ros2` branch `jazzy`, preserving warm-start samples before trajectory truncation.
+
 
 
 ## Six-Stage Gait Ladder (2026-10-25, Untested)
 
-At the user's request, both WB-ID ladders now select `[stance, slow_walk, walk, slow_trot, trot, run]`; the unused `slower_trot` transition entry is removed but its catalog template remains available.
-Retain each robot's stance threshold and slow_walk minimum; set slow_walk maximum0.25, walk[0.20,0.45], slow_trot[0.40,0.60], trot[0.55,0.75], run[0.70,10.0] m/s.
-Adjacent speed intervals overlap for hysteresis; run entry is0.75 m/s, run exit below0.70 m/s, subject to existing measured-speed/dwell/schedule guards.
-The shared faster-gait guard now includes the linear upper boundary with1e-9 m/s tolerance so an exactly0.75 m/s command is not held below the threshold by command-filter roundoff.
-Yaw bands, measured margins, gait timings, costs, constraints, command limits and servo/estimator settings are unchanged in this follow-up; no gait-specific cost profiles have been introduced.
-G1's centroidal YAML is unchanged, but the inclusive linear-boundary comparison is in the common gait manager used by both formulations.
-This new six-stage sequence has not been built or simulation-tested; the successful running trials below used the earlier four-stage ladder and must not be attributed to this new selection policy.
+
 
 
 ## Running With Flight (2026-10-25, Latest)
@@ -644,38 +542,7 @@ Both now use the stance/slow_walk/walk/run ladder, forward run entry 0.70/exit 0
 | `g1_run_synchronized100` | Saved G1 source YAML, command 1.0, 12 s hold; timestamp-paired recorder | Passed 28 s and stopped; world vx 0.868 m/s; 12 sampled flight bouts/longest 30 ms, all hold pairs within 2 ms; zero sampled self-contact/crossing/leg overlap. |
 | `h2_run_synchronized100` | Saved H2 source YAML, command 1.0, 12 s hold; timestamp-paired recorder | Passed 28 s and stopped; world vx 1.052 m/s; 22 sampled flight bouts/longest 20 ms, 99.92% of hold pairs within 2 ms; zero sampled self-contact/crossing/leg overlap. |
 
-Confirmed code defect: `SwingTrajectoryPlanner` previously changed spline shape between consecutive airborne contact modes, although their lift-off/touchdown times span one complete swing.
-It now builds the same complete lift-off/apex/touchdown spline across all those modes, using endpoint heights from the first/last swing phases; single-mode walking is unchanged.
-Stance-only schedules no longer read nonexistent event times.
-Two-job Jazzy Release build passed; standalone compiled `tests/swing_flight_test.cpp` passed, covering flight-mode continuity, ordinary walking and event-free stance.
-`tests/wb_id_walk_test.py --record-tracking` captures planned modes/wrenches/feet alongside measured-pose replay; high-rate data stays best effort, while the subscriber matches the existing reliable latched metadata publisher.
-`tests/tuning/analyze_running.py PREFIX --robot-name g1|h2` checks both feet's active collision geometry above 2 mm and absence of sampled floor contacts, and plots flight, CoM/base height and planned forces.
-Replay uses latest-sample-paired measurements: it is geometric flight evidence, not measured contact forces or a continuous-time guarantee.
-The final recorder now stores joint timestamps and repairs recent odometry/joint pairs when matching messages arrive out of order; the analyzer accepts flight only for pairs within 2 ms when timestamps exist.
-Earlier trial replay files did not store joint timestamps, so their flight counts remain weaker latest-sample-pair evidence; the final timestamp-paired repeats on both robots confirm brief airborne intervals rather than relying on old counts alone.
-`g1_run_short100` had scheduled flight but no sampled physical flight, so that shorter-flight trial is not a running success even before considering its crash.
-`g1_run_gdb100` reproduced the allocator abort at the run-to-walk switch, with the solver warm-start initialization on the crashing thread.
-The standalone `tests/running_gait_transition_test.cpp` reproduced a heap-use-after-free under AddressSanitizer in OCS2 `TrajectorySpreading::adjustTrajectory` across 200 synthetic run-to-walk splice phases.
-The dependency header `/Users/whcheng/src/mpc/ocs2_ros2/core/ocs2_oc/include/ocs2_oc/trajectory_adjustment/TrajectorySpreading.h` now snapshots source values before truncation, limits writes to the retained interval and truncates last.
-The same ASan regression passes after that change; rebuilding `ocs2_oc`, `ocs2_ddp`, `ocs2_sqp` and the controller passed in 16.3 s.
-The upstream trajectory-spreading suite also passed 19 tests, including a new200-phase flight-to-walk regression.
-This necessary dependency change is outside the legged controller Git repository and must be carried with its final checkpoint.
-Post-fix native G1/H2 run/stop trials at 0.75 and 1.0 m/s, source-value46 s endurance trials and 0.2 m/s supported-walking regressions all passed.
-Actual flight in this conservative candidate is much shorter than its prescribed 80 ms flight window; do not conflate planned contact flags with achieved airborne duration.
-H2's saved run prescribes60 ms flight; its long trial achieved a 2.33% sampled airborne fraction versus 17.57% planned flight, with zero planned force in flight.
-H2 remained balanced during 46 s but heading drift reached0.461 rad and world lateral displacement8.14 m; do not describe this as accurate straight-line heading control.
-User clarified that commands above 1.0 m/s should still select `run`, but only up to 1.0 m/s needs testing; no higher-speed stability claim is required.
-User additionally requires natural-looking running without kicking other body parts; verify physical clearance/contact and measured-pose replays, not only velocity or height.
-Long-trial logs show zero solver exceptions, typically G1 around 86-88 Hz and H2 around 83-85 Hz actual MPC, with transient lower rates and some torque-window fallbacks; requested90 Hz is not a timing guarantee.
-Nonlinear equality residuals and actuator limits are not certified feasible by these successful tests; no claims are made about rough terrain, push recovery, mixed-axis running, InEKF feedback, speeds above 1.0 or hardware.
-In the failed initial H2 run, paired 0.3 s averages at 10 s after takeover show pose-derived vx 1.52 m/s versus observed vx 1.08 m/s, while observed and physical z both approximately 0.82 m.
-This is evidence of a significant velocity-feedback discrepancy during the failing motion, not proof of the sole root cause; inspect slip/contact timing and consider an isolated ground-truth-feedback diagnostic before changing estimator core logic.
-No estimator core, estimator parameters, servo gains, launch structure, robot physical models or G1 centroidal YAML changed in this checkpoint.
-Final controller build passed in 3.33 s; logs are Docker `/tmp/wb_id_running_build.log` and `/tmp/wb_id_running_final_build.log`.
-Final verification passed 37 focused WB-ID checks,38 discovery tests (four native ROS tests skipped locally), the parameter contract, the standalone compiled swing test,200 ASan transition phases and 19 upstream trajectory-spreading tests.
-Commit snippets for both repositories are at `/Users/whcheng/src/mpc/commit_msg.md`; publication was requested after the gait-ladder edits, so consult Git history for the final controller checkpoint.
-The running/clearance plots and side/front frame sheets are in ignored `tuning_results/wb_id_running/`; see [Running Checkpoint](docs/wb_id_running.md) for the test command and limitations.
-All owned simulation, debugger and auto-test processes were stopped after verification; Docker `ros_jazzy` remains available for manual tests.
+
 
 
 ## Future Robot Mesh Ghosts (2026-10-24, Latest)
@@ -686,12 +553,7 @@ Sampling uses the actual policy time range (following `ocs2.mpc.timeHorizon`), n
 Future color is RGB `[0.765,0.665,0.905]`, alpha `0.22 -> 0.08`; terminal state uses `[0.180,0.220,0.300]`/`0.40`, terminal target uses the future color/`0.30`.
 The new `FutureRobotModelVisualization` handles URDF origins/scales, multiple visuals and primitives, with private Pinocchio data and `MpcRobotModelBase::getGeneralizedCoordinates` for both state layouts.
 
-The worker polls subscribers and only requests/copies snapshots when a display subscribes; it processes fresh snapshots rather than repeating FK for unchanged data.
-Ghost topics `/performance_visualization/{optimizedStateGhosts,terminalStateGhost,terminalTargetGhost}` use best-effort volatile QoS; the user's saved `humanoid.rviz` enables future ghosts by default, while terminal ghost topics can be added as optional MarkerArray displays.
-With no subscribers, no periodic state/target copies, ghost FK, interpolation or marker generation occur; one-time setup and light subscription polling remain.
-Snapshot handoff uses nonblocking `RealtimeThreadSafeBox::try_set/try_get`; copying still costs CPU and allocations, so this is not a hard real-time or zero-overhead guarantee.
-WB-ID snapshots are copied from the control-thread-owned active MRT policy; centroidal snapshots are copied between solves on its `updatePolicy()`-owning solver thread to avoid adding cross-thread policy reads.
-All FK and marker publishing run on the visualization thread, never in the solver or control callbacks.
+
 
 Jazzy two-job Release builds passed (initial 2 min 29 s, incremental 2 min 15 s); the final policy-owner object rebuild passed in 1 min 54 s.
 Logs are `/tmp/robot_ghosts_build.log`, `/tmp/robot_ghosts_final_build.log` and `/tmp/robot_ghosts_owner_build.log` in Docker `ros_jazzy`.
@@ -773,13 +635,7 @@ The shorter single support and retained double support were crucial: stronger co
 Do not claim the no-double-support and flight templates left in the template catalog have been validated; they are no longer selected by the saved ladder.
 Do not reduce the user-requested maxima to hide failure; they are normalizers, not physical feasibility guarantees.
 
-The existing `FootCollisionConstraint` now optionally adds a signed left-minus-right foot-center margin along pelvis-heading lateral, so lifting or advancing a foot does not hide crossing.
-It is a soft piecewise-polynomial penalty sharing `legSelfCollision.mu/delta`, not an RBF radial-basis penalty, hard geometric barrier, fixed pelvis midline or full-body mesh collision checker.
-It stays active in double support while the original 16 3D distance rows remain masked off there.
-The extra row is enabled only for positive `minimumLateralSeparation`, defaults to zero, and uses a separate `_lateral_v1` AD cache with 17 rows/four parameters versus the original 16 rows/two parameters.
-Setting the value to zero restores the original collision formulation/gating with otherwise identical settings, but does not undo the separate H2 gait/penalty tuning or promise bit-identical multithreaded solver output.
-The parent `legSelfCollision.activate` still disables the whole group; restart/reconfigure for either change.
-G1 and centroidal configurations retain zero/default behavior; the clone now also copies the existing `isActive_` flag correctly.
+
 
 The following first-checkpoint comparisons used the original 0.7 gait switch delay; abrupt-transition follow-ups motivated the final 0.3 value.
 Measured baseline vx=0.4 fell at 9.45 s after takeover, with signed foot width -2.16 cm, inter-leg overlaps before the fall and minimum base z0.463 m.
@@ -822,10 +678,7 @@ Mixed-axis full-speed commands, external push recovery, complete height sweeps, 
 
 ## Robot-Agnostic Launch and Robot-Local Scenes (2026-10-24)
 
-The current entry point is `robot.launch.py robotName:=g1|h2`; the former `g1.launch.py` and `h2.launch.py` files have been removed.
-All 31 existing launch argument names remain available, with only `robotName` added, and the original multiline `mpcControllerName` declaration/choices style is retained.
-Robot selection resolves the controller YAML, URDF, ros2_control xacro, initial pose, terrain variants and separate `auto_generated/<robot>/` cache together.
-G1 supports WB-ID and centroidal, while H2's YAML remains WB-ID only; an unsupported controller or H2 lidar request fails early with an explicit error.
+
 
 Each robot now owns `description/mujoco/robots/<robot>/scene.xml`, `scene_flat.xml` and `scene_ramp.xml`, so `mujocoModelFile` uses identical names for both robots.
 Mesh compiler paths and texture directories were adjusted for the new top-level scene location; shared backgrounds, terrains, objects and textures remain in `description/mujoco/`.
@@ -871,10 +724,7 @@ Container artifacts are `/tmp/shared_terrain_{g1,h2}_walk.{log,yaml,csv,json}` a
 
 ## H2 WB-ID Integration (2026-10-24)
 
-Current branch is `feat/h2`, created from `feat/wb_id_mpc` at `f56ae9a`; the older sections below describe G1 history unless explicitly stated otherwise.
-H2 now has `launch/h2.launch.py`, `config/h2/`, `description/{meshes,urdf,mujoco}/robots/h2/` and the `scene_h2*.xml` entry points, without changing runtime C++, the G1 launch/config/models or the WB-ID architecture.
-The H2 YAML has WB-ID only, with both existing estimators available and `humanoid_linear_kf` selected by default; no centroidal controller block was added.
-See [H2 Integration and Validation](docs/h2_wb_id_mpc.md) for the complete tuning table, results and commands, and [MODEL_SOURCE.md](description/urdf/robots/h2/MODEL_SOURCE.md) for official Unitree source revisions and integration changes.
+
 
 The official H2 model has 31 physical joints, with six wrists locked in the MPC model and held by the existing servo path, leaving 25 active joints, 62 states and 68 inputs.
 Both head joints remain active and use the existing generic Cartesian cost on `head_yaw_link`, with orientation/angular-velocity weights only; torso stabilization remains `torsoTiltCost`, not another generic torso frame cost.
@@ -918,73 +768,26 @@ The default H2 estimator-control loop does not consume that published GT odometr
 
 ## WB-ID Constraint Naming Cleanup (2026-10-24)
 
-The current WB-ID parameter groups are `ocs2.constraints.footMotionEquality`, `swingFootZeroWrench` and `legSelfCollision`, replacing `footConstraint`, `zeroWrench` and `footCollision` respectively.
-Generated schema, builder, controller warnings and WB-ID activation fields use the new names; external overrides must migrate, and the controller needs a rebuild before loading the renamed YAML.
-This is a naming-only change: all gains, activation defaults, bound scalings, OCP equations, term names and CppAD cache identities remain unchanged, as do the centroidal configuration and shared constraint classes.
-`legSelfCollision` checks selected opposing foot/ankle/knee separations and is inactive in double support; it does not check arm/torso/thigh collisions or provide full-body collision geometry.
-The renamed code rebuilt successfully with two jobs in Jazzy Release mode in 1 min 56 s; build log: `/tmp/wbid_constraint_names_build_20261024.log`.
-The flat-scene headless smoke test returned `MPC_RUNNING` after 11.69 s, then immediately stopped the launch group; log and JSON verdict: `/tmp/wbid_constraint_names_startup.log` and `.json`.
-The run used 100 Hz MPC, 1000 Hz MRT, the default estimator, `rviz:=false` and `baseCommandGui:=false`; it did not test walking or disabled-constraint configurations.
-The parameter contract, 23 static wiring checks and nine torso-cost checks passed; 164 source-line links in the two WB-ID guides were checked for file existence, anchor bounds and numeric-label consistency, with stale registration/YAML links and the friction-normal setter description corrected.
+
 
 
 ## WB-ID Constraint Activation and Bound Scaling (2026-10-24)
 
-Every WB-ID `ocs2.constraints` group now has `activate: true`, including an explicit `swingFootZeroWrench` block for the existing swing-wrench equality; none of the original eight groups was an unused shell.
-The switches gate OCP term construction/registration during configuration; changing them requires a restart or reconfiguration, and disabling dynamics/contact equalities is diagnostic-only with a startup warning.
-`jointLimits` is renamed to `jointPositionLimits`; its existing shared factory already reads URDF lower/upper position bounds and remains unchanged for centroidal.
-Velocity limits retain their URDF source, with `jointVelocityLimits.scale` renamed to `velocityScaling`; `jointTorqueLimits.torqueScaling` scales URDF or override torque bounds before sharing them with the OCP and runtime clamp.
-Both scalings default to 1.0 and must be finite with `0 < scaling <= 1`; use activation flags rather than zero scaling to disable OCP terms.
-Disabling the OCP torque penalty does not disable feedforward clipping, and disabling inverse dynamics selects measured-state RNEA instead of executing unconstrained policy torque inputs; this does not restore physical feasibility to an ablated plan.
-All prior numerical settings and the centroidal YAML were compared against HEAD and preserved after normalizing the renamed paths and new default flags/scaling.
-The parameter contract, 23 static wiring checks and nine torso-cost checks passed; the activation tests cover all 512 switch combinations statically, not their runtime feasibility.
-The two-job Jazzy Release rebuild passed in 1 min 35 s (`/tmp/wbid_constraint_activation_build_20261024.log`), and the flat-scene headless smoke test returned `MPC_RUNNING` after 11.37 s before immediately shutting down its launch group.
-The startup log and JSON verdict are `/tmp/wbid_constraint_activation_startup.log` and `.json`; the run used 100 Hz MPC, 1000 Hz MRT, the current estimator defaults, no command GUI and no RViz, with no walking command or post-takeover robustness trial.
+
 
 
 ## WB-ID Shared Torque Limits (2026-10-24)
 
-`control.torqueLimit` moved to optional `ocs2.constraints.jointTorqueLimits.limits`, alongside the unchanged `mu: 0.1` and `delta: 5.0`.
-The YAML now omits `limits`, meaning URDF joint effort limits; a full positive finite array in joint order overrides those defaults.
-Do not write an explicit `limits: []` in the runtime YAML: Jazzy converts it to an unset override and rejects initialization with `parameter_value_from failed` / `No parameter value set`; the generated schema's typed empty-vector default works when the override is omitted.
-All 23 current URDF efforts match the former YAML array, so the effective G1 limits are unchanged.
-The interface resolves the limits from its reduced Pinocchio model or override once, validates them, and provides the same vector to the OCP penalty and runtime feedforward clamp through `getTorqueLimits()`.
-The OCP uses soft margins `limits - tau` and `limits + tau` with a relaxed log barrier, active only inside the inverse-dynamics torque window (currently 3 nodes, approximately 0.05 s).
-Runtime clamps only the computed MPC feedforward torque; the downstream effort_pd feedback can increase the total torque beyond these bounds, and final saturation is a separate hardware/simulator responsibility.
-`mu` is penalty strength and `delta` is the relaxation transition margin, not an allowed overrun; neither affects the hard feedforward clamp.
-An empty array now selects URDF bounds instead of disabling both uses; invalid resolved limits fail configuration, and the centroidal controller retains `control.torqueLimit`.
-No dynamics, CppAD signature, tuning values or launch behavior changed; external WB-ID YAML files and overrides need the new path and a controller rebuild.
-The two-job Jazzy Release symlink-install build passed in 1 min 22 s; log: `/tmp/wbid_urdf_torque_limits_build_20261024.log`.
-The parameter contract, 16 static wiring checks and nine torso-cost checks passed, including URDF-default and override checks; no simulation or walking trial was launched for this change.
-The subsequent startup-error reproduction is saved in `/tmp/wbid_urdf_startup_before.log` inside the Jazzy container; that real launch exposed the empty-YAML-override issue despite the earlier successful build and static tests.
-`tests/wb_id_startup_smoke_test.py` now runs a real flat-scene launch without the GUI or RViz, detects initialization failures, records its result and shuts down immediately on MPC takeover; this is startup validation, not a walking robustness test.
-After omitting the runtime `limits` override, the two-job Release rebuild passed in 1 min 14 s (`/tmp/wbid_urdf_startup_fix_build_20261024.log`).
-The rebuilt flat-scene startup smoke test returned `MPC_RUNNING` after 11.28 s and immediately stopped its launch group; results are `/tmp/wbid_urdf_startup_after.log` and `.json` in the Jazzy container.
-The trial used the existing estimator defaults, `mpcFreq:=100`, `mrtFreq:=1000`, `mujoco_headless:=true`, `rviz:=false` and `baseCommandGui:=false`; no walking commands or subsequent robustness tests were run.
+
 
 
 ## WB-ID Parameter Ownership Cleanup (2026-10-24)
 
-WB-ID now groups SQP and rollout settings under `ocs2.solver.sqp` and `ocs2.solver.rollout`, while keeping `ocs2.mpc` at its existing location.
-`control.policyTimeOffset` moved to `ocs2.solver.rollout.policyTimeOffset`; both policy-coverage validation and execution use the same value, which is still 0.000 in the G1 YAML.
-Code-generation flags moved to `ocs2.codegen`; physical contact geometry to `ocs2.model.contactGeometry`; torque-window nodes to `ocs2.constraints.inverseDynamics`; transition stance timing to `ocs2.gait`; and ground-height/arm-name settings to `ocs2.reference.groundHeight` and `.armSwing`.
-See [Implementation Guide, Section 10](docs/humanoid_whole_body_inverse_dynamics_mpc_impl.md#10-wb-id-parameter-layout-migration) for the complete old/new path table and external-YAML migration instructions.
-All configured values, schema defaults/types/validation, `ocs2.mpc` settings and every other controller's YAML block were compared against the previous revision after normalizing these path moves and found unchanged.
-No launch, estimator, shared OCP equation or CppAD signature changed, and the common model still resolves the same arm joint indices even when arm swing is disabled.
-The shared torque-limit roles and the pre-existing zero acceleration-gain schema defaults were not changed as part of a layout-only task.
-External WB-ID overrides need the new names and a rebuilt controller; the centroidal controller deliberately retains its existing paths.
-The two-job Jazzy Release symlink-install build passed in 1 min 19 s with `BUILD_TESTING=OFF`; container log: `/tmp/wbid_parameter_layout_build_20261024.log`.
-The parameter contract, six startup checks, six cost-activation checks and nine torso-cost checks passed, with YAML/schema value-preservation checks confirming a migration-only change.
-No simulation was started for this structural cleanup, so these checks do not add a new walking validation.
+
 
 ## WB-ID Foot-Constraint Parameter Migration (2026-10-24)
 
-The WB-ID YAML and generated parameter schema now place the eight foot-stabilization gains at `ocs2.constraints.footMotionEquality`, replacing `ocs2.model.footConstraint`.
-The builder reads the new path and still fills the same internal `ModelSettings::footConstraintConfig` and `footAccelerationGains` fields; all configured gains and schema defaults are preserved.
-External WB-ID parameter files must migrate the block, and the controller needs a rebuild for the new generated parameter structs before running the new YAML.
-The centroidal controller and schema retain their existing layout, and no launch, OCP equation, CppAD model signature or other parameter ownership changed in this migration.
-Foot stance/swing rows are hard OCP equalities with stabilization feedback, not soft task-space costs.
-Other parameter-layout changes remain proposals pending the user's approval.
+
 
 ## Blind-Walking Tuning Guide
 
@@ -1115,35 +918,11 @@ No simulator or MPC process was started after this build, as requested.
 
 ## Gravity-Relative Torso Stabilization (2026-10-24, build and startup verified)
 
-Added `WbIdTorsoTiltCost`, registered as the running OCP cost `torsoTiltCost` when `ocs2.costs.torsoTiltCost.activate` is true.
-G1 enables it on `torso_link` with `freeTiltAngle: 0.08726646259971647` rad (5 degrees), `tiltWeight: 10.0` and `angularVelocityWeight: 5.0`; these are initial settings, not tested gains.
-The generic `taskSpaceCosts.torso` tracker is disabled to avoid competing objectives; the new schema default is opt-in (`activate: false`) for external parameter files.
-The residual penalizes tilt beyond the free corridor and physical angular velocity perpendicular to model gravity, with no pose trajectory, position target or yaw target.
-The corridor and weights are AD parameters rather than frozen generated-code constants; the model has a distinct `wb_id_torso_tilt_v1_<link>` cache name.
-The cosine is clamped before `acos` so upright AD derivatives stay finite; a lower clamp at `-1+1e-9` bounds the singularity near inversion.
-Bending remains possible because this is soft, but picking tasks should widen the corridor or reduce/disable this cost and revisit existing pelvis/waist posture penalties.
-This is not a CoM stability guarantee, and does not add upper-body collision avoidance.
-No contact/dynamics constraint, Q/R weight, estimator, servo or centroidal-controller behavior was changed; retain the user's concurrent foot-orientation weight tuning.
-Reference-math and static wiring tests cover the free corridor, yaw invariance, transverse damping, finite upright residual derivatives, bending and schema/config registration.
-Built successfully in Parallels container `ros_jazzy`, workspace `/root/ocs2_ros2_ws`, with two jobs, Release and `BUILD_TESTING=OFF`.
-The first build exposed a Pinocchio header compatibility issue; `frameId_` now uses `std::size_t` rather than relying on the visibility of `pinocchio::FrameIndex`.
-Launched `scene_flat.xml`, MPC 100 Hz / MRT 1000 Hz, `rviz:=false`, `mujoco_headless:=true`, `baseCommandGui:=false`, with the default `state_estimator` source and `humanoid_linear_kf` backend.
-OCS2 generated and loaded `wb_id_torso_tilt_v1_torso_link_lib.so` at runtime with `recompileLibrariesCppAd: false`; the cache symlink resolved to `/root/src/mpc/ocs2_auto_generated/g1/wb_id_mpc_g1/wb_id_torso_tilt_v1_torso_link/cppad_generated/`.
-The first MPC advance completed in 20.588 ms, the policy was accepted, and bring-up transitioned through blending into locomotion.
-Stopped immediately at locomotion as requested, sent no motion commands, and verified that no simulation or ROS test processes remained.
-This is startup validation only, not a walking, robustness, bending or hardware validation; the user will test those next.
-Container logs: `/tmp/wbid_torso_tilt_build_20261024.log` and `/tmp/wbid_torso_tilt_startup_20261024.log`.
+
 
 ## Optional Cost Activation (2026-10-23, needs build and runtime test)
 
-WB-ID now follows `mpc_controllers`' configure-time cost-registration pattern with `ocs2.costs.taskSpaceFootCost.activate`, `ocs2.costs.taskSpaceCosts.<name>.activate` and `ocs2.costs.legTorqueCost.activate`.
-All defaults and shipped G1 flags are `true`, and all existing weights are unchanged.
-The WB-ID foot vector moved from `taskSpaceFootCostWeights` to `taskSpaceFootCost.weights`; update external WB-ID parameter files accordingly.
-Disabled costs are not constructed or registered, avoiding their CppAD model creation/loading; Q/R and all contact/dynamics constraints remain active.
-The centroidal schema and costs are unchanged.
-The task-space objectives are not algebraically identical to Q/R, and the load cost regularizes selected entries of `J^T W`, not the torque decision variable.
-Disabling a foot cost does not remove the hard stance orientation or vertical contact constraints, so this is an ablation switch, not a terrain-support fix.
-Static activation and parameter-contract tests cover schema defaults, all eight switch combinations, config wiring and constructor guards; no ROS build or simulator test was run.
+
 
 ## WB-ID Startup Horizon Recovery (2026-10-23, needs build and runtime test)
 
@@ -1159,10 +938,7 @@ No custom observation mailbox, new tuning parameter, OCS2 library change or weig
 Startup holds and retries; a blend interruption returns to startup, while policy loss after estimator-driven locomotion latches `Fault` and requires controller reactivation.
 The ground-truth path holds the last commanded posture until a usable plan arrives.
 
-The arm controllers normally compute their initial policy synchronously in activation, whereas this legged controller must keep standing and estimating while constructing/starting MPC asynchronously.
-The centroidal controller has the same latent observation-delivery gap and is not inherently immune, but is unchanged in this WB-ID checkpoint.
-Six static startup/thread-ownership regression checks and the WB-ID parameter contract pass; no ROS build or simulator validation was performed for this patch.
-Test repeated launches at the usual rates and inspect the new construction/first-advance logs, rejected-policy timestamps and warm-start reset messages.
+
 
 ## Description Layout (2026-10-23)
 
@@ -1195,20 +971,11 @@ See [the layout guide](description/README.md), [the MuJoCo guide](description/mu
 
 This supersedes the launch-argument proposal that was here. Launch has no gain arguments any more; gains are set in YAML or Xacro only.
 
-- **Hardware (`mujoco_ros2_control`, jazzy branch).** Each effort_pd joint that declares `<command_interface name="kp"/>` / `"kd"` exports its `pd_kp` / `pd_kd` as command interfaces. They start at the joint's `effort_pd_kp` / `effort_pd_kd` parameters. A non-finite or negative written gain counts as 0. This mirrors Unitree `LowCmd`, which carries kp/kd with every motor command.
-- **Xacro.** `g1.ros2_control_macro.xacro` declares kp/kd on every effort_pd joint. The hardware defaults stay `effort_pd_kp/kd` args of `g1.ros2_control.xacro` (1200/10; wrists 100/1). They apply to centroidal, to the wrists, and to WB-ID before activation.
-- **WB-ID.**
-  - `control.jointEffortPd.kp/kd` are arrays index-aligned with `robot.jointNames`, currently 1200 / 20 uniform.
-  - The controller claims `<joint>/kp`, `<joint>/kd` after the joint and wrist commands, so the `[3 * i + k]` layout is unchanged. It finds their indices by name at activation and writes them every tick in every bring-up phase.
-  - On deactivation it leaves them in the hardware rather than zeroing them, which would leave the joints limp.
-  - Empty arrays mean the controller doesn't claim them and the hardware gains stay in effect.
-  - The contract test checks the lengths.
-- **Centroidal** is unchanged: it doesn't claim kp/kd.
-- **Not done yet:** per-phase gains (e.g. bring-up vs walking) and a real G1 hardware interface. That interface should map the same kp/kd command interfaces onto `LowCmd`.
+
 
 ## Tested Servo Gain Applied (2026-10-23)
 
-WB-ID runs Kp 1200 / Kd 20 on the 23 MPC joints. This was first set through launch arguments and is now `control.jointEffortPd`, written by the controller (see above). Centroidal stays 1200/10 from the Xacro; all six fixed wrists remain 100/1. The new MJCF retains damping 0.05, its armature and friction; no Q/R or estimator settings were changed. This promotes the temporary Kd-20 test below, not the artificial passive-damping-10 ablation. Forward stability improved in the short test; lateral speed tracking remains unresolved. Restart the launch to apply hardware gains.
+
 
 ## New-Model Fall Investigation (2026-10-23)
 
@@ -1266,49 +1033,11 @@ Artifacts remain in the container: each prefix has `.json`, `.csv`, `.log`, `.ya
 
 ### Gait settings are ROS parameters (built and smoke-tested)
 
-- `config/g1/gait.yaml` and `gait_wb_id.yaml` are removed, along with the `gaitLibraryFile` parameter and launch arg. Each controller block of `ros2_controllers.yaml` now holds everything under `ocs2.gait`:
-  - `templates.names` plus one `{modeSequence, switchingTimes}` per name;
-  - `transitions` (`minDwellTime`, `switchDelayHorizonFraction`, `ladder`, plus one `{linearVelocity, yawRate, measuredMargin}` per rung);
-  - `swingTrajectory` (moved from `ocs2.swingTrajectory`).
-- Values are identical to the old files, checked by script. Builders: `buildGaitMap` / `buildGaitTransitionConfig` in `config_builder_utils.hpp`.
-- Smoke runs, flat, the same before and after: WB at 0.5 m/s survived, peak tilt 0.037, 87 Hz; centroidal at 0.25 m/s survived. The WB contract test checks templates and ladder.
-- The ladder overlaps are deliberate hysteresis; keep `next.min < prev.max`. Up needs command > max AND measured > max - margin. Down needs command < min AND measured < min + margin, on all axes.
-- Known quirks, unchanged:
-  - measured speed is world-axis and unfiltered;
-  - the centroidal "measured yaw" reads `h_ang,x/m`;
-  - the centroidal `skip` template has an out-of-order 0.08.
+
 
 ### G1 model: `g1_29dof.xml` / `g1_29dof.urdf` are now rev_1_0 (replaced in place)
 
-- **Single model for everything:** `description/mujoco/robots/g1/g1_29dof.xml` (all scenes include it) and `description/urdf/robots/g1/g1_29dof.urdf` (the launch default `urdfFile`, read by the MPC, both estimators and robot_state_publisher). The temporary `*_correct` files are gone. `g1_29dof_real.xml` is the superseded old-mass variant and nothing includes it.
-- **Previously Unitree's deprecated `g1_29dof`** (`mode_machine` 2, 35.11 kg, hip roll 88 Nm). Now `g1_29dof_rev_1_0` (`mode_machine` 5, the current standard 29-DoF). Changes:
-  - torso 6.78 vs 8.56 kg, 33.34 kg total, no waist_support_link;
-  - waist joint offsets and shoulder/sensor offsets changed;
-  - hip roll 139 Nm / 20 rad/s;
-  - Mid-360 mounted upside down (`rpy pi 0.0511 0`).
-  - Check the robot's `mode_machine` in the Unitree app (Device -> Data -> Robot -> Machine Type). Newer units are `g1_29dof_mode_11..18`.
-- **MJCF joint dynamics:**
-  - per-motor armature from unitree_rl_lab (hip pitch/yaw + waist yaw 0.010178, hip roll + knee 0.025102, ankles + waist roll/pitch 0.00722, shoulders/elbow/wrist roll 0.00361, wrist pitch/yaw 0.00425);
-  - damping 0.05 and frictionloss 0.2 (0.1 on wrist pitch/yaw) from unitree_mujoco, replacing the old damping 10;
-  - `implicitfast`.
-  - Kept local: contact solref/solimp, free-joint damping 0, `imu-pelvis-quat` sensor, `mid360` site at the rev_1_0 pose.
-- **URDF:** rev_1_0 plus local package:// meshes, ankle/waist roll+pitch limits 50 Nm / 37 rad/s (rev_1_0 MJCF and unitree_rl_lab; Unitree's URDF says 35/30), and the four `*_est` foot points. Pinocchio loads it: 33.341 kg, frames present.
-- **Launch:** `g1.ros2_control.xacro` takes `robot_urdf_file`, and `g1.launch.py` passes `urdfFile` to it, so robot_state_publisher matches the MPC.
-- **CppAD cache:** the default `libFolder` is again `auto_generated/g1`.
-  - The libraries generated from the old 35.1 kg URDF were renamed `wb_id_mpc_g1_old_35kg` / `centroidal_mpc_g1_old_35kg`, not deleted. The rev_1_0 WB libraries moved in as `wb_id_mpc_g1`.
-  - With `recompileLibrariesCppAd: false` OCS2 never checks that cached libraries match the URDF, so any future model change needs the same swap or a fresh folder.
-  - The centroidal rev_1_0 libraries don't exist yet; the first centroidal launch regenerates them, which takes long.
-- Hip-roll torque limits are 139 in both controller blocks: WB-ID uses `ocs2.constraints.jointTorqueLimits.limits` and centroidal uses `control.torqueLimit`; the ros2_control command limit in the xacro is 139 too.
-- **Expected risks:**
-  - Losing damping 10 removes a lot of free passive stability, so the controller may need retuning.
-  - Armature should fix the ankle-chatter instability (kd*dt/I about 12 -> about 0.7), though that's unmeasured.
-  - The MPC model has no armature, so expect a small torque mismatch.
-- **References (raw GitHub):**
-  - unitree_ros `robots/g1_description/{g1_29dof_rev_1_0.xml, g1_29dof_rev_1_0.urdf, g1_29dof.urdf, README.md}`;
-  - unitree_mujoco `unitree_robots/g1/g1_29dof.xml`;
-  - unitree_rl_lab `source/unitree_rl_lab/unitree_rl_lab/assets/robots/unitree.py`;
-  - unitree_rl_gym `resources/robots/g1_description/g1_29dof.xml`;
-  - mujoco_menagerie `unitree_g1/g1.xml`.
+
 
 ## Earlier Checkpoint: User Will Build and Test
 
@@ -1316,16 +1045,7 @@ Artifacts remain in the container: each prefix has `.json`, `.csv`, `.log`, `.ya
 The earlier rate-limiter build completed, but subsequent schema/controller/builder changes require a fresh build.
 The user requested committing and pushing this unbuilt checkpoint for their own build/test.
 
-- WB-ID now has one generated parameter schema and one listener; no centroidal Params type, builder call, or nested `wholeBody.*` parameter tree.
-- A single `ocs2.costs.q/qFinal` contains `basePose`, `baseVelocity`, `jointPositions`, `jointVelocities`.
-- A single `ocs2.costs.r` contains `contactWrenches`, `baseAccelerations`, `jointAccelerations`, `jointTorques`.
-- Values were moved without retuning Q/R. Runtime scales remain qScaling=1, rScaling=0.001, terminalCostScaling=4.
-- Torque-window setting is `ocs2.constraints.inverseDynamics.torqueConstraintNodes`; barrier settings are `ocs2.constraints.jointTorqueLimits` and `jointVelocityLimits`; feedforward is `control.feedforward`.
-- Removed WB-only unused centroidal momentum/model settings, inertia-weighted momentum toggle, centroidal input joint-velocity weights, unused controller PD arrays, unused gradient switches/ICP settings, diagnostics CSV parameters and future frame-relation parameters. The separate centroidal controller was not removed or retuned.
-- WB capture-foot placement is disabled in its builder and removed from its schema/YAML. The common terrain planner remains a separate feature. Earlier passing runs below used capture placement and do NOT validate this checkpoint; a previous capture-disabled experiment fell.
-- Controller-side rate limits are `ocs2.reference.velocityCommandRateLimits=[0.1,0.08,0.05,0.1]` (moved from `target.*` on 2026-10-23) for `[ax,ay,height_rate,yaw_acceleration]` in physical units. Centroidal defaults disable this new limiter. Solver time governs increments, capped at 50 ms per update; reset starts limited twist axes at zero.
-- WB GUI ranges are now vx +/-0.25 m/s, vy +/-0.15 m/s, yaw +/-0.15 rad/s. Launch reads GUI scales from the selected YAML, no longer hardcodes 2.4/1.2/1.0. A full normalized topic command now means these smaller limits.
-- `tests/wb_id_parameter_contract_test.py` passes locally: duplicate keys, declared runtime keys, unified Q/Qf/R layout, joint-array lengths, and direct builder schema accesses. This does not substitute for compilation or closed-loop testing.
+
 
 ### New Reproduction Evidence Before This Cleanup
 
@@ -1336,24 +1056,13 @@ Thus abrupt commands and speed/gait selection expose failures hidden by the earl
 
 ### Paper Audit
 
-The local Molnar 2025 PDF, section IV-A/B, and `wb-mpc-locoman/optimization/ocp_whole_body_rnea.py` use state `[q,v]`, quadratic state/input tracking, RNEA equalities, contact/swing constraints, and joint limits; horizontal swing placement is optimized rather than capture-point prescribed.
-The local Khazoom 2024 PDF, section II-B, uses pose/velocity/contact-force tracking plus first-step torque-change regularization, contact height/no-slip constraints, joint limits and collision constraints/CBFs.
-Current WB-ID has the common whole-body state/input structure but is not numerically identical to either paper: Translation + SphericalZYX Euler-rate state versus spatial twist; acceleration-level stabilized contact constraints; uniform OCS2 SQP grid and soft inequality barriers; 6D flat-foot wrenches versus point contacts; extra foot/torso and external-leg-load costs; no first-step torque-change cost or first-node collision CBF.
-The retained extra costs are active G1 adaptations, not dead centroidal parameters. Joint-torque zero regularization is not the MIT torque-change regularizer.
-Do not claim an SE(3) state-model conversion or paper-equivalent hard constraints based on this parameter cleanup.
+
 
 Everything below is historical experiment context, not validation of the latest checkpoint.
 
 ## Scope and Status (2026-10-22)
 
-Work is on `feat/wb_id_mpc`, starting from `1fbd2e2`.
-Only whole-body inverse-dynamics MPC is being tuned; do not copy these weights into centroidal MPC.
-The user requests flat-ground, separate forward and lateral walking tests in Parallels Docker `ros_jazzy`, with MuJoCo, RViz and the command GUI all headless/disabled.
-Experiments below are simulation results, not hardware or terrain validation.
-At that earlier stage, implementation fixes were built in `ros_jazzy`; the latest checkpoint above supersedes this build status.
-No robot/test processes are intentionally left running.
-GT-driven forward/lateral tests survived 41 s; with the nominal-posture correction the default linear-KF forward test also survived 41 s, but failed the strict heading check (0.552 rad maximum yaw drift).
-This is improved survival, not a claim that tracking, all estimator paths, or stairs are solved.
+
 
 ## Reproduction
 
@@ -1433,16 +1142,7 @@ The policy-ownership rebuild also passed (warnings only).
 | `saved_kf100_vx` | Set 8 with original near-straight nominal joint posture; default linear KF | Fell 1.24 s after entering locomotion, before the walking command. Bring-up stood at 0.78 m while the requested MPC height was 0.60 m. |
 | `crouch_kf100_vx` | Set 8 with nominal hip/ankle pitch -0.8 rad, knee 1.6 rad on both legs | Upright 41 s; 5.07 m forward, peak roll/pitch 0.035/0.038 rad, minimum height 0.599 m. Mean vx 0.197 m/s for 0.25 commanded. Peak yaw error 0.552 rad fails heading check. |
 
-Higher tilt weights stabilized this lateral case; yaw-rate and speed tracking still need improvement without restoring absolute xy/yaw pose penalties.
-Shortening single support improved lateral walking more than simply escalating the motion weights.
-The new `gait_wb_id.yaml` changes only `slow_walk`; the launch selects it for WB-ID, leaving centroidal on `gait.yaml` and respecting an explicit `gaitLibraryFile` override.
-(Since 2026-10-23 both libraries are the `ocs2.gait.templates` parameters of their controller blocks; the gait files and `gaitLibraryFile` are removed.)
-It also corrects the inherited `skip` template's non-monotonic 0.08 s entry to 0.8 s; that gait is not tested.
-Set 8 is now saved in `ros2_controllers.yaml`, only in the WB-ID block.
-Increasing contact yaw-moment regularization helped forward survival; this is still a soft cost and does not supply the missing torsional wrench-feasibility constraint.
-The crouched nominal joint posture is also saved in the WB-ID block; it is used by both reference generation and bring-up and matches the default 0.60 m target without changing estimator parameters or using GT feedback.
-The last parameter-only change needs no C++ rebuild with the current shared symlink install.
-The final combined configuration has not yet been rerun on GT lateral or on estimator-driven lateral; the preceding GT lateral pass used the same weights/gait with the old nominal joint posture.
+
 
 ## Model and Tuning Interpretation
 
@@ -1454,11 +1154,7 @@ Increasing height/tilt and commanded-velocity weights substantially improved tra
 Increasing SQP iterations alone was counterproductive due to additional delay.
 Nonlinear equality residuals spike during contact transitions even in upright runs; log them alongside motion and solve time, not as a stand-alone success criterion.
 
-The low-level `effort_pd` path uses hardware joint gains (typically Kp 1200, Kd 10), not the generic `control.mpcJointKp` field.
-The MuJoCo model has joint damping 10; no corresponding passive damping term was identified in WB RNEA, but its effect has not been isolated.
-Do not change shared damping/contact physics to hide a WB-only issue or inadvertently regress centroidal MPC.
-The capture-foot-placement implementation approximates CoM velocity using base linear velocity for WB; disabling it outright failed in the tested configuration.
-The launch default estimator is `humanoid_linear_kf`; explicitly selecting InEKF tests a different configuration.
+
 
 ## Next Verification
 

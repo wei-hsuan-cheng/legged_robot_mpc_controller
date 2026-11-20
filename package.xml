@@ -16,7 +16,6 @@
   <depend>hardware_interface</depend>
   <depend>legged_robot_state_estimator</depend>
   <depend>nav_msgs</depend>
-  <depend>ocs2_centroidal_model</depend>
   <depend>ocs2_core</depend>
   <depend>ocs2_mpc</depend>
   <depend>ocs2_msgs</depend>
