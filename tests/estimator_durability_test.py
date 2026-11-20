@@ -185,7 +185,7 @@ def main():
 
     launch = ["ros2", "launch", "legged_robot_mpc_controller", "robot.launch.py",
               f"robotName:={args.robot_name}", f"mpcControllerName:={CONTROLLER}", f"mujocoModelFile:={scene}",
-              "rviz:=false", "mujoco_headless:=true", "baseCommandGui:=false",
+              "rviz:=false", "mujoco_headless:=true", "baseCommandDevice:=none",
               "floatingBaseSource:=state_estimator", f"floatingBaseEstimator:={args.estimator}",
               f"mpcFreq:={args.mpc_rate}", "mrtFreq:=1000", f"controllersFile:={config_path}"]
     result = {key: (str(value) if isinstance(value, Path) else value) for key, value in vars(args).items()}

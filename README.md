@@ -143,7 +143,7 @@ ros2 launch legged_robot_mpc_controller robot.launch.py \
   mrtFreq:=1000 \
   rviz:=true \
   mujoco_headless:=false \
-  baseCommandGui:=true
+  baseCommandDevice:=gui
 
 # robotName:=g1 | h2
 # mpcControllerName:=humanoid_whole_body_inverse_dynamics_mpc_controller
@@ -155,7 +155,7 @@ The first launch for each robot generates and compiles its CppAD libraries (seve
 **Useful launch args:**
 
 ```bash
-baseCommandGui:=true | false
+baseCommandDevice:=gui | joystick | none # one input source; none for scripted targets
 robotName:=g1 | h2
 spawnMpcController:=true | false         # false is only for environment smoke tests; the robot will not balance
 mpcControllerName:=humanoid_whole_body_inverse_dynamics_mpc_controller
@@ -208,6 +208,28 @@ The stand-up and terrain-course demo, recorded as one video with RViz (estimate,
 The [small-wheel terrain profiles](./config/terrains/upkie/README.md) leave the existing humanoid terrains unchanged and provide no terrain map to MPC.
 
 
+### DualSense Gamepad
+
+The separate [`legged_robot_teleop`](https://github.com/wei-hsuan-cheng/legged_robot_teleop) package is included in the VCS dependency manifest and publishes the same base velocity/height command as the GUI.
+Launch the robot with `baseCommandDevice:=joystick` to use the gamepad instead of the GUI:
+
+```bash
+ros2 launch legged_robot_mpc_controller robot.launch.py \
+  robotName:=h2 mpcFreq:=80 baseCommandDevice:=joystick
+```
+
+Release L2 and center both sticks, then hold L2 to drive.
+`baseCommandDevice` selects exactly one frontend: `gui` (default), `joystick`, or `none` for external commands.
+The selected controller YAML and effective nominal height are passed to teleop automatically.
+Stop any separately running `joy` driver or standalone teleop launch before using the integrated launch.
+The left stick controls forward/sideways motion, the right stick controls yaw, and D-pad up/down changes height while L2 is held.
+Circle stops velocity commands; Triangle restores nominal height while L2 is held.
+L2 engages at 50% of its ROS trigger range and releases at 20%; the mapping and thresholds are configurable in the teleop package.
+Upkie ignores sideways input.
+Start with the [isolated topic check](https://github.com/wei-hsuan-cheng/legged_robot_teleop/blob/main/docs/testing.md) before controlling the robot.
+Do not run the GUI, scripted command examples, and teleop on the same command topic together.
+
+
 ### WB-ID running
 
 In `base_twist` mode, G1 and H2 use `[stance, walk, trot, run]`, with overlapping speed bands.
@@ -221,7 +243,7 @@ Speeds above 1.0 m/s still select `run` when permitted by the command limits, bu
 
 ### Scripted trajectory tests (figure-eight)
 
-`launch/figure_eight_command.py` walks a closed figure-eight (Gerono lemniscate) at **constant speed** with a **sinusoidal pelvis height**, publishing the same `WalkingVelocityCommand` topic the GUI uses. Make sure first launch robot with `baseCommandGui:=false`.
+`launch/figure_eight_command.py` walks a closed figure-eight (Gerono lemniscate) at **constant speed** with a **sinusoidal pelvis height**, publishing the same `WalkingVelocityCommand` topic the GUI uses. Make sure first launch robot with `baseCommandDevice:=none`.
 
 ```bash
 cd <workspace_dir>

@@ -24,3 +24,9 @@ repositories:
       type: git
       url: https://github.com/wei-hsuan-cheng/legged_robot_state_estimator.git
       version: main
+
+    # gamepad velocity and base-height commands
+    legged_robot_mpc_controller_dependencies/legged_robot_teleop:
+      type: git
+      url: https://github.com/wei-hsuan-cheng/legged_robot_teleop.git
+      version: main

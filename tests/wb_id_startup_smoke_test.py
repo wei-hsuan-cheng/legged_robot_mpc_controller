@@ -43,7 +43,7 @@ def main():
         "ros2", "launch", "legged_robot_mpc_controller", "robot.launch.py", "robotName:=g1",
         "mpcControllerName:=humanoid_whole_body_inverse_dynamics_mpc_controller",
         "mpcFreq:=100", "mrtFreq:=1000", f"mujocoModelFile:={scene}",
-        "rviz:=false", "mujoco_headless:=true", "baseCommandGui:=false",
+        "rviz:=false", "mujoco_headless:=true", "baseCommandDevice:=none",
     ]
     failures = (
         "Traceback (most recent call last)", "while initializing controller",

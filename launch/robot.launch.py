@@ -1,7 +1,7 @@
 """Robot-independent MuJoCo/MPC launch; select Unitree G1, H2 or the Upkie wheeled-biped with robotName.
 
 Robot configuration, scenes and CppAD caches are selected together. The selected
-controller YAML owns the reference height used by both MPC and the command GUI.
+controller YAML owns the reference height used by MPC and the selected command frontend.
 """
 
 import math
@@ -11,8 +11,9 @@ from typing import List
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, ExecuteProcess, OpaqueFunction, SetLaunchConfiguration
+from launch.actions import DeclareLaunchArgument, ExecuteProcess, IncludeLaunchDescription, OpaqueFunction, SetLaunchConfiguration
 from launch.conditions import IfCondition, UnlessCondition
+from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import (
     Command,
     FindExecutable,
@@ -118,7 +119,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "refBaseHeight",
             default_value="",
-            description="Optional nominal pelvis height override [m] for both MPC and GUI, inside "
+            description="Optional nominal pelvis height override [m] for MPC and its command frontend, inside "
                         "ocs2.reference.minBaseHeight/maxBaseHeight. "
                         "Empty uses ocs2.reference.defaultBaseHeight from the selected controller YAML.",
         ),
@@ -144,9 +145,11 @@ def generate_launch_description():
             description="Load, configure, and activate the MPC controller before MuJoCo physics starts.",
         ),
         DeclareLaunchArgument(
-            "baseCommandGui",
-            default_value="true",
-            description="Launch the pelvis velocity/height command GUI.",
+            "baseCommandDevice",
+            default_value="gui",
+            choices=["gui", "joystick", "none"],
+            description="Base velocity/height command source: GUI, DualSense joystick, "
+                        "or none for external/scripted commands. Only one source is launched.",
         ),
         DeclareLaunchArgument(
             "mujocoModelFile",
@@ -393,7 +396,9 @@ def generate_launch_description():
         executable="base_command_gui.py",
         name="base_command_gui",
         output="screen",
-        condition=IfCondition(LaunchConfiguration("baseCommandGui")),
+        condition=IfCondition(PythonExpression([
+            "'", LaunchConfiguration("baseCommandDevice"), "' == 'gui'",
+        ])),
         parameters=[
             {
                 "max_linear_velocity_x": ParameterValue(LaunchConfiguration("guiMaxVx"), value_type=float),
@@ -410,6 +415,22 @@ def generate_launch_description():
                 ),
             }
         ],
+    )
+
+    base_command_teleop = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(PathJoinSubstitution([
+            FindPackageShare("legged_robot_teleop"), "launch", "teleop.launch.py",
+        ])),
+        condition=IfCondition(PythonExpression([
+            "'", LaunchConfiguration("baseCommandDevice"), "' == 'joystick'",
+        ])),
+        launch_arguments={
+            "robotName": robot_name,
+            "controllersFile": LaunchConfiguration("controllersParamsFile"),
+            "mpcControllerName": LaunchConfiguration("mpcControllerName"),
+            "refBaseHeight": LaunchConfiguration("guiRefBaseHeight"),
+            "use_sim_time": use_mujoco_sim,
+        }.items(),
     )
 
     rviz_node = Node(
@@ -447,6 +468,7 @@ def generate_launch_description():
             command_frame_node,
             environment_state_publisher_node,
             base_command_gui_node,
+            base_command_teleop,
             rviz_node,
         ]
     )

@@ -1,6 +1,27 @@
 # WB-ID MPC Walking Robustness Handoff
 
 
+## DualSense Teleop Integration (2026-11-20 Asia/Taipei)
+
+The standalone `legged_robot_teleop` package is in `/Users/whcheng/src/mpc/legged_robot_teleop` and imported by this repository's VCS manifest.
+It is a runtime dependency so `--packages-up-to legged_robot_mpc_controller` includes it, without a reverse build dependency on the MPC package.
+The robot launch now uses `baseCommandDevice:=gui|joystick|none`, default `gui`, instead of the former GUI boolean.
+The selector launches exactly one input frontend, or neither for scripted targets; external publishers still need to be stopped by the user.
+Integrated joystick launch receives the resolved controller YAML, robot name, nominal height, and simulation-time setting.
+The adapter sends the GUI's normalized velocity/yaw fields and height in meters, with default speed fractions of 0.25.
+L2 is hold-to-drive; Circle stops velocities; D-pad adjusts height; Triangle restores nominal height.
+The user selected L2 instead of the initial L1 default; it uses signed trigger axis 4 with 0.5 engage/0.2 release thresholds.
+The L2 implementation and corresponding tests rebuilt successfully; all 48 teleop checks passed without launching a robot.
+Fresh centered-stick re-arming, a 0.25-second monotonic input watchdog, bounded height, and best-effort output are implemented in the separate package.
+It is not a hardware E-stop and cannot protect against adapter process death or downstream transport failure.
+No MPC numerical parameters, robot models, scenes, or estimator settings changed.
+The new package passed 39 checks, including real DDS transport with paused simulation time; selector checks passed for GUI, joystick, and none.
+Both packages built in `ros_jazzy`; the MPC incremental Release build took 42.5 seconds with pre-existing signedness warnings in its native model test.
+Installed launch discovery and the three selector plus seven package-health checks passed.
+The user requested a build-only checkpoint and will test the real controls and robot behavior manually.
+Historical entries below retain the old launch-argument spelling; current scripted tests use `baseCommandDevice:=none`.
+
+
 ## Package Health Cleanup (2026-11-20 Asia/Taipei)
 
 Validation checkpoint on `jazzy`, based on `e2ad99e`, prepared for the requested commit and push.

@@ -72,7 +72,7 @@ ros2 launch legged_robot_mpc_controller robot.launch.py \
   robotName:=g1 \
   mpcControllerName:=humanoid_whole_body_inverse_dynamics_mpc_controller \
   mujocoModelFile:=scene.xml \
-  mpcFreq:=90 mrtFreq:=1000 rviz:=true mujoco_headless:=false baseCommandGui:=true
+  mpcFreq:=90 mrtFreq:=1000 rviz:=true mujoco_headless:=false baseCommandDevice:=gui
 ```
 
 Use `robotName:=h2` for H2; both use the same terrain module and YAML.

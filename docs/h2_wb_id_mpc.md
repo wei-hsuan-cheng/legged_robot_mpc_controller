@@ -310,7 +310,7 @@ The old `scene_flat.xml` filenames in historical results identify the scene used
 ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=h2 \
   mujocoModelFile:=scene.xml \
   mpcFreq:=100 mrtFreq:=1000 \
-  rviz:=true mujoco_headless:=false baseCommandGui:=true
+  rviz:=true mujoco_headless:=false baseCommandDevice:=gui
 ```
 
 For an automated isolated forward test from the sourced workspace:

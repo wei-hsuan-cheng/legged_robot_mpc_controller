@@ -282,7 +282,7 @@ def main():
         "legged_robot_mpc_controller", args.launch_file,
         f"robotName:={args.robot_name}",
         f"mpcControllerName:={CONTROLLER}", f"mujocoModelFile:={args.scene}",
-        "rviz:=false", "mujoco_headless:=true", "baseCommandGui:=false",
+        "rviz:=false", "mujoco_headless:=true", "baseCommandDevice:=none",
         f"floatingBaseSource:={args.source}",
         f"floatingBaseEstimator:={args.estimator if args.source == 'state_estimator' or args.log_estimator else 'none'}",
         f"mpcFreq:={args.mpc_rate}", "mrtFreq:=1000",

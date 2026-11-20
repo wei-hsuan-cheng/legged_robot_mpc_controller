@@ -24,7 +24,7 @@ ros2 launch legged_robot_mpc_controller g1.launch.py \
   terrainFromScene:=true \
   floatingBaseSource:=ground_truth_state \
   mpcFreq:=100 mrtFreq:=1000 \
-  baseCommandGui:=false
+  baseCommandDevice:=none
 ```
 
 After MPC takes over, select the terrain mode and start slowly:
