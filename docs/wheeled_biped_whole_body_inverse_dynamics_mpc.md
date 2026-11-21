@@ -697,7 +697,7 @@ Changing to direct `qfrc_applied` bypass would invalidate the actuator-clipping 
 
 An optional trajectory-file path implements idle hold, planned stand-up playback, policy handover, blend and locomotion.
 The shipped Upkie configuration sets `bringUp.autoStart: false`: each stand-up is requested by the operator, not by a velocity command.
-The GUI provides Stand Up and Sit Down; DualSense R1 toggles between them with L2 released and neutral sticks.
+The GUI provides Stand Up and Sit Down; DualSense Square toggles between them with L2 released and neutral sticks.
 Sit-down keeps MPC active while braking and lowering to `bringUp.sitDownHeight`, then interpolates the position-controlled leg joints to the plan's first kneeling pose.
 The internal lowering target can be below the operator's height range; it still uses the existing height-rate conditioning, posture table, dynamics and contact constraints.
 Wheel angles remain free: sit-down interpolates only joints with positive playback position gains, and requests zero wheel speed rather than returning the wheels to their original unwrapped angles.

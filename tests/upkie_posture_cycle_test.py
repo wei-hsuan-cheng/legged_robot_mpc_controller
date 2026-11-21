@@ -89,7 +89,7 @@ class Probe(Node):
         if self.teleop is not None:
             message = Joy()
             message.axes = [0.0, vx, 0.0, 0.0, -self.joy_pressure, 0.0]
-            message.buttons = [int(i == 10 and self.joy_posture) for i in range(15)]
+            message.buttons = [int(i == 2 and self.joy_posture) for i in range(15)]
             self.joy_publisher.publish(message)
             return
         message = WalkingVelocityCommand()
@@ -144,7 +144,7 @@ def main():
     parser.add_argument("--cycles", type=int, default=3)
     parser.add_argument("--source", choices=("ground_truth_state", "state_estimator"), default="state_estimator")
     parser.add_argument("--fall-test", action="store_true")
-    parser.add_argument("--joystick", action="store_true", help="Drive the real teleop adapter with synthetic Joy, including R1")
+    parser.add_argument("--joystick", action="store_true", help="Drive the real teleop adapter with synthetic Joy, including Square")
     args = parser.parse_args()
     prefix = Path(args.prefix)
     scene = write_scene(str(prefix) + ".xml", robot="upkie", terrain="none")

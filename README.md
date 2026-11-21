@@ -199,9 +199,9 @@ ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=upkie mpcFreq
 ```
 
 By default Upkie spawns kneeling and waits in idle.
-Press **Stand Up** in the GUI, or **R1** on the joystick with L2 released and sticks centered.
+Press **Stand Up** in the GUI, or **Square** on the joystick with L2 released and sticks centered.
 The wheel-aware linear KF initialises in the supported idle pose, then the planned stand-up hands control to MPC.
-Press **Sit Down**, or R1 again with L2 released, to brake, crouch and kneel; another stand-up can then be requested.
+Press **Sit Down**, or Square again with L2 released, to brake, crouch and kneel; another stand-up can then be requested.
 L2 still enables joystick driving; it does not request stand-up.
 Falls latch a damping state and block stand-up/sit-down; automatic fall recovery is not implemented.
 See [posture controls and test commands](./docs/upkie_posture_control.md).

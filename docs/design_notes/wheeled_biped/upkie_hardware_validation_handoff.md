@@ -9,9 +9,9 @@ No hardware adapter, safety implementation, controller tuning or physical robot 
 ## Proven Boundary
 
 The implemented sequence is idle -> planned stand-up -> MPC locomotion -> MPC braking -> MPC crouch -> kneeling -> idle.
-The GUI supplies Stand Up / Sit Down; DualSense R1 requests the same transitions with L2 released and neutral controls.
+The GUI supplies Stand Up / Sit Down; DualSense Square requests the same transitions with L2 released and neutral controls.
 Fallen and Fault are latched damping states; neither implements automatic recovery.
-Three estimated-state R1 cycles, two final ground-truth service cycles, deliberately induced fall detection and GUI/teleop checks passed in simulation.
+Before the Square remapping, three estimated-state R1 cycles, two final ground-truth service cycles, deliberately induced fall detection and GUI/teleop checks passed in simulation.
 The R1 trials used synthetic Joy through the actual adapter, not a physical USB/Bluetooth gamepad.
 Sit-down acceptance covers flat ground only.
 Simulation timing at a 200 Hz MPC target does not establish timing on the robot computer.

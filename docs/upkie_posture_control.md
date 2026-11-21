@@ -24,13 +24,14 @@ ros2 launch legged_robot_mpc_controller robot.launch.py \
   robotName:=upkie mpcFreq:=200 baseCommandDevice:=joystick
 ```
 
-Release L2, center both sticks, release L1/D-pad/Circle, and press **R1** to stand up.
+Release L2, center both sticks, release L1/D-pad/Circle, and press **Square** to stand up.
 After handover, release and press L2 with centered sticks to enable driving.
-Release L2 and press R1 again to sit down.
-R1 is edge-triggered: holding it does not repeat the request, and a press blocked by L2 or another interlock is never queued.
-R1 held while connecting is ignored until released and pressed again.
+Release L2 and press Square again to sit down.
+Square is edge-triggered: holding it does not repeat the request, and a press blocked by L2 or another interlock is never queued.
+Square held while connecting is ignored until released and pressed again.
 Circle remains a motion stop, not Sit Down or a hardware emergency stop.
-The R1 mapping is `button_posture: 10` in the teleop adapter (SDL's standardized right shoulder button).
+The Square mapping is `button_posture: 2` in the teleop adapter (SDL's standardized X / west face button).
+R1 no longer requests stand-up or sit-down with the default mapping.
 The adapter enables this feature from the selected controller YAML only when a stand-up trajectory is configured.
 
 
@@ -38,10 +39,10 @@ The adapter enables this feature from the selected controller YAML only when a s
 
 ```mermaid
 flowchart LR
-    I[Idle] -->|Stand Up / R1| S[Stand-up playback]
+    I[Idle] -->|Stand Up / Square| S[Stand-up playback]
     S --> B[Blend into MPC]
     B --> L[Locomotion]
-    L -->|Sit Down / R1| P[MPC braking]
+    L -->|Sit Down / Square| P[MPC braking]
     P --> C[MPC crouch]
     C --> K[Kneeling transition]
     K --> I
@@ -103,7 +104,7 @@ ROS_DOMAIN_ID=169 python3 src/legged_robot_mpc_controller/tests/upkie_posture_cy
   --cycles 3 --joystick --fall-test --prefix /tmp/upkie_posture_test
 ```
 
-Synthetic Joy exercises the real teleop adapter and R1 service path; a physical gamepad is not required.
+Synthetic Joy exercises the real teleop adapter and Square service path; a physical gamepad is not required.
 The trial drives between cycles and checks transition refusals, persistent idle and a deliberately induced latched fall.
 Remove `--joystick` to test direct controller service requests.
 Use `--source ground_truth_state` for a simulator-state comparison; normal operation uses the wheel-aware linear KF.

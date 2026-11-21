@@ -1128,8 +1128,8 @@ Robot state and Joy are independent DDS topics; the controller's service-side ph
 
 ### Run and Remaining Limits
 
-See [Upkie posture control](./upkie_posture_control.md) for GUI, R1, services, parameters and repeatable test commands.
-The interactive default now waits for Stand Up or R1; `wb_id_walk_test.py` explicitly opts automated locomotion tests into first-cycle auto-start.
+See [Upkie posture control](./upkie_posture_control.md) for the current GUI/joystick mapping, services, parameters and repeatable test commands.
+The interactive default waits for an explicit Stand Up request; `wb_id_walk_test.py` opts automated locomotion tests into first-cycle auto-start.
 No balance weights, contact equations, robot descriptions, simulator code or OCS2 stack were changed for this feature.
 Sit-down has been validated on flat ground, not slopes, steps, unequal support heights or physical hardware.
 The real PS5 device still needs user acceptance; synthetic Joy tests cover the actual teleop and service paths, not USB/Bluetooth transport.
@@ -1151,3 +1151,17 @@ The current FSM is simulation-validated, not hardware-ready: there is no real Up
 Critical follow-up items are hardware stop/watchdog semantics, full actuator-command limits, feedback freshness, MPC readiness before push-off, physically validated handover/support guards and real model/servo calibration.
 In particular, audit deactivation's zero position commands with retained servo gains before connecting a backend that could continue executing them.
 The existing simulation-parameter checkpoint is unchanged; no hardware behavior, build or physical test was added for this documentation-only update.
+
+
+## Square Posture Toggle (2026-11-21)
+
+The user requested moving stand-up/sit-down from DualSense R1 to Square, followed by tests and pushes of both repositories.
+The teleop node default and YAML are now `button_posture: 2`, matching the standard game_controller_node Square mapping.
+The current operator guides, parameter comments and synthetic-Joy cycle harness use Square; earlier R1 acceptance results above remain historical.
+No native controller FSM, MPC model, cost, constraint, servo tuning or GUI button behavior changed.
+Both packages built successfully; all 82 teleop checks passed, including default Square, explicit mapping override and inactive-other-button coverage.
+Two estimated-state Square-driven stand/drive/sit cycles passed at a 200 Hz MPC target, with maximum locomotion-labelled tilt 0.07047 rad.
+Both cycles returned to idle, and transitional posture requests were refused.
+The simulation was stopped after acceptance; artifacts are `/tmp/codex_upkie_square.*` in `ros_jazzy`.
+The test uses synthetic Joy through the real teleop service path, not a physical gamepad or real hardware.
+The user requested committing and pushing both repositories after testing.
