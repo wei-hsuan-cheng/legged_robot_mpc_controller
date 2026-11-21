@@ -1141,3 +1141,13 @@ All owned simulator/test processes were stopped; no robot launch was left runnin
 
 Suggested MPC commit message: `feat(upkie): add repeatable operator stand/sit FSM and latched fall handling`.
 Suggested teleop commit message: `feat: add guarded DualSense R1 posture requests for Upkie`.
+
+
+## Real Hardware Readiness Handoff (2026-11-21)
+
+The user requested recording the missing pieces for future physical Upkie validation, without implementing them now.
+The dedicated [hardware validation handoff](./design_notes/wheeled_biped/upkie_hardware_validation_handoff.md) records blockers, checkpoint code references, upstream interfaces, validation order and required evidence.
+The current FSM is simulation-validated, not hardware-ready: there is no real Upkie hardware backend selected by the shipped description.
+Critical follow-up items are hardware stop/watchdog semantics, full actuator-command limits, feedback freshness, MPC readiness before push-off, physically validated handover/support guards and real model/servo calibration.
+In particular, audit deactivation's zero position commands with retained servo gains before connecting a backend that could continue executing them.
+The existing simulation-parameter checkpoint is unchanged; no hardware behavior, build or physical test was added for this documentation-only update.

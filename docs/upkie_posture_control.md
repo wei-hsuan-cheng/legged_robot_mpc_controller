@@ -109,3 +109,4 @@ Remove `--joystick` to test direct controller service requests.
 Use `--source ground_truth_state` for a simulator-state comparison; normal operation uses the wheel-aware linear KF.
 Reports, pose/joint replays and launch logs share the requested prefix.
 These posture transitions are intended for flat, supported ground; sit-down on slopes, obstacles, asymmetric support and physical hardware requires separate validation.
+Before attempting a physical deployment, read the [real hardware validation handoff](./design_notes/wheeled_biped/upkie_hardware_validation_handoff.md), including the missing hardware backend, stop semantics and measured transition guards.
