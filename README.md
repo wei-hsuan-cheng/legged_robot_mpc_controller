@@ -198,10 +198,16 @@ Use **200 Hz MPC**, 1 kHz MRT and the default 2 kHz physics/PD loop:
 ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=upkie mpcFreq:=200
 ```
 
-By default Upkie spawns kneeling (`config/upkie/initial_pose.yaml`), the wheel-aware linear KF initialises there, and the planned stand-up (`bringUp.standUpTrajectoryFile` in its YAML) hands the robot to the MPC about 5 s after the controller starts; then drive it with the GUI.
+By default Upkie spawns kneeling and waits in idle.
+Press **Stand Up** in the GUI, or **R1** on the joystick with L2 released and sticks centered.
+The wheel-aware linear KF initialises in the supported idle pose, then the planned stand-up hands control to MPC.
+Press **Sit Down**, or R1 again with L2 released, to brake, crouch and kneel; another stand-up can then be requested.
+L2 still enables joystick driving; it does not request stand-up.
+Falls latch a damping state and block stand-up/sit-down; automatic fall recovery is not implemented.
+See [posture controls and test commands](./docs/upkie_posture_control.md).
 No ground truth is used in control; a wheeled-biped cannot stand still on a joint hold while its estimator initialises, so there is no standing spawn.
 
-The GUI height range is 0.22-0.33 m; forward speed, yaw rate and height are supported, not independent sideways driving.
+The GUI height range comes from the controller YAML (currently 0.20-0.33 m); forward speed, yaw rate and height are supported, not independent sideways driving.
 Height is a soft base-origin target, not a hard equality or a terrain-relative clearance command.
 See the [Upkie model](./docs/wheeled_biped_whole_body_inverse_dynamics_mpc.md) and [handoff/test commands](./docs/wheeled_biped_handoff.md) for tested limits and remaining work.
 The stand-up and terrain-course demo, recorded as one video with RViz (estimate, MPC plan, future ghosts) over MuJoCo, is reproduced with `tests/upkie_demo_video.sh record|render`; see the handoff's [demo video pipeline](./docs/wheeled_biped_handoff.md#demo-video-pipeline-2026-11-15-claude).

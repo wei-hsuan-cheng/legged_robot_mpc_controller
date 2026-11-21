@@ -254,6 +254,8 @@ def generate_launch_description():
             SetLaunchConfiguration("guiMaxVx", str(reference["maxDisplacementVelocityX"])),
             SetLaunchConfiguration("guiMaxVy", str(reference["maxDisplacementVelocityY"])),
             SetLaunchConfiguration("guiMaxYawRate", str(reference["maxRotationVelocity"])),
+            SetLaunchConfiguration("postureController", "/" + controller if
+                                   config[controller]["ros__parameters"].get("bringUp", {}).get("standUpTrajectoryFile") else ""),
             SetLaunchConfiguration("commandFrame", str(target.get("commandFrame", ""))),
             SetLaunchConfiguration("commandFrameYaw", str(float(target.get("commandFrameYaw", 0.0)))),
         ]
@@ -413,6 +415,7 @@ def generate_launch_description():
                 "maximum_base_height": ParameterValue(
                     LaunchConfiguration("guiMaxBaseHeight"), value_type=float
                 ),
+                "posture_controller": ParameterValue(LaunchConfiguration("postureController"), value_type=str),
             }
         ],
     )

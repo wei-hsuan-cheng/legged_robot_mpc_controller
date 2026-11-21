@@ -69,6 +69,10 @@ WalkingVelocityCommand WalkingVelocityTarget::scaleCommand(WalkingVelocityComman
   // The commanded height, not the conditioned one: a reset to a measured height outside the range (a robot
   // standing up from the floor) still ramps from there at the height rate limit.
   command.desired_pelvis_height = std::clamp(command.desired_pelvis_height, minBaseHeight_, maxBaseHeight_);
+  const scalar_t postureHeight = postureHeightOverride_.load();
+  if (std::isfinite(postureHeight) && postureHeight > 0.0) {
+    command.desired_pelvis_height = postureHeight;
+  }
   return command;
 }
 

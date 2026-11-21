@@ -80,6 +80,9 @@ class WalkingVelocityTarget {
   /// when the MPC takes over from a crouch), so the reference ramps to the commanded height.
   void requestFilterReset(scalar_t initialHeight = std::numeric_limits<scalar_t>::quiet_NaN());
 
+  /// Controller-only kneeling target, outside the operator's height range; NaN removes the override.
+  void setPostureHeightOverride(scalar_t height) { postureHeightOverride_.store(height); }
+
  private:
   WalkingVelocityCommand scaleCommand(WalkingVelocityCommand command) const;
 
@@ -101,6 +104,7 @@ class WalkingVelocityTarget {
   WalkingVelocityCommand command_;
   std::atomic_bool filterResetRequested_{true};
   std::atomic<scalar_t> resetHeight_{std::numeric_limits<scalar_t>::quiet_NaN()};
+  std::atomic<scalar_t> postureHeightOverride_{std::numeric_limits<scalar_t>::quiet_NaN()};
 };
 
 }  // namespace ocs2::humanoid

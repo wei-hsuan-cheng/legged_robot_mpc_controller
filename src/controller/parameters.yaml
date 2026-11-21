@@ -83,7 +83,8 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
     imuFrame: {type: string, default_value: "", description: "URDF frame of that IMU. With state_estimator the
         bring-up removes its mounting rotation from the attitude it reads; empty: the IMU is aligned with the base."}
   bringUp:
-    autoStart: {type: bool, default_value: true, description: "With state_estimator: run the whole bring-up by itself.
+    autoStart: {type: bool, default_value: true, description: "With a planned stand-up: automatically start the first
+        cycle only (later cycles always need an operator request). With humanoid state_estimator: run bring-up by itself.
         Set false on hardware, where the operator calls ~/stand_up (Passive -> StandUp) and then ~/start_locomotion
         once the robot is on its feet (Settle -> Converge, after which the MPC starts by itself when the estimator
         is ready)."}
@@ -109,6 +110,15 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         restarted at the measured height. Empty keeps the humanoid stand-up."}
     idleSeconds: {type: double, default_value: 1.0, description: "With standUpTrajectoryFile: time to hold the idle
         pose before the planned stand-up starts [s]", validation: {gt_eq: [0.0]}}
+    sitDownSeconds: {type: double, default_value: 3.0, description: "With a planned stand-up: smooth joint transition
+        from the stopped MPC pose to the plan's kneeling idle pose [s].", validation: {gt: [0.0]}}
+    sitDownBrakeSeconds: {type: double, default_value: 1.0, description: "Minimum zero-command MPC braking time
+        before kneeling [s]. Refuses to kneel while base speed exceeds sitDownVelocityMax.", validation: {gt_eq: [0.0]}}
+    sitDownVelocityMax: {type: double, default_value: 0.1, description: "Maximum horizontal base speed [m/s]
+        before leaving MPC balance for the kneeling transition.", validation: {gt: [0.0]}}
+    sitDownHeight: {type: double, default_value: 0.10, description: "Controller-only crouch height [m] reached
+        under MPC balance before kneeling. May be below the operator height range; the posture table must cover it.",
+        validation: {gt: [0.0]}}
     blendSeconds: {type: double, default_value: 0.5, description: "Time to blend the stand command into the first
         MPC commands [s], so the hand-over is not a torque step.", validation: {gt_eq: [0.0]}}
     tiltLimit: {type: double, default_value: 0.8, description: "Trunk tilt (angle between its vertical axis and

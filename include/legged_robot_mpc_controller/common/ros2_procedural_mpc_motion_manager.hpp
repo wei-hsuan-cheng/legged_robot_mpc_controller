@@ -39,6 +39,12 @@ public:
   /// and base pose commands give that frame's orientation. 0 (default): the base frame itself.
   void setCommandFrameYaw(double yaw) { command_frame_yaw_ = yaw; }
 
+  // Outside locomotion, discard operator targets and hold a zero-twist reference.
+  void setOperatorMotionEnabled(bool enabled) { operator_motion_enabled_.store(enabled); }
+  void setPostureHeightOverride(double height) { walkingVelocityTarget_.setPostureHeightOverride(height); }
+  void preSolverRun(ocs2::scalar_t initTime, ocs2::scalar_t finalTime, const ocs2::vector_t& initState,
+                    const ocs2::ReferenceManagerInterface& referenceManager) override;
+
   void subscribe(
     const rclcpp_lifecycle::LifecycleNode::SharedPtr& node,
     const rclcpp::QoS& qos,
@@ -64,6 +70,8 @@ private:
   std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
   double command_frame_yaw_{0.0};
+  std::atomic_bool operator_motion_enabled_{true};
+  double hold_height_{0.0};
 };
 
 }  // namespace legged_robot_mpc_controller

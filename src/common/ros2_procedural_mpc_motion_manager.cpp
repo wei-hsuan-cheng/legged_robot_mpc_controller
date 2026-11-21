@@ -92,10 +92,23 @@ Ros2ProceduralMpcMotionManager::Ros2ProceduralMpcMotionManager(
     std::move(velocity_target_to_target_trajectories),
     std::move(base_pose_target_to_target_trajectories))
 {
+  hold_height_ = reference_config.defaultBaseHeight;
   // Initialize the stored twist target independently of the selected mode.
   setVelocityCommand(
     ocs2::humanoid::WalkingVelocityCommand(0.0, 0.0, reference_config.defaultBaseHeight, 0.0));
   setTargetMode(targetModeFromString(default_target_mode));
+}
+
+void Ros2ProceduralMpcMotionManager::preSolverRun(
+  ocs2::scalar_t initTime, ocs2::scalar_t finalTime, const ocs2::vector_t& initState,
+  const ocs2::ReferenceManagerInterface& referenceManager)
+{
+  if (!operator_motion_enabled_.load()) {
+    setVelocityCommand(ocs2::humanoid::WalkingVelocityCommand(0.0, 0.0, hold_height_, 0.0));
+    setTargetMode(TargetMode::BaseTwist);
+    requestGait("");
+  }
+  ProceduralMpcMotionManager::preSolverRun(initTime, finalTime, initState, referenceManager);
 }
 
 void Ros2ProceduralMpcMotionManager::subscribe(
@@ -114,6 +127,9 @@ void Ros2ProceduralMpcMotionManager::subscribe(
     walking_velocity_topic,
     qos,
     [this](const ocs2_msgs::msg::WalkingVelocityCommand::SharedPtr message) {
+      if (!operator_motion_enabled_.load()) {
+        return;
+      }
       ocs2_msgs::msg::WalkingVelocityCommand base = *message;
       if (command_frame_yaw_ != 0.0) {
         // Planar velocity in the command frame, rotated into the base frame; the yaw rate is about the shared z axis.
@@ -129,6 +145,9 @@ void Ros2ProceduralMpcMotionManager::subscribe(
     base_pose_topic,
     qos,
     [this, node, global_frame](const geometry_msgs::msg::PoseStamped::SharedPtr message) {
+      if (!operator_motion_enabled_.load()) {
+        return;
+      }
       try {
         geometry_msgs::msg::PoseStamped global_pose = *message;
         if (global_pose.header.frame_id.empty()) {
@@ -153,6 +172,9 @@ void Ros2ProceduralMpcMotionManager::subscribe(
     target_mode_topic,
     rclcpp::QoS(1).best_effort(),
     [this, node](const std_msgs::msg::String::SharedPtr message) {
+      if (!operator_motion_enabled_.load()) {
+        return;
+      }
       try {
         setTargetMode(targetModeFromString(message->data));
         RCLCPP_INFO(node->get_logger(), "Humanoid MPC target mode: %s", message->data.c_str());
@@ -166,6 +188,9 @@ void Ros2ProceduralMpcMotionManager::subscribe(
       gait_topic,
       rclcpp::QoS(1).reliable(),
       [this, node](const std_msgs::msg::String::SharedPtr message) {
+        if (!operator_motion_enabled_.load()) {
+          return;
+        }
         requestGait(message->data);
         RCLCPP_INFO(node->get_logger(), "Requested gait: %s", message->data.empty() ? "(velocity ladder)" : message->data.c_str());
       });

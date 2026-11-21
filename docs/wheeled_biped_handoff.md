@@ -1088,3 +1088,56 @@ The source-independent H2/G1 regression and broader wheel friction-versus-dampin
 - `jointArmature` is baked into the generated CppAD libraries (set `codegen.recompileLibraries` or clear `auto_generated/upkie` after changing it); `jointFriction` and the wheel gains are parameters.
 - Pass the gdb launch prefix as one argument: `--launch-prefix "gdb -batch -ex run -ex bt --args"`.
 - Old `mujoco_ros2_control` builds returned principal-inertia/COM twist alongside link pose; rebuild the simulator with the XBODY fix, not only the controller, and sanity-check rates against pose differences.
+
+
+## Operator Posture FSM (2026-11-21)
+
+Requested: repeatable idle -> stand-up -> MPC -> sit-down -> idle, GUI buttons and DualSense R1 toggle, and a latched fall state without automatic fall recovery.
+Upkie now uses `bringUp.autoStart: false`; the operator explicitly requests the first and each subsequent stand-up.
+The first estimated-state 200 Hz trial stood up and drove successfully, but directly interpolating the legs from standing to the kneeling pose tipped the body past the 1.2 rad fall threshold.
+That trial is a rejected implementation, not a successful sit-down: `/tmp/codex_upkie_fsm_est.*` in `ros_jazzy` contains its log, pose/joint replay and failure report.
+The revised transition keeps MPC balancing while braking and lowering to a controller-only 0.10 m crouch before interpolating to the supported idle pose.
+The normal GUI/joystick height range remains unchanged; the internal crouch override is not an operator command or a change to balance weights.
+The worker acknowledges a pause before MRT policies are cleared; restarting uses current observations and a worker-side warm-start reset rather than an old cycle's plan.
+Stand-up, sit-down and toggle requests are rejected in intermediate and terminal states rather than queued.
+DualSense R1 is SDL button 10, edge-triggered, requires L2 released, neutral sticks and L1/D-pad/Circle released; holding R1 across startup or a blocked press never triggers later.
+The teleop profile enables these requests only for a controller with a stand-up trajectory; existing humanoid motion mapping is unchanged.
+All 80 teleop checks currently pass, including actual isolated DDS service requests and the L2/Center regression cases.
+The final Release build passed in 1 min 49 s; only existing compiler warnings remain, and no CppAD model regeneration was needed.
+The kneeling interpolation masks out zero-position-gain joints, so free wheel angles never become a wheel-speed return target.
+Missing joint state or trunk attitude latches Fault; excessive trunk tilt latches Fallen even in planned idle, and both immediately disable operator commands, pause solves, zero position gains and feedforward, and retain velocity damping.
+Lifecycle-inactive controllers refuse posture requests.
+
+### Acceptance
+
+| Trial | Result | Evidence |
+| --- | --- | --- |
+| Estimated state, real adapter with synthetic R1/L2, 200 Hz MPC target | Three full stand/drive/sit/idle cycles passed | `/tmp/codex_upkie_fsm_final.{out,log,json,replay.json}` in `ros_jazzy` |
+| Deliberate lateral 150 N, 0.5 s pulse after those cycles | Fallen latched; stand_up, sit_down and toggle_stand all refused; no automatic retry | Same final trial |
+| Ground-truth state, final binary, direct services | Two cycles passed | `/tmp/codex_upkie_fsm_gt_final.*` |
+| GUI buttons, launch selection and GUI height mapping | 17 checks passed under isolated Xvfb/DDS | `tests/test_base_command_posture.py`, GUI/launch tests |
+| Package layout, launch, startup/solver contracts, Upkie assets and GUI mapping | 40 passed, one optional Python-MuJoCo check skipped in the container | Focused pytest run |
+
+The final estimated-state run's maximum locomotion-labelled tilt was 0.450 rad including the dynamic catches; braking stayed below 0.005 rad and MPC lowering below 0.064 rad.
+Kneeling reached a maximum 0.914 rad trunk lean, below the unchanged 1.2 rad fall threshold, and settled on the supported idle pose.
+The ground-truth comparison's maximum locomotion-labelled tilt was 0.286 rad.
+The deliberately forced fall is excluded from these normal-cycle statistics.
+The final estimated replay was rendered with MuJoCo 3.13 and visually inspected: `/tmp/codex_upkie_fsm_final.png` on the Mac shows balanced lowering, supported kneeling and successful re-stand.
+Earlier direct-fold and intermediate build artifacts are retained only as diagnostics, not as accepted implementations.
+Robot state and Joy are independent DDS topics; the controller's service-side phase check is authoritative even if a client's state display is one heartbeat behind.
+
+### Run and Remaining Limits
+
+See [Upkie posture control](./upkie_posture_control.md) for GUI, R1, services, parameters and repeatable test commands.
+The interactive default now waits for Stand Up or R1; `wb_id_walk_test.py` explicitly opts automated locomotion tests into first-cycle auto-start.
+No balance weights, contact equations, robot descriptions, simulator code or OCS2 stack were changed for this feature.
+Sit-down has been validated on flat ground, not slopes, steps, unequal support heights or physical hardware.
+The real PS5 device still needs user acceptance; synthetic Joy tests cover the actual teleop and service paths, not USB/Bluetooth transport.
+There is no fall-recovery phase: manually restore supported idle before resetting the controller, or reset the simulation.
+After validation, the user requested committing and pushing the MPC changes on `feat/wheeled_biped` and the companion teleop changes on `main`.
+The final install refresh rebuilt both packages successfully in 3.18 s.
+All 80 teleop checks passed again after adding held-R1 reconnect protection and validating heartbeat-before-edge ordering in the isolated service test.
+All owned simulator/test processes were stopped; no robot launch was left running.
+
+Suggested MPC commit message: `feat(upkie): add repeatable operator stand/sit FSM and latched fall handling`.
+Suggested teleop commit message: `feat: add guarded DualSense R1 posture requests for Upkie`.

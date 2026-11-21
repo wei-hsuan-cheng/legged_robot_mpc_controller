@@ -188,6 +188,10 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
       if (states.size() != heights.size() * num_joints) {
         throw std::invalid_argument("ocs2.reference.postureJointStates needs one row of robot.jointNames per postureHeights entry");
       }
+      if (stand_up_trajectory_ && !heights.empty() &&
+          (parameters_.bringUp.sitDownHeight < heights.front() || parameters_.bringUp.sitDownHeight > heights.back())) {
+        throw std::invalid_argument("bringUp.sitDownHeight must be covered by ocs2.reference.postureHeights");
+      }
       for (std::size_t i = 0; i < heights.size(); ++i) {
         reference_config.postureHeights.push_back(heights[i]);
         reference_config.postureJointStates.push_back(
@@ -298,9 +302,9 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
       [this](const std::shared_ptr<std_srvs::srv::Trigger::Request>,
              std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
         const BringUpPhase phase = bring_up_phase_.load();
-        if (phase != BringUpPhase::Passive) {
+        if (!controller_active_.load() || phase != BringUpPhase::Passive) {
           response->success = false;
-          response->message = std::string("refused: stand_up is only valid in 'passive'; bring-up is in '") +
+          response->message = std::string("refused: stand_up needs an active controller in idle; current phase '") +
             to_string(phase) + "'";
           return;
         }
@@ -328,6 +332,40 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
         response->success = true;
         response->message = "initialising the estimator; the MPC starts once it is ready";
       });
+    const auto request_posture = [this](bool toggle, auto response) {
+      const auto phase = bring_up_phase_.load();
+      if (!controller_active_.load() || !stand_up_trajectory_) {
+        response->success = false;
+        response->message = "refused: needs an active controller with a planned kneeling stand-up";
+      } else if (toggle && phase == BringUpPhase::Passive) {
+        stand_up_requested_.store(true);
+        response->success = true;
+        response->message = "stand-up requested";
+      } else if (phase == BringUpPhase::Locomotion) {
+        sit_down_requested_.store(true);
+        response->success = true;
+        response->message = "braking, then sitting down";
+      } else {
+        response->success = false;
+        response->message = std::string("refused in '") + to_string(phase) + "'";
+      }
+    };
+    sit_down_service_ = get_node()->create_service<std_srvs::srv::Trigger>(
+      "~/sit_down", [request_posture](const std::shared_ptr<std_srvs::srv::Trigger::Request>,
+                                    std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
+        request_posture(false, response);
+      });
+    toggle_stand_service_ = get_node()->create_service<std_srvs::srv::Trigger>(
+      "~/toggle_stand", [request_posture](const std::shared_ptr<std_srvs::srv::Trigger::Request>,
+                                        std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
+        request_posture(true, response);
+      });
+    motion_state_publisher_ = get_node()->create_publisher<std_msgs::msg::String>("~/motion_state", rclcpp::QoS(1).best_effort());
+    motion_state_timer_ = get_node()->create_wall_timer(std::chrono::milliseconds(100), [this] {
+      std_msgs::msg::String message;
+      message.data = controller_active_.load() ? to_string(bring_up_phase_.load()) : "inactive";
+      motion_state_publisher_->publish(message);
+    });
   } catch (const std::exception& e) {
     RCLCPP_ERROR(get_node()->get_logger(), "%s on_configure failed while %s: %s", kTag, configure_stage, e.what());
     return controller_interface::CallbackReturn::ERROR;
@@ -409,10 +447,19 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
   settled_since_ = -1.0;
   stand_up_requested_.store(false);
   start_requested_.store(false);
+  sit_down_requested_.store(false);
+  auto_start_pending_ = parameters_.bringUp.autoStart;
+  solver_paused_.store(false);
+  solver_observation_ready_.store(false);
+  reset_mpc_warm_start_requested_.store(false);
+  servo_kp_override_.resize(0);
+  servo_kd_override_.resize(0);
   locomotion_requested_.store(false);
   mpc_ready_.store(false);
   has_active_policy_ = false;
   active_policy_ready_ = false;
+  motion_manager_->setOperatorMotionEnabled(!stand_up_trajectory_);
+  motion_manager_->setPostureHeightOverride(std::numeric_limits<double>::quiet_NaN());
 
   publish_mode_schedule();
   if (has_estimator() && !uses_state_estimator(parameters_.floatingBase.source)) {
@@ -451,6 +498,7 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
         "and the estimator is ready | joints=%zu",
         kTag, parameters_.floatingBase.estimator.c_str(), parameters_.robot.jointNames.size());
     }
+    controller_active_.store(true);
     return controller_interface::CallbackReturn::SUCCESS;
   }
 
@@ -497,12 +545,14 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
               "%s activated (ground-truth base); the MPC starts from the first control tick's observation | "
               "joints=%zu",
               kTag, parameters_.robot.jointNames.size());
+  controller_active_.store(true);
   return controller_interface::CallbackReturn::SUCCESS;
 }
 
 controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcController::on_deactivate(
   const rclcpp_lifecycle::State&)
 {
+  controller_active_.store(false);
   stop_solver_thread();
   // Zero the joint commands only: a 0 contact flag would tell the estimator a foot is in the
   // air, and zero servo gains would leave the joints limp, so the last gains stay in the hardware.
@@ -621,7 +671,7 @@ controller_interface::return_type HumanoidWholeBodyInverseDynamicsMpcController:
   }
   // The worker only fills the MRT buffer. Swap the active policy here so evaluation
   // and visualization cannot read a policy being replaced by the solver thread.
-  const bool policy_updated = solver_ready && mrt_interface_->updatePolicy();
+  const bool policy_updated = solver_ready && locomotion_requested_.load() && mrt_interface_->updatePolicy();
   const bool previous_policy_ready = active_policy_ready_;
   if (policy_updated) {
     has_active_policy_ = true;
@@ -692,7 +742,7 @@ const char* HumanoidWholeBodyInverseDynamicsMpcController::to_string(BringUpPhas
 {
   switch (phase) {
     case BringUpPhase::Passive:
-      return "passive";
+      return "idle";
     case BringUpPhase::StandUp:
       return "standing up";
     case BringUpPhase::Settle:
@@ -705,6 +755,14 @@ const char* HumanoidWholeBodyInverseDynamicsMpcController::to_string(BringUpPhas
       return "blending into MPC";
     case BringUpPhase::Locomotion:
       return "locomotion";
+    case BringUpPhase::Stopping:
+      return "stopping";
+    case BringUpPhase::Lowering:
+      return "lowering";
+    case BringUpPhase::SitDown:
+      return "sitting down";
+    case BringUpPhase::Fallen:
+      return "fallen";
     case BringUpPhase::Fault:
       return "FAULT (damping)";
   }
@@ -869,6 +927,16 @@ void HumanoidWholeBodyInverseDynamicsMpcController::enter_bring_up_phase(BringUp
   phase_start_time_ = time;
   settled_since_ = -1.0;
   rest_filter_initialized_ = false;
+  if (phase == BringUpPhase::Fallen || phase == BringUpPhase::Fault) {
+    locomotion_requested_.store(false, std::memory_order_release);
+    stand_up_requested_.store(false);
+    start_requested_.store(false);
+    sit_down_requested_.store(false);
+    has_active_policy_ = active_policy_ready_ = false;
+    motion_manager_->setOperatorMotionEnabled(false);
+    servo_kp_override_ = vector_t::Zero(joint_kp_.size());
+    servo_kd_override_ = joint_kd_;
+  }
 }
 
 HumanoidWholeBodyInverseDynamicsMpcController::JointActionCommand
@@ -879,6 +947,9 @@ HumanoidWholeBodyInverseDynamicsMpcController::run_bring_up(
   const auto& bu = parameters_.bringUp;
   vector_t q, v;
   if (!read_joint_state(q, v)) {
+    if (stand_up_trajectory_ && bring_up_phase_ != BringUpPhase::Fault && bring_up_phase_ != BringUpPhase::Fallen) {
+      enter_bring_up_phase(BringUpPhase::Fault, t);
+    }
     return damping_command(stand_nominal_joints_);
   }
   const auto orientation = read_bring_up_orientation();
@@ -886,15 +957,25 @@ HumanoidWholeBodyInverseDynamicsMpcController::run_bring_up(
     phase_start_time_ = t;
   }
 
-  if (orientation && bring_up_phase_ != BringUpPhase::Passive && bring_up_phase_ != BringUpPhase::Fault) {
+  if (!orientation && stand_up_trajectory_ && bring_up_phase_ != BringUpPhase::Fault && bring_up_phase_ != BringUpPhase::Fallen) {
+    RCLCPP_ERROR(get_node()->get_logger(), "%s no valid trunk attitude; latching FAULT.", kTag);
+    enter_bring_up_phase(BringUpPhase::Fault, t);
+  }
+  if (orientation && (bring_up_phase_ != BringUpPhase::Passive || stand_up_trajectory_) && bring_up_phase_ != BringUpPhase::Fault &&
+      bring_up_phase_ != BringUpPhase::Fallen) {
     const double tilt = std::acos(std::clamp(orientation->toRotationMatrix()(2, 2), -1.0, 1.0));
     if (tilt > bu.tiltLimit) {
       RCLCPP_ERROR(get_node()->get_logger(),
                    "%s bring-up FAULT: trunk tilt %.3f rad > %.3f in phase '%s'; damping. Deactivate and "
                    "reactivate the controller to retry.",
                    kTag, tilt, bu.tiltLimit, to_string(bring_up_phase_.load()));
-      enter_bring_up_phase(BringUpPhase::Fault, t);
+      enter_bring_up_phase(BringUpPhase::Fallen, t);
     }
+  }
+
+  if (sit_down_requested_.exchange(false) && bring_up_phase_ == BringUpPhase::Locomotion) {
+    motion_manager_->setOperatorMotionEnabled(false);
+    enter_bring_up_phase(BringUpPhase::Stopping, t);
   }
 
   switch (bring_up_phase_.load()) {
@@ -907,8 +988,26 @@ HumanoidWholeBodyInverseDynamicsMpcController::run_bring_up(
         // plan's servo gains, so the stand-up starts from the state it was planned from.
         servo_kp_override_ = stand_up_trajectory_->kp;
         servo_kd_override_ = stand_up_trajectory_->kd;
-        if (!(bu.autoStart || stand_up_requested_.load()) || t - phase_start_time_ < bu.idleSeconds) {
+        if (!(auto_start_pending_ || stand_up_requested_.load()) || t - phase_start_time_ < bu.idleSeconds) {
           return hold;
+        }
+        const double idle_error = ((q - stand_up_trajectory_->position.front()).array() *
+          (stand_up_trajectory_->kp.array() > 0.0).cast<double>()).abs().maxCoeff();
+        if (idle_error > 0.2 || v.norm() > 0.5) {
+          RCLCPP_WARN_THROTTLE(get_node()->get_logger(), *get_node()->get_clock(), 2000,
+                              "%s stand-up waiting for the supported idle pose (joint error %.3f rad).", kTag, idle_error);
+          return hold;
+        }
+        // A previous cycle may still be finishing its last solve. Reset MRT only
+        // after the worker acknowledges the pause, never join it on the control thread.
+        if (mpc_ready_.load(std::memory_order_acquire)) {
+          if (!solver_paused_.load(std::memory_order_acquire)) {
+            return hold;
+          }
+          mrt_interface_->reset();
+          has_active_policy_ = false;
+          active_policy_ready_ = false;
+          reset_mpc_warm_start_requested_.store(true, std::memory_order_release);
         }
         if (uses_state_estimator(parameters_.floatingBase.source)) {
           if (!estimator_initialized_for_request()) {
@@ -927,6 +1026,13 @@ HumanoidWholeBodyInverseDynamicsMpcController::run_bring_up(
           return hold;
         }
         start_observation_ = observation;
+        if (mpc_ready_.load(std::memory_order_acquire)) {
+          mrt_interface_->setCurrentObservation(observation);
+        }
+        motion_manager_->requestVelocityTargetFilterReset(control_model_->getBasePose(observation.state)(2));
+        motion_manager_->setPostureHeightOverride(std::numeric_limits<double>::quiet_NaN());
+        auto_start_pending_ = false;
+        stand_up_requested_.store(false);
         locomotion_requested_.store(true, std::memory_order_release);
         stand_up_start_joints_ = q;
         enter_bring_up_phase(BringUpPhase::StandUp, t);
@@ -1056,6 +1162,9 @@ HumanoidWholeBodyInverseDynamicsMpcController::run_bring_up(
       blended.policy_velocity = a * mpc.policy_velocity;
       blended.feedforward = (1.0 - a) * stand.feedforward + a * mpc.feedforward;
       if (a >= 1.0) {
+        if (stand_up_trajectory_) {
+          motion_manager_->setOperatorMotionEnabled(true);
+        }
         enter_bring_up_phase(BringUpPhase::Locomotion, t);
       }
       return blended;
@@ -1070,9 +1179,81 @@ HumanoidWholeBodyInverseDynamicsMpcController::run_bring_up(
       }
       return compute_mpc_joint_action(observation);
 
+    case BringUpPhase::Stopping: {
+      if (!active_policy_ready_) {
+        enter_bring_up_phase(BringUpPhase::Fault, t);
+        break;
+      }
+      const auto velocity = control_model_->getBaseComVelocity(observation.state);
+      if (t - phase_start_time_ >= bu.sitDownBrakeSeconds &&
+          velocity.head<2>().norm() < bu.sitDownVelocityMax && velocity.tail<3>().norm() < 0.3) {
+        motion_manager_->requestVelocityTargetFilterReset(control_model_->getBasePose(observation.state)(2));
+        motion_manager_->setPostureHeightOverride(bu.sitDownHeight);
+        enter_bring_up_phase(BringUpPhase::Lowering, t);
+      } else if (t - phase_start_time_ > bu.sitDownBrakeSeconds + 5.0) {
+        RCLCPP_ERROR(get_node()->get_logger(), "%s sit-down could not brake to rest; latching FAULT.", kTag);
+        enter_bring_up_phase(BringUpPhase::Fault, t);
+        break;
+      } else {
+        return compute_mpc_joint_action(observation);
+      }
+      return compute_mpc_joint_action(observation);
+    }
+    case BringUpPhase::Lowering: {
+      if (!active_policy_ready_) {
+        enter_bring_up_phase(BringUpPhase::Fault, t);
+        break;
+      }
+      const auto base = control_model_->getBasePose(observation.state);
+      if (base(2) <= bu.sitDownHeight + 0.02 && orientation &&
+          orientation->toRotationMatrix()(2, 2) > std::cos(0.3)) {
+        stand_up_start_joints_ = q;
+        locomotion_requested_.store(false, std::memory_order_release);
+        has_active_policy_ = active_policy_ready_ = false;
+        enter_bring_up_phase(BringUpPhase::SitDown, t);
+      } else if (t - phase_start_time_ > 8.0) {
+        RCLCPP_ERROR(get_node()->get_logger(), "%s sit-down could not reach its balanced crouch; latching FAULT.", kTag);
+        enter_bring_up_phase(BringUpPhase::Fault, t);
+        break;
+      } else {
+        return compute_mpc_joint_action(observation);
+      }
+      [[fallthrough]];
+    }
+    case BringUpPhase::SitDown: {
+      servo_kp_override_ = stand_up_trajectory_->kp;
+      servo_kd_override_ = stand_up_trajectory_->kd;
+      const double s = std::clamp((t - phase_start_time_) / bu.sitDownSeconds, 0.0, 1.0);
+      const double alpha = s * s * (3.0 - 2.0 * s);
+      // Never drive an unwrapped wheel angle back to the plan's original spin angle.
+      const vector_t delta = (stand_up_trajectory_->position.front() - stand_up_start_joints_).array() *
+        (stand_up_trajectory_->kp.array() > 0.0).cast<double>();
+      const vector_t target = stand_up_start_joints_ + alpha * delta;
+      auto command = damping_command(target);
+      command.policy_velocity = (6.0 * s * (1.0 - s) / bu.sitDownSeconds) * delta;
+      // Wheel angles are unwrapped and free, so arrival checks only position-controlled joints.
+      const double error = ((q - target).array() * (stand_up_trajectory_->kp.array() > 0.0).cast<double>()).abs().maxCoeff();
+      if (s >= 1.0 && error < 0.15 && v.norm() < 1.0) {
+        passive_hold_joints_ = stand_up_trajectory_->position.front();
+        stand_up_requested_.store(false);
+        estimator_driving_control_ = false;
+        enter_bring_up_phase(BringUpPhase::Passive, t);
+      } else if (t - phase_start_time_ > bu.sitDownSeconds + 5.0) {
+        RCLCPP_ERROR(get_node()->get_logger(), "%s sit-down did not reach the kneeling pose; latching FAULT.", kTag);
+        enter_bring_up_phase(BringUpPhase::Fault, t);
+      }
+      return command;
+    }
+
+    case BringUpPhase::Fallen:
     case BringUpPhase::Fault:
-      return damping_command(q);
+      break;
   }
+  locomotion_requested_.store(false, std::memory_order_release);
+  has_active_policy_ = active_policy_ready_ = false;
+  motion_manager_->setOperatorMotionEnabled(false);
+  servo_kp_override_ = vector_t::Zero(q.size());
+  servo_kd_override_ = joint_kd_;
   return damping_command(q);
 }
 
@@ -1460,6 +1641,13 @@ void HumanoidWholeBodyInverseDynamicsMpcController::solver_worker()
   bool first_solve = true;
 
   while (!terminate_solver_thread_.load() && rclcpp::ok()) {
+    if (!locomotion_requested_.load(std::memory_order_acquire)) {
+      solver_paused_.store(true, std::memory_order_release);
+      previous_start = Clock::time_point{};
+      std::this_thread::sleep_for(std::chrono::milliseconds(2));
+      continue;
+    }
+    solver_paused_.store(false, std::memory_order_release);
     const auto iteration_start = Clock::now();
     const auto wakeup_time = iteration_start + period;
     if (previous_start != Clock::time_point{}) {

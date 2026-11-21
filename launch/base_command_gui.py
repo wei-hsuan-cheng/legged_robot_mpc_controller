@@ -8,6 +8,8 @@ import rclpy
 from ocs2_msgs.msg import WalkingVelocityCommand
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy
+from std_msgs.msg import String
+from std_srvs.srv import Trigger
 
 
 KNOB_IDLE_COLOR = "#4a90e2"
@@ -417,6 +419,7 @@ class baseCommandGui(tk.Tk):
         reference_base_height=0.6,
         minimum_base_height=0.2,
         maximum_base_height=1.0,
+        posture_node=None,
     ):
         super().__init__()
         self.title("Humanoid MPC Base Command GUI (Pelvis Frame)")
@@ -475,6 +478,15 @@ class baseCommandGui(tk.Tk):
         controls = tk.Frame(self, bg="#2c2c2c")
         controls.pack(pady=(0, 16))
         tk.Button(controls, text="Center", command=self._reset, width=10).pack(side=tk.LEFT, padx=6)
+        self._posture_node = posture_node
+        if posture_node is not None and posture_node.posture_controller:
+            self._stand_button = tk.Button(controls, text="Stand Up", command=lambda: self._posture("stand_up"), width=10)
+            self._stand_button.pack(side=tk.LEFT, padx=6)
+            self._sit_button = tk.Button(controls, text="Sit Down", command=lambda: self._posture("sit_down"), width=10)
+            self._sit_button.pack(side=tk.LEFT, padx=6)
+            self._motion_status = tk.StringVar(value="Waiting for controller")
+            tk.Label(self, textvariable=self._motion_status, bg="#2c2c2c", fg="white").pack(pady=(0, 12))
+            self._update_posture_controls()
 
         self.protocol("WM_DELETE_WINDOW", self._close)
         self._changed()
@@ -494,6 +506,18 @@ class baseCommandGui(tk.Tk):
         self._linear.reset()
         self._yaw.reset()
         self._height.set(self._reference_base_height)
+
+    def _posture(self, action):
+        self._reset()
+        self._publish(0.0, 0.0, self._height.get(), 0.0)
+        self._posture_node.request_posture(action)
+
+    def _update_posture_controls(self):
+        node = self._posture_node
+        self._motion_status.set(node.motion_state)
+        self._stand_button.configure(state=tk.NORMAL if node.motion_state == "idle" else tk.DISABLED)
+        self._sit_button.configure(state=tk.NORMAL if node.motion_state == "locomotion" else tk.DISABLED)
+        self.after(100, self._update_posture_controls)
 
     def _publish_periodically(self):
         # Joystick vertical axis = forward (vx); horizontal = lateral (ROS +y is left,
@@ -515,6 +539,18 @@ class PublisherNode(Node):
         self.declare_parameter("reference_base_height", 0.6)
         self.declare_parameter("minimum_base_height", 0.2)
         self.declare_parameter("maximum_base_height", 1.0)
+        self.posture_controller = self.declare_parameter("posture_controller", "").value.rstrip("/")
+        self.motion_state = "Waiting for controller"
+        self._posture_clients = {}
+        self._posture_pending = None
+        if self.posture_controller:
+            self._posture_clients = {
+                action: self.create_client(Trigger, self.posture_controller + "/" + action)
+                for action in ("stand_up", "sit_down")
+            }
+            self.create_subscription(String, self.posture_controller + "/motion_state",
+                                     lambda msg: setattr(self, "motion_state", msg.data),
+                                     QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT))
         self.max_linear_velocity_x = float(self.get_parameter("max_linear_velocity_x").value)
         self.max_linear_velocity_y = float(self.get_parameter("max_linear_velocity_y").value)
         self.max_yaw_rate = float(self.get_parameter("max_yaw_rate").value)
@@ -530,6 +566,18 @@ class PublisherNode(Node):
             "/humanoid/walking_velocity_command",
             qos,
         )
+
+    def request_posture(self, action):
+        client = self._posture_clients[action]
+        if self._posture_pending is not None and not self._posture_pending.done():
+            return
+        if not client.service_is_ready():
+            self.get_logger().warning("Posture service is unavailable")
+            return
+        self._posture_pending = client.call_async(Trigger.Request())
+        self._posture_pending.add_done_callback(
+            lambda future: self.get_logger().info(future.result().message) if not future.exception()
+            else self.get_logger().error(str(future.exception())))
 
     def publish_command(self, linear_x, linear_y, height, yaw_rate):
         message = WalkingVelocityCommand()
@@ -553,6 +601,7 @@ def main():
         node.reference_base_height,
         node._minimum_height,
         node._maximum_height,
+        node,
     )
     try:
         app.mainloop()

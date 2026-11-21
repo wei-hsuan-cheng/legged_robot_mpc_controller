@@ -119,9 +119,9 @@ private:
   JointActionCommand compute_mpc_joint_action(const ocs2::SystemObservation& observation);
   void clamp_torque(vector_t& tau) const;
 
-  // Bring-up: Passive -> StandUp -> Settle -> Converge
-  // -> StartingMpc -> Blend -> Locomotion, Fault on excessive tilt.
-  enum class BringUpPhase { Passive, StandUp, Settle, Converge, StartingMpc, Blend, Locomotion, Fault };
+  // Humanoids settle/initialise before MPC; planned wheeled stand-up blends directly.
+  // Planned robots can brake/lower/kneel back to idle. Fallen/Fault stay latched.
+  enum class BringUpPhase { Passive, StandUp, Settle, Converge, StartingMpc, Blend, Locomotion, Stopping, Lowering, SitDown, Fallen, Fault };
   JointActionCommand run_bring_up(const rclcpp::Time& time, const ocs2::SystemObservation& observation);
   JointActionCommand hold_command(const vector_t& q_target, const vector_t& q_measured,
                                   const std::optional<Eigen::Quaterniond>& imu_orientation);
@@ -254,11 +254,19 @@ private:
   std::atomic_bool locomotion_requested_{false};
   std::atomic_bool mpc_ready_{false};
   std::atomic_bool solver_observation_ready_{false};
+  std::atomic_bool solver_paused_{false};
   std::atomic_bool reset_mpc_warm_start_requested_{false};
   bool has_active_policy_{false};  // Owned by the control thread, like the active MRT policy.
   bool active_policy_ready_{false};  // Revalidated against this tick's timestamp.
   std::atomic_bool stand_up_requested_{false};
   std::atomic_bool start_requested_{false};
+  std::atomic_bool sit_down_requested_{false};
+  std::atomic_bool controller_active_{false};
+  bool auto_start_pending_{true};
+  rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr sit_down_service_;
+  rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr toggle_stand_service_;
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr motion_state_publisher_;
+  rclcpp::TimerBase::SharedPtr motion_state_timer_;
   rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr stand_up_service_;
   rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr start_locomotion_service_;
 

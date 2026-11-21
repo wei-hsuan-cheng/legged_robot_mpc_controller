@@ -226,6 +226,9 @@ def main():
             parser.error("arm-target-delay must be finite and nonnegative")
     if args.record_tracking:
         params["diagnostics"]["trackingRate"] = 100.0
+    # Automated locomotion trials explicitly opt into standing up; interactive Upkie waits for its operator.
+    if args.robot_name == "upkie":
+        params["bringUp"]["autoStart"] = True
     for entry in args.set:
         key, value = entry.split("=", 1)
         parent = params
