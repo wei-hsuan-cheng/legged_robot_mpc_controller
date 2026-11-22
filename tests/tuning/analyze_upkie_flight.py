@@ -14,6 +14,8 @@ import sys
 
 import numpy as np
 
+TIRE_RADIUS = 0.08  # [m] the enlarged wheel (upkie.xml tire_collision); the original Upkie wheel is 0.055
+
 prefix = sys.argv[1]
 rows = list(csv.DictReader(open(prefix + "_tracking.csv")))
 col = lambda k: np.array([float(r[k]) if r.get(k) not in (None, "", "nan") else np.nan for r in rows])
@@ -42,7 +44,7 @@ if nonstance.size:
         for s in force:
             w = off[s][window]
             entry[f"{s} off ground [s]"] = round(float(w.sum() * np.median(np.diff(t))), 3)
-            entry[f"{s} tire clearance [mm]"] = round(float(1000 * (np.nanmax(tire_z[s][window]) - 0.055)), 1)
+            entry[f"{s} tire clearance [mm]"] = round(float(1000 * (np.nanmax(tire_z[s][window]) - TIRE_RADIUS)), 1)
             entry[f"{s} peak landing force [N]"] = round(float(np.nanmax(force[s][b:window.stop])), 1)
         entry["base apex rise [mm]"] = round(float(1000 * (np.nanmax(z[window]) - z[max(a - 20, 0)])), 1)
         entry["max |pitch| / |roll| [rad]"] = [round(float(np.nanmax(np.abs(pitch[window]))), 3),
@@ -67,7 +69,7 @@ if "--plot" in sys.argv:
     ax[0].plot(t, mode, label="planned mode (0 FLY, 1 RF, 2 LF, 3 STANCE)"); ax[0].set_ylabel("mode")
     for s in force:
         ax[1].plot(t, force[s], label=f"{s} wheel normal force")
-        ax[2].plot(t, 1000 * (tire_z[s] - 0.055), label=f"{s} tire clearance")
+        ax[2].plot(t, 1000 * (tire_z[s] - TIRE_RADIUS), label=f"{s} tire clearance")
     ax[1].set_ylabel("N"); ax[2].set_ylabel("mm")
     ax[3].plot(t, z, label="base z GT"); ax[3].plot(t, col("plan_base/z"), "--", label="base z plan"); ax[3].set_ylabel("m")
     ax[4].plot(t, pitch, label="pitch"); ax[4].plot(t, roll, label="roll"); ax[4].set_ylabel("rad"); ax[4].set_xlabel("time [s]")

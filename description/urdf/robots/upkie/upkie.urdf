@@ -347,14 +347,14 @@
   </joint>
   <link name="left_wheel_link">
     <inertial>
-      <origin xyz="-7.85066e-06 4.53426e-06 -0.0252368" rpy="0 0 0" />
-      <mass value="0.2585" />
-      <inertia ixx="0.000202065" ixy="-7.7265e-09" ixz="1.97562e-08" iyy="0.000202069" iyz="-1.14162e-08" izz="0.000313606" />
+      <origin xyz="-5.50237e-06 4.21527e-06 -0.0259821" rpy="0 0 0" />
+      <mass value="0.368806" />
+      <inertia ixx="0.000659796" ixy="-1.01377e-08" ixz="3.21856e-08" iyy="0.000659844" iyz="-1.62895e-08" izz="0.00118255" />
     </inertial>
     <visual>
       <origin xyz="2.01228e-16 -6.10623e-16 -0.0104" rpy="1.57079633 -9.7259255e-17 9.7259255e-17" />
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/meshes/robots/upkie/wheel_hub.stl" />
+        <mesh filename="package://legged_robot_mpc_controller/description/meshes/robots/upkie/wheel_hub_r80.stl" />
       </geometry>
       <material name="wheel_hub_material">
         <color rgba="0.901961 0.901961 0.901961 1" />
@@ -372,13 +372,13 @@
     <collision name="left_foot_collision">
       <origin xyz="4.85723e-16 -3.53884e-16 -0.0312" rpy="-3.14159265 2.90073997e-25 1.078588e-16" />
       <geometry>
-        <cylinder radius="0.055" length="0.044" />
+        <cylinder radius="0.08" length="0.044" />
       </geometry>
     </collision>
     <visual>
       <origin xyz="4.51028e-16 -3.33067e-16 -0.0312" rpy="1.57079633 1.03079308e-16 2.10938231e-16" />
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/meshes/robots/upkie/tire.stl" />
+        <mesh filename="package://legged_robot_mpc_controller/description/meshes/robots/upkie/tire_r80.stl" />
       </geometry>
       <material name="tire_material">
         <color rgba="0.301961 0.301961 0.301961 1" />
@@ -578,14 +578,14 @@
   </joint>
   <link name="right_wheel_link">
     <inertial>
-      <origin xyz="-7.85066e-06 4.53426e-06 -0.0252368" rpy="0 0 0" />
-      <mass value="0.2585" />
-      <inertia ixx="0.000202065" ixy="-7.7265e-09" ixz="1.97562e-08" iyy="0.000202069" iyz="-1.14162e-08" izz="0.000313606" />
+      <origin xyz="-5.50237e-06 4.21527e-06 -0.0259821" rpy="0 0 0" />
+      <mass value="0.368806" />
+      <inertia ixx="0.000659796" ixy="-1.01377e-08" ixz="3.21856e-08" iyy="0.000659844" iyz="-1.62895e-08" izz="0.00118255" />
     </inertial>
     <visual>
       <origin xyz="-5.55112e-17 1.03827e-16 -0.0104" rpy="1.57079633 7.00369251e-32 -7.00369251e-32" />
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/meshes/robots/upkie/wheel_hub.stl" />
+        <mesh filename="package://legged_robot_mpc_controller/description/meshes/robots/upkie/wheel_hub_r80.stl" />
       </geometry>
       <material name="wheel_hub_material">
         <color rgba="0.901961 0.901961 0.901961 1" />
@@ -603,13 +603,13 @@
     <collision name="right_foot_collision">
       <origin xyz="1.66533e-16 7.22077e-17 -0.0312" rpy="3.14159265 0 0" />
       <geometry>
-        <cylinder radius="0.055" length="0.044" />
+        <cylinder radius="0.08" length="0.044" />
       </geometry>
     </collision>
     <visual>
       <origin xyz="1.66533e-16 7.22077e-17 -0.0312" rpy="1.57079633 1.64775628e-30 -1.64775628e-30" />
       <geometry>
-        <mesh filename="package://legged_robot_mpc_controller/description/meshes/robots/upkie/tire.stl" />
+        <mesh filename="package://legged_robot_mpc_controller/description/meshes/robots/upkie/tire_r80.stl" />
       </geometry>
       <material name="tire_material">
         <color rgba="0.301961 0.301961 0.301961 1" />

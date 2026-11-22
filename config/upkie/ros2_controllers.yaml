@@ -27,7 +27,7 @@ humanoid_linear_kf:
     contactFrames: [left_wheel_link, right_wheel_link]
     contactModel: rolling_wheel
     wheel:
-      radius: 0.055
+      radius: 0.08                 # enlarged wheel (upkie.xml tire_collision); the original Upkie wheel is 0.055
       # The tire centre on the wheel link, as ocs2.model.contactGeometry.frameTranslation.
       centerOffset: [0.0, 0.0, -0.0312]
       axleAxis: [0.0, 0.0, 1.0]
@@ -115,14 +115,16 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
       sitDownSeconds: 3.0
       sitDownBrakeSeconds: 1.0
       sitDownVelocityMax: 0.1
-      sitDownHeight: 0.10
+      sitDownHeight: 0.125       # knee bend 2.43 rad, the 0.080 m tire 14 mm clear of the femur
       standUpSeconds: 3.0
       settleSeconds: 0.5
       settleGyroMax: 0.10
       settleAccelTolerance: 0.5
       settleFilterHz: 2.0
       blendSeconds: 0.05           # the handover happens while the body is moving
-      tiltLimit: 1.2               # the trunk leans back 0.71 rad at the stand-up handover
+      tiltLimit: 1.2               # 0.080 m wheels: the spawn tip-over peaks at 0.71 rad, the kneeling idle 0.50 rad, the
+                                   # stand-up stays below 0.50 rad and hands over 0.11 rad from level; the sit-down tips
+                                   # back to 1.07 rad before it settles on the knees
 
     ocs2:
       interface:
@@ -245,7 +247,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
 
         wheelContact:
           activate: true
-          radius: 0.055
+          radius: 0.08               # enlarged wheel (upkie.xml tire_collision); the original Upkie wheel is 0.055
           axleAxis: [0.0, 0.0, 1.0]
           normalPositionGain: 50.0
           normalVelocityGain: 50.0
@@ -299,16 +301,17 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         maxDisplacementVelocityX: 1.0
         maxDisplacementVelocityY: 0.0
         maxRotationVelocity: 3.1416
-        defaultBaseHeight: 0.22
+        # 0.080 m wheel: every height is the 0.055 m-wheel value + 0.025 m (same leg postures).
+        defaultBaseHeight: 0.245
         # Commanded height range: GUI slider, command clamp and MPC height reference. Must lie inside postureHeights.
-        minBaseHeight: 0.2
-        maxBaseHeight: 0.33
+        minBaseHeight: 0.225
+        maxBaseHeight: 0.355
         basePosePositionTolerance: 0.02
         basePoseOrientationTolerance: 0.03
         # [ax, ay (m/s^2), height rate (m/s), yaw acceleration (rad/s^2)] on GUI/topic commands.
         velocityCommandRateLimits:
           [2.0, 2.0, 0.5, 10.0]
-        # The stand-up catch's rise from about 0.09 m to the commanded height; at 2 m/s it is a near step and the catch
+        # The stand-up catch's rise from about 0.13 m to the commanded height; at 2 m/s it is a near step and the catch
         # falls.
         takeoverHeightRate: 0.1
 
@@ -320,42 +323,43 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         armSwing:
           enabled: false
 
-        # Balanced crouch: level trunk at 0.30 m, knees forward, each tire's lowest point under the whole-body CoM.
+        # Balanced crouch: level trunk at 0.325 m, knees forward, each tire's lowest point under the whole-body CoM.
         defaultJointState:
           [-0.6021396734839873, -0.9655142016056263, 0.0, 0.6021396734839873, 0.9655142016056263, 0.0]
 
         # Posture reference by target height (config/upkie/compute_posture_table.py): the balanced symmetric
-        # posture of each height (level trunk, tires on the floor, tire contact under the CoM). A fixed 0.30 m
+        # posture of each height (level trunk, tires on the floor, tire contact under the CoM). A fixed 0.325 m
         # posture far from the target height makes splitting the legs fore/aft cheaper than staying symmetric.
         # The table must cover [minBaseHeight, maxBaseHeight]; regenerate it before widening that range. It starts at
-        # 0.10 m so the stand-up catch (about 0.09 m) has a balanced reference while its height ramps up.
+        # 0.125 m (knee bend 2.43 rad, the deepest fold the 0.080 m tire clears the femur at) so the stand-up catch
+        # has a balanced reference while its height ramps up.
         postureHeights:
-          [0.100, 0.110, 0.120, 0.130, 0.140, 0.150, 0.160, 0.170, 0.180, 0.190, 0.200, 0.210, 0.220, 0.230, 0.240, 0.250, 0.260, 0.270, 0.280, 0.290, 0.300, 0.310, 0.320, 0.330]
+          [0.125, 0.135, 0.145, 0.155, 0.165, 0.175, 0.185, 0.195, 0.205, 0.215, 0.225, 0.235, 0.245, 0.255, 0.265, 0.275, 0.285, 0.295, 0.305, 0.315, 0.325, 0.335, 0.345, 0.355]
         postureJointStates:
-          [-1.771627, -2.434317, 0.0, 1.771627, 2.434317, 0.0,
-           -1.706312, -2.377744, 0.0, 1.706312, 2.377744, 0.0,
-           -1.643804, -2.320467, 0.0, 1.643804, 2.320467, 0.0,
-           -1.583613, -2.262358, 0.0, 1.583613, 2.262358, 0.0,
-           -1.525326, -2.203303, 0.0, 1.525326, 2.203303, 0.0,
-           -1.468581, -2.143186, 0.0, 1.468581, 2.143186, 0.0,
-           -1.413062, -2.081892, 0.0, 1.413062, 2.081892, 0.0,
-           -1.358482, -2.019296, 0.0, 1.358482, 2.019296, 0.0,
-           -1.304573, -1.955261, 0.0, 1.304573, 1.955261, 0.0,
-           -1.251084, -1.889630, 0.0, 1.251084, 1.889630, 0.0,
-           -1.197768, -1.822225, 0.0, 1.197768, 1.822225, 0.0,
-           -1.144376, -1.752835, 0.0, 1.144376, 1.752835, 0.0,
-           -1.090652, -1.681207, 0.0, 1.090652, 1.681207, 0.0,
-           -1.036318, -1.607038, 0.0, 1.036318, 1.607038, 0.0,
-           -0.981065, -1.529952, 0.0, 0.981065, 1.529952, 0.0,
-           -0.924537, -1.449477, 0.0, 0.924537, 1.449477, 0.0,
-           -0.866303, -1.365009, 0.0, 0.866303, 1.365009, 0.0,
-           -0.805822, -1.275744, 0.0, 0.805822, 1.275744, 0.0,
-           -0.742381, -1.180590, 0.0, 0.742381, 1.180590, 0.0,
-           -0.674983, -1.077975, 0.0, 0.674983, 1.077975, 0.0,
-           -0.602140, -0.965514, 0.0, 0.602140, 0.965514, 0.0,
-           -0.521408, -0.839245, 0.0, 0.521408, 0.839245, 0.0,
-           -0.428167, -0.691629, 0.0, 0.428167, 0.691629, 0.0,
-           -0.311139, -0.504236, 0.0, 0.311139, 0.504236, 0.0]
+          [-1.771631, -2.434320, 0.0, 1.771631, 2.434320, 0.0,
+           -1.706316, -2.377747, 0.0, 1.706316, 2.377747, 0.0,
+           -1.643808, -2.320470, 0.0, 1.643808, 2.320470, 0.0,
+           -1.583617, -2.262362, 0.0, 1.583617, 2.262362, 0.0,
+           -1.525329, -2.203306, 0.0, 1.525329, 2.203306, 0.0,
+           -1.468585, -2.143190, 0.0, 1.468585, 2.143190, 0.0,
+           -1.413066, -2.081896, 0.0, 1.413066, 2.081896, 0.0,
+           -1.358486, -2.019300, 0.0, 1.358486, 2.019300, 0.0,
+           -1.304577, -1.955265, 0.0, 1.304577, 1.955265, 0.0,
+           -1.251088, -1.889634, 0.0, 1.251088, 1.889634, 0.0,
+           -1.197772, -1.822230, 0.0, 1.197772, 1.822230, 0.0,
+           -1.144380, -1.752839, 0.0, 1.144380, 1.752839, 0.0,
+           -1.090656, -1.681212, 0.0, 1.090656, 1.681212, 0.0,
+           -1.036321, -1.607043, 0.0, 1.036321, 1.607043, 0.0,
+           -0.981069, -1.529957, 0.0, 0.981069, 1.529957, 0.0,
+           -0.924541, -1.449483, 0.0, 0.924541, 1.449483, 0.0,
+           -0.866307, -1.365014, 0.0, 0.866307, 1.365014, 0.0,
+           -0.805827, -1.275750, 0.0, 0.805827, 1.275750, 0.0,
+           -0.742385, -1.180596, 0.0, 0.742385, 1.180596, 0.0,
+           -0.674987, -1.077982, 0.0, 0.674987, 1.077982, 0.0,
+           -0.602145, -0.965522, 0.0, 0.602145, 0.965522, 0.0,
+           -0.521414, -0.839254, 0.0, 0.521414, 0.839254, 0.0,
+           -0.428173, -0.691640, 0.0, 0.428173, 0.691640, 0.0,
+           -0.311148, -0.504251, 0.0, 0.311148, 0.504251, 0.0]
 
       gait:
         phaseTransitionStanceTime: 0.0

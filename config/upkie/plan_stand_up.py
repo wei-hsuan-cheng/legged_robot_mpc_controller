@@ -48,14 +48,34 @@ JOINTS = ["left_hip", "left_knee", "left_wheel", "right_hip", "right_knee", "rig
 LIMITS = np.array([16.0, 16.0, 1.7, 16.0, 16.0, 1.7])
 KP = np.array([20.0, 20.0, 0.0, 20.0, 20.0, 0.0])
 KD = np.array([0.5, 0.5, 0.05, 0.5, 0.5, 0.05])
-IDLE = (-1.3, -2.4)  # kneeling idle pose (left hip, left knee); right = -left
+# Kneeling idle pose (left hip, left knee); right = -left. The 0.055 m wheels' (-1.3, -2.4) does not suit the 0.080 m
+# tire: tipping onto the knees on the soft idle servo pushes the knee to 2.57 rad and the tire 5.6 mm into the femur
+# (it reaches the femur past about 2.55 rad). Knee 2.2 rad stays clear (deepest 2.49 rad in the tip-over); hip -1.0
+# peaks at 0.71 rad of trunk tilt there (bringUp.tiltLimit 1.2) and settles at 0.50 rad on both knees and both tires.
+IDLE = (-1.0, -2.2)
 G = 9.81
 SAMPLE_DT = 0.005
+TILT_MAX = 1.1  # [rad] trunk tilt until lift-off, under the controller's bringUp.tiltLimit (1.2) with margin
+# After a sit-down the controller holds the plan's first sample (the settled pose) instead of the spawn joints, and the
+# knees sag further under the same load (knee 2.31 rad against 2.25 after the spawn). The search scores each plan from
+# both idles.
+SIT_DOWN_SAG = 3.0  # [s] hold of the settled pose that reproduces the idle after a sit-down
+# Tire slip before lift-off [m] is not repeatable: a plan that spins the wheels under the dragging knees (0.35 m of slip)
+# handed over level in one run and fell in the next from the same idle. The 0.055 m wheels' plan slips 2 mm.
+SLIP_WEIGHT = 1.0
+# Trunk pitch at the handover [cost per rad]: the MPC then swings the trunk upright while it catches, and with the
+# 0.080 m wheels (31 % less ground force than the 0.055 m ones at the same 1.7 N m) a handover leaning back 0.7 rad
+# saturated the wheels for 97 % of the catch and fell; a level handover saturated them for 37 % and stood.
+PITCH_WEIGHT = 0.1
 
-# [hip1, knee1, T_fold, hip2, knee2, T_push, wheel torque]
-PARAMETERS = [-0.5042924447052395, -2.6867604846496587, 0.5333189637279592,
-              -0.20721165891497184, -2.195829021770047, 0.3765912289040746, 1.361214009259519]
-LOWER = np.array([-1.6, -2.7, 0.4, -1.6, -2.7, 0.08, -1.7])
+# [hip1, knee1, T_fold, hip2, knee2, T_push, wheel torque]; found by --search 30 for the 0.080 m wheels (from both idles,
+# with the slip and pitch costs): 2 mm of slip, xi -0.03 m and the trunk 0.11 rad from level at the handover from
+# either idle.
+PARAMETERS = [-0.6620537989895102, -2.35, 0.4791113728025593,
+              -0.18079393793263093, -1.769195858384152, 0.39341430779535064, 1.6882692147714355]
+# Knee targets no deeper than 2.35 rad: the fold overshoots its target by up to 0.09 rad, and the 0.080 m tire meets
+# the femur past about 2.55 rad.
+LOWER = np.array([-1.6, -2.35, 0.4, -1.6, -2.35, 0.08, -1.7])
 UPPER = np.array([0.2, -1.2, 1.5, 0.6, -0.6, 0.5, 1.7])
 
 
@@ -75,6 +95,10 @@ class Rollout:
         self.knees = [m.geom(n).id for n in ("left_femur_collision1", "left_femur_collision4",
                                              "right_femur_collision1", "right_femur_collision4")]
         self.tire = m.geom("left_foot_collision").id
+        # Tire-femur self-contact: the 0.080 m tire reaches the femur when the knee folds past about 2.55 rad.
+        self.tires = {m.geom("left_foot_collision").id, m.geom("right_foot_collision").id}
+        self.femurs = {g for g in range(m.ngeom) if "femur_collision" in m.geom(g).name}
+        self.self_penetration = 0.0
 
     def joints(self):
         return (np.array([self.d.qpos[a] for a in self.qa]), np.array([self.d.qvel[a] for a in self.va]))
@@ -97,9 +121,20 @@ class Rollout:
         lowest = min(self._lowest_point(g) for g in range(m.ngeom) if g != self.floor and m.geom_contype[g])
         d.qpos[2] = -lowest + 0.01
         spawn_height = float(d.qpos[2])
+        self.spawn_penetration, self.spawn_tilt = 0.0, self.tilt()
         while d.time < settle:
             self.apply(q_idle, np.zeros(6), np.zeros(6))
+            self.spawn_penetration = max(self.spawn_penetration, self.tire_femur_depth())
+            self.spawn_tilt = max(self.spawn_tilt, self.tilt())
         return spawn_height
+
+    def tire_femur_depth(self):
+        depth = 0.0
+        for i in range(self.d.ncon):
+            c = self.d.contact[i]
+            if (c.geom1 in self.tires and c.geom2 in self.femurs) or (c.geom2 in self.tires and c.geom1 in self.femurs):
+                depth = max(depth, -c.dist)
+        return depth
 
     def _lowest_point(self, geom):
         # conservative: the geom's bounding sphere
@@ -124,17 +159,46 @@ class Rollout:
         relative_velocity = self.d.subtree_linvel[1][0] - vel[3]
         return offset + relative_velocity / omega, offset, relative_velocity
 
+    def tilt(self):
+        """Angle between the trunk's vertical axis and the world's, as the controller's bring-up fault check."""
+        w, x, y, z = self.d.qpos[3:7]
+        return math.acos(max(-1.0, min(1.0, 1.0 - 2.0 * (x * x + y * y))))
+
     def pitch(self):
         w, x, y, z = self.d.qpos[3:7]
         return math.asin(max(-1.0, min(1.0, 2 * (w * y - z * x))))
 
-    def stand_up(self, p, record=False, liftoff_hold=0.02, after=0.6):
-        """Fold + push from the settled idle pose; returns the lift-off state and the samples."""
+    def tire_slip_speed(self):
+        """Largest horizontal speed of a tire's material point at its floor contacts."""
+        speed, vel = 0.0, np.zeros(6)
+        for i in range(self.d.ncon):
+            c = self.d.contact[i]
+            g = c.geom2 if c.geom1 == self.floor else c.geom1 if c.geom2 == self.floor else -1
+            if g in self.tires:
+                mujoco.mj_objectVelocity(self.m, self.d, mujoco.mjtObj.mjOBJ_GEOM, g, vel, 0)
+                v = vel[3:] + np.cross(vel[:3], c.pos - self.d.geom_xpos[g])
+                speed = max(speed, math.hypot(v[0], v[1]))
+        return speed
+
+    def stand_up(self, p, record=False, liftoff_hold=0.05, after=0.6, sag=0.0):
+        """Fold + push from the settled idle pose (held for sag more seconds at its own joints, as after a
+        sit-down); returns the lift-off state and the samples.
+
+        Lift-off is the knees clear of the floor for liftoff_hold. Dragged on the wheels, the knees chatter on the
+        floor with gaps of up to about 30 ms while still loaded at up to 200 N; 20 ms took such a gap for lift-off.
+        """
         hip1, knee1, t_fold, hip2, knee2, t_push, wheel_torque = p
         self.spawn_idle()
         d = self.d
+        if sag > 0.0:
+            q_settled, _ = self.joints()
+            end = d.time + sag
+            while d.time < end:
+                self.apply(q_settled, np.zeros(6), np.zeros(6))
         t0 = d.time
         q0, _ = self.joints()
+        self.self_penetration, self.slip = 0.0, 0.0
+        self.max_tilt = self.tilt()
         q1, q2 = mirror(hip1, knee1), mirror(hip2, knee2)
         lift, free_time, saturation = None, 0.0, 0.0
         samples, next_sample = [], 0.0
@@ -158,6 +222,10 @@ class Rollout:
                 samples.append((t, q.copy(), v.copy()))
                 next_sample += SAMPLE_DT
             tau = self.apply(q_des, v_des, feedforward)
+            self.self_penetration = max(self.self_penetration, self.tire_femur_depth())
+            if lift is None:
+                self.max_tilt = max(self.max_tilt, self.tilt())
+                self.slip += self.tire_slip_speed() * self.m.opt.timestep
             if record and len(samples) and len(samples[-1]) == 3:
                 samples[-1] = samples[-1] + (tau.copy(),)
             if t > t_fold:
@@ -173,10 +241,20 @@ class Rollout:
 
 
 def cost(rollout, p):
-    lift, saturation, _ = rollout.stand_up(p)
-    if lift is None:
-        return 10.0, None
-    return abs(lift["xi"]) + 0.02 * abs(lift["pitch_rate"]) + 2.0 * max(0.0, saturation - 1.0), lift
+    """The worse of the stand-ups from the spawn idle and from the idle after a sit-down."""
+    worst, worst_lift = -1.0, None
+    for sag in (0.0, SIT_DOWN_SAG):
+        lift, saturation, _ = rollout.stand_up(p, sag=sag)
+        if lift is None:
+            return 10.0, None
+        # Any tire-femur contact costs more than a 0.1 m balance error per millimetre of penetration.
+        penalty = (100.0 * rollout.self_penetration + 10.0 * max(0.0, rollout.max_tilt - TILT_MAX)
+                   + SLIP_WEIGHT * rollout.slip)
+        c = (abs(lift["xi"]) + 0.02 * abs(lift["pitch_rate"]) + PITCH_WEIGHT * abs(lift["pitch"])
+             + 2.0 * max(0.0, saturation - 1.0) + penalty)
+        if c > worst:
+            worst, worst_lift = c, lift
+    return worst, worst_lift
 
 
 def search(rollout, iterations, population=32, elites=8, seed=1):
@@ -195,6 +273,8 @@ def search(rollout, iterations, population=32, elites=8, seed=1):
 
 
 def export(rollout, p, path=OUT):
+    sat_lift, _, _ = rollout.stand_up(p, sag=SIT_DOWN_SAG)
+    sat_slip = rollout.slip
     lift, saturation, samples = rollout.stand_up(p, record=True)
     if lift is None:
         raise RuntimeError("the knees never left the floor: no handover point")
@@ -204,6 +284,7 @@ def export(rollout, p, path=OUT):
     if rows[-1][0] < lift["t"] - 1e-9:
         q, v = rollout.joints()
         rows.append((lift["t"], q.copy(), v.copy(), rollout.d.ctrl[rollout.act].copy()))
+    spawn_penetration, spawn_tilt = rollout.spawn_penetration, rollout.spawn_tilt
     spawn = rollout.spawn_idle(settle=0.0)
     lines = [
         "# Upkie stand-up from the kneeling idle pose, planned by plan_stand_up.py; do not edit by hand.",
@@ -211,7 +292,14 @@ def export(rollout, p, path=OUT):
         f"# Knee lift-off (handover) at {lift['t']:.3f} s: CoM {lift['com_offset']:+.3f} m from the wheel contact, "
         f"moving {lift['relative_velocity']:+.3f} m/s, xi {lift['xi']:+.3f} m, pitch {lift['pitch']:+.3f} rad, "
         f"pitch rate {lift['pitch_rate']:+.3f} rad/s, CoM height {lift['com_height']:.3f} m.",
-        f"# Largest servo command / limit: {saturation:.2f}. Idle spawn height (initial_pose.yaml): {spawn:.4f} m.",
+        f"# Largest servo command / limit: {saturation:.2f}. Tire-femur penetration: {rollout.self_penetration * 1e3:.1f} mm. "
+        f"Largest trunk tilt before lift-off: {rollout.max_tilt:.3f} rad. "
+        f"Idle spawn height (initial_pose.yaml): {spawn:.4f} m.",
+        f"# Spawn tip-over onto the knees: tire-femur penetration {spawn_penetration * 1e3:.1f} mm, largest trunk tilt "
+        f"{spawn_tilt:.3f} rad. Tire slip before lift-off: {rollout.slip * 1e3:.0f} mm.",
+        "# From the idle after a sit-down: " + ("no lift-off" if sat_lift is None else
+        f"lift-off at {sat_lift['t']:.3f} s, xi {sat_lift['xi']:+.3f} m, pitch {sat_lift['pitch']:+.3f} rad, "
+        f"pitch rate {sat_lift['pitch_rate']:+.3f} rad/s, tire slip {sat_slip * 1e3:.0f} mm."),
         "stand_up:",
         f"  joint_names: [{', '.join(JOINTS)}]",
         f"  handover_time: {lift['t']:.4f}",

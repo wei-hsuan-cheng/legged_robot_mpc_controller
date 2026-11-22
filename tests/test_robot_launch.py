@@ -83,7 +83,7 @@ class RobotLaunchTest(unittest.TestCase):
                          (reference['minBaseHeight'], reference['maxBaseHeight']))
         context, _ = self.resolve('upkie', refBaseHeight='0.28')
         self.assertEqual(float(context.launch_configurations['guiRefBaseHeight']), .28)
-        self.assertEqual(float(context.launch_configurations['guiMaxBaseHeight']), .33)
+        self.assertEqual(float(context.launch_configurations['guiMaxBaseHeight']), reference['maxBaseHeight'])
         with self.assertRaisesRegex(ValueError, 'outside'):
             self.resolve('upkie', refBaseHeight='0.38')
 
@@ -102,8 +102,9 @@ class RobotLaunchTest(unittest.TestCase):
         self.assertEqual((values['floatingBaseSource'], values['floatingBaseEstimator']),
                          ('state_estimator', 'humanoid_linear_kf'))
         pose = yaml.safe_load(Path(values['initialPoseFile']).read_text())
-        self.assertLess(pose['upkie_base']['z'], 0.2)
         config = yaml.safe_load(Path(values['controllersParamsFile']).read_text())
+        # Kneeling: spawned below the standing height.
+        self.assertLess(pose['upkie_base']['z'], config[WB_ID]['ros__parameters']['ocs2']['reference']['defaultBaseHeight'])
         stand_up = Path(config[WB_ID]['ros__parameters']['bringUp']['standUpTrajectoryFile'])
         self.assertEqual(stand_up.parts[-3:], ('config', 'upkie', 'stand_up_trajectory.yaml'))
         self.assertTrue(stand_up.is_file())

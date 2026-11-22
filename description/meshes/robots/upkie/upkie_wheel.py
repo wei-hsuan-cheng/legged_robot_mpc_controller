@@ -10,20 +10,29 @@ Units: mm. Each part is built in its STL's own frame (wheel axis = +Y): the hub 
 tire y = -22 to +22. The assembly places both in the wheel link frame (axis = +Z, origin at the wheel joint) exactly as
 upkie.xml places the meshes, so the tire centre sits 31.2 mm along the axle (the MPC's wheel contact frame).
 
+Larger wheels (--nominal-radius, mm; 55 is the original): the tire and the hub's rim move radially outward by the
+difference, keeping the tread profile, the 44 mm width, the tire's radial thickness and the motor interface (boss and
+bolt circle); the spokes lengthen. --meshes writes the parts as STL in meters in the original meshes' frames, for
+upkie.xml, and --inertial prints the wheel link's MJCF <inertial>: hub + tire from these solids plus the unchanged
+MJ5208 rotor, with densities calibrated so the 55 mm wheel reproduces the original link's mass and axle inertia.
+
 Render in VS Code with the OCP CAD Viewer extension: select a Python environment with cadquery and ocp_vscode, open
 the viewer, then run this file (Run > Run Without Debugging). Headless:
 
     python upkie_wheel.py --export /tmp/upkie_wheel      # STEP + STL, plus the validity checks
+    python upkie_wheel.py --nominal-radius 110 --meshes . --inertial --no-show   # the 2x wheel for upkie.xml
 """
 
 from __future__ import annotations
 
 import argparse
 import math
-from dataclasses import dataclass
+import struct
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import cadquery as cq
+import numpy as np
 
 HERE = Path(__file__).resolve().parent
 
@@ -73,6 +82,27 @@ class HubParams:
     bolt_circle_radius: float = 8.5   # measured from the hole edges (r 6.7 to ~10.3)
     bolt_diameter: float = 3.6        # about M3 clearance
     bolt_angles_deg: tuple[float, ...] = (60.0, 180.0, 300.0)  # atan2(z, x) in the STL frame
+
+
+NOMINAL_RADIUS = 55.0  # mm: the original tire's nominal radius (upkie.xml's collision prism); its tread crown is 55.5
+
+
+def wheel_params(nominal_radius: float = NOMINAL_RADIUS) -> tuple[TireParams, HubParams]:
+    """Tire and hub parameters for a wheel of this nominal radius [mm]: the tire and the hub's rim (seat, bead,
+    flange, outboard ring, the spokes' outer end) move outward by nominal_radius - 55; the boss and bolt circle stay."""
+    dr = nominal_radius - NOMINAL_RADIUS
+    t, h = TireParams(), HubParams()
+    tire = replace(t, crown_radius=t.crown_radius + dr, tread_edge_radius=t.tread_edge_radius + dr,
+                   shoulder_mid=(t.shoulder_mid[0] + dr, t.shoulder_mid[1]), face_outer_radius=t.face_outer_radius + dr,
+                   bore_motor_side=t.bore_motor_side + dr, bore=t.bore + dr, lip_radius=t.lip_radius + dr,
+                   outboard_bore=t.outboard_bore + dr)
+    inner, outer = h.spoke_taper
+    hub = replace(h, flange_radius=h.flange_radius + dr, recess_radius=h.recess_radius + dr,
+                  rim_radius=h.rim_radius + dr, bead_radius=h.bead_radius + dr,
+                  rim_inner_radius=h.rim_inner_radius + dr, chamfer_radius=h.chamfer_radius + dr,
+                  ring_outer=h.ring_outer + dr, ring_ridge=h.ring_ridge + dr, ring_inner_end=h.ring_inner_end + dr,
+                  spoke_taper=(inner, (outer[0] + dr, outer[1])))
+    return tire, hub
 
 
 def revolve_profile(points: list[tuple[float, float]]) -> cq.Workplane:
@@ -161,6 +191,71 @@ def load_reference_mesh(name: str) -> cq.Shape | None:
     return cq.Shape.cast(shape).scale(1000.0)
 
 
+# The original wheel link's inertial in upkie.xml (both wheels): hub + tire + the MJ5208 rotor.
+LINK_MASS = 0.2585
+LINK_COM = np.array([-7.85066e-06, 4.53426e-06, -0.0252368])
+LINK_INERTIA = np.array([[0.000202065, -7.7265e-09, 1.97562e-08],
+                         [-7.7265e-09, 0.000202069, -1.14162e-08],
+                         [1.97562e-08, -1.14162e-08, 0.000313606]])
+ROTOR_POSE = (np.array([0.0, 0.0, 0.0075]), np.diag([1.0, -1.0, -1.0]))  # upkie.xml: pos, quat (0 1 0 0)
+
+
+def mesh_moments(vertices: np.ndarray, triangles: np.ndarray) -> tuple[float, np.ndarray, np.ndarray]:
+    """Volume, first moment (int x dV) and second moment (int x x^T dV) of a closed, outward-oriented mesh."""
+    a, b, c = (vertices[triangles[:, k]] for k in range(3))
+    det = np.einsum("ij,ij->i", a, np.cross(b, c))  # 6 x signed volume of each tetrahedron with the origin
+    s = a + b + c
+    outer = lambda u: np.einsum("ni,nj->nij", u, u)  # noqa: E731
+    second = (det[:, None, None] * (outer(a) + outer(b) + outer(c) + outer(s))).sum(0) / 120.0
+    return det.sum() / 6.0, (det[:, None] * s).sum(0) / 24.0, second
+
+
+def solid_moments(part: cq.Workplane, location: cq.Location) -> tuple[float, np.ndarray, np.ndarray]:
+    """Moments of a part placed in the wheel link frame, in m."""
+    vertices, triangles = part.val().moved(location).tessellate(0.02, 0.1)
+    v = np.array([[q.x, q.y, q.z] for q in vertices]) * 1e-3
+    return mesh_moments(v, np.array(triangles))
+
+
+def stl_moments(path: Path, translation: np.ndarray, rotation: np.ndarray) -> tuple[float, np.ndarray, np.ndarray]:
+    """Moments of a binary STL (m) placed in the wheel link frame."""
+    data = path.read_bytes()
+    n = struct.unpack("<I", data[80:84])[0]
+    record = np.dtype([("n", "<f4", 3), ("v", "<f4", (3, 3)), ("a", "<u2")])
+    v = np.frombuffer(data[84:84 + 50 * n], dtype=record, count=n)["v"].astype(float).reshape(-1, 3)
+    return mesh_moments(v @ rotation.T + translation, np.arange(3 * n).reshape(n, 3))
+
+
+def link_inertial(tire: cq.Workplane, hub: cq.Workplane) -> dict:
+    """Wheel link mass, COM and inertia about the COM (link frame, SI) with this hub and tire and the original
+    rotor. One density for hub + tire and one for the rotor, fitted (least squares) to the original link's mass, COM
+    and inertia with the 55 mm parts; the original's predicted values are returned as a check."""
+    def total(*moments):
+        return tuple(sum(x) for x in zip(*moments))
+
+    def combine(rho_w, wheel, rho_r, rotor):
+        mass = rho_w * wheel[0] + rho_r * rotor[0]
+        com = (rho_w * wheel[1] + rho_r * rotor[1]) / mass
+        second = rho_w * wheel[2] + rho_r * rotor[2] - mass * np.outer(com, com)
+        return mass, com, np.trace(second) * np.eye(3) - second
+
+    rotor = stl_moments(HERE / "mj5208_rotor.stl", *ROTOR_POSE)
+    original = total(solid_moments(make_hub(), HUB_IN_LINK), solid_moments(make_tire(), TIRE_IN_LINK))
+    # Linear in the densities: mass, first moment along the axle, and the second moments about the joint
+    # (axle and transverse), each relative to the original link's value: a least-squares fit of the two densities.
+    def features(m):
+        return np.array([m[0], m[1][2], m[2][0, 0] + m[2][1, 1], m[2][1, 1] + m[2][2, 2]])
+    com_term = LINK_MASS * np.outer(LINK_COM, LINK_COM)
+    origin = LINK_INERTIA + np.trace(com_term) * np.eye(3) - com_term  # the original inertia about the joint
+    target = np.array([LINK_MASS, LINK_MASS * LINK_COM[2], origin[2, 2], origin[0, 0]])
+    A = np.column_stack([features(original), features(rotor)]) / target[:, None]
+    rho_w, rho_r = np.linalg.lstsq(A, np.ones(4), rcond=None)[0]
+    check = combine(rho_w, original, rho_r, rotor)
+    mass, com, inertia = combine(rho_w, total(solid_moments(hub, HUB_IN_LINK), solid_moments(tire, TIRE_IN_LINK)),
+                                 rho_r, rotor)
+    return dict(mass=mass, com=com, inertia=inertia, rho_wheel=rho_w, rho_rotor=rho_r, check=check)
+
+
 def report(name: str, part: cq.Workplane, reference: cq.Shape | None) -> None:
     solid = part.val()
     bb = solid.BoundingBox()
@@ -174,17 +269,44 @@ def report(name: str, part: cq.Workplane, reference: cq.Shape | None) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--nominal-radius", type=float, default=NOMINAL_RADIUS,
+                        help="tire nominal radius [mm]; 55 is the original Upkie wheel")
     parser.add_argument("--export", type=Path, help="write STEP (assembly and parts) and STL (parts) into this folder")
+    parser.add_argument("--meshes", type=Path,
+                        help="write wheel_hub<suffix>.stl and tire<suffix>.stl in meters (the upkie.xml mesh frames)")
+    parser.add_argument("--suffix", help="mesh file suffix (default _r<nominal radius>; none for the 55 mm wheel)")
+    parser.add_argument("--inertial", action="store_true", help="print the wheel link's MJCF <inertial>")
     parser.add_argument("--no-reference", action="store_true", help="do not overlay the original STL meshes")
     parser.add_argument("--no-show", action="store_true", help="do not send anything to OCP CAD Viewer")
     args = parser.parse_args()
 
-    hub, tire = make_hub(), make_tire()
+    tire_params, hub_params = wheel_params(args.nominal_radius)
+    hub, tire = make_hub(hub_params), make_tire(tire_params)
     ref_hub = None if args.no_reference else load_reference_mesh("wheel_hub")
     ref_tire = None if args.no_reference else load_reference_mesh("tire")
     report("hub", hub, ref_hub)
     report("tire", tire, ref_tire)
     assembly = make_wheel_assembly(hub, tire)
+
+    if args.meshes:
+        resized = abs(args.nominal_radius - NOMINAL_RADIUS) > 1e-9
+        suffix = args.suffix if args.suffix is not None else (f"_r{args.nominal_radius:g}" if resized else "")
+        args.meshes.mkdir(parents=True, exist_ok=True)
+        for name, part in ((f"wheel_hub{suffix}", hub), (f"tire{suffix}", tire)):
+            part.val().scale(1e-3).exportStl(str(args.meshes / f"{name}.stl"), tolerance=2e-4, angularTolerance=0.2,
+                                              relative=False)  # 0.2 mm chord error
+        print(f"meshes: {args.meshes}/wheel_hub{suffix}.stl, tire{suffix}.stl (m)")
+
+    if args.inertial:
+        link = link_inertial(tire, hub)
+        m, c, inertia = link["check"]
+        print(f"densities: hub + tire {link['rho_wheel']:.0f} kg/m^3, rotor {link['rho_rotor']:.0f} kg/m^3; "
+              f"55 mm check: mass {m:.4f} kg (upkie.xml {LINK_MASS}), COM z {c[2] * 1e3:.2f} mm "
+              f"({LINK_COM[2] * 1e3:.2f}), Ixx {inertia[0, 0]:.4g} ({LINK_INERTIA[0, 0]:.4g}), "
+              f"Izz {inertia[2, 2]:.4g} ({LINK_INERTIA[2, 2]:.4g}) kg m^2")
+        c, i = link["com"], link["inertia"]
+        print(f'<inertial pos="{c[0]:.6g} {c[1]:.6g} {c[2]:.6g}" mass="{link["mass"]:.6g}" fullinertia="{i[0, 0]:.6g} '
+              f'{i[1, 1]:.6g} {i[2, 2]:.6g} {i[0, 1]:.6g} {i[0, 2]:.6g} {i[1, 2]:.6g}"/>')
 
     if args.export:
         args.export.mkdir(parents=True, exist_ok=True)

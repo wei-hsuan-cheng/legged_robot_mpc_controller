@@ -24,8 +24,10 @@ The MJCF is the simulation reference, so the MPC URDF is generated from it rathe
 | Sensors `imu_quat`, `imu_gyro`, `imu_acc` at the upstream `imu` site | The names the ros2_control IMU sensor reads, as for G1/H2 |
 | The base body spawns turned by pi about z (`quat="0 0 0 1"`) | The base +x points toward the knees, Upkie's back; turned, the front faces world +x and the test terrain. Commands use the `base_forward` control frame (`target.commandFrameYaw: pi`). The URDF generator ignores the root body's pose, so `upkie.urdf` is unchanged |
 | Tire collision geoms `{left,right}_foot_collision` are a 64-sided convex prism mesh `tire_collision` (circumradius 0.055 m, half-width 0.022 m, same pose) instead of `cylinder` primitives | MuJoCo's cylinder-box collision never produces the edge contact of a tire meeting a step: see below |
+| **Enlarged wheels** (2026-11-22): tire radius 0.080 m (prism circumradius), width unchanged 0.044 m; visuals `tire_r80.stl` and `wheel_hub_r80.stl`; each wheel link 0.368806 kg with its COM and inertia (total 5.6811 kg) | A larger wheel on the same legs. The meshes and inertia come from [`upkie_wheel.py`](../../../meshes/robots/upkie/upkie_wheel.py) `--nominal-radius 80 --meshes . --inertial`: the reconstructed tire and the hub's rim moved 25 mm outward (tread profile, width and motor interface unchanged), hub + tire and the MJ5208 rotor at densities fitted to the original wheel link (479 and 8964 kg/m^3; the fit reproduces the original link's mass, COM and inertia within 7.7 %). The original `tire.stl` and `wheel_hub.stl` stay in the mesh folder |
 
-Joint armature (0.005 kg m^2), friction loss (0.1 N m), joint ranges, inertias, the 55 mm x 44 mm tire size and `noslip_iterations=4` are unchanged.
+Joint armature (0.005 kg m^2), friction loss (0.1 N m), joint ranges, the non-wheel inertias and `noslip_iterations=4` are unchanged.
+With the 0.080 m wheels the tire reaches the femur collision geometry once the knee folds past about 2.55 rad (clearance 18 mm at 2.4 rad, 5 mm at 2.5 rad), so the kneeling idle pose is hip -1.0 / knee -2.2 (was -1.3 / -2.4, which tips onto the knees with the knee pushed to 2.57 rad and the tire 5.6 mm into the femur), the stand-up plan's knee targets stay at 2.35 rad or less, and the lowest posture height is 0.125 m (knee 2.43 rad, the original wheels' 0.10 m posture).
 [`scene.xml`](../../../mujoco/robots/upkie/scene.xml) selects a 0.5 ms timestep, the [Upkie night background](../../../mujoco/common/backgrounds/background_night_upkie.xml) and the robot module, in the same composition style as H2.
 The background provides the unchanged flat-floor physics and H2-style studio appearance with lights aimed at `base`; `upkie.xml` owns the implicit-fast integrator and four no-slip iterations.
 Optional ramp/uneven includes remain commented out, so the default wheel-drive checkpoint is still flat.
@@ -47,8 +49,8 @@ A 2.7 kg wheel on a slider (half an Upkie), held at 0.2 m/s by a force-limited s
 | 20 mm | Blocked at 10 and 20 N; climbs at 40 N only by tunneling 20.6 mm into the step | Blocked at 10 and 20 N, climbs at 40 N, 1.1 mm penetration |
 
 The prism matches the analytic threshold; the cylinder makes 10 mm steps easier and 20 mm steps harder than they are.
-On flat ground each prism tire touches with four rim vertices at 0.1-0.2 mm depth; the rolling-radius ripple of a 64-gon is r (1 - cos(pi/64)) = 0.07 mm.
-[`generate_upkie_urdf.py`](generate_upkie_urdf.py) writes the prism back as its 0.055 m x 0.044 m cylinder, so `upkie.urdf` is unchanged.
+On flat ground each prism tire touches with four rim vertices at 0.1-0.2 mm depth; the rolling-radius ripple of a 64-gon is r (1 - cos(pi/64)) = 0.07 mm (0.10 mm at 0.080 m).
+[`generate_upkie_urdf.py`](generate_upkie_urdf.py) writes the prism back as its cylinder (now 0.080 m x 0.044 m).
 
 
 ## Generated URDF

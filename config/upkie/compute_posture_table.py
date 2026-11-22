@@ -3,7 +3,7 @@
 ocs2.reference.postureHeights / postureJointStates.
 
     pip install mujoco numpy          # offline tool; not needed at run time
-    python3 config/upkie/compute_posture_table.py [--min 0.20] [--max 0.33] [--step 0.01]
+    python3 config/upkie/compute_posture_table.py [--min 0.255] [--max 0.385] [--step 0.01]
 
 For each base height h the trunk is level at (0, 0, h), both tires touch the floor (tire centre at the
 radius) and the tire contact sits under the whole-robot centre of mass, so the posture is a static
@@ -14,6 +14,8 @@ singular and the knee servo chatters.
 """
 
 import argparse
+import math
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import mujoco
@@ -21,8 +23,19 @@ import numpy as np
 
 HERE = Path(__file__).resolve().parent
 MJCF = HERE / ".." / ".." / "description" / "mujoco" / "robots" / "upkie" / "upkie.xml"
-RADIUS = 0.055
-NOMINAL = (0.30, -0.6021396734839873, -0.9655142016056263)
+
+
+def tire_radius():
+    """Circumradius of upkie.xml's tire collision prism (the wheel radius the MPC and the estimator use)."""
+    mesh = next(m for m in ET.parse(MJCF).getroot().iter("mesh") if m.get("name") == "tire_collision")
+    v = [float(x) for x in mesh.get("vertex").split()]
+    return max(math.hypot(v[i], v[i + 1]) for i in range(0, len(v), 3))
+
+
+RADIUS = tire_radius()
+# The leg posture balanced at 0.30 m with the original 0.055 m wheels; a larger wheel raises the same posture by the
+# radius difference, so the Newton start keeps the posture and shifts the height.
+NOMINAL = (round(0.30 + RADIUS - 0.055, 6), -0.6021396734839873, -0.9655142016056263)
 
 
 class Model:
@@ -62,12 +75,13 @@ class Model:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--min", type=float, default=0.20)
-    parser.add_argument("--max", type=float, default=0.33)
+    parser.add_argument("--min", type=float, default=round(0.20 + RADIUS - 0.055, 6))
+    parser.add_argument("--max", type=float, default=round(0.33 + RADIUS - 0.055, 6))
     parser.add_argument("--step", type=float, default=0.01)
     args = parser.parse_args()
 
     model = Model()
+    print(f"# tire radius {RADIUS:.4f} m (upkie.xml tire_collision)")
     check = model.solve(*NOMINAL)
     print(f"# check at {NOMINAL[0]:.2f} m: hip {check[0]:+.6f} knee {check[1]:+.6f} "
           f"(defaultJointState {NOMINAL[1]:+.6f} {NOMINAL[2]:+.6f})")
