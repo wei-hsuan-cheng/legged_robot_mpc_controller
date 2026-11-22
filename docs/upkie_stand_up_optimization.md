@@ -192,7 +192,7 @@ The export then derives both MPC times from the last phase:
 | Phase cap MAX | MPC warm-up start, $2.2\,\mathrm{MAX}$ | Handover to MPC, $2.6\,\mathrm{MAX}$ | Status |
 | ---: | ---: | ---: | --- |
 | 1.0 s | 2.2 s | 2.6 s | Passed MuJoCo cycles, with less margin (see [Shorter Phases](#shorter-phases)) |
-| 1.2 s | 2.64 s | 3.12 s | Exports (retained iteration 82); not yet run in MuJoCo |
+| 1.2 s | 2.64 s | 3.12 s | Passed two container checks, but enters MPC with more tilt than 1.0 s or 1.5 s (see [Check](#3-check)) |
 | 1.5 s | 3.3 s | 3.9 s | Shipped default |
 | 2.0 s | 4.4 s | 5.2 s | Exports (retained iteration 43); not yet run in MuJoCo |
 | 5.0 s | 11 s | 13 s | Previous default; with the old seed (below) it reproduces the `a86b26d` YAML within $2\times10^{-6}$ |
@@ -208,123 +208,102 @@ Solution-level comparison (TO limits, before any simulation):
 
 Every plan reaches the pitch-acceleration bound at the second knee release (node 32); shorter plans use more of every limit.
 
-The steps below run on the host (macOS or Linux) from the repository root; they were checked on macOS with Homebrew Python 3.12, CMake and Apple Clang.
-The MuJoCo validation runs in the ROS container, which sees the same repository through its mount.
-
-### 1. One-Time Environment and Model Build
-
-```bash
-cd ~/src/mpc/legged_robot_mpc_controller
-export WORK=/tmp/upkie_stand_up
-mkdir -p "$WORK"
-python3.12 -m venv "$WORK/env"
-source "$WORK/env/bin/activate"
-pip install mujoco==3.13.0 casadi pin cmeel-eigen numpy scipy pyyaml matplotlib
-PREFIX=$(python -c 'import site; print(site.getsitepackages()[0])')
-cmake -S config/upkie/stand_up_to -B "$WORK/build" \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_PREFIX_PATH="$PREFIX/cmeel.prefix;$PREFIX/casadi"
-cmake --build "$WORK/build" -j4
-"$WORK/build/upkie_stand_up_model" \
-  description/urdf/robots/upkie/upkie.urdf "$WORK/upkie"
-python config/upkie/stand_up_to/plan.py --models "$WORK/upkie" --check-model-only
-```
-
-The last command must print `Pinocchio/CasADi and MuJoCo dynamics/CoM parity passed (5 states).`
-`upkie_stand_up_model` writes `$WORK/upkie_rnea.casadi` and `$WORK/upkie_fk.casadi`; rebuild them only when the URDF changes.
-`/tmp` does not survive a reboot; pick another `WORK` to keep the environment.
-In a new shell, only `cd` to the repository, `export WORK=/tmp/upkie_stand_up` and `source "$WORK/env/bin/activate"` are needed.
-
-### 2. Generate a Candidate
-
-```bash
-MAX=1.2
-python config/upkie/stand_up_to/plan.py --models "$WORK/upkie" \
-  --phase-seconds 0.5 $MAX \
-  --solution "$WORK/solution_$MAX.json" \
-  --output "$PWD/demo_videos/upkie_stand_up_tune/candidate_$MAX.yaml"
-grep -E "^  (handover_time|mpc_start_time):" demo_videos/upkie_stand_up_tune/candidate_$MAX.yaml
-```
-
-Always pass `--output`: its default overwrites the shipped `config/upkie/stand_up_trajectory.yaml`.
-A run takes about 75 s on an M-series Mac: about 55 s of IPOPT (it stops at its 1000-iteration limit), then the feedback gains and export.
-The run prints `NLP status: ... constraint violation: ...`, then `exported ... N samples`.
-`Maximum_Iterations_Exceeded` is normal: IPOPT does not converge on this problem, and near the limit its iterates oscillate between feasible (about $10^{-7}$ violation) and infeasible (up to $10^{-3}$).
-If the final iterate violates the constraints by more than $10^{-5}$, `plan.py` exports the lowest-cost iterate with at most $10^{-6}$ violation instead and prints `final iterate infeasible; retaining iteration N`; the solution JSON records it as `retained_iteration` (null when the final iterate is used).
-The export is refused (`stand-up optimization is infeasible; refusing trajectory export`) only if no iterate qualifies.
-Either way the result is a feasible point, not a certified optimum, so the MuJoCo check below is required.
-`demo_videos/` is ignored by Git and visible inside the container.
-
-The default `seed.json` is the shipped 1.5 s solution; its velocities and accelerations are rescaled to MAX.
-To return to the slow 5 s plan, warm-start from the original seed:
-
-```bash
-git show a86b26d:config/upkie/stand_up_to/seed.json > "$WORK/seed_5s.json"
-python config/upkie/stand_up_to/plan.py --models "$WORK/upkie" \
-  --phase-seconds 1 5 --seed "$WORK/seed_5s.json" \
-  --solution "$WORK/solution_5.json" \
-  --output "$PWD/demo_videos/upkie_stand_up_tune/candidate_5.yaml"
-```
-
-### 3. Validate in MuJoCo
-
-From the Mac, open a shell in the ROS container and run three synthetic-joystick stand/drive/sit cycles plus a forced fall with the candidate:
+Everything below runs in the `ros_jazzy` container (Ubuntu 24.04, aarch64), through `config/upkie/stand_up_to/regenerate.sh`.
+The TO uses its own Python virtual environment, separate from the container's ROS Python; the script removes the ROS `PYTHONPATH` and `LD_LIBRARY_PATH` for the TO steps, because Jazzy's own pinocchio would otherwise shadow the environment's.
+The repository is the same folder on the Mac and in the container, so candidates, logs and installed files appear on both.
 
 ```bash
 ssh parallels@10.211.55.17
 docker exec -it ros_jazzy bash
-source /opt/ros/jazzy/setup.bash && source /root/ocs2_ros2_ws/install/setup.bash
-cd /root/ocs2_ros2_ws
-R=/root/src/mpc/legged_robot_mpc_controller
-O=$R/demo_videos/upkie_stand_up_tune
-MAX=1.2
-ROS_DOMAIN_ID=169 python3 $R/tests/upkie_posture_cycle_test.py \
-  --cycles 3 --joystick --fall-test \
-  --trajectory $O/candidate_$MAX.yaml --prefix $O/cycles_$MAX
-python3 -c "import json; d = json.load(open('$O/cycles_$MAX.json')); \
-print(d['verdict'], d['cycles'], 'cycles, fall latched', d.get('fall_latched'), 'max tilt', d.get('max_locomotion_tilt'))"
+S=/root/src/mpc/legged_robot_mpc_controller/config/upkie/stand_up_to/regenerate.sh
+bash $S setup          # once per container, about 3.5 min
+bash $S plan 1.2       # candidate with 1.2 s phases, about 2 min
+bash $S check 1.2      # 3 stand/drive/sit cycles + forced fall in MuJoCo, about 1.5 min
+bash $S install 1.2    # only after check prints PASS
 ```
 
-Run the tests from `/root/ocs2_ros2_ws`: the controller's CppAD library cache (`auto_generated/upkie`) is relative to the working directory, and another directory regenerates it from scratch.
+From the Mac, each step also runs as one command, for example `ssh parallels@10.211.55.17 docker exec ros_jazzy bash /root/src/mpc/legged_robot_mpc_controller/config/upkie/stand_up_to/regenerate.sh plan 1.2`; pass `MIN`, `SEED`, `DOMAIN` or `FORCE` with `docker exec -e`.
 
-Accept a candidate only with `SUCCESS`, all cycles, the fall latched and locomotion tilt near the shipped values.
-`--trajectory` overrides `bringUp.standUpTrajectoryFile` for this launch only; the shipped file is untouched.
-The test takes about 1 to 2 minutes per cycle; add `--yaw-command 0.5` in a second run to turn between stands.
+### 1. Setup
+
+`setup` installs `python3-venv` with apt if it is missing (the image only has `python3-pip`), creates the environment in `WORK` (default `/root/upkie_stand_up`) with pinned MuJoCo 3.13.0, CasADi 3.8.2, Pinocchio 4.1.0 (`pin`), NumPy, SciPy, PyYAML and Matplotlib wheels, builds `upkie_stand_up_model` with CMake against the wheels' C++ libraries, writes `WORK/upkie_rnea.casadi` and `WORK/upkie_fk.casadi`, and runs the MuJoCo check.
+It must end with `Pinocchio/CasADi and MuJoCo dynamics/CoM parity passed (5 states).`
+`WORK` takes about 1.0 GB of the VM disk, 410 MB of it the Pinocchio/Boost C++ libraries; `rm -rf /root/upkie_stand_up` removes it.
+It lives in the container's filesystem: it survives container restarts, but a recreated container needs `setup` again.
+Rerun `setup` after changing the URDF.
+
+### 2. Plan
+
+`plan MAX` runs `plan.py --phase-seconds 0.5 MAX` and writes `demo_videos/upkie_stand_up_tune/candidate_MAX.yaml` (ignored by Git) and `WORK/solution_MAX.json`, then prints the candidate's `handover_time` and `mpc_start_time`.
+It never touches the shipped YAML; calling `plan.py` directly without `--output` would overwrite it.
+The run prints `NLP status: ... constraint violation: ...`, then `exported ... N samples`.
+`Maximum_Iterations_Exceeded` is normal: IPOPT does not converge on this problem, and near the limit its iterates oscillate between feasible (about $10^{-7}$ violation) and infeasible (up to $10^{-3}$).
+If the final iterate violates the constraints by more than $10^{-5}$, `plan.py` exports the lowest-cost iterate with at most $10^{-6}$ violation instead and prints `final iterate infeasible; retaining iteration N`; the solution JSON records it as `retained_iteration` (null when the final iterate is used).
+The export is refused (`stand-up optimization is infeasible; refusing trajectory export`) only if no iterate qualifies.
+Either way the result is a feasible point, not a certified optimum, so the MuJoCo check is required.
+
+The default `seed.json` is the shipped 1.5 s solution; its velocities and accelerations are rescaled to MAX.
+`MIN` sets the lower phase bound and `SEED` another warm start.
+To return to the slow 5 s plan, export the original seed on the Mac and plan from it in the container:
+
+```bash
+# Mac, repository root
+git show a86b26d:config/upkie/stand_up_to/seed.json > demo_videos/upkie_stand_up_tune/seed_5s.json
+# container
+MIN=1 SEED=/root/src/mpc/legged_robot_mpc_controller/demo_videos/upkie_stand_up_tune/seed_5s.json bash $S plan 5
+```
+
+### 3. Check
+
+`check MAX` launches the shipped controller, MPC and wheel KF headless in MuJoCo with `bringUp.standUpTrajectoryFile` overridden by the candidate for this launch only, then drives `tests/upkie_posture_cycle_test.py --cycles 3 --joystick --fall-test`: three synthetic-joystick stand/drive/sit cycles, then a forced fall that must latch.
+It runs from `/root/ocs2_ros2_ws`, because the controller's CppAD library cache (`auto_generated/upkie`) is relative to the working directory; another directory regenerates it from scratch.
+It uses ROS domain 169 (`DOMAIN=...` to change it), so it can run beside a GUI session, though both then share the VM's CPU.
+It prints the verdict and the base tilt in the first second of MPC for each of the four stand-ups (the fourth precedes the forced fall), for example
+
+```text
+PASS 3 cycles, fall latched True
+tilt in the first 1 s of MPC per stand-up: 0.015 0.017 0.014 0.039 rad; afterwards at most 0.005 rad
+```
+
+The log, replay and metrics are `demo_videos/upkie_stand_up_tune/cycles_MAX.*`.
+In every run the largest tilt occurs at the MPC takeover itself, so the per-stand-up values grade the handover posture; after the first second all plans settle to the same 0.003-0.006 rad.
+Accept a candidate only with `PASS`, all three cycles, the fall latched and handover tilt comparable to the shipped plan:
+
+| Plan (runs) | Tilt in the first 1 s of MPC, per stand-up | After 1 s |
+| --- | ---: | ---: |
+| 1.0 s phases (1, Mac-generated) | 0.016-0.040 rad | 0.006 rad |
+| 1.5 s, shipped (2, Mac-generated) | 0.013-0.044 rad | 0.005 rad |
+| 1.5 s, regenerated in the container (2) | 0.014-0.050 rad | 0.006 rad |
+| 1.2 s, regenerated in the container (2) | 0.024-0.074 rad | 0.006 rad |
+
+The 1.2 s plan passes but hands over with about 1.5 times the tilt at every stand-up; it is an early retained iterate (iteration 82), which is feasible but less refined than the 1.0 s and 1.5 s final iterates.
+For turning between stands, run `tests/upkie_posture_cycle_test.py` directly with `--yaw-command 0.5`.
 
 ### 4. Install
 
-On the host, with the environment active:
-
-```bash
-cp demo_videos/upkie_stand_up_tune/candidate_$MAX.yaml config/upkie/stand_up_trajectory.yaml
-python -c "import json, sys; d = json.load(open(sys.argv[1])); \
-json.dump({k: d[k] for k in ('x', 'v', 'a', 'force', 'torque', 'duration')}, open(sys.argv[2], 'w'))" \
-  "$WORK/solution_$MAX.json" config/upkie/stand_up_to/seed.json
-```
-
-The second command makes the new solution the seed, so a later default regeneration starts from the installed plan.
-Change the default of `--phase-seconds` in `plan.py` to the same MAX, so that a plain regeneration reproduces it.
+`install MAX` refuses unless `check MAX` passed (`FORCE=1` overrides), then copies the candidate to `config/upkie/stand_up_trajectory.yaml` and the solution's trajectory to `config/upkie/stand_up_to/seed.json`, so a later regeneration starts from the installed plan.
 The Jazzy workspace uses `--symlink-install`, so the installed YAML points at the source file: restart the launch, no `colcon build` needed.
 Restore the shipped plan with `git checkout config/upkie/stand_up_trajectory.yaml config/upkie/stand_up_to/seed.json`.
-The 3.9 s handover is also quoted in `config/upkie/ros2_controllers.yaml`, `README.md` and the Upkie docs; update those when shipping a different MAX.
+When shipping a different MAX, also change the `--phase-seconds` default in `plan.py` and the quoted 3.9 s in `config/upkie/ros2_controllers.yaml`, `README.md` and the Upkie docs.
 
 ### 5. Inspect the Motion
 
-With the candidate installed, record one stand-up in the container, then plot it on the host:
+With the candidate installed, record one stand-up and plot it, both in the container:
 
 ```bash
-# container: same shell as step 3 (ROS sourced, in /root/ocs2_ros2_ws, R, O and MAX set)
+R=/root/src/mpc/legged_robot_mpc_controller; O=$R/demo_videos/upkie_stand_up_tune; MAX=1.2
+cd /root/ocs2_ros2_ws
 ROS_DOMAIN_ID=169 python3 $R/tests/upkie_demo.py standup --prefix $O/standup_$MAX
-# host: repository root, environment active, MAX set
-python tests/tuning/analyze_upkie_stand_up.py \
-  demo_videos/upkie_stand_up_tune/standup_$MAX \
-  --output demo_videos/upkie_stand_up_tune/standup_${MAX}_report
+env -u PYTHONPATH -u LD_LIBRARY_PATH /root/upkie_stand_up/env/bin/python \
+  $R/tests/tuning/analyze_upkie_stand_up.py $O/standup_$MAX --output $O/standup_${MAX}_report
 ```
 
 The demo prints a verdict, minimum height and maximum pitch/roll; the report PNG shows height, pitch, CoM offset with knee clearance, wheel speed and wheel effort, and the JSON holds the same metrics as the [Shorter Phases](#shorter-phases) table.
 Pass several prefixes (and `--labels`) to overlay plans.
 For a video of the full course, use `tests/upkie_demo_video.sh record NAME` in the container and `tests/upkie_demo_video.sh render NAME` on the host; its header lists the display and Python requirements.
 The normal GUI or joystick launch also uses the installed file.
+
+`plan.py` and the model generator also run on a macOS or Linux host with Python 3.12, CMake and a C++17 compiler: follow the `setup` and `plan` branches of `regenerate.sh` with a host `WORK`.
 
 The geometry/model generation and NLP are offline only; no CasADi, IPOPT or Python Pinocchio dependency was added to the MPC controller.
 The wheel-only locomotion OCP still cannot plan knee-supported motion.
