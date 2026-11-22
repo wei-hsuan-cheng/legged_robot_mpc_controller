@@ -102,6 +102,8 @@ def harness_command(args, prefix, extra):
     # The kneeling spawn and planned stand-up are Upkie's launch defaults.
     if args.source == "state_estimator":
         command += ["--estimator", "humanoid_linear_kf"]
+    for override in args.set:
+        command += ["--set", override]
     return command + extra
 
 
@@ -280,6 +282,9 @@ def main():
     parser.add_argument("--source", choices=["state_estimator", "ground_truth_state"], default="state_estimator")
     parser.add_argument("--stand-seconds", type=float, default=4.0, help="standing time after the settle (standup)")
     parser.add_argument("--scan", type=int, default=200, help="number of seeds to scan (scan)")
+    parser.add_argument("--set", action="append", default=[], metavar="KEY=JSON",
+                        help="override a dotted controller parameter for this run, e.g. "
+                             "'ocs2.reference.postureTableFile=\"/abs/table.yaml\"'")
     args = parser.parse_args()
     args.prefix = args.prefix or f"/tmp/upkie_{args.demo}"
     if args.demo == "scan":

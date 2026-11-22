@@ -190,9 +190,18 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
       Eigen::Map<const ocs2::vector4_t>(parameters_.ocs2.reference.velocityCommandRateLimits.data());
     reference_config.takeoverHeightRate = parameters_.ocs2.reference.takeoverHeightRate;
     {
-      const auto& heights = parameters_.ocs2.reference.postureHeights;
-      const auto& states = parameters_.ocs2.reference.postureJointStates;
+      std::vector<double> heights = parameters_.ocs2.reference.postureHeights;
+      std::vector<double> states = parameters_.ocs2.reference.postureJointStates;
       const auto num_joints = parameters_.robot.jointNames.size();
+      const auto& table_file = parameters_.ocs2.reference.postureTableFile;
+      if (!table_file.empty()) {
+        if (!heights.empty() || !states.empty()) {
+          throw std::invalid_argument("ocs2.reference.postureTableFile replaces postureHeights/postureJointStates; set only one");
+        }
+        load_posture_table(table_file, parameters_.robot.jointNames, heights, states);
+        RCLCPP_INFO(get_node()->get_logger(), "%s posture table: %zu heights, %.3f-%.3f m (%s)", kTag, heights.size(),
+                    heights.front(), heights.back(), table_file.c_str());
+      }
       if (states.size() != heights.size() * num_joints) {
         throw std::invalid_argument("ocs2.reference.postureJointStates needs one row of robot.jointNames per postureHeights entry");
       }
@@ -860,6 +869,35 @@ std::array<std::string, 2> HumanoidWholeBodyInverseDynamicsMpcController::contac
 bool HumanoidWholeBodyInverseDynamicsMpcController::uses_bring_up() const
 {
   return uses_state_estimator(parameters_.floatingBase.source) || stand_up_trajectory_.has_value();
+}
+
+void HumanoidWholeBodyInverseDynamicsMpcController::load_posture_table(
+  const std::string& file, const std::vector<std::string>& joint_names, std::vector<double>& heights,
+  std::vector<double>& joint_states)
+{
+  const YAML::Node root = YAML::LoadFile(file)["posture_table"];
+  if (!root) {
+    throw std::invalid_argument("posture table " + file + " has no 'posture_table' map");
+  }
+  if (root["joint_names"].as<std::vector<std::string>>() != joint_names) {
+    throw std::invalid_argument("posture table " + file + ": joint_names must equal robot.jointNames, in order");
+  }
+  heights = root["heights"].as<std::vector<double>>();
+  joint_states.clear();
+  const auto rows = root["joint_states"].as<std::vector<std::vector<double>>>();
+  if (heights.empty() || rows.size() != heights.size()) {
+    throw std::invalid_argument("posture table " + file + ": joint_states needs one row per height, with >= 1 height");
+  }
+  for (const auto& row : rows) {
+    if (row.size() != joint_names.size()) {
+      throw std::invalid_argument("posture table " + file + ": every joint_states row needs one value per joint");
+    }
+    joint_states.insert(joint_states.end(), row.begin(), row.end());
+  }
+  if (!std::all_of(heights.begin(), heights.end(), [](double h) { return std::isfinite(h); }) ||
+      !std::all_of(joint_states.begin(), joint_states.end(), [](double q) { return std::isfinite(q); })) {
+    throw std::invalid_argument("posture table " + file + ": heights and joint_states must be finite");
+  }
 }
 
 HumanoidWholeBodyInverseDynamicsMpcController::StandUpTrajectory

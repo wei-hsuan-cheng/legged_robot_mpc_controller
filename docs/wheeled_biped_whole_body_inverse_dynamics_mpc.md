@@ -429,6 +429,7 @@ $$
 \operatorname{diag}Q_{\dot j}=[0.01,0.01,0,0.01,0.01,0].
 $$
 
+The vector above is `defaultJointState`, the balanced posture at 0.325 m; with a posture table the hip/knee reference $q_j^d$ is instead interpolated at the target base height from `config/upkie/posture_table.yaml` (`ocs2.reference.postureTableFile`), whose rows put the whole-robot CoM above the wheel contacts at each height ([Upkie posture control, Posture Table](upkie_posture_control.md#posture-table)).
 The wheel angles and spin speeds have zero tracking weights, allowing wheel rotation to emerge from base-motion tracking and rolling physics.
 Wheel spin speeds still have soft velocity limits.
 The original hip/knee posture weights are retained: reducing them too far improved static height accuracy but allowed the opposite knee-bending branch and severely degraded turning in regression tests.

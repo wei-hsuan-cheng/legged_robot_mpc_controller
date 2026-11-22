@@ -446,6 +446,10 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           and target heights are clamped to [first, last]. Empty: defaultJointState at every height"}
       postureJointStates: {type: double_array, default_value: [], description: "Joint states for postureHeights,
           one row of robot.jointNames per height, row-major"}
+      postureTableFile: {type: string, default_value: "", description: "Optional YAML with a posture_table map of
+          joint_names (equal to robot.jointNames), heights and joint_states (one row per height), loaded instead of
+          postureHeights/postureJointStates, which must then be empty. Generated offline, e.g.
+          config/upkie/compute_posture_table.py."}
       armSwing:
         jointNames: {type: string_array, default_value: [], description: "Reference joints in order [left shoulder
             pitch, right shoulder pitch, left elbow, right elbow]. Required by model joint-index setup even

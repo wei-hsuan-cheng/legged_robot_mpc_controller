@@ -201,7 +201,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           baseVelocity: [20.0, 20.0, 1.0, 10.0, 1.0, 1.0]
           # H2's posture ratio: the hip holds the legs against a fore/aft split (a wheel's spin leaves each leg free
           # to sweep), the knee stays nearly free to set the height. The reference follows the target height
-          # (reference.postureHeights).
+          # (reference.postureTableFile).
           jointPositions: [3.0, 0.1, 0.0, 3.0, 0.1, 0.0]
           jointVelocities: [0.01, 0.01, 0.0, 0.01, 0.01, 0.0]
 
@@ -303,7 +303,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         maxRotationVelocity: 3.1416
         # 0.080 m wheel: every height is the 0.055 m-wheel value + 0.025 m (same leg postures).
         defaultBaseHeight: 0.245
-        # Commanded height range: GUI slider, command clamp and MPC height reference. Must lie inside postureHeights.
+        # Commanded height range: GUI slider, command clamp and MPC height reference. Must lie inside the posture table.
         minBaseHeight: 0.225
         maxBaseHeight: 0.355
         basePosePositionTolerance: 0.02
@@ -327,39 +327,14 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         defaultJointState:
           [-0.6021396734839873, -0.9655142016056263, 0.0, 0.6021396734839873, 0.9655142016056263, 0.0]
 
-        # Posture reference by target height (config/upkie/compute_posture_table.py): the balanced symmetric
-        # posture of each height (level trunk, tires on the floor, tire contact under the CoM). A fixed 0.325 m
-        # posture far from the target height makes splitting the legs fore/aft cheaper than staying symmetric.
-        # The table must cover [minBaseHeight, maxBaseHeight]; regenerate it before widening that range. It starts at
-        # 0.125 m (knee bend 2.43 rad, the deepest fold the 0.080 m tire clears the femur at) so the stand-up catch
-        # has a balanced reference while its height ramps up.
-        postureHeights:
-          [0.125, 0.135, 0.145, 0.155, 0.165, 0.175, 0.185, 0.195, 0.205, 0.215, 0.225, 0.235, 0.245, 0.255, 0.265, 0.275, 0.285, 0.295, 0.305, 0.315, 0.325, 0.335, 0.345, 0.355]
-        postureJointStates:
-          [-1.771631, -2.434320, 0.0, 1.771631, 2.434320, 0.0,
-           -1.706316, -2.377747, 0.0, 1.706316, 2.377747, 0.0,
-           -1.643808, -2.320470, 0.0, 1.643808, 2.320470, 0.0,
-           -1.583617, -2.262362, 0.0, 1.583617, 2.262362, 0.0,
-           -1.525329, -2.203306, 0.0, 1.525329, 2.203306, 0.0,
-           -1.468585, -2.143190, 0.0, 1.468585, 2.143190, 0.0,
-           -1.413066, -2.081896, 0.0, 1.413066, 2.081896, 0.0,
-           -1.358486, -2.019300, 0.0, 1.358486, 2.019300, 0.0,
-           -1.304577, -1.955265, 0.0, 1.304577, 1.955265, 0.0,
-           -1.251088, -1.889634, 0.0, 1.251088, 1.889634, 0.0,
-           -1.197772, -1.822230, 0.0, 1.197772, 1.822230, 0.0,
-           -1.144380, -1.752839, 0.0, 1.144380, 1.752839, 0.0,
-           -1.090656, -1.681212, 0.0, 1.090656, 1.681212, 0.0,
-           -1.036321, -1.607043, 0.0, 1.036321, 1.607043, 0.0,
-           -0.981069, -1.529957, 0.0, 0.981069, 1.529957, 0.0,
-           -0.924541, -1.449483, 0.0, 0.924541, 1.449483, 0.0,
-           -0.866307, -1.365014, 0.0, 0.866307, 1.365014, 0.0,
-           -0.805827, -1.275750, 0.0, 0.805827, 1.275750, 0.0,
-           -0.742385, -1.180596, 0.0, 0.742385, 1.180596, 0.0,
-           -0.674987, -1.077982, 0.0, 0.674987, 1.077982, 0.0,
-           -0.602145, -0.965522, 0.0, 0.602145, 0.965522, 0.0,
-           -0.521414, -0.839254, 0.0, 0.521414, 0.839254, 0.0,
-           -0.428173, -0.691640, 0.0, 0.428173, 0.691640, 0.0,
-           -0.311148, -0.504251, 0.0, 0.311148, 0.504251, 0.0]
+        # Posture reference by target height: the balanced symmetric posture of each height (level trunk, tires on the
+        # floor, tire contact under the CoM), generated offline by config/upkie/compute_posture_table.py
+        # (config/upkie/regenerate.sh posture in the container). A fixed 0.325 m posture far from the target height
+        # makes splitting the legs fore/aft cheaper than staying symmetric. The table must cover
+        # [minBaseHeight, maxBaseHeight] and bringUp.sitDownHeight; regenerate it before widening that range. It
+        # starts at 0.125 m (knee bend 2.43 rad, the deepest fold the 0.080 m tire clears the femur at) so the
+        # stand-up catch has a balanced reference while its height ramps up.
+        postureTableFile: "$(find-pkg-share legged_robot_mpc_controller)/config/upkie/posture_table.yaml"
 
       gait:
         phaseTransitionStanceTime: 0.0

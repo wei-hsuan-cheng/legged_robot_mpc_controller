@@ -11,6 +11,7 @@ Cost shares are 0.5 w e^2 of each state dimension at the measured state (and the
 input terms), so they show which term dominates; joint accelerations are not logged and are left out.
 """
 import csv, json, sys
+from pathlib import Path
 import numpy as np
 import yaml
 
@@ -48,9 +49,14 @@ for when, value in args.get("height_sequence") or []:
 # Posture reference as the WB-ID target calculator builds it: with a posture table the height command is clamped to
 # [minBaseHeight, maxBaseHeight] (runs before those keys existed: the table range) and the posture interpolated there.
 table_h = np.array(ref.get("postureHeights") or [], float)
+table_q = np.array(ref.get("postureJointStates") or [], float)
+if ref.get("postureTableFile"):  # since 2026-11-23 the table is its own YAML
+    root = str(Path(__file__).resolve().parents[2])
+    table = yaml.safe_load(open(ref["postureTableFile"].replace("$(find-pkg-share legged_robot_mpc_controller)", root)))
+    table_h, table_q = np.array(table["posture_table"]["heights"], float), np.array(table["posture_table"]["joint_states"], float)
 if table_h.size:
     cmd_h = np.clip(cmd_h, ref.get("minBaseHeight", table_h[0]), ref.get("maxBaseHeight", table_h[-1]))
-    table_q = np.array(ref["postureJointStates"], float).reshape(table_h.size, -1)
+    table_q = table_q.reshape(table_h.size, -1)
     q_ref = np.stack([np.interp(cmd_h, table_h, table_q[:, i]) for i in range(table_q.shape[1])], 1)
 else:
     q_ref = np.tile(q_default, (t.size, 1))

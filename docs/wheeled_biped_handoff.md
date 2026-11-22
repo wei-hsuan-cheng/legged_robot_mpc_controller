@@ -5,16 +5,49 @@ The original [implementation checklist](design_notes/wheeled_biped/wheeled_biped
 Update this file at each milestone.
 The implemented equations, current weights, rolling-contact equalities and execution limits are collected in [Wheeled-Biped WB-ID MPC](wheeled_biped_whole_body_inverse_dynamics_mpc.md).
 
+## Posture Table File (2026-11-23)
+
+The posture-by-height table moved out of `ros2_controllers.yaml` into `config/upkie/posture_table.yaml`, referenced by the new parameter `ocs2.reference.postureTableFile` (`$(find-pkg-share legged_robot_mpc_controller)/config/upkie/posture_table.yaml`), the same pattern as `bringUp.standUpTrajectoryFile`.
+The controller loads it at configure, checks `joint_names` against `robot.jointNames`, one row per height and finite values, and refuses inline `postureHeights`/`postureJointStates` next to the file; inline arrays still work without the file.
+`compute_posture_table.py` now writes that file (`--output`), and its default grid (0.125-0.355 m, 0.01 m) reproduces the shipped table; the generated file equals the old inline arrays exactly, so behavior is unchanged.
+Each row is the balanced symmetric posture of its height: trunk level, tire centers at the wheel radius, whole-robot CoM above the tire centers along the heading (equations in [Upkie posture control, Posture Table](upkie_posture_control.md#posture-table)).
+`regenerate.sh` moved from `config/upkie/stand_up_to/` to `config/upkie/` and gained the posture commands; the stand-up commands are unchanged:
+
+```bash
+S=/root/src/mpc/legged_robot_mpc_controller/config/upkie/regenerate.sh   # in ros_jazzy; setup once per container
+bash $S posture            # demo_videos/upkie_posture_table/candidate.yaml (optional MIN MAX STEP)
+bash $S check-posture      # course demo with the candidate: height test, ramps, uneven field, height steps
+bash $S install-posture    # after SUCCESS: config/upkie/posture_table.yaml; restart the launch
+```
+
+Both offline assets now follow the same pattern:
+
+| | Stand-up | Posture table |
+| --- | --- | --- |
+| Shipped file | `config/upkie/stand_up_trajectory.yaml` | `config/upkie/posture_table.yaml` |
+| Controller parameter | `bringUp.standUpTrajectoryFile` | `ocs2.reference.postureTableFile` |
+| Generator | `config/upkie/stand_up_to/plan.py` (CasADi/IPOPT TO) | `config/upkie/compute_posture_table.py` (Newton per height) |
+| Generate | `bash $S plan MAX` | `bash $S posture [MIN MAX STEP]` |
+| Check in MuJoCo | `bash $S check MAX` (3 cycles + fall) | `bash $S check-posture` (course demo) |
+| Install | `bash $S install MAX` | `bash $S install-posture` |
+| Candidates | `demo_videos/upkie_stand_up_tune/` | `demo_videos/upkie_posture_table/` |
+
+`tests/upkie_demo.py` gained `--set KEY=JSON` (passed to `wb_id_walk_test.py`), and `tests/tuning/evaluate_upkie_run.py` reads the table from the file.
+New host test `tests/test_upkie_posture_table.py`: file referenced, coverage of min/max/sit-down heights, symmetry, and (with Python MuJoCo) generator reproduction.
+Container test (2026-11-23): `posture` generated the file (identical to the Mac output and to the old inline arrays), the single-package Release build passed (2 min, no new warnings), `check-posture` succeeded in 77 s with measured heights equal to the commands (0.355, 0.225, 0.245 m) and hip/knee within 0.004 rad of the table at the end of each plateau, a default stand-up loaded the file through `$(find-pkg-share)` and succeeded, and `install-posture` passed its guard.
+After pulling, rebuild the package once (the C++ loader changed, and the symlink install needs a link for the new `posture_table.yaml`): `colcon build --symlink-install --packages-select legged_robot_mpc_controller --cmake-args -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release`; the `ros_jazzy` workspace is already rebuilt.
+Host: `tests/test_upkie_posture_table.py` (3) and `tests/test_upkie_stand_up.py` (4) pass; `evaluate_upkie_run.py` works on new runs and on older runs with inline arrays.
+
 ## Tuning the Stand-up Duration (2026-11-22)
 
 The stand-up speed has one knob, `config/upkie/stand_up_to/plan.py --phase-seconds MIN MAX`: each of the three contact phases lasts MAX seconds, MPC warm-up starts at 2.2 MAX and the handover is at 2.6 MAX (3.9 s for the shipped 1.5).
-The whole loop (TO, MuJoCo check, install) runs in `ros_jazzy` through `config/upkie/stand_up_to/regenerate.sh`; the TO has its own venv in the container at `/root/upkie_stand_up`.
+The whole loop (TO, MuJoCo check, install) runs in `ros_jazzy` through `config/upkie/regenerate.sh`; the TO has its own venv in the container at `/root/upkie_stand_up`.
 Full explanation: [Upkie contact-aware stand-up, Tuning the Duration and Regenerating](upkie_stand_up_optimization.md#tuning-the-duration-and-regenerating).
 
 ```bash
 ssh parallels@10.211.55.17
 docker exec -it ros_jazzy bash
-S=/root/src/mpc/legged_robot_mpc_controller/config/upkie/stand_up_to/regenerate.sh
+S=/root/src/mpc/legged_robot_mpc_controller/config/upkie/regenerate.sh
 bash $S setup          # once per container (apt python3-venv, venv, C++ model, parity check), about 3.5 min
 bash $S plan 1.2       # demo_videos/upkie_stand_up_tune/candidate_1.2.yaml, about 2 min
 bash $S check 1.2      # 3 stand/drive/sit cycles + forced fall in MuJoCo with the candidate

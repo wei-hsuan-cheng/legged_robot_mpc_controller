@@ -155,6 +155,9 @@ private:
     JointActionCommand sample(double t, const vector_t& measured_state = vector_t()) const;
   };
   static StandUpTrajectory load_stand_up_trajectory(const std::string& file, const std::vector<std::string>& joint_names);
+  //! ocs2.reference.postureTableFile: heights and row-major joint states; the reference calculator checks the order.
+  static void load_posture_table(const std::string& file, const std::vector<std::string>& joint_names,
+                                 std::vector<double>& heights, std::vector<double>& joint_states);
   JointActionCommand sample_stand_up(double t, const ocs2::SystemObservation& observation) const;
   bool stand_up_support_ready(const ocs2::SystemObservation& observation);
   //! The bring-up phase machine runs for the estimator, and for any robot with a planned stand-up.

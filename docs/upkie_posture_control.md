@@ -116,3 +116,54 @@ Use `--source ground_truth_state` for a simulator-state comparison; normal opera
 Reports, pose/joint replays and launch logs share the requested prefix.
 These posture transitions are intended for flat, supported ground; sit-down on slopes, obstacles, asymmetric support and physical hardware requires separate validation.
 Before attempting a physical deployment, read the [real hardware validation handoff](./design_notes/wheeled_biped/upkie_hardware_validation_handoff.md), including the missing hardware backend, stop semantics and measured transition guards.
+
+## Posture Table
+
+The MPC's hip/knee posture reference depends on the target base height.
+It is interpolated from `config/upkie/posture_table.yaml`, which `ocs2.reference.postureTableFile` points at in the same way `bringUp.standUpTrajectoryFile` points at the stand-up plan.
+Target heights are clamped to the table's first and last height, so the table must cover `minBaseHeight`, `maxBaseHeight` and `bringUp.sitDownHeight`; the controller rejects a file whose `joint_names` differ from `robot.jointNames`, and inline `postureHeights`/`postureJointStates` next to the file.
+
+`config/upkie/compute_posture_table.py` generates the table offline from the MuJoCo model (`upkie.xml`).
+The heights are a fixed grid, 0.125-0.355 m in 0.01 m steps; for each height $h$ it solves two equations in the left hip and knee angles by Newton iteration:
+
+$$
+z_{\mathrm{tire}}(h,q_{\mathrm{hip}},q_{\mathrm{knee}})=r,
+\qquad
+x_{\mathrm{tire}}(h,q_{\mathrm{hip}},q_{\mathrm{knee}})=x_{\mathrm{CoM}}(h,q_{\mathrm{hip}},q_{\mathrm{knee}}),
+$$
+
+with the trunk level at $(0,0,h)$, the right leg mirroring the left, wheel angles zero and $r=0.08$ m.
+The first equation puts both tires on flat ground; the second puts the whole-robot CoM above the tire center along the heading.
+On flat ground the contact is directly below the tire center, so the CoM projects onto the line through both wheel contacts: a static balance point of the wheeled inverted pendulum, needing no wheel torque.
+Only this fore/aft condition is imposed; laterally the mirror symmetry keeps the CoM near the midpoint between the wheels, and the two wheels support it anywhere between them.
+Each height starts the Newton iteration from the previous height's solution, beginning at the 0.325 m `defaultJointState`, which the solver reproduces within 4e-6 rad.
+The lowest height, 0.125 m, is the sit-down crouch and the start of the stand-up catch: its 2.43 rad knee bend is about the deepest fold at which the 0.080 m tire clears the femur.
+
+Regenerate it in the `ros_jazzy` container with the same script and environment as the [stand-up optimization](upkie_stand_up_optimization.md#tuning-the-duration-and-regenerating):
+
+```bash
+ssh parallels@10.211.55.17
+docker exec -it ros_jazzy bash
+S=/root/src/mpc/legged_robot_mpc_controller/config/upkie/regenerate.sh
+bash $S setup              # once per container (shared with the stand-up TO), about 3.5 min
+bash $S posture            # demo_videos/upkie_posture_table/candidate.yaml; defaults reproduce the shipped table
+bash $S check-posture      # course demo with the candidate table, about 1.5 min
+bash $S install-posture    # only after check-posture prints SUCCESS; then restart the launch
+```
+
+`posture MIN MAX STEP` changes the grid, for example `bash $S posture 0.125 0.345 0.005`, and prints how much the candidate differs from the shipped table.
+Regenerate after changing the wheel, leg or mass model; widen the grid before widening `minBaseHeight`/`maxBaseHeight`.
+`check-posture` runs `tests/upkie_demo.py course` with `--set ocs2.reference.postureTableFile=...` for that launch only: the planned stand-up, then the standing height test (maximum, minimum and default height, 2 s each), the ramps, the uneven field and height steps while driving.
+It prints the demo verdict, then, at the end of each height-test plateau, the measured base height and the measured left hip/knee minus the table posture, for example (shipped table):
+
+```text
+verdict: SUCCESS  min z 0.175 m  max pitch/roll 0.080/0.002 rad (includes the stand-up)
+height test 0.355 m: measured 0.355 m, hip/knee - table +0.004/-0.000 rad
+height test 0.225 m: measured 0.225 m, hip/knee - table +0.001/-0.002 rad
+height test 0.245 m: measured 0.245 m, hip/knee - table -0.002/+0.002 rad
+```
+
+Measured joints within a few milliradians of the table while standing still mean the table is balanced: the MPC holds the CoM over the wheels, and the posture cost agrees with it.
+`install-posture` refuses unless that check succeeded (`FORCE=1` overrides) and then copies the candidate to `config/upkie/posture_table.yaml`.
+The Jazzy workspace uses `--symlink-install`, so restarting the launch picks the new file up; undo with `git checkout config/upkie/posture_table.yaml`.
+On the host, `python3 -m pytest tests/test_upkie_posture_table.py` checks the file's coverage and symmetry and, with Python MuJoCo installed, that the generator reproduces it.

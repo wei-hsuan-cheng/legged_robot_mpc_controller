@@ -208,21 +208,21 @@ Solution-level comparison (TO limits, before any simulation):
 
 Every plan reaches the pitch-acceleration bound at the second knee release (node 32); shorter plans use more of every limit.
 
-Everything below runs in the `ros_jazzy` container (Ubuntu 24.04, aarch64), through `config/upkie/stand_up_to/regenerate.sh`.
+Everything below runs in the `ros_jazzy` container (Ubuntu 24.04, aarch64), through `config/upkie/regenerate.sh`.
 The TO uses its own Python virtual environment, separate from the container's ROS Python; the script removes the ROS `PYTHONPATH` and `LD_LIBRARY_PATH` for the TO steps, because Jazzy's own pinocchio would otherwise shadow the environment's.
 The repository is the same folder on the Mac and in the container, so candidates, logs and installed files appear on both.
 
 ```bash
 ssh parallels@10.211.55.17
 docker exec -it ros_jazzy bash
-S=/root/src/mpc/legged_robot_mpc_controller/config/upkie/stand_up_to/regenerate.sh
+S=/root/src/mpc/legged_robot_mpc_controller/config/upkie/regenerate.sh
 bash $S setup          # once per container, about 3.5 min
 bash $S plan 1.2       # candidate with 1.2 s phases, about 2 min
 bash $S check 1.2      # 3 stand/drive/sit cycles + forced fall in MuJoCo, about 1.5 min
 bash $S install 1.2    # only after check prints PASS
 ```
 
-From the Mac, each step also runs as one command, for example `ssh parallels@10.211.55.17 docker exec ros_jazzy bash /root/src/mpc/legged_robot_mpc_controller/config/upkie/stand_up_to/regenerate.sh plan 1.2`; pass `MIN`, `SEED`, `DOMAIN` or `FORCE` with `docker exec -e`.
+From the Mac, each step also runs as one command, for example `ssh parallels@10.211.55.17 docker exec ros_jazzy bash /root/src/mpc/legged_robot_mpc_controller/config/upkie/regenerate.sh plan 1.2`; pass `MIN`, `SEED`, `DOMAIN` or `FORCE` with `docker exec -e`.
 
 ### 1. Setup
 
