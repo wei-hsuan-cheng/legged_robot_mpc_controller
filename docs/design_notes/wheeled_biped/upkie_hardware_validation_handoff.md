@@ -60,7 +60,8 @@ This is a backend-dependent hazard to resolve, not a demonstrated physical fault
 Document what happens on controller deactivation, lifecycle error, process termination, stale commands, lost actuator feedback and a hardware stop.
 The chosen behavior must be checked on a supported test setup before unrestricted balance trials.
 A software Fallen latch cannot execute if the host process or control thread has stopped.
-L2 release and Circle currently stop commanded motion while retaining balance; neither should be presented as an independent hardware emergency stop.
+L2 release stops commanded motion while retaining balance; it is not an independent hardware emergency stop.
+Circle is unassigned and reserved for future use.
 The safety layer must remain authoritative over FSM, MPC, GUI and joystick requests.
 
 

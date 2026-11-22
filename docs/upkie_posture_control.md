@@ -24,12 +24,12 @@ ros2 launch legged_robot_mpc_controller robot.launch.py \
   robotName:=upkie mpcFreq:=200 baseCommandDevice:=joystick
 ```
 
-Release L2, center both sticks, release L1/D-pad/Circle, and press **Square** to stand up.
+Release L2, center both sticks, release L1/D-pad, and press **Square** to stand up.
 After handover, release and press L2 with centered sticks to enable driving.
 Release L2 and press Square again to sit down.
 Square is edge-triggered: holding it does not repeat the request, and a press blocked by L2 or another interlock is never queued.
 Square held while connecting is ignored until released and pressed again.
-Circle remains a motion stop, not Sit Down or a hardware emergency stop.
+Circle is unassigned and reserved for future use; release L2 to stop driving.
 The Square mapping is `button_posture: 2` in the teleop adapter (SDL's standardized X / west face button).
 R1 no longer requests stand-up or sit-down with the default mapping.
 The adapter enables this feature from the selected controller YAML only when a stand-up trajectory is configured.

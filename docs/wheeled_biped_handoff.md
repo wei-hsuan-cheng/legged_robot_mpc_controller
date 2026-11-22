@@ -1165,3 +1165,13 @@ Both cycles returned to idle, and transitional posture requests were refused.
 The simulation was stopped after acceptance; artifacts are `/tmp/codex_upkie_square.*` in `ros_jazzy`.
 The test uses synthetic Joy through the real teleop service path, not a physical gamepad or real hardware.
 The user requested committing and pushing both repositories after testing.
+
+
+## Circle Unassigned (2026-11-22)
+
+The user removed Circle's function in the shared teleop adapter and reserved the button for future use.
+Current operator guides no longer describe a Circle stop or require Circle release for Square.
+Release L2 to stop driving while retaining the height command and MPC balance.
+Square stand/sit, L1 Center, native controller FSM and MPC tuning are unchanged.
+Previous Circle references in earlier checkpoint results are historical.
+The shared teleop package built and passed all 82 checks in both the OCS2 and TurboMPC workspaces; no native MPC changes or robot simulation were required.
