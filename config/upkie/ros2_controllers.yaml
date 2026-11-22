@@ -107,7 +107,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
     bringUp:
       # Stand Up / Sit Down in the GUI, or Square with L2 released on the joystick.
       autoStart: false
-      # Offline WB-ID stand-up with both knee and wheel contacts, then state-feedback tracking (about 13 s).
+      # Offline WB-ID stand-up with both knee and wheel contacts, then state-feedback tracking (3.9 s to handover).
       # Wheel-only MPC starts after knee clearance. See docs/upkie_stand_up_optimization.md.
       # Empty: no planned stand-up, for a standing spawn pose with ground truth only.
       standUpTrajectoryFile: "$(find-pkg-share legged_robot_mpc_controller)/config/upkie/stand_up_trajectory.yaml"

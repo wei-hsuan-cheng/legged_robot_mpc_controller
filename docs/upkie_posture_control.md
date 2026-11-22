@@ -2,7 +2,7 @@
 
 Upkie starts kneeling in idle and waits for the operator.
 Its MPC balance weights, rolling-contact model and 200 Hz default recommendation are unchanged.
-The 80 mm wheels use a gentle, approximately 13 s contact-aware stand-up with both knees and both wheels modeled offline.
+The 80 mm wheels use a 3.9 s contact-aware stand-up with both knees and both wheels modeled offline.
 The [stand-up optimization note](upkie_stand_up_optimization.md) gives the equations, references, feedback/handover guards, regeneration commands and measured comparison.
 
 

@@ -112,13 +112,13 @@ def stand_up_labels(result, params, replay, source):
     default = params["ocs2"]["reference"]["defaultBaseHeight"]
     driver = "estimator-driven, no ground truth" if source == "state_estimator" else "ground-truth base"
     phases = [[replay[0]["time"], "1  Idle: kneeling on knees and wheels"],
-              [takeover - blend - handover, "2  Planned stand-up: offline plan played back open loop"],
+              [takeover - blend - handover, "2  Planned stand-up: offline knee/wheel-contact plan with state feedback"],
               [takeover - blend, f"3  Handover: blending from the playback into the MPC ({blend:g} s)"],
               [takeover, f"4  MPC in control ({driver})"]]
     standing = next((s["time"] for s in replay if s["time"] > takeover and s["position"][2] >= default - 0.005), None)
     rate = params["ocs2"]["reference"].get("takeoverHeightRate", 0.0)
     subtitles = [[replay[0]["time"], "knees on the floor behind the wheels, trunk leaning back"],
-                 [takeover - blend - handover, "fold the legs, then push the knees down: the trunk pivots forward over the axles"],
+                 [takeover - blend - handover, "trunk rotates upright on knees and wheels, then each leg re-plants its wheel in turn"],
                  [takeover, f"catch, then rise from the measured height to {default:.2f} m at {rate:g} m/s"]]
     if standing is not None:
         subtitles.append([standing, f"standing at {default:.2f} m"])

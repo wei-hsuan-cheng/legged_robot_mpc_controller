@@ -28,7 +28,7 @@ See [posture controls](../../upkie_posture_control.md) and [recorded simulation 
 | P1 | Fresh feedback | Finite joint/IMU values can remain frozen after communication failure | Expose acquisition age and health; reject stale feedback and test loss/freeze scenarios using controlled fault injection |
 | P1 | MPC ready for handover | The 80 mm-wheel plan starts wheel-only solves after a kinematic knee-clearance guard; no usable policy at handover still causes damping | Preconstruct/cache the solver without solving a wheel-only OCP from knee-supported states; validate onboard latency during the wheel-only tracking interval and define a physical abort action |
 | P1 | Physical starting-state acceptance | Joint proximity, a dwell and estimator readiness do not prove the intended knee/wheel support configuration | Establish a validated supported-idle envelope using joint geometry, attitude, motion and available contact/load evidence |
-| P1 | Measured stand-up handover | The new offline WB-ID/LQR plan transfers at about 13 s with sustained FK clearance, but has no measured normal-load confirmation | Validate the real motion envelope, supported wheels, knee unloading and bounded timing/abort behavior; geometric clearance alone is not a force measurement |
+| P1 | Measured stand-up handover | The new offline WB-ID/LQR plan transfers at 3.9 s with sustained FK clearance, but has no measured normal-load confirmation | Validate the real motion envelope, supported wheels, knee unloading and bounded timing/abort behavior; geometric clearance alone is not a force measurement |
 | P1 | Supported sit-down completion | Height/tilt trigger the final interpolation; joint position/speed trigger idle without directly confirming support | Validate touchdown/support and settling before declaring idle and allowing another stand-up |
 | P1 | Actual robot model and servos | Playback, friction, armature and PD settings were selected for this MuJoCo model | Measure or identify the real values and validate the resulting commands within an approved hardware envelope |
 | P2 | Hardware acceptance envelope | No physical stand-up, balance, sit-down, gamepad or repeated-cycle acceptance exists | Complete staged physical validation and record limits, failures and recovery procedures before expanding beyond flat ground |
@@ -47,7 +47,7 @@ See [posture controls](../../upkie_posture_control.md) and [recorded simulation 
 - [Observation construction](../../../src/controller/controller.cpp#L1559): estimator validity and hardware-state handling.
 - [Offline stand-up generator](../../../config/upkie/stand_up_to/plan.py): full-body inverse dynamics, knee/wheel contacts, bounded forces/torques and phase durations.
 - [Stand-up feedback generation](../../../config/upkie/stand_up_to/feedback.py): finite-horizon gains, separate from locomotion MPC feedback.
-- [Exported trajectory](../../../config/upkie/stand_up_trajectory.yaml): reference states, feedforward, gains, support geometry and the approximately 13 s handover.
+- [Exported trajectory](../../../config/upkie/stand_up_trajectory.yaml): reference states, feedforward, gains, support geometry and the 3.9 s handover.
 - [Current parameters](../../../config/upkie/ros2_controllers.yaml): operator settings, model compensation, servo gains and transition thresholds.
 
 Line numbers identify the checkpoint and should be refreshed when these functions change.

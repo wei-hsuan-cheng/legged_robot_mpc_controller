@@ -5,6 +5,17 @@ The original [implementation checklist](design_notes/wheeled_biped/wheeled_biped
 Update this file at each milestone.
 The implemented equations, current weights, rolling-contact equalities and execution limits are collected in [Wheeled-Biped WB-ID MPC](wheeled_biped_whole_body_inverse_dynamics_mpc.md).
 
+## Faster Contact-Aware Stand-up (2026-11-22)
+
+The contact-aware stand-up now hands over to MPC at 3.9 s instead of 13 s, with the same motion sequence (trunk upright on knees and wheels, left knee released, right knee released, rise).
+Cause of the old duration: the three phase durations are TO decision variables, and the running cost is integrated over time, so the optimum sat on the 5 s upper bound in every phase while using at most 26% of the velocity bounds and 35% of the actuator bounds.
+Change: `plan.py --phase-seconds MIN MAX` (default 0.5 1.5) replaces the hard-coded 1-5 s bounds; the seed's node rates are rescaled to the new duration; `seed.json` and `stand_up_trajectory.yaml` hold the new 1.5 s solution (IPOPT iteration limit, 1.0e-7 constraint violation).
+Nothing else in the TO, the feedback export, the controller or the MPC changed; the demo captions now describe this motion instead of the old push-off.
+Acceptance (estimated state, synthetic joystick): 2 stand-up demos, 5 stand/drive/sit cycles plus fall latch, 3 turning cycles and 2 full course runs pass; stand-up unit tests pass (2 in the container, all 4 on the host).
+Peak wheel effort 0.63 Nm (unchanged), no saturation, knee clearance 137 mm at handover, the most forward pitch at the second knee release -0.29 rad (was -0.20), tilt in the first second of MPC 0.013-0.024 rad (was 0.009-0.011).
+A 1.0 s-phase plan (2.6 s) also passed 3 cycles but with less margin; a 2.0 s cap did not reach export feasibility within 1000 IPOPT iterations.
+Details, table and plot: [Upkie contact-aware stand-up, Shorter Phases](upkie_stand_up_optimization.md#shorter-phases); runs, solutions and the before/after video are in ignored `demo_videos/upkie_fast_standup/`.
+
 ## Larger-Wheel Gentle Stand-up Investigation (2026-11-22, Codex)
 
 ### Current Checkpoint

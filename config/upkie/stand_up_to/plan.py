@@ -113,7 +113,7 @@ def functions(model_prefix):
     )
 
 
-def solve(model_prefix, seed_path, solution_path):
+def solve(model_prefix, seed_path, solution_path, phase_seconds=(0.5, 1.5)):
     fn = functions(model_prefix)
     r = p.Rollout()
     r.spawn_idle()
@@ -131,8 +131,9 @@ def solve(model_prefix, seed_path, solution_path):
     F = opt.variable(12, N + 1)
     U = opt.variable(6, N + 1)
     D = opt.variable(3)
-    opt.subject_to(opt.bounded(1.0, D, 5.0))
-    opt.set_initial(D, [2.0, 2.0, 2.0])
+    # The running cost is integrated over time, so the optimum sits on the upper bound: this sets the stand-up speed.
+    opt.subject_to(opt.bounded(phase_seconds[0], D, phase_seconds[1]))
+    opt.set_initial(D, np.full(3, phase_seconds[1]))
     tolerance = np.r_[0, 0, 0.003, 0, 0.015, 0.01, np.full(6, 0.015)]
     opt.subject_to(opt.bounded(x0 - tolerance, X[:, 0], x0 + tolerance))
     opt.subject_to(V[:, 0] == 0)
@@ -211,8 +212,15 @@ def solve(model_prefix, seed_path, solution_path):
 
     if previous.exists():
         old = json.loads(previous.read_text())
-        for key, value in dict(x=X, v=V, a=A, force=F, torque=U, duration=D).items():
+        for key, value in dict(x=X, force=F, torque=U).items():
             opt.set_initial(value, np.array(old[key]))
+        # Seed nodes keep their shape when the phases are shorter; rates scale with the duration ratio.
+        old_seconds = np.repeat(np.array(old["duration"]) / counts, counts)
+        ratio = np.r_[old_seconds, old_seconds[-1]] / np.repeat(
+            np.full(3, phase_seconds[1]) / counts, np.r_[counts[:2], counts[2] + 1]
+        )
+        opt.set_initial(V, np.array(old["v"]) * ratio)
+        opt.set_initial(A, np.array(old["a"]) * ratio**2)
     opt.minimize(cost + 0.05 * ca.sum1(D))
     opt.solver(
         "ipopt",
@@ -331,12 +339,20 @@ def main():
     parser.add_argument(
         "--output", type=Path, default=HERE.parent / "stand_up_trajectory.yaml"
     )
+    parser.add_argument(
+        "--phase-seconds",
+        type=float,
+        nargs=2,
+        default=(0.5, 1.5),
+        metavar=("MIN", "MAX"),
+        help="bounds on each of the three contact-phase durations; the optimum uses MAX",
+    )
     parser.add_argument("--check-model-only", action="store_true")
     args = parser.parse_args()
     check_model(args.models)
     if args.check_model_only:
         return
-    solve(args.models, args.seed, args.solution)
+    solve(args.models, args.seed, args.solution, args.phase_seconds)
     from feedback import Tracking
 
     tracker = Tracking(args.models, args.solution)

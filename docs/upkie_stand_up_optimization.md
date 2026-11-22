@@ -15,7 +15,7 @@ Use the normal [GUI or joystick commands](upkie_posture_control.md); no optimize
 
 The sequence is prescribed, but the configurations, velocities, accelerations, contact forces, actuator torques and phase durations are optimized.
 This is a full 3D optimization, not a prescribed CoM path or a sagittal-only model.
-The selected solution has three approximately 5 s phases; execution transfers to MPC after approximately 13 s, before the optimizer's terminal 15 s pose.
+The selected solution has three 1.5 s phases; execution transfers to MPC at 3.9 s, before the optimizer's terminal 4.5 s pose.
 The stand-up tracker is not intended to replace the MPC as a permanent balancing controller.
 
 Contact-aware phases are motivated by Klemm et al., [Nonsmooth Trajectory Optimization for Wheeled Balancing Robots With Contact Switches and Impacts](https://marco-tognon-robotics.com/content/non-smooth-trajectory-optimization-wheeled-balancing-robots-contact-switches-and-impacts).
@@ -59,7 +59,10 @@ $$
 $$
 
 There are 16, 16 and 28 intervals in the three phases.
-Each phase duration is bounded between 1 and 5 s.
+Each phase duration is bounded by `plan.py --phase-seconds MIN MAX` (default 0.5 and 1.5 s).
+The running cost is integrated over time, so the same path traversed more slowly always costs less; the optimum therefore sits on MAX, which sets the stand-up speed.
+With the earlier 1-5 s bounds every phase took 5 s (13 s to handover) while using at most 26% of the velocity bounds and 35% of the actuator bounds.
+With 1.5 s phases the TO's acceleration bounds become active at the second knee release; actuator use stays at or below 34% (legs) and 57% (wheels).
 Joint-position, velocity, acceleration and actuator bounds are hard constraints in this offline problem.
 Leg torque bounds are 12 Nm and wheel bounds 1.2 Nm, leaving feedback reserve below the simulator's 16/1.7 Nm limits.
 The knee-angle magnitude is limited to 2.38 rad to leave margin before tire/femur contact.
@@ -112,7 +115,7 @@ It uses the configured floating-base estimate and joint feedback, not simulator 
 The trajectory is anchored to the current XY position, heading and unwrapped free-wheel angles on every cycle.
 The stand-up gains are separate from OCS2's `useFeedbackPolicy` option.
 
-The selected plan starts wheel-only MPC warm-up at approximately 11 s and transfers at approximately 13 s.
+The selected plan starts wheel-only MPC warm-up at 3.3 s and transfers at 3.9 s ($D_1+D_2+0.2D_3$ and $\sum D-0.4D_3$).
 Before starting or applying MPC, a forward-kinematics guard requires both knees at least 15 mm above the inferred wheel support plane for 50 ms; the two wheel support heights must agree within 10 mm.
 The guard uses exact finite-cylinder lower-height formulas rather than the optimizer's smoothing.
 This is a flat-ground geometric check: it does not measure normal loads or prove that a tire is carrying force.
@@ -123,10 +126,10 @@ Sit-down returns to the original activation idle servo targets, avoiding another
 
 ## Recorded Acceptance
 
-The first estimated-state ROS comparison uses playback plus the first 3 s of MPC; the durations therefore include the blend.
+The first estimated-state ROS comparison, made with the earlier 5 s phases, uses playback plus the first 3 s of MPC; the durations therefore include the blend.
 Torque RMS is averaged over different-duration motions, so it is not an equal-time energy comparison.
 
-| Measurement | Previous push-off | Contact-aware stand-up |
+| Measurement | Previous push-off | Contact-aware, 5 s phases |
 | --- | ---: | ---: |
 | Playback including blend | 0.67 s | 13.05 s |
 | Peak wheel speed | 64.5 rad/s | 3.8 rad/s |
@@ -148,6 +151,35 @@ These results validate this simulation checkpoint, not all disturbances, slopes,
 
 Solid CoM-offset and dashed minimum-knee-clearance curves share each run's color in the middle panel.
 The [recorded metrics](results/assets/upkie_r80_stand_up.json) and `tests/tuning/analyze_upkie_stand_up.py` preserve the measurement definitions.
+
+### Shorter Phases
+
+The shipped plan uses 1.5 s phases (`--phase-seconds 0.5 1.5`); the model, contact sequence, bounds and cost are otherwise unchanged.
+The same measurements over playback plus the first 3 s of MPC, estimated state, one run each (two runs per plan overlap in the plot):
+
+| Measurement | 5 s phases | 1.5 s phases (shipped) | 1.0 s phases |
+| --- | ---: | ---: | ---: |
+| Playback including blend | 13.05 s | 3.95 s | 2.65 s |
+| Peak wheel speed | 3.9 rad/s | 4.2 rad/s | 4.7 rad/s |
+| Peak wheel effort | 0.64 Nm | 0.63 Nm | 0.72 Nm |
+| Wheel torque RMS | 0.098 Nm | 0.160 Nm | 0.190 Nm |
+| Wheel-torque saturation samples | 0% | 0% | 0% |
+| Wheel-center X range | 0.092 m | 0.090 m | 0.087 m |
+| Maximum wheel clearance | 0.1 mm | 0.4 mm | 0.8 mm |
+| Knee clearance at locomotion entry | 135 mm | 137 mm | 138 mm |
+| Reconstructed tire/femur penetration | none | none | none |
+| Most forward pitch (second knee release) | -0.20 rad | -0.29 rad | -0.31 rad |
+| Tilt in the first 1 s of MPC, regular cycles | 0.009-0.011 rad | 0.013-0.024 rad | 0.016-0.025 rad |
+| Mean MPC rate | 190 Hz | 191 Hz | 189 Hz |
+
+The shipped 1.5 s plan then passed five synthetic-joystick stand/drive/sit cycles plus the forced-fall latch, three cycles with turning between stands (maximum locomotion tilt 0.017 rad), and two full course runs.
+Locomotion tilt after the first second of MPC is unchanged (0.003-0.005 rad in every plan).
+The 1.0 s plan also passed three cycles plus the fall latch and two stand-ups, but with less margin: the TO's acceleration bounds are active on most joints, wheel effort is higher, and measured pitch varied between runs (0.085-0.134 rad), so it is not the default.
+With a 2.0 s cap IPOPT did not reach the $10^{-5}$ export threshold within 1000 iterations, also when warm-started from the 1.5 s solution, so no 2 s plan was exported.
+
+![Stand-up speed comparison: 5 s, 1.5 s and 1.0 s phases](results/assets/upkie_r80_stand_up_speed.png)
+
+[Recorded metrics](results/assets/upkie_r80_stand_up_speed.json).
 
 ## Regeneration
 
@@ -172,7 +204,8 @@ python config/upkie/stand_up_to/plan.py --models "$WORK/upkie" \
   --output "$PWD/demo_videos/upkie_stand_up/candidate.yaml"
 ```
 
-`seed.json` is a warm start, not a fixed motion constraint.
+`seed.json` is a warm start, not a fixed motion constraint; it holds the shipped 1.5 s solution, and its node rates are rescaled when `--phase-seconds` changes the duration.
+A faster or slower plan only needs a different `--phase-seconds MIN MAX`; the optimum uses MAX for every phase.
 The solution JSON records the NLP termination status and measured maximum constraint violation.
 An iteration-limited but constraint-feasible iterate may be retained; the export rejects violation above $10^{-5}$ and does not claim an optimal solution merely because it is feasible.
 Always validate a regenerated candidate in MuJoCo before replacing the shipped YAML:

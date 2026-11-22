@@ -1,0 +1,44 @@
+{
+  "phases_5.0s": {
+    "verdict": "SUCCESS",
+    "playback_seconds": 13.0505,
+    "peak_wheel_speed_rad_s": 3.889103734469409,
+    "wheel_torque_rms_Nm": 0.09849772312660783,
+    "wheel_saturation_fraction": 0.0,
+    "wheel_center_range_m": 0.0920831212045968,
+    "peak_pitch_rad": 0.4989703124614222,
+    "max_wheel_clearance_m": 0.00010419874011986796,
+    "mean_mpc_rate_hz": 190.23833333333334,
+    "max_tire_femur_penetration_m": 0.0,
+    "minimum_trunk_ground_clearance_m": 0.11380083959820883,
+    "knee_clearance_at_locomotion_m": 0.13489227449278723
+  },
+  "phases_1.5s_shipped": {
+    "verdict": "SUCCESS",
+    "playback_seconds": 3.950499999,
+    "peak_wheel_speed_rad_s": 4.1729089171454445,
+    "wheel_torque_rms_Nm": 0.15996667345064683,
+    "wheel_saturation_fraction": 0.0,
+    "wheel_center_range_m": 0.09009149781499178,
+    "peak_pitch_rad": 0.49881502897036095,
+    "max_wheel_clearance_m": 0.00036630676843964205,
+    "mean_mpc_rate_hz": 191.396,
+    "max_tire_femur_penetration_m": 0.0,
+    "minimum_trunk_ground_clearance_m": 0.11299787417264884,
+    "knee_clearance_at_locomotion_m": 0.13659206017576161
+  },
+  "phases_1.0s": {
+    "verdict": "SUCCESS",
+    "playback_seconds": 2.650499999,
+    "peak_wheel_speed_rad_s": 4.683020858471723,
+    "wheel_torque_rms_Nm": 0.18977013652912905,
+    "wheel_saturation_fraction": 0.0,
+    "wheel_center_range_m": 0.08650090672462829,
+    "peak_pitch_rad": 0.498878564118984,
+    "max_wheel_clearance_m": 0.0007982505057540085,
+    "mean_mpc_rate_hz": 188.86399999999998,
+    "max_tire_femur_penetration_m": 0.0,
+    "minimum_trunk_ground_clearance_m": 0.11403555574047342,
+    "knee_clearance_at_locomotion_m": 0.13786941184344764
+  }
+}

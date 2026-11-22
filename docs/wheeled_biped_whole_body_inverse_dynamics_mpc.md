@@ -710,9 +710,10 @@ This playback is not a stand-up trajectory optimized online by the MPC.
 The 80 mm-wheel checkpoint uses an offline full-body inverse-dynamics optimization with both knee housings and both wheels modeled as contacts, plus stand-up-only finite-horizon state feedback.
 The prescribed support sequence is both knees and wheels, right knee and wheels, then wheels only; configurations, forces, torques and phase durations are optimized.
 The wheel-only locomotion MPC is not applied to the knee-supported phase and starts warm-up only after a sustained geometric knee-clearance check.
-The selected motion takes approximately 13 s to hand over, at about 0.178 m base height and -0.051 rad pitch, before normal MPC raises the body to the command.
-In the first estimated-state comparison, peak wheel speed falls from 64.5 to 3.8 rad/s and wheel-center X travel from 0.70 to 0.092 m over playback plus the first 3 s of MPC.
+The shipped motion uses three 1.5 s phases and hands over at 3.9 s, at about 0.174 m base height and -0.12 rad planned pitch, before normal MPC levels and raises the body to the command.
+In the first estimated-state comparison (with the earlier 5 s phases, 13 s to handover), peak wheel speed falls from 64.5 to 3.8 rad/s and wheel-center X travel from 0.70 to 0.092 m over playback plus the first 3 s of MPC.
 Three estimated-state synthetic-joystick stand/drive/sit cycles pass; these are simulation results, not hardware validation.
+With the shipped 1.5 s phases the peak wheel speed is 4.2 rad/s with no wheel-torque saturation, and five stand/drive/sit cycles plus the fall latch, three turning cycles and two full course runs pass.
 The full model, contact-width approximation, feedback equations, primary references and regeneration/acceptance procedure are in [Upkie contact-aware stand-up](upkie_stand_up_optimization.md).
 Historical rapid push-off/catching-step results apply to the earlier trajectory, not this gentle 80 mm-wheel checkpoint.
 Trajectory loading rejects nonfinite samples and timestamps that are not strictly increasing.
