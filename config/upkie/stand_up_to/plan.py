@@ -233,6 +233,21 @@ def solve(model_prefix, seed_path, solution_path, phase_seconds=(0.5, 1.5)):
             print_frequency_iter=25,
         ),
     )
+    violation = ca.mmax(ca.fmax(opt.lbg - opt.g, opt.g - opt.ubg))
+    evaluate = ca.Function(
+        "evaluate", [opt.x], [X, V, A, F, U, D, cost, opt.f, violation]
+    ).expand()
+    # IPOPT often ends this problem oscillating at its iteration limit, so the last iterate
+    # may violate the constraints although earlier ones did not: keep the cheapest feasible one.
+    best = dict(objective=np.inf, iteration=None)
+
+    def keep_best(iteration):
+        z = opt.debug.value(opt.x)
+        objective, error = (float(v) for v in evaluate(z)[-2:])
+        if error <= 1e-6 and objective < best["objective"]:
+            best.update(objective=objective, iteration=iteration, z=z)
+
+    opt.callback(keep_best)
     success = False
     try:
         sol = opt.solve()
@@ -240,23 +255,25 @@ def solve(model_prefix, seed_path, solution_path, phase_seconds=(0.5, 1.5)):
     except RuntimeError:
         sol = opt.debug
         opt.debug.show_infeasibilities(1e-4)
+    z = sol.value(opt.x)
+    retained = None
+    if float(evaluate(z)[-1]) > 1e-5 and best["iteration"] is not None:
+        z, retained = best["z"], best["iteration"]
+        print("final iterate infeasible; retaining iteration", retained, flush=True)
+    *trajectory, total, _, error = evaluate(z)
     out = {
-        k: np.array(sol.value(y)).tolist()
-        for k, y in dict(x=X, v=V, a=A, force=F, torque=U, duration=D).items()
+        k: np.array(y).squeeze().tolist()
+        for k, y in zip(("x", "v", "a", "force", "torque", "duration"), trajectory)
     }
     out.update(
         success=success,
         initial=x0.tolist(),
         goal=goal.tolist(),
-        cost=float(sol.value(cost)),
+        cost=float(total),
         stats=opt.stats(),
+        retained_iteration=retained,
     )
-    values = np.array(sol.value(opt.g)).reshape(-1)
-    lower = np.array(sol.value(opt.lbg)).reshape(-1)
-    upper = np.array(sol.value(opt.ubg)).reshape(-1)
-    out["max_constraint_violation"] = float(
-        np.max(np.maximum(lower - values, values - upper))
-    )
+    out["max_constraint_violation"] = float(error)
     solution_path.parent.mkdir(parents=True, exist_ok=True)
     solution_path.write_text(json.dumps(out))
     print(

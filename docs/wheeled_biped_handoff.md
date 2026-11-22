@@ -5,6 +5,53 @@ The original [implementation checklist](design_notes/wheeled_biped/wheeled_biped
 Update this file at each milestone.
 The implemented equations, current weights, rolling-contact equalities and execution limits are collected in [Wheeled-Biped WB-ID MPC](wheeled_biped_whole_body_inverse_dynamics_mpc.md).
 
+## Tuning the Stand-up Duration (2026-11-22)
+
+The stand-up speed has one knob, `config/upkie/stand_up_to/plan.py --phase-seconds MIN MAX`: each of the three contact phases lasts MAX seconds, MPC warm-up starts at 2.2 MAX and the handover is at 2.6 MAX (3.9 s for the shipped 1.5).
+Regenerating is a host-side offline job (about 1.5 min per plan); the MuJoCo check runs in `ros_jazzy`.
+The full recipe with explanations is [Upkie contact-aware stand-up, Tuning the Duration and Regenerating](upkie_stand_up_optimization.md#tuning-the-duration-and-regenerating); the short version:
+
+```bash
+# Mac, once (or after /tmp is cleared): environment and Pinocchio/CasADi model
+cd ~/src/mpc/legged_robot_mpc_controller
+export WORK=/tmp/upkie_stand_up && mkdir -p "$WORK"
+python3.12 -m venv "$WORK/env" && source "$WORK/env/bin/activate"
+pip install mujoco==3.13.0 casadi pin cmeel-eigen numpy scipy pyyaml matplotlib
+PREFIX=$(python -c 'import site; print(site.getsitepackages()[0])')
+cmake -S config/upkie/stand_up_to -B "$WORK/build" -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_PREFIX_PATH="$PREFIX/cmeel.prefix;$PREFIX/casadi"
+cmake --build "$WORK/build" -j4
+"$WORK/build/upkie_stand_up_model" description/urdf/robots/upkie/upkie.urdf "$WORK/upkie"
+
+# Mac: candidate (never omit --output: its default overwrites the shipped YAML)
+MAX=1.2
+python config/upkie/stand_up_to/plan.py --models "$WORK/upkie" --phase-seconds 0.5 $MAX \
+  --solution "$WORK/solution_$MAX.json" \
+  --output "$PWD/demo_videos/upkie_stand_up_tune/candidate_$MAX.yaml"
+
+# ros_jazzy (ssh parallels@10.211.55.17; docker exec -it ros_jazzy bash): 3 cycles + forced fall
+source /opt/ros/jazzy/setup.bash && source /root/ocs2_ros2_ws/install/setup.bash
+cd /root/ocs2_ros2_ws   # not the repo: the CppAD cache auto_generated/upkie is relative to the cwd
+R=/root/src/mpc/legged_robot_mpc_controller; O=$R/demo_videos/upkie_stand_up_tune; MAX=1.2
+ROS_DOMAIN_ID=169 python3 $R/tests/upkie_posture_cycle_test.py --cycles 3 --joystick --fall-test \
+  --trajectory $O/candidate_$MAX.yaml --prefix $O/cycles_$MAX
+
+# Mac, after SUCCESS: install (symlink-install workspace, so just relaunch) and make it the new seed
+cp demo_videos/upkie_stand_up_tune/candidate_$MAX.yaml config/upkie/stand_up_trajectory.yaml
+python -c "import json, sys; d = json.load(open(sys.argv[1])); \
+json.dump({k: d[k] for k in ('x', 'v', 'a', 'force', 'torque', 'duration')}, open(sys.argv[2], 'w'))" \
+  "$WORK/solution_$MAX.json" config/upkie/stand_up_to/seed.json
+```
+
+Undo with `git checkout config/upkie/stand_up_trajectory.yaml config/upkie/stand_up_to/seed.json`.
+When shipping a new MAX, also change the `--phase-seconds` default in `plan.py` and the quoted 3.9 s in `ros2_controllers.yaml`, `README.md` and the Upkie docs.
+Checked on the Mac: fresh environment, model build and parity check, then one solve per cap (about 76 s each).
+The default regeneration is bit-identical to the previous one, and `--phase-seconds 1 5` with the `a86b26d` seed reproduces the old 13 s YAML within 2e-6.
+The 1.2 s solve first refused to export: IPOPT oscillates at its 1000-iteration limit, and the final iterate had 2.3e-5 violation although iteration 975 had 2.8e-7.
+`plan.py` now exports the lowest-cost iterate with at most 1e-6 violation when the final one exceeds 1e-5, and records it as `retained_iteration`; when the final iterate is feasible nothing changes.
+With that, 1.2 s (iteration 82, handover 3.12 s) and 2.0 s (iteration 43, handover 5.2 s) export, and their limit usage lies between the neighboring plans (table in the doc).
+Neither has been run in MuJoCo yet; the candidates are in ignored `demo_videos/upkie_stand_up_tune/`.
+
 ## Faster Contact-Aware Stand-up (2026-11-22)
 
 The contact-aware stand-up now hands over to MPC at 3.9 s instead of 13 s, with the same motion sequence (trunk upright on knees and wheels, left knee released, right knee released, rise).
@@ -13,7 +60,7 @@ Change: `plan.py --phase-seconds MIN MAX` (default 0.5 1.5) replaces the hard-co
 Nothing else in the TO, the feedback export, the controller or the MPC changed; the demo captions now describe this motion instead of the old push-off.
 Acceptance (estimated state, synthetic joystick): 2 stand-up demos, 5 stand/drive/sit cycles plus fall latch, 3 turning cycles and 2 full course runs pass; stand-up unit tests pass (2 in the container, all 4 on the host).
 Peak wheel effort 0.63 Nm (unchanged), no saturation, knee clearance 137 mm at handover, the most forward pitch at the second knee release -0.29 rad (was -0.20), tilt in the first second of MPC 0.013-0.024 rad (was 0.009-0.011).
-A 1.0 s-phase plan (2.6 s) also passed 3 cycles but with less margin; a 2.0 s cap did not reach export feasibility within 1000 IPOPT iterations.
+A 1.0 s-phase plan (2.6 s) also passed 3 cycles but with less margin; a 2.0 s cap did not reach export feasibility within 1000 IPOPT iterations (since fixed by the retained-iterate fallback above).
 Details, table and plot: [Upkie contact-aware stand-up, Shorter Phases](upkie_stand_up_optimization.md#shorter-phases); runs, solutions and the before/after video are in ignored `demo_videos/upkie_fast_standup/`.
 
 ## Larger-Wheel Gentle Stand-up Investigation (2026-11-22, Codex)
