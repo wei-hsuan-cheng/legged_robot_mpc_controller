@@ -5,6 +5,40 @@ The original [implementation checklist](design_notes/wheeled_biped/wheeled_biped
 Update this file at each milestone.
 The implemented equations, current weights, rolling-contact equalities and execution limits are collected in [Wheeled-Biped WB-ID MPC](wheeled_biped_whole_body_inverse_dynamics_mpc.md).
 
+## Shared Geometry File (2026-11-23)
+
+Upkie's contact geometry is centralized in [`config/upkie/geometry.yaml`](../config/upkie/geometry.yaml) ([doc](upkie_geometry.md)): wheel radius 0.08 m, half width 0.022 m, tire centre $[0,0,-0.0312]$ m and axle $[0,0,1]$ in the wheel link, and the two knee housings (femur frame centre $[0,-0.17015,0.0700987]$ m, radius 0.05 m, half width 0.02685 m).
+Each consumer reads it by path, like the stand-up plan and the posture table:
+
+| Consumer | Path parameter / reader | Values taken from the file |
+| --- | --- | --- |
+| WB-ID MPC controller | `paths.geometryFile` | `ocs2.constraints.wheelContact.radius`/`axleAxis`, `ocs2.model.contactGeometry.frameTranslation` |
+| Wheel-aware linear KF (`legged_robot_state_estimator`) | `geometryFile` | `wheel.radius`, `wheel.centerOffset`, `wheel.axleAxis` |
+| Stand-up TO | `plan.py --geometry` (default the file), `config/upkie/upkie_geometry.py` | tire and knee-housing contacts |
+| Posture table generator | `config/upkie/upkie_geometry.py` | tire radius |
+| `tests/tuning/analyze_upkie_flight.py` | reads the file | tire radius |
+
+The inline copies were removed from `ros2_controllers.yaml`; the controller and the KF refuse them next to the file, and fall back to inline values only without the path parameter (the humanoids).
+Generated files record their geometry: the stand-up plan's `wheel_radius`, `wheel_half_width` and `knee_contacts`, and the posture table's `wheel_radius`; the controller refuses a stale file at configure.
+The offline tools check the file against the MJCF collision tire (radius and width within 1 µm).
+The TO model generator now exports only frame placements (`upkie_frames.casadi`), and `plan.py` applies the contact offsets from the file; the full contact model is bit-identical to the old one over 20 random states, and re-exporting the shipped plan from its saved solution reproduced it byte for byte apart from the new `wheel_radius` line.
+The posture table is now generated with exactly 0.08 m (before, the MJCF prism circumradius 0.0800006 m), which moves its joints by at most 1.5e-5 rad.
+After pulling, rebuild `legged_robot_state_estimator` (new `geometryFile`, yaml-cpp) and `legged_robot_mpc_controller`, and rerun `regenerate.sh setup` before planning, since older TO models baked the offsets in.
+Tested in `ros_jazzy` (2026-11-23, both packages rebuilt, ROS domain 169), all passed:
+
+| Test | Result |
+| --- | --- |
+| `regenerate.sh setup` (frames-only TO model, MJCF tire check via the file) | parity passed |
+| `posture` / `check-posture` / `install-posture` | course SUCCESS; heights exact at 0.355/0.225/0.245 m, hip/knee within 0.004 rad of the table |
+| Posture cycle test with the shipped files (3 cycles + fall) | PASS, fall latched; log shows the MPC and the KF loading `geometry.yaml` |
+| `upkie_demo.py full` (stand-up + full course, wheel KF) | SUCCESS, min z 0.174 m, max pitch/roll 0.090/0.044 rad |
+| `upkie_acceptance_suite.sh` (ground truth roll + brake, push recovery) | both SUCCESS |
+| Inline `wheelContact.radius` (MPC) / `wheel.radius` (KF) next to the file | both refused at configure |
+| Posture table without `wheel_radius` | refused at configure |
+| Host tests (`test_upkie_geometry`, `_posture_table`, `_stand_up`, `_urdf`) | 13 passed |
+
+`plan 1.5` in the container still exports (violation 1.5e-7, handover 3.9 s) but its final iterate moved by up to 0.015 rad and 0.17 Nm from the pre-change container run: the contact model's values are bit-identical, but its symbolic graph, and so the rounding of IPOPT's derivatives, differs, and the non-converged final iterate amplifies that (the Mac and container already differ by 0.043 rad); the shipped plan was re-exported from its saved solution, not re-solved.
+
 ## Posture Table File (2026-11-23)
 
 The posture-by-height table moved out of `ros2_controllers.yaml` into `config/upkie/posture_table.yaml`, referenced by the new parameter `ocs2.reference.postureTableFile` (`$(find-pkg-share legged_robot_mpc_controller)/config/upkie/posture_table.yaml`), the same pattern as `bringUp.standUpTrajectoryFile`.

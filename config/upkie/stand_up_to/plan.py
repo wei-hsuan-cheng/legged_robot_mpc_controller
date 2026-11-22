@@ -23,11 +23,31 @@ def load_helper(name, path):
 
 p = load_helper("upkie_rollout", HERE.parent / "plan_stand_up.py")
 posture = load_helper("upkie_posture", HERE.parent / "compute_posture_table.py")
+upkie_geometry = load_helper("upkie_geometry", HERE.parent / "upkie_geometry.py")
+FRAMES = ("left_wheel_link", "right_wheel_link", "left_femur", "right_femur")
 
 
-def functions(model_prefix):
+def contacts(geometry):
+    """(centre in the frame, radius, half width, axis in the frame) of the two tires and the two knee housings, in
+    FRAMES order, from config/upkie/geometry.yaml."""
+    wheel = geometry["wheel"]
+    knees = geometry["knee_housings"]
+    if [k["frame"] for k in knees] != list(FRAMES[2:]):
+        raise ValueError(f"geometry knee_housings must be {FRAMES[2:]}, in order")
+    tire = (wheel["center_offset"], wheel["radius"], wheel["half_width"], wheel["axle_axis"])
+    return [tire, tire] + [(k["center"], k["radius"], k["half_width"], [0.0, 0.0, 1.0]) for k in knees]
+
+
+def functions(model_prefix, geometry=None):
+    geometry = geometry or upkie_geometry.load()
+    frames = Path(str(model_prefix) + "_frames.casadi")
+    if not frames.exists():
+        raise FileNotFoundError(
+            f"{frames} is missing: rebuild the model (config/upkie/regenerate.sh setup); older models baked the "
+            "contact offsets in, which now come from config/upkie/geometry.yaml"
+        )
     rnea = ca.Function.load(str(model_prefix) + "_rnea.casadi")
-    fk = ca.Function.load(str(model_prefix) + "_fk.casadi")
+    fk = ca.Function.load(str(frames))
     x = ca.SX.sym("x", 12)
     v = ca.SX.sym("v", 12)
     a = ca.SX.sym("a", 12)
@@ -76,16 +96,15 @@ def functions(model_prefix):
     vels = []
     points = []
     n = ca.DM([0, 0, 1])
-    for i in range(4):
-        center = g[12 * i : 12 * i + 3]
+    for i, (offset, radius, halfwidth, axis) in enumerate(contacts(geometry)):
         rot = ca.reshape(g[12 * i + 3 : 12 * i + 12], 3, 3)
-        axle = rot[:, 2]
+        center = g[12 * i : 12 * i + 3] + rot @ ca.DM(offset)
+        axle = rot @ ca.DM(np.array(axis) / np.linalg.norm(axis))
         w = n - ca.dot(axle, n) * axle
-        halfwidth = 0.022 if i < 2 else 0.02685
         # Smooth finite-width support point; unlike a thin disk, this accounts
         # for the lower tire/housing edge under body roll.
         rho = (
-            -(0.08 if i < 2 else 0.05) * w / ca.norm_2(w)
+            -radius * w / ca.norm_2(w)
             - halfwidth * axle[2] / ca.sqrt(axle[2] ** 2 + 0.02**2) * axle
         )
         Rdot = ca.reshape(ca.jacobian(ca.reshape(rot, 9, 1), x) @ v, 3, 3)
@@ -113,8 +132,8 @@ def functions(model_prefix):
     )
 
 
-def solve(model_prefix, seed_path, solution_path, phase_seconds=(0.5, 1.5)):
-    fn = functions(model_prefix)
+def solve(model_prefix, seed_path, solution_path, phase_seconds=(0.5, 1.5), geometry=None):
+    fn = functions(model_prefix, geometry)
     r = p.Rollout()
     r.spawn_idle()
     q, _ = r.joints()
@@ -296,21 +315,12 @@ def solve(model_prefix, seed_path, solution_path, phase_seconds=(0.5, 1.5)):
     return out
 
 
-def check_model(model_prefix):
+def check_model(model_prefix, geometry=None):
     from scipy.spatial.transform import Rotation
-    from xml.etree import ElementTree
 
-    xml = ElementTree.parse(ROOT / "description/mujoco/robots/upkie/upkie.xml")
-    tire = xml.find(".//mesh[@name='tire_collision']")
-    vertices = np.fromstring(tire.attrib["vertex"], sep=" ").reshape(-1, 3)
-    if not np.isclose(
-        np.max(np.linalg.norm(vertices[:, :2], axis=1)), 0.08, atol=1e-6
-    ) or not np.isclose(np.ptp(vertices[:, 2]), 0.044, atol=1e-6):
-        raise ValueError(
-            "this stand-up model expects the 80 mm-radius, 44 mm-wide collision tire"
-        )
-
-    model = functions(model_prefix)
+    geometry = geometry or upkie_geometry.load()
+    upkie_geometry.check_mjcf(geometry)
+    model = functions(model_prefix, geometry)
     rnea = ca.Function.load(str(model_prefix) + "_rnea.casadi")
     rollout = p.Rollout()
     rng = np.random.default_rng(9)
@@ -364,15 +374,22 @@ def main():
         metavar=("MIN", "MAX"),
         help="bounds on each of the three contact-phase durations; the optimum uses MAX",
     )
+    parser.add_argument(
+        "--geometry",
+        type=Path,
+        default=upkie_geometry.GEOMETRY,
+        help="tire and knee-housing contact geometry shared with the MPC and the estimator",
+    )
     parser.add_argument("--check-model-only", action="store_true")
     args = parser.parse_args()
-    check_model(args.models)
+    geometry = upkie_geometry.load(args.geometry)
+    check_model(args.models, geometry)
     if args.check_model_only:
         return
-    solve(args.models, args.seed, args.solution, args.phase_seconds)
+    solve(args.models, args.seed, args.solution, args.phase_seconds, geometry)
     from feedback import Tracking
 
-    tracker = Tracking(args.models, args.solution)
+    tracker = Tracking(args.models, args.solution, geometry)
     tracker.export(args.output)
 
 

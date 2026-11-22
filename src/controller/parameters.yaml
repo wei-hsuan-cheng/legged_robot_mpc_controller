@@ -7,6 +7,11 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
     urdfFile: {type: string, default_value: "", description: "Robot URDF used by Pinocchio and robot_state_publisher"}
     libFolder: {type: string, default_value: "/tmp/legged_robot_mpc_cppad", description: "CppAD code generation
         output folder"}
+    geometryFile: {type: string, default_value: "", description: "Optional wheeled-biped geometry YAML (a geometry
+        map: wheel radius, half_width, center_offset, axle_axis; knee_housings). When set it supplies
+        ocs2.constraints.wheelContact.radius/axleAxis and ocs2.model.contactGeometry.frameTranslation, which must
+        then be left out of the parameter file, and the stand-up plan and posture table must have been generated for
+        it. Shared with the state estimator and the offline generators, e.g. config/upkie/geometry.yaml"}
   target:
     walkingVelocityTopic: {type: string, default_value: "/humanoid/walking_velocity_command", description: "Walking
         velocity command topic"}

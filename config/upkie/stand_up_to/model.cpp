@@ -31,17 +31,15 @@ int main(int argc, char **argv) {
   pinocchio::forwardKinematics(am,data,eq);
   pinocchio::updateFramePlacements(am,data);
   pinocchio::centerOfMass(am,data,eq);
+  // Frame origins and rotations only: plan.py places the tire and knee-housing centres in these frames from
+  // config/upkie/geometry.yaml, so the model carries no contact geometry.
   SX fk=SX::zeros(4*12+3);
   const char* names[]={"left_wheel_link","right_wheel_link","left_femur","right_femur"};
   for(int j=0;j<4;++j){
     const auto &f=data.oMf[model.getFrameId(names[j])];
-    Eigen::Matrix<SX,3,1> local;
-    if(j<2) local<<0,0,-.0312;
-    else local<<0,-.17015,.0700987;
-    auto pos=f.act(local);
-    for(int i=0;i<3;++i) fk(12*j+i)=pos[i];
+    for(int i=0;i<3;++i) fk(12*j+i)=f.translation()[i];
     for(int c=0;c<3;++c) for(int r=0;r<3;++r)fk(12*j+3+3*c+r)=f.rotation()(r,c);
   }
   for(int i=0;i<3;++i) fk(48+i)=data.com[0][i];
-  casadi::Function("fk",{q},{fk}).save(std::string(argv[2])+"_fk.casadi");
+  casadi::Function("frames",{q},{fk}).save(std::string(argv[2])+"_frames.casadi");
 }

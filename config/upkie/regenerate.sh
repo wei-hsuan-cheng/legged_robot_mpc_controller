@@ -25,6 +25,8 @@
 #                    and, at the end of each height-test plateau, the height and hip/knee error from the table.
 #   install-posture  after a passing check-posture: the candidate becomes config/upkie/posture_table.yaml.
 #
+# Both generators take the wheel and knee contact geometry from config/upkie/geometry.yaml (docs/upkie_geometry.md),
+# shared with the MPC and the estimator; the controller refuses files generated for other geometry.
 # Installs take effect when the launch restarts (symlink install, no build); undo with git checkout of the files.
 # setup, plan and posture drop the ROS environment: Jazzy ships its own pinocchio, and its PYTHONPATH and
 # LD_LIBRARY_PATH would shadow the venv's. Details: docs/upkie_stand_up_optimization.md, "Tuning the Duration and

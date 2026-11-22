@@ -26,11 +26,9 @@ humanoid_linear_kf:
     imuExtrinsics: true
     contactFrames: [left_wheel_link, right_wheel_link]
     contactModel: rolling_wheel
-    wheel:
-      radius: 0.08                 # enlarged wheel (upkie.xml tire_collision); the original Upkie wheel is 0.055
-      # The tire centre on the wheel link, as ocs2.model.contactGeometry.frameTranslation.
-      centerOffset: [0.0, 0.0, -0.0312]
-      axleAxis: [0.0, 0.0, 1.0]
+    # Wheel radius, tire centre on the wheel link and axle (wheel.radius/centerOffset/axleAxis): the shared geometry
+    # file, also read by the MPC (paths.geometryFile) and the offline stand-up and posture generators.
+    geometryFile: "$(find-pkg-share legged_robot_mpc_controller)/config/upkie/geometry.yaml"
     odomTopic: /humanoid/state_estimate/odom
     odomFrame: odom
     publishRate: 100.0
@@ -64,6 +62,11 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
     paths:
       urdfFile: $(var urdfFile)
       libFolder: $(var libFolder)
+      # Wheel radius, half width, tire centre and axle, and the knee housings: the shared geometry file, also read by
+      # the estimator (geometryFile) and the offline generators. It supplies ocs2.constraints.wheelContact.radius/
+      # axleAxis and ocs2.model.contactGeometry.frameTranslation, and the controller refuses a stand-up plan or
+      # posture table generated for other geometry.
+      geometryFile: "$(find-pkg-share legged_robot_mpc_controller)/config/upkie/geometry.yaml"
 
     target:
       walkingVelocityTopic: /humanoid/walking_velocity_command
@@ -137,12 +140,11 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
       model:
         robotName: upkie
         # No fixed joints (fixedJointNames omitted: rclcpp rejects an empty list).
-        # Tire centres on the wheel links: 31.2 mm along each wheel axle from the wheel joint
-        # (the MJCF tire cylinder). They spin with the wheel; their position does not.
+        # Tire centres on the wheel links, at geometry.yaml's wheel.center_offset from the wheel joint (the frame
+        # translation comes from paths.geometryFile). They spin with the wheel; their position does not.
         contactNames6DoF: [left_tire_center, right_tire_center]
         contactParentJointNames: [left_wheel, right_wheel]
         contactGeometry:
-          frameTranslation: [0.0, 0.0, -0.0312]
           # Unused with wheelContact (no CoP rows); a nominal patch for the shared frame setup.
           rectangle: [0.01, -0.01, 0.01, -0.01]
         # MJCF joint armature (reflected rotor inertia), 16x the wheel's own spin inertia.
@@ -247,8 +249,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
 
         wheelContact:
           activate: true
-          radius: 0.08               # enlarged wheel (upkie.xml tire_collision); the original Upkie wheel is 0.055
-          axleAxis: [0.0, 0.0, 1.0]
+          # radius and axleAxis: paths.geometryFile.
           normalPositionGain: 50.0
           normalVelocityGain: 50.0
           # Tread-slip feedback. At 50 a wheel blocked by a step and spinning made the MPC plan up to 46 N of traction

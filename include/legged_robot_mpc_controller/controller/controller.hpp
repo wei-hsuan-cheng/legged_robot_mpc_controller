@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <limits>
 #include <optional>
 #include <string>
 #include <thread>
@@ -152,12 +153,32 @@ private:
     double minimumKneeClearance{0.0};
     double clearanceHoldTime{0.0};
     double wheelHalfWidth{0.0};
+    //! The wheel radius the plan was generated for (wheel_radius; NaN in plans older than the geometry file).
+    double wheelRadius{std::numeric_limits<double>::quiet_NaN()};
     JointActionCommand sample(double t, const vector_t& measured_state = vector_t()) const;
   };
   static StandUpTrajectory load_stand_up_trajectory(const std::string& file, const std::vector<std::string>& joint_names);
   //! ocs2.reference.postureTableFile: heights and row-major joint states; the reference calculator checks the order.
+  //! wheel_radius is the radius the table was generated for (NaN if the file has none).
   static void load_posture_table(const std::string& file, const std::vector<std::string>& joint_names,
-                                 std::vector<double>& heights, std::vector<double>& joint_states);
+                                 std::vector<double>& heights, std::vector<double>& joint_states, double& wheel_radius);
+
+  //! paths.geometryFile: the wheeled-biped geometry shared with the estimator and the offline generators.
+  struct WheeledBipedGeometry
+  {
+    double wheelRadius{0.0};
+    double wheelHalfWidth{0.0};
+    Eigen::Vector3d wheelCenterOffset{Eigen::Vector3d::Zero()};
+    Eigen::Vector3d wheelAxleAxis{Eigen::Vector3d::UnitZ()};
+    std::vector<StandUpTrajectory::KneeContact> kneeHousings;
+  };
+  static WheeledBipedGeometry load_geometry(const std::string& file);
+  //! Loads paths.geometryFile into geometry_ and the wheel contact parameters it supplies.
+  void apply_geometry_file();
+  //! Throws unless a generated stand-up plan or posture table was made for geometry_.
+  void check_generated_geometry(const std::string& what, const std::string& file, double wheel_radius,
+                                const StandUpTrajectory* plan = nullptr) const;
+  std::optional<WheeledBipedGeometry> geometry_;
   JointActionCommand sample_stand_up(double t, const ocs2::SystemObservation& observation) const;
   bool stand_up_support_ready(const ocs2::SystemObservation& observation);
   //! The bring-up phase machine runs for the estimator, and for any robot with a planned stand-up.

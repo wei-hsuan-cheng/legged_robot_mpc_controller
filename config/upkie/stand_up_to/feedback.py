@@ -49,7 +49,8 @@ def linearizations(model):
 
 
 class Tracking:
-    def __init__(self, model_prefix, solution_path):
+    def __init__(self, model_prefix, solution_path, geometry=None):
+        self.geometry = geometry or to.upkie_geometry.load()
         self.plan = json.loads(Path(solution_path).read_text())
         self.X = np.array(self.plan["x"])
         self.V = np.array(self.plan["v"])
@@ -63,7 +64,7 @@ class Tracking:
         ]
         self.spline = CubicHermiteSpline(self.times, self.X.T, self.V.T)
         self.torque = interp1d(self.times, self.U, axis=1)
-        self.model = to.functions(model_prefix)
+        self.model = to.functions(model_prefix, self.geometry)
         self.fns = linearizations(self.model)
         self.end = self.times[-1]
         self.grid = np.arange(0, self.end, 0.01)
@@ -152,15 +153,17 @@ class Tracking:
             feedback=gains.tolist(),
             minimum_knee_clearance=0.015,
             clearance_hold_time=0.05,
-            wheel_half_width=0.022,
+            # The geometry this plan was made for (config/upkie/geometry.yaml); the controller checks it.
+            wheel_radius=float(self.geometry["wheel"]["radius"]),
+            wheel_half_width=float(self.geometry["wheel"]["half_width"]),
             knee_contacts=[
                 dict(
-                    frame=name,
-                    center=[0.0, -0.17015, 0.0700987],
-                    radius=0.05,
-                    half_width=0.02685,
+                    frame=knee["frame"],
+                    center=[float(c) for c in knee["center"]],
+                    radius=float(knee["radius"]),
+                    half_width=float(knee["half_width"]),
                 )
-                for name in ("left_femur", "right_femur")
+                for knee in self.geometry["knee_housings"]
             ],
         )
 

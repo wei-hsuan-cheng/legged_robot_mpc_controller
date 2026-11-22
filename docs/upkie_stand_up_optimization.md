@@ -70,6 +70,7 @@ The objective penalizes angular motion, joint motion, acceleration, actuator eff
 
 ### Contact Geometry
 
+The numbers below come from the shared [geometry file](upkie_geometry.md), `config/upkie/geometry.yaml` (`plan.py --geometry`), and are exported into the plan, where the controller checks them against the same file.
 Each wheel uses radius $r=0.08\ \mathrm m$ and axial half-width $h=0.022\ \mathrm m$.
 The two housings at each knee are approximated by their combined cylinder: radius $0.05\ \mathrm m$, half-width $0.02685\ \mathrm m$, center $[0,-0.17015,0.0700987]^\top$ in the corresponding femur frame.
 For world axle $e_i$, upward normal $n=[0,0,1]^\top$, and center $p_i$, the optimizer uses a smooth finite-width support point:
@@ -226,11 +227,11 @@ From the Mac, each step also runs as one command, for example `ssh parallels@10.
 
 ### 1. Setup
 
-`setup` installs `python3-venv` with apt if it is missing (the image only has `python3-pip`), creates the environment in `WORK` (default `/root/upkie_stand_up`) with pinned MuJoCo 3.13.0, CasADi 3.8.2, Pinocchio 4.1.0 (`pin`), NumPy, SciPy, PyYAML and Matplotlib wheels, builds `upkie_stand_up_model` with CMake against the wheels' C++ libraries, writes `WORK/upkie_rnea.casadi` and `WORK/upkie_fk.casadi`, and runs the MuJoCo check.
+`setup` installs `python3-venv` with apt if it is missing (the image only has `python3-pip`), creates the environment in `WORK` (default `/root/upkie_stand_up`) with pinned MuJoCo 3.13.0, CasADi 3.8.2, Pinocchio 4.1.0 (`pin`), NumPy, SciPy, PyYAML and Matplotlib wheels, builds `upkie_stand_up_model` with CMake against the wheels' C++ libraries, writes `WORK/upkie_rnea.casadi` and `WORK/upkie_frames.casadi` (inverse dynamics, and the wheel and femur frame placements; the contact offsets are applied from the [geometry file](upkie_geometry.md)), and runs the MuJoCo check.
 It must end with `Pinocchio/CasADi and MuJoCo dynamics/CoM parity passed (5 states).`
 `WORK` takes about 1.0 GB of the VM disk, 410 MB of it the Pinocchio/Boost C++ libraries; `rm -rf /root/upkie_stand_up` removes it.
 It lives in the container's filesystem: it survives container restarts, but a recreated container needs `setup` again.
-Rerun `setup` after changing the URDF.
+Rerun `setup` after changing the URDF, and after pulling the geometry-file change: models from before it baked the contact offsets into `upkie_fk.casadi`, which `plan.py` no longer reads.
 
 ### 2. Plan
 

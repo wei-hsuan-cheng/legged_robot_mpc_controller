@@ -123,7 +123,7 @@ The MPC's hip/knee posture reference depends on the target base height.
 It is interpolated from `config/upkie/posture_table.yaml`, which `ocs2.reference.postureTableFile` points at in the same way `bringUp.standUpTrajectoryFile` points at the stand-up plan.
 Target heights are clamped to the table's first and last height, so the table must cover `minBaseHeight`, `maxBaseHeight` and `bringUp.sitDownHeight`; the controller rejects a file whose `joint_names` differ from `robot.jointNames`, and inline `postureHeights`/`postureJointStates` next to the file.
 
-`config/upkie/compute_posture_table.py` generates the table offline from the MuJoCo model (`upkie.xml`).
+`config/upkie/compute_posture_table.py` generates the table offline from the MuJoCo model (`upkie.xml`) and the tire radius of the shared [geometry file](upkie_geometry.md); the table records that `wheel_radius`, and the controller refuses a table made for another radius.
 The heights are a fixed grid, 0.125-0.355 m in 0.01 m steps; for each height $h$ it solves two equations in the left hip and knee angles by Newton iteration:
 
 $$

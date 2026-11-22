@@ -102,8 +102,10 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
 
   // The first run generates and compiles the CppAD model libraries into
   // paths.libFolder/wb_id_mpc_<robot>, which takes a while; later runs load them.
-  const char* configure_stage = "building the whole-body inverse-dynamics MPC interface";
+  const char* configure_stage = "loading paths.geometryFile";
   try {
+    apply_geometry_file();
+    configure_stage = "building the whole-body inverse-dynamics MPC interface";
     const auto mpc_config = buildWholeBodyInverseDynamicsMpcConfig(parameters_);
     mpc_interface_ = std::make_unique<ocs2::humanoid::WbIdMpcInterface>(mpc_config);
     control_model_.reset(mpc_interface_->getMpcRobotModel().clone());
@@ -179,6 +181,8 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
           throw std::invalid_argument("stand-up knee frame '" + contact.frame + "' is not in the URDF");
         }
       }
+      check_generated_geometry("stand-up plan", parameters_.bringUp.standUpTrajectoryFile,
+                               stand_up_trajectory_->wheelRadius, &*stand_up_trajectory_);
       RCLCPP_INFO(get_node()->get_logger(), "%s planned stand-up: %zu samples over %.3f s, MPC handover at %.3f s (%s)", kTag,
                   stand_up_trajectory_->time.size(), stand_up_trajectory_->time.back(), stand_up_trajectory_->handoverTime,
                   parameters_.bringUp.standUpTrajectoryFile.c_str());
@@ -198,7 +202,9 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
         if (!heights.empty() || !states.empty()) {
           throw std::invalid_argument("ocs2.reference.postureTableFile replaces postureHeights/postureJointStates; set only one");
         }
-        load_posture_table(table_file, parameters_.robot.jointNames, heights, states);
+        double table_wheel_radius = std::numeric_limits<double>::quiet_NaN();
+        load_posture_table(table_file, parameters_.robot.jointNames, heights, states, table_wheel_radius);
+        check_generated_geometry("posture table", table_file, table_wheel_radius);
         RCLCPP_INFO(get_node()->get_logger(), "%s posture table: %zu heights, %.3f-%.3f m (%s)", kTag, heights.size(),
                     heights.front(), heights.back(), table_file.c_str());
       }
@@ -871,14 +877,113 @@ bool HumanoidWholeBodyInverseDynamicsMpcController::uses_bring_up() const
   return uses_state_estimator(parameters_.floatingBase.source) || stand_up_trajectory_.has_value();
 }
 
+HumanoidWholeBodyInverseDynamicsMpcController::WheeledBipedGeometry
+HumanoidWholeBodyInverseDynamicsMpcController::load_geometry(const std::string& file)
+{
+  const YAML::Node root = YAML::LoadFile(file)["geometry"];
+  if (!root || !root["wheel"]) {
+    throw std::invalid_argument("geometry " + file + " has no 'geometry.wheel' map");
+  }
+  const auto vector3 = [&](const YAML::Node& node, const std::string& what) {
+    const auto values = node.as<std::vector<double>>();
+    if (values.size() != 3 || !std::all_of(values.begin(), values.end(), [](double v) { return std::isfinite(v); })) {
+      throw std::invalid_argument("geometry " + file + ": " + what + " needs three finite values");
+    }
+    return Eigen::Vector3d(values[0], values[1], values[2]);
+  };
+  const YAML::Node wheel = root["wheel"];
+  WheeledBipedGeometry geometry;
+  geometry.wheelRadius = wheel["radius"].as<double>();
+  geometry.wheelHalfWidth = wheel["half_width"].as<double>();
+  geometry.wheelCenterOffset = vector3(wheel["center_offset"], "wheel.center_offset");
+  geometry.wheelAxleAxis = vector3(wheel["axle_axis"], "wheel.axle_axis");
+  if (!(geometry.wheelRadius > 0.0 && geometry.wheelHalfWidth >= 0.0) ||
+      !std::isfinite(geometry.wheelRadius + geometry.wheelHalfWidth) || geometry.wheelAxleAxis.norm() < 1e-9) {
+    throw std::invalid_argument("geometry " + file + ": wheel needs radius > 0, half_width >= 0 and a nonzero axle_axis");
+  }
+  const YAML::Node housings = root["knee_housings"];
+  for (std::size_t i = 0; housings && i < housings.size(); ++i) {
+    const YAML::Node housing = housings[i];
+    StandUpTrajectory::KneeContact knee;
+    knee.frame = housing["frame"].as<std::string>();
+    knee.center = vector3(housing["center"], "knee_housings center");
+    knee.radius = housing["radius"].as<double>();
+    knee.halfWidth = housing["half_width"].as<double>();
+    if (knee.frame.empty() || !(knee.radius > 0.0 && knee.halfWidth >= 0.0) || !std::isfinite(knee.radius + knee.halfWidth)) {
+      throw std::invalid_argument("geometry " + file + ": invalid knee_housings entry");
+    }
+    geometry.kneeHousings.push_back(std::move(knee));
+  }
+  return geometry;
+}
+
+void HumanoidWholeBodyInverseDynamicsMpcController::apply_geometry_file()
+{
+  geometry_.reset();
+  const auto& file = parameters_.paths.geometryFile;
+  if (file.empty()) {
+    return;
+  }
+  // The file is the single source: a second value in the parameter file could silently disagree with it.
+  const auto overrides = get_node()->get_node_parameters_interface()->get_parameter_overrides();
+  for (const char* name : {"ocs2.constraints.wheelContact.radius", "ocs2.constraints.wheelContact.axleAxis",
+                           "ocs2.model.contactGeometry.frameTranslation"}) {
+    if (overrides.count(name) > 0) {
+      throw std::invalid_argument(std::string(name) + " comes from paths.geometryFile; remove it from the parameter file");
+    }
+  }
+  geometry_ = load_geometry(file);
+  auto& wheel = parameters_.ocs2.constraints.wheelContact;
+  wheel.radius = geometry_->wheelRadius;
+  wheel.axleAxis = {geometry_->wheelAxleAxis.x(), geometry_->wheelAxleAxis.y(), geometry_->wheelAxleAxis.z()};
+  const auto& offset = geometry_->wheelCenterOffset;
+  parameters_.ocs2.model.contactGeometry.frameTranslation = {offset.x(), offset.y(), offset.z()};
+  RCLCPP_INFO(get_node()->get_logger(),
+              "%s geometry: wheel radius %.4f m, half width %.4f m, tire centre [%.4f %.4f %.4f], %zu knee housings (%s)",
+              kTag, geometry_->wheelRadius, geometry_->wheelHalfWidth, offset.x(), offset.y(), offset.z(),
+              geometry_->kneeHousings.size(), file.c_str());
+}
+
+void HumanoidWholeBodyInverseDynamicsMpcController::check_generated_geometry(
+  const std::string& what, const std::string& file, double wheel_radius, const StandUpTrajectory* plan) const
+{
+  if (!geometry_) {
+    return;
+  }
+  const auto same = [](double a, double b) { return std::abs(a - b) <= 1e-9; };
+  const std::string regenerate = what + " " + file + " was generated for other geometry than paths.geometryFile (" +
+                                 parameters_.paths.geometryFile + "); regenerate it (config/upkie/regenerate.sh): ";
+  if (!std::isfinite(wheel_radius)) {
+    throw std::invalid_argument(regenerate + "it records no wheel_radius");
+  }
+  if (!same(wheel_radius, geometry_->wheelRadius)) {
+    throw std::invalid_argument(regenerate + "wheel radius " + std::to_string(wheel_radius));
+  }
+  if (plan == nullptr || plan->kneeContacts.empty()) {
+    return;
+  }
+  bool match = same(plan->wheelHalfWidth, geometry_->wheelHalfWidth) &&
+               plan->kneeContacts.size() == geometry_->kneeHousings.size();
+  for (std::size_t i = 0; match && i < plan->kneeContacts.size(); ++i) {
+    const auto& a = plan->kneeContacts[i];
+    const auto& b = geometry_->kneeHousings[i];
+    match = a.frame == b.frame && (a.center - b.center).cwiseAbs().maxCoeff() <= 1e-9 && same(a.radius, b.radius) &&
+            same(a.halfWidth, b.halfWidth);
+  }
+  if (!match) {
+    throw std::invalid_argument(regenerate + "wheel half width or knee housings differ");
+  }
+}
+
 void HumanoidWholeBodyInverseDynamicsMpcController::load_posture_table(
   const std::string& file, const std::vector<std::string>& joint_names, std::vector<double>& heights,
-  std::vector<double>& joint_states)
+  std::vector<double>& joint_states, double& wheel_radius)
 {
   const YAML::Node root = YAML::LoadFile(file)["posture_table"];
   if (!root) {
     throw std::invalid_argument("posture table " + file + " has no 'posture_table' map");
   }
+  wheel_radius = root["wheel_radius"] ? root["wheel_radius"].as<double>() : std::numeric_limits<double>::quiet_NaN();
   if (root["joint_names"].as<std::vector<std::string>>() != joint_names) {
     throw std::invalid_argument("posture table " + file + ": joint_names must equal robot.jointNames, in order");
   }
@@ -969,6 +1074,9 @@ HumanoidWholeBodyInverseDynamicsMpcController::load_stand_up_trajectory(
         throw std::invalid_argument("stand-up trajectory " + file + ": state and joint reference disagree");
       }
     }
+  }
+  if (root["wheel_radius"]) {
+    plan.wheelRadius = root["wheel_radius"].as<double>();
   }
   if (root["knee_contacts"]) {
     plan.minimumKneeClearance = root["minimum_knee_clearance"].as<double>();

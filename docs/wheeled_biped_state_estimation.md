@@ -104,7 +104,7 @@ What stays true is an instantaneous velocity constraint, which is what the measu
 ## 6. Wheel Contact Geometry
 
 [`wheelContact`](https://github.com/wei-hsuan-cheng/legged_robot_state_estimator/blob/main/src/linear_kf_floating_base_estimator.cpp#L444-L460) evaluates the lowest point of the tire circle, the disk model of [formulation Section 4.1](wheeled_biped_whole_body_inverse_dynamics_mpc.md#41-instantaneous-contact-point) with $n=e_z$.
-Let $o_i$ and $R_i$ be the wheel-link origin (the wheel joint) and rotation, $c_i$ the tire centre in that link (`wheel.centerOffset`, $[0,0,-0.0312]^{\mathsf T}\ \mathrm m$), $e_{\mathrm{local}}$ the axle (`wheel.axleAxis`, local $z$) and $r=0.055\ \mathrm m$:
+Let $o_i$ and $R_i$ be the wheel-link origin (the wheel joint) and rotation, $c_i$ the tire centre in that link (`wheel.centerOffset`, $[0,0,-0.0312]^{\mathsf T}\ \mathrm m$), $e_{\mathrm{local}}$ the axle (`wheel.axleAxis`, local $z$) and $r$ the radius (`wheel.radius`, 0.08 m for the enlarged wheel; all three from the shared [geometry file](upkie_geometry.md) through `geometryFile`):
 
 $$
 e_i=R_i\,e_{\mathrm{local}},
@@ -240,7 +240,7 @@ The roll/pitch guard is inert for this filter: stage 1 has no covariance and `at
 | Parameter | Upkie value | Used at |
 | --- | --- | --- |
 | `contactModel` | `rolling_wheel` | [L80-L90](https://github.com/wei-hsuan-cheng/legged_robot_state_estimator/blob/main/src/linear_kf_floating_base_estimator.cpp#L80-L90) |
-| `wheel.radius`, `wheel.centerOffset`, `wheel.axleAxis` | 0.055 m, $[0,0,-0.0312]$ m, $[0,0,1]$ | [L451-L457](https://github.com/wei-hsuan-cheng/legged_robot_state_estimator/blob/main/src/linear_kf_floating_base_estimator.cpp#L451-L457) |
+| `geometryFile` → `wheel.radius`, `wheel.centerOffset`, `wheel.axleAxis` | [`config/upkie/geometry.yaml`](upkie_geometry.md): 0.08 m, $[0,0,-0.0312]$ m, $[0,0,1]$ | [L451-L457](https://github.com/wei-hsuan-cheng/legged_robot_state_estimator/blob/main/src/linear_kf_floating_base_estimator.cpp#L451-L457) |
 | `imuExtrinsics`, `imuFrame` | `true`, `imu` | [L65-L78](https://github.com/wei-hsuan-cheng/legged_robot_state_estimator/blob/main/src/linear_kf_floating_base_estimator.cpp#L65-L78) |
 | `imuProcessNoisePosition`, `imuProcessNoiseVelocity` | 0.02, 0.02 | [L477-L479](https://github.com/wei-hsuan-cheng/legged_robot_state_estimator/blob/main/src/linear_kf_floating_base_estimator.cpp#L477-L479) |
 | `footSensorNoiseVelocity`, `footHeightSensorNoise` | 0.1, 0.01 | [L494-L495](https://github.com/wei-hsuan-cheng/legged_robot_state_estimator/blob/main/src/linear_kf_floating_base_estimator.cpp#L494-L495) |

@@ -206,6 +206,7 @@ Press **Sit Down**, or Square again with L2 released, to brake, crouch and kneel
 L2 still enables joystick driving; it does not request stand-up.
 Falls latch a damping state and block stand-up/sit-down; automatic fall recovery is not implemented.
 See [posture controls and test commands](./docs/upkie_posture_control.md).
+The wheel and knee contact geometry shared by the MPC, the estimator and the offline generators is in one [geometry file](./docs/upkie_geometry.md).
 No ground truth is used in control; a wheeled-biped cannot stand still on a joint hold while its estimator initialises, so there is no standing spawn.
 
 The GUI height range comes from the controller YAML (currently 0.225-0.355 m); forward speed, yaw rate and height are supported, not independent sideways driving.

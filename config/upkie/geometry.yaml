@@ -1,0 +1,19 @@
+# Upkie contact geometry, the single source for every consumer:
+#   WB-ID MPC              paths.geometryFile: wheel radius, axle and tire centre (rolling-contact rows and frames),
+#                          and the check of the stand-up plan and posture table against this file
+#   wheel-aware linear KF  geometryFile: wheel radius, axle and tire centre (tread-velocity and height rows)
+#   stand-up TO            config/upkie/stand_up_to/plan.py: wheel and knee-housing contacts, exported to the plan
+#   posture table          config/upkie/compute_posture_table.py: tire on the floor at each height
+# It describes the simulated robot (description/mujoco/robots/upkie/upkie.xml and the URDF); the offline generators
+# check the MJCF collision tire against it. After a change, regenerate the stand-up and the posture table
+# (config/upkie/regenerate.sh), which the controller refuses when they were made for other geometry.
+geometry:
+  wheel:
+    radius: 0.08                          # [m] enlarged wheel (upkie.xml tire_collision); the original Upkie is 0.055
+    half_width: 0.022                     # [m] half the 44 mm tire width along the axle
+    center_offset: [0.0, 0.0, -0.0312]    # [m] tire centre in the wheel link frame, 31.2 mm along the axle
+    axle_axis: [0.0, 0.0, 1.0]            # axle direction in the wheel link frame
+  # The two motor housings at each knee as one cylinder along the femur frame's z axis: the stand-up's knee contacts.
+  knee_housings:
+    - {frame: left_femur, center: [0.0, -0.17015, 0.0700987], radius: 0.05, half_width: 0.02685}
+    - {frame: right_femur, center: [0.0, -0.17015, 0.0700987], radius: 0.05, half_width: 0.02685}

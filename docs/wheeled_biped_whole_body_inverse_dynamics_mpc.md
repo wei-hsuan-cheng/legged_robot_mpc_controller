@@ -79,6 +79,7 @@ Each wrench is expressed in world-aligned axes about the tire-center frame, not 
 This is Pinocchio `LOCAL_WORLD_ALIGNED`, not a body-axis wrench and not Pinocchio `WORLD`, whose origin is the world origin.
 The six wrench components per wheel are retained for compatibility, but three moment equalities restrict the wrench to a point force at the instantaneous tread contact.
 The tire-center frames are `left_tire_center` and `right_tire_center`, attached to the wheel joints with local translation $[0,0,-0.0312]^{\mathsf T}\ \mathrm{m}$.
+This translation, the 0.08 m radius and the axle come from the shared [geometry file](upkie_geometry.md) (`paths.geometryFile`), which the estimator and the offline generators also read.
 Their orientations spin with the wheels, while their centers do not move merely because of wheel spin.
 
 
@@ -771,7 +772,7 @@ The filter initialises at the kneeling idle from these height rows and the IMU a
 
 | Parameter | Meaning |
 | --- | --- |
-| `contactModel`, `wheel.radius`, `wheel.centerOffset`, `wheel.axleAxis` | rolling-wheel measurement geometry, matching `contactGeometry.frameTranslation` |
+| `contactModel`, `geometryFile` | rolling-wheel measurement geometry (`wheel.radius`, `wheel.centerOffset`, `wheel.axleAxis`) from the same [geometry file](upkie_geometry.md) as the MPC |
 | `imuExtrinsics`, `imuFrame` | remove the IMU mounting |
 | `imuProcessNoisePosition/Velocity` | process noise, scaled as in Cheetah 3 |
 | `footSensorNoiseVelocity`, `footHeightSensorNoise` | per-wheel velocity and height measurement variances |

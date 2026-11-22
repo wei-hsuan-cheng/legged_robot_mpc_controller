@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Planned and physical contact phases of an Upkie run (hops, wheel lifts): wb_id_walk_test --record-tracking.
 
-usage: analyze_upkie_flight.py PREFIX [--plot]     (pip install numpy matplotlib)
+usage: analyze_upkie_flight.py PREFIX [--plot]     (pip install numpy pyyaml matplotlib)
 
 A wheel counts as physically off the ground when its simulated contact sensor reads below 0.5 N. For every planned
 non-STANCE interval it reports the measured off-ground time of each wheel, the tire-centre clearance, the base apex,
@@ -11,10 +11,13 @@ Writes PREFIX_flight.json and, with --plot, PREFIX_flight.png.
 import csv
 import json
 import sys
+from pathlib import Path
 
 import numpy as np
+import yaml
 
-TIRE_RADIUS = 0.08  # [m] the enlarged wheel (upkie.xml tire_collision); the original Upkie wheel is 0.055
+# [m] the shared Upkie geometry (config/upkie/geometry.yaml), as the MPC and the estimator use it
+TIRE_RADIUS = yaml.safe_load((Path(__file__).resolve().parents[2] / "config/upkie/geometry.yaml").read_text())["geometry"]["wheel"]["radius"]
 
 prefix = sys.argv[1]
 rows = list(csv.DictReader(open(prefix + "_tracking.csv")))
