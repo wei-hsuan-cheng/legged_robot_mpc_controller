@@ -171,6 +171,14 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
       }
       stand_up_trajectory_ =
         load_stand_up_trajectory(parameters_.bringUp.standUpTrajectoryFile, parameters_.robot.jointNames);
+      if (!stand_up_trajectory_->kneeContacts.empty() && !parameters_.ocs2.constraints.wheelContact.activate) {
+        throw std::invalid_argument("stand-up knee clearance guard needs wheelContact");
+      }
+      for (const auto& contact : stand_up_trajectory_->kneeContacts) {
+        if (!control_pinocchio_->getModel().existFrame(contact.frame)) {
+          throw std::invalid_argument("stand-up knee frame '" + contact.frame + "' is not in the URDF");
+        }
+      }
       RCLCPP_INFO(get_node()->get_logger(), "%s planned stand-up: %zu samples over %.3f s, MPC handover at %.3f s (%s)", kTag,
                   stand_up_trajectory_->time.size(), stand_up_trajectory_->time.back(), stand_up_trajectory_->handoverTime,
                   parameters_.bringUp.standUpTrajectoryFile.c_str());
@@ -866,11 +874,12 @@ HumanoidWholeBodyInverseDynamicsMpcController::load_stand_up_trajectory(
     throw std::invalid_argument("stand-up trajectory " + file + ": joint_names must equal robot.jointNames, in order");
   }
   const auto n = static_cast<Eigen::Index>(joint_names.size());
-  const auto to_vector = [&](const std::vector<double>& values, const std::string& what) {
-    if (static_cast<Eigen::Index>(values.size()) != n) {
-      throw std::invalid_argument("stand-up trajectory " + file + ": " + what + " needs one entry per joint");
+  const auto to_vector = [&](const std::vector<double>& values, const std::string& what, Eigen::Index count = 0) {
+    if (count == 0) count = n;
+    if (static_cast<Eigen::Index>(values.size()) != count) {
+      throw std::invalid_argument("stand-up trajectory " + file + ": wrong row size for " + what);
     }
-    vector_t result = Eigen::Map<const vector_t>(values.data(), n);
+    vector_t result = Eigen::Map<const vector_t>(values.data(), count);
     if (!result.allFinite()) {
       throw std::invalid_argument("stand-up trajectory " + file + ": " + what + " must be finite");
     }
@@ -879,6 +888,7 @@ HumanoidWholeBodyInverseDynamicsMpcController::load_stand_up_trajectory(
   StandUpTrajectory plan;
   plan.time = root["time"].as<std::vector<double>>();
   plan.handoverTime = root["handover_time"].as<double>();
+  plan.mpcStartTime = root["mpc_start_time"].as<double>(0.0);
   plan.kp = to_vector(root["kp"].as<std::vector<double>>(), "kp");
   plan.kd = to_vector(root["kd"].as<std::vector<double>>(), "kd");
   for (const char* key : {"position", "velocity", "effort"}) {
@@ -899,11 +909,58 @@ HumanoidWholeBodyInverseDynamicsMpcController::load_stand_up_trajectory(
   if (!(plan.handoverTime > 0.0 && plan.handoverTime <= plan.time.back())) {
     throw std::invalid_argument("stand-up trajectory " + file + ": handover_time must lie inside the trajectory");
   }
+  if (!(plan.mpcStartTime >= 0.0 && plan.mpcStartTime < plan.handoverTime)) {
+    throw std::invalid_argument("stand-up trajectory " + file + ": mpc_start_time must precede handover_time");
+  }
+  if (root["state"] || root["feedback"]) {
+    const Eigen::Index state_dim = 2 * (6 + n);
+    for (const auto& row : root["state"].as<std::vector<std::vector<double>>>()) {
+      plan.state.push_back(to_vector(row, "state", state_dim));
+    }
+    for (const auto& row : root["feedback"].as<std::vector<std::vector<double>>>()) {
+      const vector_t flat = to_vector(row, "feedback", n * state_dim);
+      plan.feedback.emplace_back(Eigen::Map<const Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>(
+        flat.data(), n, state_dim));
+    }
+    if (plan.state.size() != plan.time.size() || plan.feedback.size() != plan.time.size()) {
+      throw std::invalid_argument("stand-up trajectory " + file + ": state/feedback need one row per time sample");
+    }
+    for (std::size_t i = 0; i < plan.time.size(); ++i) {
+      if (!plan.state[i].segment(6, n).isApprox(plan.position[i], 1e-7) ||
+          !plan.state[i].tail(n).isApprox(plan.velocity[i], 1e-7)) {
+        throw std::invalid_argument("stand-up trajectory " + file + ": state and joint reference disagree");
+      }
+    }
+  }
+  if (root["knee_contacts"]) {
+    plan.minimumKneeClearance = root["minimum_knee_clearance"].as<double>();
+    plan.clearanceHoldTime = root["clearance_hold_time"].as<double>();
+    plan.wheelHalfWidth = root["wheel_half_width"].as<double>();
+    if (!(plan.minimumKneeClearance > 0.0 && plan.clearanceHoldTime > 0.0 && plan.wheelHalfWidth >= 0.0) ||
+        !std::isfinite(plan.minimumKneeClearance + plan.clearanceHoldTime + plan.wheelHalfWidth)) {
+      throw std::invalid_argument("stand-up trajectory " + file + ": invalid support guard");
+    }
+    for (const auto& contact : root["knee_contacts"]) {
+      StandUpTrajectory::KneeContact knee;
+      knee.frame = contact["frame"].as<std::string>();
+      knee.center = to_vector(contact["center"].as<std::vector<double>>(), "knee center", 3);
+      knee.radius = contact["radius"].as<double>();
+      knee.halfWidth = contact["half_width"].as<double>();
+      if (knee.frame.empty() || !(knee.radius > 0.0 && knee.halfWidth >= 0.0) ||
+          !std::isfinite(knee.radius + knee.halfWidth)) {
+        throw std::invalid_argument("stand-up trajectory " + file + ": invalid knee geometry");
+      }
+      plan.kneeContacts.push_back(std::move(knee));
+    }
+    if (plan.kneeContacts.empty() || plan.feedback.empty()) {
+      throw std::invalid_argument("stand-up trajectory " + file + ": support guard needs contacts and feedback");
+    }
+  }
   return plan;
 }
 
 HumanoidWholeBodyInverseDynamicsMpcController::JointActionCommand
-HumanoidWholeBodyInverseDynamicsMpcController::StandUpTrajectory::sample(double t) const
+HumanoidWholeBodyInverseDynamicsMpcController::StandUpTrajectory::sample(double t, const vector_t& measured_state) const
 {
   // Linear interpolation, held at the ends.
   const auto upper = std::upper_bound(time.begin(), time.end(), t);
@@ -915,7 +972,68 @@ HumanoidWholeBodyInverseDynamicsMpcController::StandUpTrajectory::sample(double 
   command.policy_position = (1.0 - a) * position[k0] + a * position[k1];
   command.policy_velocity = (1.0 - a) * velocity[k0] + a * velocity[k1];
   command.feedforward = (1.0 - a) * effort[k0] + a * effort[k1];
+  if (!feedback.empty() && measured_state.size() > 0) {
+    const vector_t error = measured_state - ((1.0 - a) * state[k0] + a * state[k1]);
+    command.feedforward -= ((1.0 - a) * feedback[k0] + a * feedback[k1]) * error;
+  }
   return command;
+}
+
+HumanoidWholeBodyInverseDynamicsMpcController::JointActionCommand
+HumanoidWholeBodyInverseDynamicsMpcController::sample_stand_up(double t, const ocs2::SystemObservation& observation) const
+{
+  const auto& plan = *stand_up_trajectory_;
+  if (plan.feedback.empty()) return plan.sample(t);
+  vector_t state = observation.state;
+  const auto& initial = plan.state.front();
+  const auto n = static_cast<Eigen::Index>(plan.kp.size());
+  const double yaw = stand_up_anchor_state_(3) - initial(3);
+  const Eigen::Matrix3d rotation = Eigen::AngleAxisd(-yaw, Eigen::Vector3d::UnitZ()).toRotationMatrix();
+  Eigen::Vector3d delta = state.head<3>() - stand_up_anchor_state_.head<3>();
+  delta.z() = 0.0;
+  const Eigen::Vector3d position = initial.head<3>() + rotation * delta;
+  state.head<2>() = position.head<2>();
+  state.segment<3>(6 + n) = rotation * state.segment<3>(6 + n).eval();
+  state(3) = initial(3) + std::atan2(std::sin(state(3) - stand_up_anchor_state_(3)),
+                                  std::cos(state(3) - stand_up_anchor_state_(3)));
+  vector_t offsets = vector_t::Zero(n);
+  for (Eigen::Index i = 0; i < n; ++i) {
+    if (plan.kp(i) == 0.0) offsets(i) = stand_up_anchor_state_(6 + i) - initial(6 + i);
+  }
+  state.segment(6, n) -= offsets;
+  auto command = plan.sample(t, state);
+  command.policy_position += offsets;
+  return command;
+}
+
+bool HumanoidWholeBodyInverseDynamicsMpcController::stand_up_support_ready(const ocs2::SystemObservation& observation)
+{
+  const auto& plan = *stand_up_trajectory_;
+  if (plan.kneeContacts.empty()) return true;
+  const auto& model = control_pinocchio_->getModel();
+  auto& data = control_pinocchio_->getData();
+  pinocchio::forwardKinematics(model, data, control_model_->getGeneralizedCoordinates(observation.state));
+  const auto lowest = [](const Eigen::Vector3d& center, const Eigen::Vector3d& axle, double radius, double width) {
+    const double az = std::clamp(axle.z(), -1.0, 1.0);
+    return center.z() - radius * std::sqrt(std::max(0.0, 1.0 - az * az)) - width * std::abs(az);
+  };
+  const auto& wheel = parameters_.ocs2.constraints.wheelContact;
+  const Eigen::Vector3d axle(wheel.axleAxis[0], wheel.axleAxis[1], wheel.axleAxis[2]);
+  std::array<double, 2> ground;
+  const auto frames = contact_frame_names();
+  for (std::size_t i = 0; i < ground.size(); ++i) {
+    const auto& frame = pinocchio::updateFramePlacement(model, data, model.getFrameId(frames[i]));
+    ground[i] = lowest(frame.translation(), frame.rotation() * axle.normalized(), wheel.radius, plan.wheelHalfWidth);
+  }
+  if (std::abs(ground[0] - ground[1]) > 0.01) return false;
+  const double plane = 0.5 * (ground[0] + ground[1]);
+  for (const auto& knee : plan.kneeContacts) {
+    if (!model.existFrame(knee.frame)) return false;
+    const auto& frame = pinocchio::updateFramePlacement(model, data, model.getFrameId(knee.frame));
+    if (lowest(frame.act(knee.center), frame.rotation().col(2), knee.radius, knee.halfWidth) - plane <
+        plan.minimumKneeClearance) return false;
+  }
+  return true;
 }
 
 void HumanoidWholeBodyInverseDynamicsMpcController::enter_bring_up_phase(BringUpPhase phase, double time)
@@ -982,10 +1100,10 @@ HumanoidWholeBodyInverseDynamicsMpcController::run_bring_up(
     case BringUpPhase::Passive: {
       JointActionCommand hold = damping_command(passive_hold_joints_);
       if (stand_up_trajectory_) {
-        // Wheeled: idle in the rest pose, then start the solver and the planned stand-up together,
-        // so the MPC is already solving when it takes over. With the estimator, it initialises from
-        // the idle pose first (the robot is at rest on the floor there). The idle hold uses the
-        // plan's servo gains, so the stand-up starts from the state it was planned from.
+        // Wheeled: initialize the estimator in supported idle and execute the tracked stand-up.
+        // Contact-aware plans defer wheel-only solves until sustained knee clearance; legacy plans
+        // can start them immediately. The idle hold uses the plan's servo gains, so the motion
+        // starts from the supported state used by the offline model.
         servo_kp_override_ = stand_up_trajectory_->kp;
         servo_kd_override_ = stand_up_trajectory_->kd;
         if (!(auto_start_pending_ || stand_up_requested_.load()) || t - phase_start_time_ < bu.idleSeconds) {
@@ -1033,7 +1151,9 @@ HumanoidWholeBodyInverseDynamicsMpcController::run_bring_up(
         motion_manager_->setPostureHeightOverride(std::numeric_limits<double>::quiet_NaN());
         auto_start_pending_ = false;
         stand_up_requested_.store(false);
-        locomotion_requested_.store(true, std::memory_order_release);
+        locomotion_requested_.store(stand_up_trajectory_->mpcStartTime <= 0.0, std::memory_order_release);
+        stand_up_anchor_state_ = observation.state;
+        stand_up_support_since_ = -1.0;
         stand_up_start_joints_ = q;
         enter_bring_up_phase(BringUpPhase::StandUp, t);
         return hold;
@@ -1053,13 +1173,31 @@ HumanoidWholeBodyInverseDynamicsMpcController::run_bring_up(
       if (stand_up_trajectory_) {
         const auto& plan = *stand_up_trajectory_;
         const double elapsed = t - phase_start_time_;
+        if (!plan.feedback.empty() && (!observation_from_hardware_ || !observation.state.allFinite())) {
+          enter_bring_up_phase(BringUpPhase::Fault, t);
+          servo_kp_override_.resize(0);
+          servo_kd_override_.resize(0);
+          return damping_command(q);
+        }
         servo_kp_override_ = plan.kp;
         servo_kd_override_ = plan.kd;
+        const bool support_ready = stand_up_support_ready(observation);
+        stand_up_support_since_ = support_ready ? (stand_up_support_since_ < 0.0 ? t : stand_up_support_since_) : -1.0;
+        const bool support_held = stand_up_support_since_ >= 0.0 &&
+          t - stand_up_support_since_ >= plan.clearanceHoldTime;
+        if (!locomotion_requested_.load(std::memory_order_acquire) && elapsed >= plan.mpcStartTime && support_held) {
+          // Do not seed a wheel-only OCP with a knee-supported configuration.
+          start_observation_ = observation;
+          motion_manager_->setPostureHeightOverride(control_model_->getBasePose(observation.state)(2));
+          motion_manager_->requestVelocityTargetFilterReset(control_model_->getBasePose(observation.state)(2));
+          locomotion_requested_.store(true, std::memory_order_release);
+          RCLCPP_INFO(get_node()->get_logger(), "%s stand-up: knees clear; starting wheel-only MPC at %.3f s.", kTag, elapsed);
+        }
         if (elapsed >= plan.handoverTime) {
-          if (!active_policy_ready_) {
+          if (!support_held || !active_policy_ready_) {
             RCLCPP_ERROR(get_node()->get_logger(),
-                         "%s bring-up FAULT: no valid MPC policy at the stand-up handover (%.3f s); damping.", kTag,
-                         plan.handoverTime);
+                         "%s bring-up FAULT: stand-up handover rejected at %.3f s (support geometry %s, MPC policy %s); damping.",
+                         kTag, plan.handoverTime, support_held ? "ready" : "not ready", active_policy_ready_ ? "ready" : "not ready");
             servo_kp_override_.resize(0);
             servo_kd_override_.resize(0);
             enter_bring_up_phase(BringUpPhase::Fault, t);
@@ -1068,15 +1206,14 @@ HumanoidWholeBodyInverseDynamicsMpcController::run_bring_up(
           // The height reference restarts at the measured height and ramps to the command at the
           // configured height rate, instead of stepping from the crouch to the standing height.
           motion_manager_->requestVelocityTargetFilterReset(control_model_->getBasePose(observation.state)(2));
-          servo_kp_override_.resize(0);
-          servo_kd_override_.resize(0);
+          motion_manager_->setPostureHeightOverride(std::numeric_limits<double>::quiet_NaN());
           enter_bring_up_phase(BringUpPhase::Blend, t);
-          JointActionCommand handover = plan.sample(plan.handoverTime);
+          JointActionCommand handover = sample_stand_up(plan.handoverTime, observation);
           clamp_torque(handover.feedforward);
           return handover;
         }
         // The plan's feed-forward is clamped like the MPC's (jointTorqueLimits / URDF efforts).
-        JointActionCommand playback = plan.sample(elapsed);
+        JointActionCommand playback = sample_stand_up(elapsed, observation);
         clamp_torque(playback.feedforward);
         return playback;
       }
@@ -1152,16 +1289,22 @@ HumanoidWholeBodyInverseDynamicsMpcController::run_bring_up(
         enter_bring_up_phase(BringUpPhase::StartingMpc, t);
         return hold_command(stand_nominal_joints_, q, orientation);
       }
-      const JointActionCommand stand = stand_up_trajectory_ ? stand_up_trajectory_->sample(stand_up_trajectory_->handoverTime)
+      const JointActionCommand stand = stand_up_trajectory_ ? sample_stand_up(stand_up_trajectory_->handoverTime, observation)
                                                             : hold_command(stand_nominal_joints_, q, orientation);
       const JointActionCommand mpc = compute_mpc_joint_action(observation);
       const double a = bu.blendSeconds > 0.0
         ? std::clamp((t - phase_start_time_) / bu.blendSeconds, 0.0, 1.0) : 1.0;
       JointActionCommand blended = mpc;
       blended.policy_position = (1.0 - a) * stand.policy_position + a * mpc.policy_position;
-      blended.policy_velocity = a * mpc.policy_velocity;
+      blended.policy_velocity = (1.0 - a) * stand.policy_velocity + a * mpc.policy_velocity;
       blended.feedforward = (1.0 - a) * stand.feedforward + a * mpc.feedforward;
+      if (stand_up_trajectory_) {
+        servo_kp_override_ = (1.0 - a) * stand_up_trajectory_->kp + a * joint_kp_;
+        servo_kd_override_ = (1.0 - a) * stand_up_trajectory_->kd + a * joint_kd_;
+      }
       if (a >= 1.0) {
+        servo_kp_override_.resize(0);
+        servo_kd_override_.resize(0);
         if (stand_up_trajectory_) {
           motion_manager_->setOperatorMotionEnabled(true);
         }
@@ -1226,7 +1369,9 @@ HumanoidWholeBodyInverseDynamicsMpcController::run_bring_up(
       const double s = std::clamp((t - phase_start_time_) / bu.sitDownSeconds, 0.0, 1.0);
       const double alpha = s * s * (3.0 - 2.0 * s);
       // Never drive an unwrapped wheel angle back to the plan's original spin angle.
-      const vector_t delta = (stand_up_trajectory_->position.front() - stand_up_start_joints_).array() *
+      // Return to the same servo target used before the first stand-up. Holding
+      // the plan's settled measured angles with zero feedforward would sag again.
+      const vector_t delta = (passive_hold_joints_ - stand_up_start_joints_).array() *
         (stand_up_trajectory_->kp.array() > 0.0).cast<double>();
       const vector_t target = stand_up_start_joints_ + alpha * delta;
       auto command = damping_command(target);
@@ -1234,7 +1379,6 @@ HumanoidWholeBodyInverseDynamicsMpcController::run_bring_up(
       // Wheel angles are unwrapped and free, so arrival checks only position-controlled joints.
       const double error = ((q - target).array() * (stand_up_trajectory_->kp.array() > 0.0).cast<double>()).abs().maxCoeff();
       if (s >= 1.0 && error < 0.15 && v.norm() < 1.0) {
-        passive_hold_joints_ = stand_up_trajectory_->position.front();
         stand_up_requested_.store(false);
         estimator_driving_control_ = false;
         enter_bring_up_phase(BringUpPhase::Passive, t);

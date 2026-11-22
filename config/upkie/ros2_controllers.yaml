@@ -107,9 +107,9 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
     bringUp:
       # Stand Up / Sit Down in the GUI, or Square with L2 released on the joystick.
       autoStart: false
-      # Planned stand-up from the kneeling spawn pose (config/upkie/initial_pose.yaml): a wheeled-biped cannot stand
-      # still on a joint hold while its estimator initialises. Empty: no planned stand-up, for a standing spawn pose
-      # with ground truth only.
+      # Offline WB-ID stand-up with both knee and wheel contacts, then state-feedback tracking (about 13 s).
+      # Wheel-only MPC starts after knee clearance. See docs/upkie_stand_up_optimization.md.
+      # Empty: no planned stand-up, for a standing spawn pose with ground truth only.
       standUpTrajectoryFile: "$(find-pkg-share legged_robot_mpc_controller)/config/upkie/stand_up_trajectory.yaml"
       idleSeconds: 3.0             # the plan starts from the pose settled for 3 s
       sitDownSeconds: 3.0
@@ -121,9 +121,9 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
       settleGyroMax: 0.10
       settleAccelTolerance: 0.5
       settleFilterHz: 2.0
-      blendSeconds: 0.05           # the handover happens while the body is moving
+      blendSeconds: 0.05           # continuous position, velocity, feedforward and servo-gain handover
       tiltLimit: 1.2               # 0.080 m wheels: the spawn tip-over peaks at 0.71 rad, the kneeling idle 0.50 rad, the
-                                   # stand-up stays below 0.50 rad and hands over 0.11 rad from level; the sit-down tips
+                                   # stand-up stays below 0.50 rad and hands over about 0.05 rad from level; the sit-down tips
                                    # back to 1.07 rad before it settles on the knees
 
     ocs2:

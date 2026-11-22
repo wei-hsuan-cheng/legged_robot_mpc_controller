@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.16)
+project(upkie_stand_up_model LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 17)
+find_package(pinocchio REQUIRED)
+find_package(casadi REQUIRED)
+add_executable(upkie_stand_up_model model.cpp)
+target_link_libraries(upkie_stand_up_model PRIVATE pinocchio::pinocchio casadi::casadi)

@@ -1,0 +1,30 @@
+{
+  "codex_r80_baseline": {
+    "verdict": "SUCCESS",
+    "playback_seconds": 0.6699999999999999,
+    "peak_wheel_speed_rad_s": 64.51381389088705,
+    "wheel_torque_rms_Nm": 0.9137398775882764,
+    "wheel_saturation_fraction": 0.14986376021798364,
+    "wheel_center_range_m": 0.7021118813855166,
+    "peak_pitch_rad": 0.4990722565451029,
+    "max_wheel_clearance_m": 0.14774082524778293,
+    "mean_mpc_rate_hz": 189.576,
+    "max_tire_femur_penetration_m": 0.006324172748671929,
+    "minimum_trunk_ground_clearance_m": 0.10828610146091328,
+    "knee_clearance_at_locomotion_m": -8.240725132185184e-05
+  },
+  "wb_id_to_ros": {
+    "verdict": "SUCCESS",
+    "playback_seconds": 13.0505,
+    "peak_wheel_speed_rad_s": 3.8149559255560663,
+    "wheel_torque_rms_Nm": 0.09837954653607153,
+    "wheel_saturation_fraction": 0.0,
+    "wheel_center_range_m": 0.09166199960868274,
+    "peak_pitch_rad": 0.49897470072836325,
+    "max_wheel_clearance_m": 8.249641481962444e-05,
+    "mean_mpc_rate_hz": 192.57333333333335,
+    "max_tire_femur_penetration_m": 0.0,
+    "minimum_trunk_ground_clearance_m": 0.11382192851033404,
+    "knee_clearance_at_locomotion_m": 0.13488612546577694
+  }
+}

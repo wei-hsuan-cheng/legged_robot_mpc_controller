@@ -11,6 +11,8 @@ import subprocess
 import sys
 import time
 
+import yaml
+
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy
@@ -85,16 +87,17 @@ class Probe(Node):
                        v=list(self.joints.velocity), effort=list(self.joints.effort))
         self.samples.append(row)
 
-    def command(self, vx=0.0):
+    def command(self, vx=0.0, yaw=0.0):
         if self.teleop is not None:
             message = Joy()
-            message.axes = [0.0, vx, 0.0, 0.0, -self.joy_pressure, 0.0]
+            message.axes = [0.0, vx, yaw, 0.0, -self.joy_pressure, 0.0]
             message.buttons = [int(i == 2 and self.joy_posture) for i in range(15)]
             self.joy_publisher.publish(message)
             return
         message = WalkingVelocityCommand()
         message.desired_pelvis_height = 0.22
         message.linear_velocity_x = vx
+        message.angular_velocity_z = yaw
         self.publisher.publish(message)
 
     def toggle_posture(self):
@@ -106,10 +109,10 @@ class Probe(Node):
         self.joy_posture = False
         self.pump(.1)
 
-    def pump(self, duration, vx=0.0):
+    def pump(self, duration, vx=0.0, yaw=0.0):
         end = time.monotonic() + duration
         while time.monotonic() < end:
-            self.command(vx)
+            self.command(vx, yaw)
             rclpy.spin_once(self, timeout_sec=0.01)
 
     def wait(self, phase, timeout=45.0):
@@ -145,13 +148,24 @@ def main():
     parser.add_argument("--source", choices=("ground_truth_state", "state_estimator"), default="state_estimator")
     parser.add_argument("--fall-test", action="store_true")
     parser.add_argument("--joystick", action="store_true", help="Drive the real teleop adapter with synthetic Joy, including Square")
+    parser.add_argument("--trajectory", type=Path, help="Stand-up YAML override for candidate acceptance")
+    parser.add_argument("--yaw-command", type=float, default=0.0, help="Normalized yaw command while driving between cycles")
     args = parser.parse_args()
+    if not -1.0 <= args.yaw_command <= 1.0:
+        parser.error("--yaw-command must lie in [-1, 1]")
     prefix = Path(args.prefix)
     scene = write_scene(str(prefix) + ".xml", robot="upkie", terrain="none")
     cmd = ["ros2", "launch", "legged_robot_mpc_controller", "robot.launch.py", "robotName:=upkie",
            "mpcFreq:=200", "mrtFreq:=1000", "rviz:=false", "mujoco_headless:=true", "baseCommandDevice:=none",
            f"mujocoModelFile:={scene}", f"floatingBaseSource:={args.source}",
            "floatingBaseEstimator:=" + ("humanoid_linear_kf" if args.source == "state_estimator" else "none")]
+    if args.trajectory:
+        config = yaml.safe_load((Path(__file__).resolve().parents[1] /
+                                 "config/upkie/ros2_controllers.yaml").read_text())
+        config[CONTROLLER.lstrip("/")]["ros__parameters"]["bringUp"]["standUpTrajectoryFile"] = str(args.trajectory.resolve())
+        config_path = Path(str(prefix) + ".yaml")
+        config_path.write_text(yaml.safe_dump(config, sort_keys=False))
+        cmd.append("controllersFile:=" + str(config_path))
     process = None
     probe = None
     results = dict(verdict="FAIL", cycles=0, source=args.source)
@@ -174,7 +188,7 @@ def main():
                 probe.pump(4)
                 probe.joy_pressure = 1.0
                 probe.pump(.2)
-                probe.pump(2, vx=0.15)
+                probe.pump(2, vx=0.15, yaw=args.yaw_command)
                 probe.joy_pressure = 0.0
                 if args.joystick:
                     probe.toggle_posture()

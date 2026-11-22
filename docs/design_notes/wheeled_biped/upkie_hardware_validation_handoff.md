@@ -26,9 +26,9 @@ See [posture controls](../../upkie_posture_control.md) and [recorded simulation 
 | P0 | Stop, release and watchdog semantics | Software damping and zero velocity are not an independent actuator stop; process death cannot execute the software FSM | Define and validate hardware-backed stop behavior, communication watchdogs, actuator fault handling and controller lifecycle behavior |
 | P0 | Complete actuator limits | Controller clipping does not independently bound the final PD-plus-feedforward torque on arbitrary hardware | Enforce the full command's actual motor limits, with correct joint units, direction, gear ratio and gain mapping |
 | P1 | Fresh feedback | Finite joint/IMU values can remain frozen after communication failure | Expose acquisition age and health; reject stale feedback and test loss/freeze scenarios using controlled fault injection |
-| P1 | MPC ready before push-off | Solver construction currently begins alongside playback; no usable policy at handover causes damping mid-motion | Prepare and exercise the solver while supported in idle; require an appropriate fresh policy before the dynamic push begins |
+| P1 | MPC ready for handover | The 80 mm-wheel plan starts wheel-only solves after a kinematic knee-clearance guard; no usable policy at handover still causes damping | Preconstruct/cache the solver without solving a wheel-only OCP from knee-supported states; validate onboard latency during the wheel-only tracking interval and define a physical abort action |
 | P1 | Physical starting-state acceptance | Joint proximity, a dwell and estimator readiness do not prove the intended knee/wheel support configuration | Establish a validated supported-idle envelope using joint geometry, attitude, motion and available contact/load evidence |
-| P1 | Measured stand-up handover | The exported playback hands over at a fixed 0.6965 s, not measured knee unloading | Validate the real motion envelope and add state/event acceptance and bounded timing/abort behavior |
+| P1 | Measured stand-up handover | The new offline WB-ID/LQR plan transfers at about 13 s with sustained FK clearance, but has no measured normal-load confirmation | Validate the real motion envelope, supported wheels, knee unloading and bounded timing/abort behavior; geometric clearance alone is not a force measurement |
 | P1 | Supported sit-down completion | Height/tilt trigger the final interpolation; joint position/speed trigger idle without directly confirming support | Validate touchdown/support and settling before declaring idle and allowing another stand-up |
 | P1 | Actual robot model and servos | Playback, friction, armature and PD settings were selected for this MuJoCo model | Measure or identify the real values and validate the resulting commands within an approved hardware envelope |
 | P2 | Hardware acceptance envelope | No physical stand-up, balance, sit-down, gamepad or repeated-cycle acceptance exists | Complete staged physical validation and record limits, failures and recovery procedures before expanding beyond flat ground |
@@ -37,15 +37,17 @@ See [posture controls](../../upkie_posture_control.md) and [recorded simulation 
 ## Code Locations
 
 - [Hardware selection and simulation-only sensors](../../../description/urdf/robots/upkie/upkie.ros2_control.xacro#L78): no real actuator plugin is selected in the current non-simulation, non-fake path.
-- [Controller deactivation](../../../src/controller/controller.cpp#L552): zeros joint commands while deliberately retaining servo gains.
-- [Command and gain writes](../../../src/controller/controller.cpp#L2159): the actuator backend must implement the position/velocity/effort plus kp/kd contract.
-- [Planned idle and stand-up](../../../src/controller/controller.cpp#L982): joint-pose and speed checks, estimator readiness, solver request and playback.
-- [Timed handover](../../../src/controller/controller.cpp#L1052): playback switches at `handoverTime` if the current policy passes its existing usability check.
-- [Crouch-to-kneel and idle guards](../../../src/controller/controller.cpp#L1202): estimated height/tilt, interpolation, joint error and speed checks.
-- [Trunk orientation validation](../../../src/controller/controller.cpp#L772): missing/nonfinite quaternion rejection and IMU mounting correction, but no acquisition-age check here.
-- [Observation construction](../../../src/controller/controller.cpp#L1415): estimator validity and hardware-state handling.
-- [Offline stand-up generator](../../../config/upkie/plan_stand_up.py): model-specific MuJoCo rollout and trajectory export.
-- [Exported trajectory](../../../config/upkie/stand_up_trajectory.yaml): feedforward samples, playback gains and the 0.6965 s handover.
+- [Controller deactivation](../../../src/controller/controller.cpp#L560): zeros joint commands while deliberately retaining servo gains.
+- [Command and gain writes](../../../src/controller/controller.cpp#L2303): the actuator backend must implement the position/velocity/effort plus kp/kd contract.
+- [Planned idle and stand-up](../../../src/controller/controller.cpp#L1100): joint-pose and speed checks, estimator readiness and state-feedback tracking.
+- [Guarded handover](../../../src/controller/controller.cpp#L1172): the wheel-only policy must be ready and the sustained FK knee-clearance guard must pass at `handoverTime`.
+- [Support geometry](../../../src/controller/controller.cpp#L1009): finite-cylinder knee clearance relative to the inferred wheel plane; no contact-force sensor is used.
+- [Crouch-to-kneel and idle guards](../../../src/controller/controller.cpp#L1345): estimated height/tilt, interpolation, joint error and speed checks.
+- [Trunk orientation validation](../../../src/controller/controller.cpp#L780): missing/nonfinite quaternion rejection and IMU mounting correction, but no acquisition-age check here.
+- [Observation construction](../../../src/controller/controller.cpp#L1559): estimator validity and hardware-state handling.
+- [Offline stand-up generator](../../../config/upkie/stand_up_to/plan.py): full-body inverse dynamics, knee/wheel contacts, bounded forces/torques and phase durations.
+- [Stand-up feedback generation](../../../config/upkie/stand_up_to/feedback.py): finite-horizon gains, separate from locomotion MPC feedback.
+- [Exported trajectory](../../../config/upkie/stand_up_trajectory.yaml): reference states, feedforward, gains, support geometry and the approximately 13 s handover.
 - [Current parameters](../../../config/upkie/ros2_controllers.yaml): operator settings, model compensation, servo gains and transition thresholds.
 
 Line numbers identify the checkpoint and should be refreshed when these functions change.
@@ -68,7 +70,8 @@ The safety layer must remain authoritative over FSM, MPC, GUI and joystick reque
 ## Transition Hardening
 
 For idle -> stand-up, verify the calibrated starting joint branch, trunk attitude, sufficiently low body motion, supported pose, fresh sensors, actuator readiness and estimator readiness.
-Warm up the MPC before push-off; do not rely on cold solver construction finishing within the fixed playback interval on the onboard computer.
+Prepare model libraries and solver construction ahead of time where necessary, but do not warm up the wheel-only OCP using a knee-supported configuration.
+Require a fresh appropriate policy during the validated wheel-only tracking interval, with onboard latency margin; do not assume VM startup timing will hold on hardware.
 During stand-up, compare measured attitude, angular rate, joint tracking and available load/contact evidence with an accepted envelope.
 A timed open-loop phase is not inherently invalid, but the simulated handover time alone is not sufficient hardware acceptance.
 Any measured handover logic must tolerate sensor noise, use bounded waiting, and define an appropriate abort action rather than wait indefinitely.

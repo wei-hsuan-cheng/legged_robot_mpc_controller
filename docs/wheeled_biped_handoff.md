@@ -5,6 +5,124 @@ The original [implementation checklist](design_notes/wheeled_biped/wheeled_biped
 Update this file at each milestone.
 The implemented equations, current weights, rolling-contact equalities and execution limits are collected in [Wheeled-Biped WB-ID MPC](wheeled_biped_whole_body_inverse_dynamics_mpc.md).
 
+## Larger-Wheel Gentle Stand-up Investigation (2026-11-22, Codex)
+
+### Current Checkpoint
+
+The 80 mm-wheel default now uses offline full-body inverse-dynamics TO with both knee housings and both wheels, followed by finite-horizon state feedback and guarded transfer to unchanged locomotion MPC.
+The approximately 13 s rise is intentionally slower than the old push-off; wheel-only MPC starts at approximately 11 s only after sustained proprioceptive knee clearance.
+The source generator is in `config/upkie/stand_up_to/`; the shipped asset is `config/upkie/stand_up_trajectory.yaml`, and the full equations, primary references, build/regeneration steps and measured limits are in [Upkie contact-aware stand-up](upkie_stand_up_optimization.md).
+The first estimated-state ROS run passes, followed by three synthetic-joystick stand/drive/sit cycles (maximum locomotion tilt 0.0091 rad).
+A fresh source/seed regeneration passes another three cycles with turning between stands (maximum locomotion tilt 0.0139 rad), exercising world-heading/XY and unwrapped-wheel re-anchoring.
+The measured stand-up starting headings in that run are approximately -179.9, -169.2 and -157.7 degrees, not merely a commanded-but-unobserved turn.
+The default-file 0.2 m/s drive/stop test passes, with approximately 0.189 m/s measured forward speed.
+The default direct-service cycle plus a second stand and forced-fall regression passes: Fallen stays latched and stand-up, sit-down and toggle requests are all refused afterward.
+The first recorded comparison over playback plus 3 s of MPC shows peak wheel speed 64.5 -> 3.8 rad/s, torque RMS 0.914 -> 0.098 Nm, saturation samples 15% -> 0%, wheel-center X range 0.70 -> 0.092 m and tire/femur penetration 6.3 -> 0 mm.
+Those windows have different durations (0.67 versus 13.05 s including blend), so RMS is not an equal-time energy comparison.
+Measured knee clearance at locomotion entry is approximately 135 mm, and reconstructed maximum wheel clearance is approximately 0.083 mm rather than the baseline's 148 mm.
+The final optional tracking/guard controller builds in Release; native MPC costs/constraints, solver parameters, wheel geometry, estimator and low-level locomotion gains are unchanged.
+The offline C++ Pinocchio/CasADi model generator builds, and its five-state 3D dynamics/CoM parity check against MuJoCo passes.
+The final ROS Release build passes in 1 min 53 s; pre-existing warnings only.
+GUI/launch/startup/data checks under isolated Xvfb/DDS pass: 21 passed, 2 optional Python-MuJoCo checks skipped in the container; all 4 stand-up/data checks pass separately on the host with MuJoCo installed.
+All owned robot launches and test processes are stopped; the user can run the normal GUI or joystick launch without a temporary trajectory override.
+The optimizer may retain a constraint-feasible iteration-limited result; the accepted source regeneration has approximately 1.04e-7 maximum constraint violation, not a claimed optimality certificate.
+Plots/metrics are preserved in `docs/results/assets/upkie_r80_stand_up.*`; native replay/log evidence and the visually inspected MP4 are in ignored `demo_videos/codex_r80_gentle/` (`wb_id_to_ros*`, `wb_id_to_repeated*`, `wb_id_to_yaw_cycles*`, `default_to_drive*`).
+No commit or push has been made for this task.
+Suggested commit message: `feat(upkie): add contact-aware WB-ID stand-up optimization and feedback`.
+
+Remaining work: validate unknown/sloped support during stand-up, measured contact-load guards, unexpected contact switches, shorter optimized phase durations and physical hardware/model calibration.
+The current knee-clearance guard infers a flat wheel support plane from FK; it is not a normal-force measurement.
+The stand-up tracker is not a permanent balance controller: the tested late terminal hold loses stability, so the mandatory transfer occurs earlier while both knees are clear and motion is quiet.
+The existing hardware-validation blockers and missing automatic fall recovery still apply.
+
+### Investigation History
+
+Work is on `feat/upkie_large_wheels`, starting from `1d6aeb7`, with a clean worktree.
+The user requests a gentler, more repeatable stand-up for the 80 mm wheels and explicitly asks to preserve the working locomotion MPC settings.
+The supplied evidence is `demo_videos/upkie_r80_full/`, including the MP4, replay, command/state tracking CSV and solver log.
+Initial visual inspection confirms a pronounced catch with asymmetric leg motion after the supported push-off, rather than a quiet rise.
+The current offline search scores knee lift-off (CoM capture proxy, pitch/rate, slip, tilt, self-contact and saturation), but does not score the full catch or wheel travel/speed.
+The runtime blend currently multiplies the MPC velocity by the blend fraction, starting at zero rather than the playback's nonzero final velocity; this is a potential handover discontinuity to quantify, not yet a proven cause.
+No locomotion cost, constraint, estimator or wheel geometry changes are planned.
+References being checked are Ascento's discrete stand-up phases (Klemm et al., [Section IV-C](https://arxiv.org/html/2005.11435v1)) and its later contact-aware trajectory optimization ([author publication page](https://marco-tognon-robotics.com/content/non-smooth-trajectory-optimization-wheeled-balancing-robots-contact-switches-and-impacts)).
+These motivate contact-aware offline motion and a low-energy balancing handover; this does not claim to reproduce Ascento's optimizer.
+Next: audit CoM velocity and contact measurements, quantify baseline wheel travel/effort, search a smoother transfer and validate repeated estimated-state stand/sit cycles plus unchanged driving.
+The offline audit found a concrete bug: `Rollout.divergent_component()` reads `data.subtree_linvel` without calling `mj_subtreeVel`; the value stays zero in the planner.
+For the shipped 80 mm plan at lift-off, the recorded CoM velocity is incorrectly zero, whereas `mj_jacSubtreeCom * qvel` gives approximately -0.60 m/s along world x.
+The reported capture proxy of -0.029 m therefore does not describe the actual moving CoM, so the existing search can reward a poor MPC handover.
+This is an offline planning bug, not a locomotion MPC or estimator change.
+The baseline ROS estimated-state stand-up has been started in isolated domain 171; no operator launch was running when it started.
+The user clarified that both knee housings and wheels support idle, and the wheel-only WB-ID contact model must not be used to explain that phase.
+The offline planner already rolls out full MuJoCo collision/contact dynamics with those knee geoms, unlike the wheel-only MPC; preserve this distinction and do not replace it with a wheel-only quasi-static assumption.
+The intended handover must have sustained unloaded/clear knees, and final validation must include real estimated-state playback, not only optimizer terminal metrics.
+The fresh baseline passed but still has 0.235 rad peak pitch and 0.109 rad peak roll after MPC takeover; files are preserved in `demo_videos/codex_r80_gentle/codex_r80_baseline*`.
+The first three-stage candidate search stayed knee-supported and did not find a valid handover; it is rejected and has not replaced the shipped plan.
+An early low-wheel-speed transfer candidate found at a coarser 1 ms offline step failed in ROS before its scheduled handover (`transfer_ros*`); it is rejected.
+Its knee unloading time changed markedly at the production 0.5 ms step, exposing contact chatter/timestep sensitivity rather than a reliable gentle transfer.
+All further candidate searches use the production step and continuous knee-unloading detection; the knee-support phase and post-lift settling must both be validated.
+Detailed baseline analysis (`baseline_metrics.json/png` in the same evidence folder) found a 64.5 rad/s peak wheel speed, 0.70 m wheel-center range, 15% wheel-torque saturation samples and a 0.148 m peak wheel clearance during playback plus the first 3 s of MPC.
+The minimum reconstructed knee clearance at locomotion entry was approximately -0.04 mm: scheduled handover alone does not establish a robust clearance margin.
+These are analysis-only ground-truth/reconstructed-geometry metrics, not extra inputs to control.
+The playback velocity and servo-gain handover now interpolate continuously instead of zeroing the playback velocity and switching gains at the first blend tick.
+This controller-only change built successfully in Release (2 min 7 s); pre-existing warnings only.
+No locomotion Q/R, limits, solver settings or wheel contact equations changed.
+The first production-step corrected-CoM candidate plus continuous blend passes estimated-state ROS stand-up (`liftoff_ros*`).
+Compared over playback plus the first 3 s of MPC: peak wheel speed 64.5 -> 41.7 rad/s, wheel-center range 0.70 -> 0.37 m, maximum wheel clearance 148 -> 7.5 mm.
+Post-takeover pitch/roll peaks improve from 0.235/0.109 to 0.094/0.063 rad; these are a single pair, not a repeatability claim.
+Knee clearance at locomotion entry is only 2.3 mm, and the catch is still not sufficiently quiet; the shipped trajectory has not been replaced.
+The next candidate will include a post-lift balance/settle segment in the offline full-contact rollout before handing over to unchanged MPC.
+The raw finite-difference direct-shooting trial stalled with extremely noisy derivatives around contact switches; its terminal state was not acceptable, so it is rejected rather than exported.
+The next search includes attitude/rate feedback in the stand-up-only rollout, with actuator limits and the same knee/ground collisions; locomotion MPC is still unchanged.
+Simple stand-up attitude-feedback candidates did not yield an acceptable catch, so none of those gains or fields were applied to the runtime controller.
+A further concrete repeatability issue was found in sit-down: it changed the idle servo target from the spawn target to the plan's settled measured angles while retaining zero feedforward, causing a second static sag.
+Sit-down now returns to the original activation idle targets, preserving the initial supported equilibrium instead of changing it between cycles; the planner's long-idle check was updated accordingly.
+A full-contact covariance-adapting search with explicit final knee-clearance acceptance is still running offline; unsupported or knee-supported terminal states are not accepted merely because their wheel speed is small.
+That symmetric three-stage search did not produce an acceptable settled trajectory and was stopped; no generated candidate was installed.
+The larger-lean transfer passes ROS but is rejected as the preferred result because it still lifts a wheel about 15 cm, despite reducing its peak spin to about 30 rad/s.
+A ground-truth-driven comparison of the low-speed lift-off candidate still reaches about 40.5 rad/s, so the remaining catch is not explained solely by the state estimator.
+The stand-up analysis now aligns takeover from the controller's timestamped phase telemetry, not the harness's queued-odometry `takeover_time`; the latter lagged the log transition in one trial.
+A separate quasi-static, contact-load-aware candidate has now found feasible one-knee-at-a-time configurations with nonnegative wheel/knee loads and actuator bounds, reaching wheel-only support without assuming both knees disappear together.
+It temporarily staggers the legs, then will align them before MPC takeover; this is static feasibility only, not yet a successful dynamic playback.
+During this prototype, wheel axle directions must come from the wheel-link frame, not compiled mesh principal axes; the latter created a false asymmetric clearance in an early discarded prototype.
+No such mesh-axis change was made to runtime MPC, whose contact-frame axle convention is already correct.
+The sequential quasi-static prototype now includes both knee contacts explicitly, nonnegative vertical support loads, whole-robot CoM moment balance and gravity/actuator bounds; it can reach a quiet, upright wheel-only configuration in static optimization.
+Pure playback of that path still fails dynamically near the first knee release, so static feasibility is explicitly not accepted as a successful stand-up.
+The prototype also exposed practical requirements: unloaded wheels must not receive the same attitude-correction torque as loaded wheels, and slow desired wheel rolling must overcome the model's 0.1 Nm joint friction rather than relying on 0.05 Nm/(rad/s) damping alone.
+Stand-up-only higher joint tracking gains, friction compensation and load-weighted attitude tracking are being tested offline; none have been added to the runtime controller or shipped trajectory yet.
+Temporary prototype sources are `/tmp/codex_upkie_static_path.py` and `/tmp/codex_upkie_static_playback.py`; result JSON files use `/tmp/codex_r80_static_*`.
+Other rejected optimizer prototypes use `/tmp/codex_upkie_*search.py` and are not repository dependencies.
+The new CoM-velocity regression and the updated trajectory-export mock pass, along with the existing shipped-trajectory contract (3 offline tests, no skips).
+An additional stand-up-only inverse-dynamics QP prototype was tested outside the repository (`/tmp/codex_upkie_stand_wbc.py`), with four modeled contacts (both knees and wheels), nonnegative friction-limited forces and hard actuator bounds.
+It has not passed: soft contact-acceleration tracking can admit support inconsistent with the actual contacts, and imposing all contact accelerations exactly can become infeasible during unloading.
+No QP runtime code or new dependency has been installed; this result reinforces that a feasible static CoM path alone is not a validated contact-transition controller.
+The full-contact corrected lift-off candidate is now entering repeated ROS stand/drive/sit acceptance using the existing controller, before considering it as an incremental checkpoint.
+That acceptance passed two complete cycles but fell about 3.7 s after the third takeover, so the candidate is not installed as a robust replacement.
+The early catches show large wheel-rolling/base-dynamics equality violations, and the startup path currently prewarms the wheel-only MPC on measured knee-supported states; this initialization mismatch is under investigation rather than attributed only to trajectory tuning.
+The user now explicitly approves prototyping an offline WB-ID trajectory optimization with knee and wheel contacts.
+The new prototype will use Pinocchio/CasADi automatic differentiation and an NLP solver, following Pinocchio's official `casadi-rnea` scalar conversion example, with contact phase/friction/actuator constraints; no hand-written rigid-body dynamics or finite-difference RNEA gradient is intended.
+The system Python Pinocchio package lacks `pinocchio.casadi`; a temporary host-only environment now contains CasADi and Pinocchio for a C++ symbolic-function generator, without changing the runtime ROS dependencies.
+The C++ Pinocchio/CasADi RNEA/FK generator builds successfully in `/tmp/codex_upkie_to_build`; its dynamic generalized forces match MuJoCo to about 1.5e-8 and its CoM to about 2.1e-10 m on four random sagittal states, with matching 0.005 joint armature.
+The first successful offline WB-ID NLP uses full robot inertias projected onto symmetric sagittal motion, with paired knee/wheel forces, exact wheel-rolling coordinate elimination, knee rolling during support, friction bounds and torque bounds.
+It is not a full 3D contact-implicit planner: left/right release is simultaneous and the contact phases are prescribed, while their durations are optimized.
+IPOPT reaches an optimal solution with approximately 1.1e-8 maximum constraint violation in about 1.1 s of solve time (symbolic construction excluded).
+Open-loop playback of the first dynamic solution does not pass full MuJoCo, so it has not been installed; accurate inverse dynamics alone does not stabilize the underactuated contact transfer.
+A stand-up-only finite-horizon LQR tracking prototype uses exact CasADi derivatives of the constrained inverse dynamics; the initial fast trajectory still fails, so a slower solution with wheel-torque reserve and stronger pitch-rate penalties is now being checked.
+These TO/LQR prototypes remain in `/tmp/codex_upkie_to*.py`; no production TO trajectory, tracking gains or new runtime dependency has been applied yet.
+The slower symmetric prototype tracks the knee-supported part accurately, but still fails at simultaneous knee release; reducing permitted folding speed and reserving wheel torque makes that prescribed symmetric path infeasible rather than producing a valid gentle motion.
+A full 3D sequential prototype now optimizes all base/joint coordinates, accelerations, six actuator torques and four contact forces, with phases both knees -> right knee -> wheels only.
+Its first thin-wheel solution reaches approximately 3.6e-7 constraint violation, peak wheel speeds below 0.9 rad/s and peak wheel torques below 0.33 Nm, with 15 s total duration.
+It reached the iteration limit, so this is a nearly feasible optimizer candidate, not a converged/validated stand-up.
+Finite width must be included when optimizing body roll: the simulator's tire collision is a 44 mm-wide prism, and the two knee housings together span a 53.7 mm-wide cylinder, whereas a thin-disk support point ignores the lower axial edge.
+The sequential prototype is now checking a differentiable finite-width support approximation and an exact-Hessian solve, followed by a finite-horizon full-state tracking prototype; the working locomotion MPC remains unchanged.
+The finite-width sequential candidate plus full-state finite-horizon LQR now tracks the complete knee-to-wheel transfer in full MuJoCo and reaches 0.178 m height with pitch -0.051 rad at 13 s.
+Over the supported stand-up through 13 s, measured peak wheel speed is 1.29 rad/s and wheel torque RMS is 0.098 Nm, with 0.15 m base-x range; this is an offline physics/tracking result, not ROS acceptance.
+The prototype tracker loses stability during a later terminal hold after 15 s, so it is not used as a long-term balance controller; the intended transition is to the existing MPC at 13 s after both knees have been clear for several seconds.
+The native controller now accepts optional sampled state/LQR feedback, re-anchors world yaw/XY and free wheel angles each cycle, and delays the wheel-only MPC until a configured wheel-only interval.
+A proprioceptive FK guard checks knee clearance relative to the two wheel support heights for a sustained interval; it is a flat-ground geometry check, not a measured normal-force guarantee.
+Planned feedforward and servo gains blend continuously into unchanged MPC, and the original idle servo target is retained between cycles.
+The optional feedback/guard path builds successfully in Release (1 min 57 s); existing compiler warnings only.
+First estimated-state ROS acceptance is now running against `demo_videos/codex_r80_gentle/wb_id_to_trajectory.yaml`; the shipped trajectory and MPC configuration remain unchanged pending that result.
+
 
 ## Demo Video Pipeline (2026-11-15, Claude)
 

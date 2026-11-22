@@ -2,6 +2,8 @@
 
 Upkie starts kneeling in idle and waits for the operator.
 Its MPC balance weights, rolling-contact model and 200 Hz default recommendation are unchanged.
+The 80 mm wheels use a gentle, approximately 13 s contact-aware stand-up with both knees and both wheels modeled offline.
+The [stand-up optimization note](upkie_stand_up_optimization.md) gives the equations, references, feedback/handover guards, regeneration commands and measured comparison.
 
 
 ## GUI
@@ -67,7 +69,7 @@ Operator twist, pose and gait commands are ignored outside locomotion.
 | `bringUp.idleSeconds` | Minimum supported-idle dwell before stand-up, currently 3 s |
 | `bringUp.sitDownBrakeSeconds` | Minimum MPC braking interval, currently 1 s |
 | `bringUp.sitDownVelocityMax` | Maximum horizontal speed before lowering, currently 0.1 m/s |
-| `bringUp.sitDownHeight` | Internal balanced-crouch height, currently 0.10 m; must lie within the posture table |
+| `bringUp.sitDownHeight` | Internal balanced-crouch height, currently 0.125 m; must lie within the posture table |
 | `bringUp.sitDownSeconds` | Smooth leg-joint transition from crouch to supported kneeling, currently 3 s |
 | `bringUp.tiltLimit` | Maximum trunk tilt before latching Fallen, currently 1.2 rad |
 
@@ -77,6 +79,7 @@ The final joint interpolation uses $s=\operatorname{clip}(t/T,0,1)$ and $\alpha=
 Idle arrival requires controlled-joint error below 0.15 rad and joint-speed norm below 1 rad/s.
 Braking, lowering and kneeling have timeouts which latch a fault instead of starting the next phase blindly.
 The MPC worker is paused before old policies are cleared, so repeated stand-up never intentionally reuses the previous cycle's plan.
+During the contact-aware stand-up, it starts only after the planned wheel-only interval and sustained kinematic knee clearance, not while the knees support the robot.
 
 
 ## Services and State
@@ -107,6 +110,8 @@ ROS_DOMAIN_ID=169 python3 src/legged_robot_mpc_controller/tests/upkie_posture_cy
 Synthetic Joy exercises the real teleop adapter and Square service path; a physical gamepad is not required.
 The trial drives between cycles and checks transition refusals, persistent idle and a deliberately induced latched fall.
 Remove `--joystick` to test direct controller service requests.
+Add `--yaw-command .2` to turn between cycles and check re-anchoring at another heading.
+Use `--trajectory /path/to/candidate.yaml` to validate an offline candidate without replacing the default.
 Use `--source ground_truth_state` for a simulator-state comparison; normal operation uses the wheel-aware linear KF.
 Reports, pose/joint replays and launch logs share the requested prefix.
 These posture transitions are intended for flat, supported ground; sit-down on slopes, obstacles, asymmetric support and physical hardware requires separate validation.

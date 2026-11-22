@@ -698,20 +698,23 @@ Changing to direct `qfrc_applied` bypass would invalidate the actuator-clipping 
 An optional trajectory-file path implements idle hold, planned stand-up playback, policy handover, blend and locomotion.
 The shipped Upkie configuration sets `bringUp.autoStart: false`: each stand-up is requested by the operator, not by a velocity command.
 The GUI provides Stand Up and Sit Down; DualSense Square toggles between them with L2 released and neutral sticks.
-Sit-down keeps MPC active while braking and lowering to `bringUp.sitDownHeight`, then interpolates the position-controlled leg joints to the plan's first kneeling pose.
+Sit-down keeps MPC active while braking and lowering to `bringUp.sitDownHeight`, then interpolates the position-controlled leg joints to the original activation idle servo targets.
 The internal lowering target can be below the operator's height range; it still uses the existing height-rate conditioning, posture table, dynamics and contact constraints.
 Wheel angles remain free: sit-down interpolates only joints with positive playback position gains, and requests zero wheel speed rather than returning the wheels to their original unwrapped angles.
 The solver pauses during kneeling and idle; a subsequent stand-up clears the old MRT policy and resets the solver on its worker before using a fresh plan.
 Excessive trunk tilt latches `fallen`, while missing state or an unusable policy latches a fault; both use zero position gains, zero feedforward and velocity damping.
 Neither state accepts another stand-up or sit-down; no automatic fall recovery is implemented.
 The services, interlocks, phases and simulation acceptance commands are documented in [Upkie posture control](./upkie_posture_control.md).
-The height command filter resets to the measured base height at handover rather than stepping immediately to the nominal $0.30\ \mathrm{m}$ height.
+The height command filter resets to the measured base height at handover rather than stepping immediately to the operator's requested height.
 This playback is not a stand-up trajectory optimized online by the MPC.
-It passes in the complete stack with ground truth and with the estimator, and it is the default: Upkie's only spawn pose is the kneeling one (`config/upkie/initial_pose.yaml`) and its YAML sets `bringUp.standUpTrajectoryFile`, because an unbalanced wheeled robot cannot stand still while the filter initialises.
-Kneeling, the knees rest on the floor behind the wheels and the trunk leans back (pitch $+0.42$ rad); the push pivots the trunk forward over the axles while the robot rolls about 6 cm backward.
-At the handover the body is at about 0.09 m with the trunk leaning 0.70 rad forward (pitch $-0.70$ rad), rolling backward; the posture table starts at 0.10 m so the posture reference matches the height ramp.
-The catch straightens the trunk while rolling backward with both wheel torques saturated, and the MPC swings one leg forward and the other back for about 0.7 s, a catching step in which one wheel leaves the ground briefly, before the legs rejoin; forbidding that split with a cost made every catch fall.
-The exporter includes the actual post-step knee-lift sample, so the current $0.6965\ \mathrm{s}$ handover lies within the exported time range.
+The 80 mm-wheel checkpoint uses an offline full-body inverse-dynamics optimization with both knee housings and both wheels modeled as contacts, plus stand-up-only finite-horizon state feedback.
+The prescribed support sequence is both knees and wheels, right knee and wheels, then wheels only; configurations, forces, torques and phase durations are optimized.
+The wheel-only locomotion MPC is not applied to the knee-supported phase and starts warm-up only after a sustained geometric knee-clearance check.
+The selected motion takes approximately 13 s to hand over, at about 0.178 m base height and -0.051 rad pitch, before normal MPC raises the body to the command.
+In the first estimated-state comparison, peak wheel speed falls from 64.5 to 3.8 rad/s and wheel-center X travel from 0.70 to 0.092 m over playback plus the first 3 s of MPC.
+Three estimated-state synthetic-joystick stand/drive/sit cycles pass; these are simulation results, not hardware validation.
+The full model, contact-width approximation, feedback equations, primary references and regeneration/acceptance procedure are in [Upkie contact-aware stand-up](upkie_stand_up_optimization.md).
+Historical rapid push-off/catching-step results apply to the earlier trajectory, not this gentle 80 mm-wheel checkpoint.
 Trajectory loading rejects nonfinite samples and timestamps that are not strictly increasing.
 When using ground-truth feedback, the bring-up tilt check and gravity-compensating hold use the base-link orientation, not the orientation of the rotated IMU site.
 With the estimator, `floatingBase.imuFrame` removes the IMU mounting rotation from the attitude used by the tilt check, and the estimator removes it from its own inputs (Section 7.5).

@@ -129,7 +129,7 @@ private:
 
   // Wheeled stand-up (bringUp.standUpTrajectoryFile): a planned joint trajectory with feed-forward
   // torques, played back from the idle pose. Passive (idle) -> StandUp (playback) -> Blend at
-  // handoverTime -> Locomotion, with the MPC already solving from the start of the playback.
+  // handoverTime -> Locomotion. Contact-aware plans delay MPC until wheel-only support.
   struct StandUpTrajectory
   {
     std::vector<double> time;
@@ -139,9 +139,24 @@ private:
     vector_t kp;
     vector_t kd;
     double handoverTime{0.0};
-    JointActionCommand sample(double t) const;
+    double mpcStartTime{0.0};
+    std::vector<vector_t> state;
+    std::vector<Eigen::MatrixXd> feedback;
+    struct KneeContact {
+      std::string frame;
+      Eigen::Vector3d center;
+      double radius;
+      double halfWidth;
+    };
+    std::vector<KneeContact> kneeContacts;
+    double minimumKneeClearance{0.0};
+    double clearanceHoldTime{0.0};
+    double wheelHalfWidth{0.0};
+    JointActionCommand sample(double t, const vector_t& measured_state = vector_t()) const;
   };
   static StandUpTrajectory load_stand_up_trajectory(const std::string& file, const std::vector<std::string>& joint_names);
+  JointActionCommand sample_stand_up(double t, const ocs2::SystemObservation& observation) const;
+  bool stand_up_support_ready(const ocs2::SystemObservation& observation);
   //! The bring-up phase machine runs for the estimator, and for any robot with a planned stand-up.
   bool uses_bring_up() const;
   //! The configured contact frames (feet or tire centres), for the inverse-dynamics helpers.
@@ -180,6 +195,8 @@ private:
   vector_t servo_kp_override_;
   vector_t servo_kd_override_;
   std::optional<StandUpTrajectory> stand_up_trajectory_;
+  vector_t stand_up_anchor_state_;
+  double stand_up_support_since_{-1.0};
   //! Command-interface indices of <joint>/kp, <joint>/kd, interleaved per MPC joint.
   std::vector<std::size_t> gain_command_index_;
 

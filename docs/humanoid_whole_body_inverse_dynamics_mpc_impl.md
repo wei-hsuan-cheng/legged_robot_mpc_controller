@@ -32,12 +32,12 @@ Dimensions are constructed at [line 37](../include/legged_robot_mpc_controller/m
 The inherited `getBaseComVelocity` name returns pelvis world linear velocity and Euler rates in WB-ID.
 Joint velocities are read from the state at [line 102](../include/legged_robot_mpc_controller/mpc/wb_id/model/WbIdMpcRobotModel.h#L102), while generalized accelerations and joint torques are read from the input at [line 117](../include/legged_robot_mpc_controller/mpc/wb_id/model/WbIdMpcRobotModel.h#L117).
 
-[build_observation():1234](../src/controller/controller.cpp#L1234) combines joint interfaces and floating-base feedback.
-Estimator feedback is read at [line 1053](../src/controller/controller.cpp#L1053).
+[build_observation():1559](../src/controller/controller.cpp#L1559) combines joint interfaces and floating-base feedback.
+Estimator feedback is read at [line 1515](../src/controller/controller.cpp#L1515).
 For simulation debugging, `floatingBaseSource:=ground_truth_state` can replace estimator feedback with GT, but this bypass is not available for real-world deployment.
-Quaternion normalization, yaw unwrapping and angular velocity conversion are at [line 1086](../src/controller/controller.cpp#L1086).
-The optional generalized velocity low-pass is at [line 1107](../src/controller/controller.cpp#L1107).
-`observation.input` is zeroed at [line 1031](../src/controller/controller.cpp#L1031), not filled with measured torques or wrenches.
+Quaternion normalization, yaw unwrapping and angular velocity conversion are at [line 1624](../src/controller/controller.cpp#L1624).
+The optional generalized velocity low-pass is at [line 1645](../src/controller/controller.cpp#L1645).
+`observation.input` is zeroed at [line 1569](../src/controller/controller.cpp#L1569), not filled with measured torques or wrenches.
 
 
 ## 3. Dynamics, Constraints and Initialization
@@ -200,7 +200,7 @@ The [flight-spline regression](../tests/swing_flight_test.cpp) checks internal-m
 The [gait-height regression](../tests/gait_swing_height_test.cpp) checks metadata alignment through gait insertion, rolling-horizon trimming, future replacement and external schedule reset.
 See [running validation](./wb_id_running.md) and the [warm-start transition regression](../tests/running_gait_transition_test.cpp) for the separate OCS2 dependency fix required for safe trajectory truncation.
 The WB-ID builder maps `ocs2.costs.captureFootPlacement` at [line 283](../src/controller/config_builder.cpp#L283); it is off by default and enabled only in the H2 configuration (see [H2 to 2 m/s](./wb_id_running.md#h2-to-2-ms)).
-Shared stair/terrain setup is connected at [controller line 169](../src/controller/controller.cpp#L169), which should not be interpreted as validated WB-ID terrain performance.
+Shared stair/terrain setup is connected at [controller line 234](../src/controller/controller.cpp#L234), which should not be interpreted as validated WB-ID terrain performance.
 
 
 ### 5.3 Horizontal swing and foothold selection
@@ -255,7 +255,7 @@ To return H2 to optimizer-only foot placement, set `ocs2.costs.captureFootPlacem
 
 ## 6. Arm Command Support
 
-The WB-ID controller passes tracked arm names to `subscribeMpcTargets` at [controller line 238](../src/controller/controller.cpp#L238).
+The WB-ID controller passes tracked arm names to `subscribeMpcTargets` at [controller line 250](../src/controller/controller.cpp#L250).
 The shared subscriber dispatches through the parser at [Ros2ProceduralMpcMotionManager.cpp:150](../src/common/ros2_procedural_mpc_motion_manager.cpp#L150).
 
 | `command_type` | WB-ID behaviour | Code |
@@ -269,24 +269,24 @@ Unsupported command types are rejected before changing the reference.
 
 ## 7. Solver, Policy and Actuation
 
-[construct_solver():1401](../src/controller/controller.cpp#L1401) accepts only `sqp`, constructs `SqpMpc`, connects MRT and installs the synchronized modules.
-The asynchronous worker starts at [line 1372](../src/controller/controller.cpp#L1372).
-The control loop forwards each valid observation through OCS2's existing `setCurrentObservation()` before policy checks or bring-up dispatch at [line 551](../src/controller/controller.cpp#L551).
-After construction, the worker waits for a new control-loop observation before its first solve at [line 1182](../src/controller/controller.cpp#L1182).
-Policy handover checks finite timestamps and requires the evaluation time to lie inside the plan, with two control periods remaining, at [line 563](../src/controller/controller.cpp#L563).
+[construct_solver():1726](../src/controller/controller.cpp#L1726) accepts only `sqp`, constructs `SqpMpc`, connects MRT and installs the synchronized modules.
+The asynchronous worker starts at [line 1691](../src/controller/controller.cpp#L1691).
+The control loop forwards each valid observation through OCS2's existing `setCurrentObservation()` before policy checks or bring-up dispatch at [line 677](../src/controller/controller.cpp#L677).
+After construction, the worker waits for a new control-loop observation before its first solve at [line 1719](../src/controller/controller.cpp#L1719).
+Policy handover checks finite timestamps and requires the evaluation time to lie inside the plan, with two control periods remaining, at [line 690](../src/controller/controller.cpp#L690).
 An unusable policy requests `resetMpcNode()` on the solver worker, following the atomic warm-start reset pattern in `dynamics_mpc_controller`, rather than resetting the solver from the control thread.
 Startup keeps holding the standing posture and retries; loss of a valid policy during the startup blend returns to `StartingMpc`, while loss after entering estimator-driven `Locomotion` latches the existing `Fault` state.
 The ground-truth feedback path holds the last commanded posture while awaiting a valid replacement policy.
 No additional age-limit parameter or alternative observation interface is introduced.
-[compute_mpc_joint_action():1585](../src/controller/controller.cpp#L1585) evaluates the policy using `ocs2.solver.rollout.policyTimeOffset`.
+[compute_mpc_joint_action():1917](../src/controller/controller.cpp#L1917) evaluates the policy using `ocs2.solver.rollout.policyTimeOffset`.
 The same offset is used by policy-interval validation, so the accepted interval and execution time remain consistent; it is a runtime policy look-ahead, not an ODE timestep.
 `MRT_BASE::evaluatePolicy()` interpolates the planned state and evaluates its input controller without calling `rolloutPolicy()`.
 WB-ID therefore has no `TimeTriggeredRollout` object or MRT `initRollout()` call; its obsolete ODE settings and unused DDP settings storage were removed.
-Planned joint position/velocity extraction is at [line 1389](../src/controller/controller.cpp#L1389).
-The torque-window check and planned-state inverse-dynamics fallback are at [line 1407](../src/controller/controller.cpp#L1407).
-The alternative measured-state inverse dynamics is at [line 1424](../src/controller/controller.cpp#L1424).
-Feedforward clipping is [clamp_torque():1577](../src/controller/controller.cpp#L1577).
-Joint position/velocity/effort and optional gain interface writes are at [line 1709](../src/controller/controller.cpp#L1709).
+Planned joint position/velocity extraction is at [line 1933](../src/controller/controller.cpp#L1933).
+The torque-window check and planned-state inverse-dynamics fallback are at [line 1966](../src/controller/controller.cpp#L1966).
+The alternative measured-state inverse dynamics is at [line 1981](../src/controller/controller.cpp#L1981).
+Feedforward clipping is [clamp_torque():1909](../src/controller/controller.cpp#L1909).
+Joint position/velocity/effort and optional gain interface writes are at [line 2303](../src/controller/controller.cpp#L2303).
 
 `python3 tests/wb_id_startup_contract_test.py -v` checks the startup observation flow, policy bounds, reset ownership and bring-up guards without a ROS build.
 These are static regression checks, not a substitute for repeated startup tests in the simulator.
@@ -411,7 +411,7 @@ The shared torque-limit behavior and pre-existing acceleration-gain schema defau
 The limit array supplies both the soft OCP torque margins inside the inverse-dynamics torque window and the hard runtime feedforward clamp; final feedback-plus-feedforward torque is not bounded by this controller clamp.
 Omitting the override uses the reduced Pinocchio model's URDF effort limits, following the existing URDF/model-based position-limit pattern in `mpc_controllers` and the WB-ID velocity-limit implementation.
 The schema's typed empty-vector default is valid, but an explicit `limits: []` runtime YAML override is not: Jazzy reports `parameter_value_from failed` with `No parameter value set` before controller initialization.
-`WbIdMpcInterface` [resolves and validates limits during construction](../src/mpc/wb_id/WbIdMpcInterface.cpp#L57), and `getTorqueLimits()` supplies that same vector to the [runtime controller](../src/controller/controller.cpp#L110); missing, nonpositive or nonfinite resolved bounds fail configuration rather than silently disabling protection.
+`WbIdMpcInterface` [resolves and validates limits during construction](../src/mpc/wb_id/WbIdMpcInterface.cpp#L57), and `getTorqueLimits()` supplies that same vector to the [runtime controller](../src/controller/controller.cpp#L124); missing, nonpositive or nonfinite resolved bounds fail configuration rather than silently disabling protection.
 `mu` scales the relaxed log barrier and `delta` sets the margin where its quadratic continuation begins; neither parameter affects runtime clipping.
 Update external WB-ID YAML files and dotted overrides, then rebuild the generated parameter library and controller before using these new paths; no deprecated aliases are provided.
 `tests/wb_id_parameter_contract_test.py` checks schema/builder mapping, removal of obsolete parameter paths, and both policy-offset readers.
@@ -454,7 +454,7 @@ The visualization settings are declared in the WB-ID schema and configured in ea
 
 | Stage | Implementation |
 | --- | --- |
-| Consistent policy snapshot | [Controller handoff](../src/controller/controller.cpp#L615) passes policy timestamps/states and the matching MRT command targets at the existing maximum 10 Hz handoff rate |
+| Consistent policy snapshot | [Controller handoff](../src/controller/controller.cpp#L741) passes policy timestamps/states and the matching MRT command targets at the existing maximum 10 Hz handoff rate |
 | Subscriber-driven copying | [Worker input](../src/visualization/performance_visualization.cpp#L71) returns before copying when no display is subscribed; the [worker](../src/visualization/performance_visualization.cpp#L81) performs FK/publishing only for subscribed displays and fresh snapshots |
 | Robot-independent visuals | [URDF extraction](../src/visualization/future_robot_model_visualization.cpp#L70) retains visual origins, mesh scales, multiple visuals and primitive geometry on BODY frames, including reduced-model fixed links |
 | Correct state layout | [State-to-pose conversion](../src/visualization/future_robot_model_visualization.cpp#L148) uses `MpcRobotModelBase::getGeneralizedCoordinates`, not the full WB-ID state as a Pinocchio configuration |
@@ -479,7 +479,7 @@ WB-ID declares `visualization.collisionSpheres.activate`, `markerTopic` and `alp
 The schema defaults activation to false; both shipped G1/H2 WB-ID YAMLs enable it with alpha 0.25 and topic `/performance_visualization/collisionSpheres`.
 There are no new launch arguments or collision geometry overrides in the visualization group.
 
-The [controller configuration](../src/controller/controller.cpp#L190) copies the resolved OCP geometry into marker settings once.
+The [controller configuration](../src/controller/controller.cpp#L254) copies the resolved OCP geometry into marker settings once.
 Only enabled collision groups are drawn: `legSelfCollision` supplies eight foot/ankle spheres and two knee spheres; `armSelfCollision` supplies all named arm and torso/pelvis/head spheres.
 G1 therefore draws 32 spheres and H2 draws 34 with their current enabled groups.
 These counts are distinct from the number of collision pairs; showing a sphere does not imply every pair of displayed spheres is constrained.
