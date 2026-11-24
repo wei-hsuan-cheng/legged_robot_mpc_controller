@@ -47,18 +47,17 @@ class Probe(Node):
         self.publisher = self.create_publisher(WalkingVelocityCommand, "/humanoid/walking_velocity_command", qos)
         self.joy_publisher = self.create_publisher(Joy, "/codex/upkie/joy", qos)
         if joystick:
-            from legged_robot_teleop.node import BaseTwistTeleop
-            from rclpy.parameter import Parameter
-            self.teleop = BaseTwistTeleop(parameter_overrides=[
-                Parameter("joy_topic", value="/codex/upkie/joy"),
-                Parameter("posture_controller", value=CONTROLLER),
-                Parameter("reference_height", value=.22),
-                Parameter("minimum_height", value=.2),
-                Parameter("maximum_height", value=.33),
-                Parameter("scale_forward", value=1.0),
-                Parameter("scale_lateral", value=0.0),
+            # The real (C++) teleop adapter, driven by the synthetic Joy below.
+            self.teleop = subprocess.Popen([
+                "ros2", "run", "legged_robot_teleop", "base_twist", "--ros-args",
+                "-p", "joy_topic:=/codex/upkie/joy",
+                "-p", f"posture_controller:={CONTROLLER}",
+                "-p", "reference_height:=0.22",
+                "-p", "minimum_height:=0.2",
+                "-p", "maximum_height:=0.33",
+                "-p", "scale_forward:=1.0",
+                "-p", "scale_lateral:=0.0",
             ])
-            rclpy.get_global_executor().add_node(self.teleop)
         self.create_subscription(String, CONTROLLER + "/motion_state", self.state, qos)
         self.create_subscription(Odometry, "/mujoco/ground_truth/odom", self.observe, qos)
         self.create_subscription(JointState, "/joint_states", self.observe_joints, qos)
@@ -229,8 +228,11 @@ def main():
             results["max_locomotion_tilt"] = max((s["tilt"] for s in active), default=None)
             Path(str(prefix) + ".replay.json").write_text(json.dumps(probe.samples))
             if probe.teleop is not None:
-                rclpy.get_global_executor().remove_node(probe.teleop)
-                probe.teleop.destroy_node()
+                probe.teleop.send_signal(signal.SIGINT)
+                try:
+                    probe.teleop.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    probe.teleop.kill()
             probe.destroy_node()
         Path(str(prefix) + ".json").write_text(json.dumps(results, indent=2))
         print(json.dumps(results, indent=2), flush=True)
