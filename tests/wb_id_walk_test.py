@@ -175,7 +175,8 @@ def main():
                              'each held until the next; replaces the --axis ladder; permits --speed 0. A fifth element 1 '
                              'steers along the line through the first estimated pose (the spawn), like an operator watching '
                              'the robot: the yaw rate then comes from the estimated heading and lateral offset (GT with '
-                             '--source ground_truth_state)')
+                             '--source ground_truth_state). An entry may instead be an object {"time", "vx", "vy", '
+                             '"yaw_rate", "height"} (all but time optional: 0, or the nominal height), which adds vy')
     parser.add_argument("--mpc-rate", type=int, default=100)
     parser.add_argument("--launch-file", default="robot.launch.py")
     parser.add_argument("--robot-name", choices=["g1", "h2", "upkie"], default="g1")
@@ -229,13 +230,22 @@ def main():
     # Automated locomotion trials explicitly opt into standing up; interactive Upkie waits for its operator.
     if args.robot_name == "upkie":
         params["bringUp"]["autoStart"] = True
+    # A key absent from the robot YAML is accepted when the controller declares it (its parameter schema).
+    schema = yaml.safe_load((Path(__file__).resolve().parents[1] / "src/controller/parameters.yaml").read_text())
+    schema = schema["humanoid_whole_body_inverse_dynamics_mpc_controller"]
     for entry in args.set:
         key, value = entry.split("=", 1)
-        parent = params
+        parent, declared = params, schema
         parts = key.split(".")
+        for part in parts:
+            declared = declared.get(part) if isinstance(declared, dict) else None
+        if not (isinstance(declared, dict) and "type" in declared):
+            declared = None
         for part in parts[:-1]:
+            if part not in parent and declared is not None:
+                parent[part] = {}
             parent = parent[part]
-        if parts[-1] not in parent:
+        if parts[-1] not in parent and declared is None:
             parser.error(f"Unknown parameter: {key}")
         parent[parts[-1]] = json.loads(value)
     args.height = float(params["ocs2"]["reference"]["defaultBaseHeight"]) if args.height is None else args.height
@@ -254,8 +264,15 @@ def main():
         previous_time = point[0]
     previous_time = -1.0
     limits = params["ocs2"]["reference"]
-    for point in args.command_sequence:
-        if (not isinstance(point, list) or len(point) not in (4, 5) or
+    for index, point in enumerate(args.command_sequence):
+        if isinstance(point, dict):  # {"time", "vx", "vy", "yaw_rate", "height"} -> [time, vx, yaw rate, height, 0, vy]
+            if not set(point) <= {"time", "vx", "vy", "yaw_rate", "height"} or "time" not in point or \
+                    abs(point.get("vy", 0.0)) > limits["maxDisplacementVelocityY"]:
+                parser.error("command-sequence objects need a time and only vx, vy, yaw_rate and height, vy within "
+                             "the configured command limit")
+            point = args.command_sequence[index] = [point["time"], point.get("vx", 0.0), point.get("yaw_rate", 0.0),
+                                                   point.get("height", args.height), 0, point.get("vy", 0.0)]
+        if (not isinstance(point, list) or len(point) not in (4, 5, 6) or
                 not all(isinstance(v, (int, float)) and math.isfinite(v) for v in point) or
                 not 0 <= point[0] < total_duration or point[0] <= previous_time or point[3] <= 0 or
                 abs(point[1]) > limits["maxDisplacementVelocityX"] or abs(point[2]) > limits["maxRotationVelocity"]):
@@ -338,6 +355,15 @@ def main():
                     break
                 if start is None:
                     startup_log = log_path.read_text(errors="replace")
+                    # The bring-up latched a fall before the MPC took over (a stand-up): it logs the tilt fault, then
+                    # "-> fallen", so either line is a fall, checked before the generic fault markers.
+                    if "-> fallen" in startup_log or "bring-up FAULT: trunk tilt" in startup_log:
+                        verdict = "FALL"
+                        result["fell_before_takeover"] = True
+                        break
+                    if "bring-up FAULT: stand-up handover rejected" in startup_log:  # the stand-up did not reach support
+                        verdict = "STANDUP_FAULT"
+                        break
                     if any(marker in startup_log for marker in ("while initializing controller", "Failed to configure",
                            "bring-up FAULT", "Failed to parse global arguments", "Caught exception in launch", "init failed:")):
                         verdict = "STARTUP_ERROR"
@@ -410,7 +436,8 @@ def main():
                     yaw_rate = joystick[2]
                     if len(joystick) == 5 and joystick[4] and line_origin is not None and operator_pose is not None:
                         yaw_rate = line_hold_yaw_rate(operator_pose, line_origin, frame_yaw, limits["maxRotationVelocity"])
-                    probe.command(joystick[1] / limits["maxDisplacementVelocityX"], 0.0, joystick[3],
+                    vy = joystick[5] / limits["maxDisplacementVelocityY"] if len(joystick) == 6 and joystick[5] else 0.0
+                    probe.command(joystick[1] / limits["maxDisplacementVelocityX"], vy, joystick[3],
                                   yaw_rate / limits["maxRotationVelocity"])
                 elif args.command_sequence:
                     probe.command(0.0, 0.0, height_command)

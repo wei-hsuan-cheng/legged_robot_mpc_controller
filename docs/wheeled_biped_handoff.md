@@ -5,6 +5,46 @@ The original [implementation checklist](design_notes/wheeled_biped/wheeled_biped
 Update this file at each milestone.
 The implemented equations, current weights, rolling-contact equalities and execution limits are collected in [Wheeled-Biped WB-ID MPC](wheeled_biped_whole_body_inverse_dynamics_mpc.md).
 
+## MPC Robustness to Modeling Errors (2026-11-25, milestones 1-5 done)
+
+Branch `feat/model_error_robustness` in this repository and in `mujoco_ros2_control` (both local, uncommitted).
+Following Khazoom et al. (arXiv 2407.10789), the simulated plant gets modeling errors while the MPC keeps its nominal
+model; full design, usage and results: [MPC Robustness to Modeling Errors](mpc_robustness.md).
+
+- `mujoco_ros2_control`: `model_error.{hpp,cpp}`; the node reads `model_error_file` / `model_error_seed` /
+  `model_error_report` and perturbs the compiled model in memory (inertia, joint friction, contact friction, ground
+  friction patches through `mjSpec`), then `mj_setConst`. One nominal MJCF, no generated model files.
+- This repository: `robot.launch.py` arguments `modelErrorFile`, `modelErrorSeed`, `modelErrorReport`;
+  `tests/robustness_sweep.py` (seeded command set, sources expanded per level, k runs per point, resume, progress log,
+  summary and plot); `config/robustness/upkie.yaml`; `tests/tuning/plot_robustness.py`; `tests/wb_id_walk_test.py`
+  gained object entries with vy in `--command-sequence` and ends a run at once when the stand-up latches a fall.
+- Delays: the hardware plugin's `set_delays` (sensing: joints, IMU, force-torque, body states; actuation: commands
+  and servo gains; the servo keeps the live state) from the model-error file's `delay`; computation delay is the
+  controller's new `ocs2.mpc.testObservationDelay` (the MPC plans from an older observation).
+- `wb_id_walk_test.py --set` also accepts keys the controller declares but the robot YAML omits; the sweep records a
+  run without a result as `HARNESS_ERROR` and leaves infrastructure failures out of the success rate.
+- Scoring (fixed after the first matrix): the bring-up's tilt fault during the stand-up is a `FALL` labelled
+  "stand-up" (it was a `STARTUP_ERROR` and excluded); a rejected stand-up handover is `STANDUP_FAULT` and counts; max
+  tilt is taken from the command onset (it was the handover transient); a "success and tracking" rate (each commanded
+  axis within half the command plus a floor) sits next to the paper's no-fall rate. Kept runs are re-scored on every
+  invocation, so a metric change needs no new simulation.
+- The full Upkie matrix (42 points x 10 runs of 20 s, about 3.3 h of simulation) is in `demo_videos/robustness/upkie/`
+  (`summary.md`, `summary.json`, `robustness.png`); the plot is also `docs/results/assets/upkie_robustness.png`.
+- Rebuild `mujoco_ros2_control` and `legged_robot_mpc_controller` after pulling (new yaml-cpp dependency, new parameter).
+
+| Milestone | Status |
+| --- | --- |
+| 1 Sweep harness, nominal baseline | Done: Upkie nominal 10/10 (k = 10 runs of 20 s, full command range), 186 Hz |
+| 2 Simulator model-error loader | Done: report matches MuJoCo's compiled model to 4e-12; ±20 % draws, CoM shift and A + B >= C checked; ground friction patches (`mjSpec`, 400 patches, higher geom priority) |
+| 3 Inertial errors | Done: ±10-60 %: 10, 10, 9, 8, 7, 5, 4 /10; every fall in the open-loop stand-up, the MPC never fell; forward error 0.04 -> 0.19 m/s |
+| 4 Joint friction, ground friction patches | Done: no effect up to 0.9 N m joint friction or ±90 % patches; 3/10 at up to 1.7 N m (5 stand-up, 2 MPC falls); slippery patches 8/10 at -90 %, 5/10 at -95 % |
+| 5 Delays | Done: sensing and actuation no fall to 40 ms except 2 sensing falls at 40 ms, tracking 5/10 and 7/10 there; 60 ms: stand-up fails; computation no fall to 60 ms but tracking 7/10 from 20 ms; 80 ms: 0/10 |
+| 6 Solver effort and time step against error | Pending |
+| 7 Combined errors, report | Pending |
+
+Next: start the runs standing (no planned stand-up) to measure the MPC alone where the stand-up fails first; milestone
+6. The nominal controller turns about 0.2 rad/s slower than commanded (pre-existing).
+
 ## Shared Geometry File (2026-11-23)
 
 Upkie's contact geometry is centralized in [`config/upkie/geometry.yaml`](../config/upkie/geometry.yaml) ([doc](upkie_geometry.md)): wheel radius 0.08 m, half width 0.022 m, tire centre $[0,0,-0.0312]$ m and axle $[0,0,1]$ in the wheel link, and the two knee housings (femur frame centre $[0,-0.17015,0.0700987]$ m, radius 0.05 m, half width 0.02685 m).

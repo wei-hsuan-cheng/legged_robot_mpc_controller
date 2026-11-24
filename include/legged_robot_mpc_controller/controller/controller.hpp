@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <deque>
 #include <limits>
 #include <optional>
 #include <string>
@@ -179,6 +180,8 @@ private:
   void check_generated_geometry(const std::string& what, const std::string& file, double wheel_radius,
                                 const StandUpTrajectory* plan = nullptr) const;
   std::optional<WheeledBipedGeometry> geometry_;
+  //! ocs2.mpc.testObservationDelay: recent observations, the MPC gets the one that old.
+  std::deque<ocs2::SystemObservation> delayed_observations_;
   JointActionCommand sample_stand_up(double t, const ocs2::SystemObservation& observation) const;
   bool stand_up_support_ready(const ocs2::SystemObservation& observation);
   //! The bring-up phase machine runs for the estimator, and for any robot with a planned stand-up.

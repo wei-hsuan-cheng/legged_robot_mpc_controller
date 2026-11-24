@@ -1,0 +1,69 @@
+# MPC robustness sweep for Upkie (80 mm wheels): python3 tests/robustness_sweep.py config/robustness/upkie.yaml
+# Every run starts kneeling, stands up (the planned stand-up), holds one constant command and stops; a run succeeds if
+# the robot does not fall, and also tracks if each axis is within half the command. The command set (seed + run index) is the same for every setting.
+sweep:
+  robot: upkie
+  runs: 10             # k runs per point of a success-rate-vs-error curve
+  seed: 0
+  command:
+    start: 2.0          # [s] after the MPC takeover: standing at the default height
+    hold: 16.0          # [s] the constant command (the paper held 6 s; 20 s tests here)
+    stop: 2.0           # [s] zero command
+    transient: 1.0      # [s] left out of the tracking error at the start of the hold (rate limits, response)
+    # Uniform ranges, times the robot's command limits (Upkie: 1 m/s forward, no lateral, 3.1416 rad/s yaw).
+    normalized:
+      vx: [-1.0, 1.0]
+      vy: [0.0, 0.0]
+      yaw_rate: [-1.0, 1.0]
+  # tests/wb_id_walk_test.py arguments shared by every setting: the wheel KF in control, OCS2's 200 Hz MPC.
+  harness_args: [--source, state_estimator, --estimator, humanoid_linear_kf, --mpc-rate, 200,
+                 --minimum-height, 0.05, --startup-timeout, 180]
+  # Fixed settings. Each may add `set: {dotted.controller.parameter: value}`, `launch_args: [name:=value]`,
+  # `harness_args: [...]` and `model_error: {...}` (applied by the simulator to the plant only; mujoco_ros2_control
+  # include/mujoco_ros2_control/model_error.hpp documents the map).
+  settings:
+    nominal: {}
+  # Error sources: one setting per level, named <source>_<level>, with $level / -$level substituted in the template.
+  # Every run draws its own errors (seed * 100000 + run index); the controller keeps its nominal model.
+  sources:
+    inertia:
+      label: "inertia: mass, CoM, inertia of every body, uniform ±level"
+      levels: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6]  # the paper's ±10-40 %, then beyond
+      model_error:
+        inertia: {mass: {uniform: [-$level, $level]}, com: {uniform: [-$level, $level]},
+                  inertia: {uniform: [-$level, $level]}}
+    joint_friction:
+      label: "joint Coulomb friction: every joint, uniform ±level"
+      levels: [0.25, 0.5, 0.75, 1.0]      # around the 0.1 N m the MPC models (jointFriction); ±100 %: 0 to 0.2 N m
+      model_error:
+        joint_friction: {frictionloss: {uniform: [-$level, $level]}}
+    joint_friction_high:
+      label: "joint Coulomb friction increased: every joint, uniform 0 to +level"
+      levels: [2.0, 4.0, 8.0, 16.0]       # up to 0.3, 0.5, 0.9, 1.7 N m (1.7 N m: the wheel motors' torque limit)
+      model_error:
+        joint_friction: {frictionloss: {uniform: [0.0, $level]}}
+    ground_friction:
+      label: "ground friction: 2 m patches over ±20 m, uniform ±level"
+      levels: [0.0, 0.25, 0.5, 0.75, 0.9]  # around the floor's 0.8 (the MPC's cone uses 0.6); 0: patches only
+      model_error:
+        ground_regions: {size: 2.0, extent: 20.0, friction: {uniform: [-$level, $level]}}
+    ground_friction_low:
+      label: "slippery ground: 2 m patches, friction reduced by uniform 0 to level"
+      levels: [0.5, 0.75, 0.9, 0.95]      # every patch at or below the floor's 0.8: down to 0.4, 0.2, 0.08, 0.04
+      model_error:
+        ground_regions: {size: 2.0, extent: 20.0, friction: {uniform: [-$level, 0.0]}}
+    sensing_delay:
+      label: "sensing delay [s]: joints, IMU (simulator)"
+      levels: [0.005, 0.01, 0.02, 0.03, 0.04, 0.06]
+      model_error:
+        delay: {sensing: $level}
+    actuation_delay:
+      label: "actuation delay [s]: joint commands (simulator)"
+      levels: [0.005, 0.01, 0.02, 0.04, 0.06, 0.08]
+      model_error:
+        delay: {actuation: $level}
+    computation_delay:
+      label: "computation delay [s]: the MPC plans from an older observation"
+      levels: [0.005, 0.01, 0.02, 0.04, 0.06, 0.08]
+      set:
+        ocs2.mpc.testObservationDelay: $level

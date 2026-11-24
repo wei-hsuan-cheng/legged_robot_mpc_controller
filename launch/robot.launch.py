@@ -79,6 +79,11 @@ def generate_launch_description():
         DeclareLaunchArgument("mujoco_wait_to_start", default_value="true"),
         DeclareLaunchArgument("mujoco_real_time_factor", default_value="1.0"),
         DeclareLaunchArgument("mujoco_publish_rate", default_value="100.0"),
+        # Plant-side modeling error for robustness studies (config/robustness, tests/robustness_sweep.py): a YAML
+        # model_error map the simulator applies to the compiled model in memory; the controller keeps its own model.
+        DeclareLaunchArgument("modelErrorFile", default_value="", description="Model-error YAML; empty: nominal plant"),
+        DeclareLaunchArgument("modelErrorSeed", default_value="-1", description="Overrides the file's seed when >= 0"),
+        DeclareLaunchArgument("modelErrorReport", default_value="", description="JSON file of the realized errors"),
         DeclareLaunchArgument("gt_enabled", default_value="true"),
         # The MuJoCo free-joint body. Its ground-truth TF is world -> gt/pelvis while an
         # estimator owns odom -> pelvis, and world -> pelvis only with floatingBaseEstimator:=none
@@ -303,6 +308,9 @@ def generate_launch_description():
                     LaunchConfiguration("mujoco_publish_rate"), value_type=float
                 )
             },
+            {"model_error_file": ParameterValue(LaunchConfiguration("modelErrorFile"), value_type=str)},
+            {"model_error_seed": ParameterValue(LaunchConfiguration("modelErrorSeed"), value_type=int)},
+            {"model_error_report": ParameterValue(LaunchConfiguration("modelErrorReport"), value_type=str)},
             {"gt_enabled": ParameterValue(LaunchConfiguration("gt_enabled"), value_type=bool)},
             {"gt_publish_tf": True},
             {"gt_pub_hz": 100.0},

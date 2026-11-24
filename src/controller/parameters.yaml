@@ -195,6 +195,10 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
       solutionTimeWindow: {type: double, default_value: -1.0, description: "MPC policy calculation time window",
         validation: {gt_eq: [-1.0]}}
       coldStart: {type: bool, default_value: false, description: "Reset the solver before every MPC solve"}
+      testObservationDelay: {type: double, default_value: 0.0, description: "Robustness studies only (docs/mpc_robustness.md):
+          the MPC plans from the observation this old [s], emulating a slower computer (computation delay); the policy
+          is still evaluated at the current time, which compensates as OCS2 does for a real solve time. 0: none",
+          validation: {bounds<>: [0.0, 0.5]}}
       debugPrint: {type: bool, default_value: false, description: "Print MPC debug information"}
     costs:
       qScaling: {type: double, default_value: 1.0, description: "Scaling applied to the whole Q matrix"}

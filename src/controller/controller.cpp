@@ -689,7 +689,17 @@ controller_interface::return_type HumanoidWholeBodyInverseDynamicsMpcController:
   const bool solver_ready = mpc_ready_.load(std::memory_order_acquire);
   if (solver_ready && observation_from_hardware_ && std::isfinite(observation.time) && observation.state.allFinite()) {
     // As in the arm MPCs, feed observations even while holding for an initial policy.
-    mrt_interface_->setCurrentObservation(observation);
+    const double delay = parameters_.ocs2.mpc.testObservationDelay;
+    if (delay > 0.0) {
+      // Robustness tests: plan from an observation `delay` old, like a slower computer.
+      delayed_observations_.push_back(observation);
+      while (delayed_observations_.size() > 1 && delayed_observations_[1].time <= observation.time - delay) {
+        delayed_observations_.pop_front();
+      }
+      mrt_interface_->setCurrentObservation(delayed_observations_.front());
+    } else {
+      mrt_interface_->setCurrentObservation(observation);
+    }
     solver_observation_ready_.store(true, std::memory_order_release);
   }
   // The worker only fills the MRT buffer. Swap the active policy here so evaluation
