@@ -1,0 +1,13 @@
+# Pineapple contact geometry, the single source for every consumer:
+#   WB-ID MPC              paths.geometryFile: wheel radius, axle and tire centre (rolling-contact rows and frames)
+#   wheel-aware linear KF  geometryFile: wheel radius, axle and tire centre (tread-velocity and height rows)
+#   posture table          config/pineapple/compute_posture_table.py: tire on the floor at each height
+# It describes the simulated robot (description/mujoco/robots/pineapple/pineapple.xml and the URDF); the posture
+# generator checks the MJCF collision tire against it. After a change, regenerate the posture table, which the
+# controller refuses when it was made for other geometry.
+geometry:
+  wheel:
+    radius: 0.0925                        # [m] pineapple.xml tire_collision (the vendor's cylinder radius)
+    half_width: 0.0175                    # [m] half the 35 mm tire width along the axle
+    center_offset: [0.0, 0.0, 0.0]        # [m] tire centre in the wheel link frame (the wheel frames sit at the tire centres)
+    axle_axis: [0.0, 1.0, 0.0]            # axle direction in the wheel link frame

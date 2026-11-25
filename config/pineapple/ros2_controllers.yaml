@@ -1,0 +1,354 @@
+controller_manager:
+  ros__parameters:
+    update_rate: $(var mrtFreq)
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    humanoid_linear_kf:
+      type: legged_robot_state_estimator/HumanoidLinearKfController
+
+    humanoid_whole_body_inverse_dynamics_mpc_controller:
+      type: legged_robot_mpc_controller/HumanoidWholeBodyInverseDynamicsMpcController
+
+
+# Wheel-aware two-stage linear KF (floatingBaseEstimator:=humanoid_linear_kf), Upkie's setup: attitude from the IMU;
+# each tire measures the base velocity (tread material at rest) and height (lowest tire point on the plane z = 0).
+# Pineapple has no planned stand-up, so the KF runs alongside the ground-truth base and is logged against it
+# (floatingBaseSource:=ground_truth_state); it does not drive control yet.
+humanoid_linear_kf:
+  ros__parameters:
+    update_rate: $(var mrtFreq)
+    urdfFile: $(var urdfFile)
+    baseFrame: base_link
+    jointNames: [L_hip_joint, L_thigh_joint, L_calf_joint, L_wheel_joint,
+                 R_hip_joint, R_thigh_joint, R_calf_joint, R_wheel_joint]
+    imuInterfaceName: base_imu
+    imuFrame: imu
+    imuExtrinsics: true
+    contactFrames: [wheel_l, wheel_r]
+    contactModel: rolling_wheel
+    # Wheel radius, tire centre on the wheel link and axle: the shared geometry file, also read by the MPC.
+    geometryFile: "$(find-pkg-share legged_robot_mpc_controller)/config/pineapple/geometry.yaml"
+    odomTopic: /humanoid/state_estimate/odom
+    odomFrame: odom
+    publishRate: 100.0
+    imuProcessNoisePosition: 0.02
+    imuProcessNoiseVelocity: 0.02
+    footSensorNoiseVelocity: 0.1
+    footHeightSensorNoise: 0.01
+    swingNoiseMultiplier: 100.0
+    readiness:
+      minSeconds: 1.0
+      rollPitchStdDevMax: 0.10
+      heightStdDevMax: 0.05
+      velocityStdDevMax: 0.20
+    contact:
+      source: scheduled
+      footIndices: [0, 1]
+
+
+# Pineapple wheel-legged robot: Upkie's WB-ID MPC with rolling-wheel contacts (docs/pineapple.md), plus a hip ab/ad
+# joint per leg; the 6-DOF arm is locked out of the MPC and held stowed at zero.
+# Spawned standing at the default height; the MPC balances from the first physics step with the ground-truth base:
+# floatingBaseSource:=ground_truth_state (floatingBaseEstimator:=none, or humanoid_linear_kf to log the KF).
+humanoid_whole_body_inverse_dynamics_mpc_controller:
+  ros__parameters:
+    update_rate: $(var mrtFreq)
+
+    paths:
+      urdfFile: $(var urdfFile)
+      libFolder: $(var libFolder)
+      # Wheel radius, half width, tire centre and axle: the shared geometry file, also read by the estimator. It
+      # supplies ocs2.constraints.wheelContact.radius/axleAxis and ocs2.model.contactGeometry.frameTranslation, and
+      # the controller refuses a posture table generated for other geometry.
+      geometryFile: "$(find-pkg-share legged_robot_mpc_controller)/config/pineapple/geometry.yaml"
+
+    target:
+      walkingVelocityTopic: /humanoid/walking_velocity_command
+      basePoseTopic: /humanoid/base_pose_command
+      modeTopic: /humanoid/target_mode
+      defaultMode: base_twist
+      globalFrame: odom
+      # base_link +x is the robot's front (the hips sit ahead of the base origin), so no command frame.
+
+    robot:
+      commandInterface: effort_pd
+      stateInterfaces: [position, velocity, effort]
+      # Pinocchio traversal order.
+      jointNames: [L_hip_joint, L_thigh_joint, L_calf_joint, L_wheel_joint,
+                   R_hip_joint, R_thigh_joint, R_calf_joint, R_wheel_joint]
+
+    control:
+      observationVelocityFilterCutoffHz: 0.0
+      feedforward: policy_torque
+      jointEffortPd:
+        # Leg servos around the planned trajectory, on top of the MPC torque; wheels get no position gain (their
+        # angle is free) and light velocity damping towards the planned wheel speed. Upkie's gains scaled for the
+        # 2.6x heavier robot.
+        kp: [30.0, 30.0, 30.0, 0.0, 30.0, 30.0, 30.0, 0.0]
+        kd: [1.0, 1.0, 1.0, 0.1, 1.0, 1.0, 1.0, 0.1]
+
+    diagnostics:
+      statusLogPeriod: 2.0
+      trackingRate: 0.0
+      contactSensorNames: [left_wheel_contact, right_wheel_contact]
+
+    floatingBase:
+      source: $(var floatingBaseSource)
+      estimator: $(var floatingBaseEstimator)
+      stateInterfaceName: base
+      imuInterfaceName: base_imu
+      imuFrame: imu
+
+    bringUp:
+      # No planned stand-up (standUpTrajectoryFile empty): a standing spawn with the ground-truth base.
+      autoStart: true
+      blendSeconds: 0.05
+      tiltLimit: 0.8
+
+    ocs2:
+      interface:
+        verbose: false
+
+      codegen:
+        verbose: true
+        recompileLibraries: false
+
+      model:
+        robotName: pineapple
+        # The arm, stowed at zero: locked in the MPC model and held by the hardware PD (pineapple.ros2_control.xacro).
+        fixedJointNames:
+          - arm_joint
+          - arm_base_joint
+          - upper_arm_joint
+          - fore_arm_joint
+          - 5dof_joint
+          - gripper_case_joint
+        # Tire centres: the wheel link frames sit at them (geometry.yaml center_offset is zero). They spin with the
+        # wheel; their position does not.
+        contactNames6DoF: [left_tire_center, right_tire_center]
+        contactParentJointNames: [L_wheel_joint, R_wheel_joint]
+        contactGeometry:
+          # Unused with wheelContact (no CoP rows); a nominal patch for the shared frame setup.
+          rectangle: [0.01, -0.01, 0.01, -0.01]
+        # MJCF joint armature and frictionloss (the vendor pinappleV3 class defaults).
+        jointArmature: [0.004, 0.004, 0.004, 0.004, 0.004, 0.004, 0.004, 0.004]
+        jointFriction: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+        jointFrictionVelocity: 0.05
+
+      mpc:
+        solverType: sqp
+        mpcDesiredFrequency: $(var mpcFreq)
+        mrtDesiredFrequency: $(var mrtFreq)
+        timeHorizon: 1.0
+        solutionTimeWindow: -1.0
+        coldStart: false
+        debugPrint: false
+
+      solver:
+        sqp:
+          nThreads: 4
+          dt: 0.02
+          timeGrid:
+            activate: false
+            maxStep: 0.035
+            growthFactor: 1.4
+            fineHorizon: 0.2
+          sqpIteration: 1
+          deltaTol: 0.0001
+          g_max: 0.01
+          g_min: 0.000001
+          projectStateInputEqualityConstraints: true
+          printSolverStatistics: true
+          printSolverStatus: false
+          printLinesearch: false
+          useFeedbackPolicy: false
+          integratorType: RK4
+          threadPriority: 50
+
+        rollout:
+          policyTimeOffset: 0.000
+
+      costs:
+        qScaling: 1.0
+        rScaling: 0.001
+        terminalCostScaling: 1.0
+
+        # Q/Qf on x = [base pose, joint positions, base velocity, joint velocities].
+        # Base pose: [x, y, z, yaw, pitch, roll]; base velocity: [vx, vy, vz, yaw rate, pitch rate, roll rate].
+        # Joints: [L_hip, L_thigh, L_calf, L_wheel, R_hip, R_thigh, R_calf, R_wheel]; wheel angles and wheel speeds
+        # carry no weight (unwrapped angles; the speed follows the base command). Upkie's weights; the hip ab/ad
+        # holds the wheels upright (the lateral no-slip row leaves the legs free to splay).
+        q:
+          basePose: [0.0, 0.0, 3000.0, 0.0, 500.0, 2000.0]
+          baseVelocity: [20.0, 20.0, 1.0, 10.0, 1.0, 1.0]
+          jointPositions: [10.0, 3.0, 0.1, 0.0, 10.0, 3.0, 0.1, 0.0]
+          jointVelocities: [0.01, 0.01, 0.01, 0.0, 0.01, 0.01, 0.01, 0.0]
+
+        qFinal:
+          basePose: [0.0, 0.0, 3000.0, 0.0, 500.0, 2000.0]
+          baseVelocity: [20.0, 20.0, 1.0, 10.0, 1.0, 1.0]
+          jointPositions: [20.0, 6.0, 0.2, 0.0, 20.0, 6.0, 0.2, 0.0]
+          jointVelocities: [0.01, 0.01, 0.01, 0.0, 0.01, 0.01, 0.01, 0.0]
+
+        # R on u = [wrench_left, wrench_right, base acceleration, joint acceleration, joint torque].
+        # Wrench order per wheel: [fx, fy, fz, mx, my, mz]; the moments are fixed by m = rho x f.
+        r:
+          contactWrenches:
+            [0.01, 0.01, 0.001, 0.001, 0.001, 0.001,
+             0.01, 0.01, 0.001, 0.001, 0.001, 0.001]
+          baseAccelerations: [0.005, 0.005, 0.005, 0.005, 0.005, 0.005]
+          jointAccelerations: [0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005]
+          jointTorques: [0.01, 0.01, 0.01, 0.1, 0.01, 0.01, 0.01, 0.1]
+
+        taskSpaceFootCost:
+          activate: false
+
+        captureFootPlacement:
+          enabled: false
+
+        torsoTiltCost:
+          activate: false
+          linkName: base_link
+
+        legTorqueCost:
+          activate: false
+
+      constraints:
+        inverseDynamics:
+          activate: true
+          # Base and joint RNEA rows over the whole horizon (<= 0 = all nodes).
+          torqueConstraintNodes: 0
+
+        footMotionEquality:
+          activate: false
+
+        wheelContact:
+          activate: true
+          # radius and axleAxis: paths.geometryFile.
+          normalPositionGain: 50.0
+          normalVelocityGain: 50.0
+          tangentialVelocityGain: 5.0
+          normalAccelerationGain: 1.0
+          tangentialAccelerationGain: 1.0
+
+        swingFootZeroWrench:
+          activate: true
+
+        frictionCone:
+          activate: true
+          frictionCoefficient: 0.6
+          mu: 0.1
+          delta: 1.0
+
+        contactMomentXY:
+          activate: false
+
+        jointPositionLimits:
+          # Wheel joints are unbounded with wheelContact.
+          activate: true
+          mu: 1200.0
+          delta: 0.1
+
+        jointVelocityLimits:
+          activate: true
+          velocityScaling: 1.0
+          mu: 0.1
+          delta: 1.0
+
+        jointTorqueLimits:
+          # URDF efforts (the MJCF actuator ranges): 27 N m hip/thigh, 40 N m calf, 11 N m wheel.
+          activate: true
+          torqueScaling: 1.0
+          mu: 0.05
+          delta: 0.2
+
+        armSelfCollision:
+          activate: false
+
+        legSelfCollision:
+          activate: false
+
+      reference:
+        targetDisplacementVelocity: 0.5
+        targetRotationVelocity: 0.5
+        # GUI/topic normalization maxima. A wheeled robot cannot move sideways: command vy = 0.
+        maxDisplacementVelocityX: 1.0
+        maxDisplacementVelocityY: 0.0
+        maxRotationVelocity: 3.1416
+        defaultBaseHeight: 0.36
+        # Commanded height range: GUI slider, command clamp and MPC height reference. Inside the posture table.
+        minBaseHeight: 0.25
+        maxBaseHeight: 0.44
+        basePosePositionTolerance: 0.02
+        basePoseOrientationTolerance: 0.03
+        # [ax, ay (m/s^2), height rate (m/s), yaw acceleration (rad/s^2)] on GUI/topic commands.
+        velocityCommandRateLimits:
+          [2.0, 2.0, 0.5, 10.0]
+        takeoverHeightRate: 0.1
+
+        groundHeight:
+          useEstimate: false
+          maxStepPerSolve: 0.002
+
+        # The arm is locked out of the MPC: no arm swing.
+        armSwing:
+          enabled: false
+
+        # The posture table's balanced posture at 0.36 m.
+        defaultJointState:
+          [0.0, 0.896393, -1.610735, 0.0, 0.0, 0.896393, -1.610735, 0.0]
+
+        # Posture reference by target height: the balanced symmetric posture of each height (level trunk, hips not
+        # abducted, tires on the floor, tire contact under the CoM, arm stowed), generated offline by
+        # config/pineapple/compute_posture_table.py. Covers [minBaseHeight, maxBaseHeight].
+        postureTableFile: "$(find-pkg-share legged_robot_mpc_controller)/config/pineapple/posture_table.yaml"
+
+      gait:
+        phaseTransitionStanceTime: 0.0
+        stairClimbingFile: ""
+        terrainWalkingFile: ""
+        initialModeSequence: [STANCE, STANCE]
+        initialEventTimes: [0.5]
+        defaultModeSequence: [STANCE]
+        defaultSwitchingTimes: [0.0, 0.5]
+
+        swingTrajectory:
+          liftOffVelocity: 0.05
+          touchDownVelocity: -0.0
+          swingHeight: 0.05
+          touchDownHeightOffset: 0.0
+          swingTimeScale: 0.4
+          impactProximityFactorLiftOffVelocity: -0.15
+          impactProximityFactorTouchDownVelocity: 0.3
+          impactProximityFactorMidPointValue: 0.0
+
+        # Modes: STANCE = both wheels in contact. wheel_drive is the only gait: both wheels down, rolling and turning
+        # (Upkie's jump/walk/trot are not tuned for Pineapple).
+        templates:
+          names: [wheel_drive]
+          wheel_drive: {modeSequence: [STANCE], switchingTimes: [0.0, 0.5]}
+
+        transitions:
+          minDwellTime: 0.2
+          switchDelayHorizonFraction: 0.3
+          ladder: [wheel_drive]
+          wheel_drive: {linearVelocity: [-0.1, 10.0], yawRate: [-0.1, 10.0], measuredMargin: [10.0, 10.0]}
+
+    visualization:
+      frameId: odom
+      update_rate: 30.0
+      optimizedStateRobotModelsActivate: true
+      optimizedStateRobotModelsInterval: 0.2
+      collisionSpheres:
+        activate: false
+      trajectory:
+        activate: true
+        markerTopic: /performance_visualization/optimizedStateTrajectory
+        frame_names:
+          - base_link
+          - left_tire_center
+          - right_tire_center
+        lineWidth: 0.005
+        pointScale: 0.01

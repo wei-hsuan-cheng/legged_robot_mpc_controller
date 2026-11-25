@@ -30,7 +30,8 @@ def write_scene(output, robot="g1", terrain="none", package=ROOT, split_height=0
         if path.parent == robot_dir:
             robot_compiler = ET.parse(path).find("compiler")
         if path.name.startswith("background_"):
-            background = "background_night_upkie.xml" if robot == "upkie" else "background_night.xml"
+            background = {"upkie": "background_night_upkie.xml",
+                          "pineapple": "background_night_pineapple.xml"}.get(robot, "background_night.xml")
             path = scenes / "common/backgrounds" / ("background_day.xml" if terrain == "none" else background)
         element.set("file", str(path))
     if robot_compiler is None:
@@ -66,7 +67,7 @@ def temporary_scene(robot="g1", terrain="none", package=ROOT):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--robot-name", choices=("g1", "h2", "upkie"), default="g1")
+    parser.add_argument("--robot-name", choices=("g1", "h2", "upkie", "pineapple"), default="g1")
     parser.add_argument("--terrain", choices=MODULES, default="none")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--split-height", type=float, default=0.01, help="Raised left-wheel strip [m]")

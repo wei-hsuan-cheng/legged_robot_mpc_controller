@@ -1,4 +1,5 @@
-"""Robot-independent MuJoCo/MPC launch; select Unitree G1, H2 or the Upkie wheeled-biped with robotName.
+"""Robot-independent MuJoCo/MPC launch; select Unitree G1, H2, the Upkie wheeled-biped or the Pineapple
+wheel-legged robot with robotName.
 
 Robot configuration, scenes and CppAD caches are selected together. The selected
 controller YAML owns the reference height used by MPC and the selected command frontend.
@@ -38,7 +39,7 @@ def generate_launch_description():
 
     # Official model filenames differ; all other robot-specific paths follow robotName.
     urdf_name = PythonExpression([
-        "{'g1': 'g1_29dof.urdf', 'h2': 'h2_31dof.urdf', 'upkie': 'upkie.urdf'}['", robot_name, "']"
+        "{'g1': 'g1_29dof.urdf', 'h2': 'h2_31dof.urdf', 'upkie': 'upkie.urdf', 'pineapple': 'pineapple.urdf'}['", robot_name, "']"
     ])
     urdf_default = PathJoinSubstitution([mpc_share_dir, "description", "urdf", "robots", robot_name, urdf_name])
 
@@ -69,8 +70,9 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "robotName",
             default_value="g1",
-            choices=["g1", "h2", "upkie"],
-            description="Robot model and configuration: Unitree G1, H2, or the Upkie wheeled-biped.",),
+            choices=["g1", "h2", "upkie", "pineapple"],
+            description="Robot model and configuration: Unitree G1, H2, the Upkie wheeled-biped, or the Pineapple "
+                        "wheel-legged robot.",),
         DeclareLaunchArgument("rviz", default_value="true"),
         DeclareLaunchArgument("rvizconfig", default_value=rviz_default),
         DeclareLaunchArgument("use_fake_hardware", default_value="false"),
@@ -92,7 +94,7 @@ def generate_launch_description():
         # (pelvis can have one TF parent).
         DeclareLaunchArgument(
             "gt_body_frame",
-            default_value=PythonExpression(["{'g1': 'pelvis', 'h2': 'pelvis', 'upkie': 'base'}['", robot_name, "']"]),
+            default_value=PythonExpression(["{'g1': 'pelvis', 'h2': 'pelvis', 'upkie': 'base', 'pineapple': 'base_link'}['", robot_name, "']"]),
         ),
         DeclareLaunchArgument("urdfFile", default_value=urdf_default),
         DeclareLaunchArgument(
@@ -108,11 +110,15 @@ def generate_launch_description():
                         "launch directory; each MPC uses its own subfolder.",
         ),
         DeclareLaunchArgument(
-            "floatingBaseSource", default_value="state_estimator",
+            "floatingBaseSource",
+            # Pineapple has no planned stand-up yet: it spawns standing and needs the base from the first tick.
+            default_value=PythonExpression([
+                "'ground_truth_state' if '", robot_name, "' == 'pineapple' else 'state_estimator'"]),
             choices=["ground_truth_state", "state_estimator"],
             description="Floating-base feedback source for the MPC: "
                         "ground_truth_state (simulator/hardware body state) | state_estimator (the "
-                        "estimator named by floatingBaseEstimator)."),
+                        "estimator named by floatingBaseEstimator). Default: state_estimator, "
+                        "ground_truth_state for pineapple."),
         DeclareLaunchArgument(
             "floatingBaseEstimator", default_value="humanoid_linear_kf",
             choices=["none", "humanoid_inekf", "humanoid_linear_kf"],

@@ -213,6 +213,14 @@ The GUI height range comes from the controller YAML (currently 0.225-0.355 m); f
 Height is a soft base-origin target, not a hard equality or a terrain-relative clearance command.
 See the [Upkie model](./docs/wheeled_biped_whole_body_inverse_dynamics_mpc.md) and [handoff/test commands](./docs/wheeled_biped_handoff.md) for tested limits and remaining work.
 The stand-up and terrain-course demo, recorded as one video with RViz (estimate, MPC plan, future ghosts) over MuJoCo, is reproduced with `tests/upkie_demo_video.sh record|render`; see the handoff's [demo video pipeline](./docs/wheeled_biped_handoff.md#demo-video-pipeline-2026-11-15-claude).
+
+Pineapple (wheel-legged, hip ab/ad per leg, a stowed 6-DOF arm) runs the same controller with eight MPC joints; it spawns standing and uses the ground-truth base until it has a stand-up (`scene_course.xml` is the Upkie course):
+
+```bash
+ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=pineapple mpcFreq:=200
+```
+
+See [Pineapple](./docs/pineapple.md) for the model, the configuration and the headless tests.
 The [small-wheel terrain profiles](./config/terrains/upkie/README.md) leave the existing humanoid terrains unchanged and provide no terrain map to MPC.
 
 

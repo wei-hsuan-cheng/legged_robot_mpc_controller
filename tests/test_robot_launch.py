@@ -109,6 +109,28 @@ class RobotLaunchTest(unittest.TestCase):
         self.assertEqual(stand_up.parts[-3:], ('config', 'upkie', 'stand_up_trajectory.yaml'))
         self.assertTrue(stand_up.is_file())
 
+    def test_pineapple_starts_standing_with_the_ground_truth_base(self):
+        # No planned stand-up: spawned standing at the default height, the MPC on the ground-truth base from the
+        # first tick, the linear KF logged alongside.
+        context, _ = self.resolve('pineapple')
+        values = context.launch_configurations
+        self.assertEqual((values['floatingBaseSource'], values['floatingBaseEstimator']),
+                         ('ground_truth_state', 'humanoid_linear_kf'))
+        self.assertEqual(values['gt_body_frame'], 'base_link')
+        self.assertEqual(values['commandFrame'], '')
+        self.assertEqual(values['postureController'], '')
+        pose = yaml.safe_load(Path(values['initialPoseFile']).read_text())
+        config = yaml.safe_load(Path(values['controllersParamsFile']).read_text())[WB_ID]['ros__parameters']
+        height = config['ocs2']['reference']['defaultBaseHeight']
+        self.assertAlmostEqual(pose['pineapple_base']['z'], height, delta=0.005)
+        self.assertFalse(config['bringUp'].get('standUpTrajectoryFile'))
+        table = yaml.safe_load(Path(config['ocs2']['reference']['postureTableFile']).read_text())['posture_table']
+        default = table['joint_states'][table['heights'].index(height)]
+        self.assertEqual(default, config['ocs2']['reference']['defaultJointState'])
+        self.assertEqual([pose['pineapple_joints'][name] for name in config['robot']['jointNames']], default)
+        context, _ = self.resolve('pineapple', floatingBaseSource='state_estimator')
+        self.assertEqual(context.launch_configurations['floatingBaseSource'], 'state_estimator')
+
     def test_scene_path_remains_unrestricted(self):
         for robot in ('g1', 'h2'):
             context, description = self.resolve(robot, mujocoModelFile='/tmp/my_scene.xml')
@@ -148,7 +170,7 @@ class RobotLaunchTest(unittest.TestCase):
             self.assertEqual(float(context.launch_configurations['guiRefBaseHeight']), .98)
 
     def test_controller_selection_and_invalid_inputs(self):
-        for robot in ('g1', 'h2', 'upkie'):
+        for robot in ('g1', 'h2', 'upkie', 'pineapple'):
             _, description = self.resolve(robot)
             argument = next(action for action in description.entities
                             if isinstance(action, DeclareLaunchArgument) and action.name == 'mpcControllerName')

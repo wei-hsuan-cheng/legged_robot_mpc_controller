@@ -41,7 +41,7 @@ class SceneLayoutTest(unittest.TestCase):
         launch = (ROOT / "launch/robot.launch.py").read_text()
         ast.parse(launch)
         self.assertIn('"robots", robot_name', launch)
-        for robot in ("g1", "h2", "upkie"):
+        for robot in ("g1", "h2", "upkie", "pineapple"):
             self.assertTrue((SCENES / "robots" / robot / "scene.xml").is_file())
             self.assertTrue((ROOT / "config" / robot / "ros2_controllers.yaml").is_file())
             self.assertFalse((ROOT / "launch" / f"{robot}.launch.py").exists())
@@ -54,7 +54,8 @@ class SceneLayoutTest(unittest.TestCase):
                     self.assertTrue((path.parent / include.get("file")).is_file())
                 for texture in root.findall(".//texture[@file]"):
                     self.assertTrue((SCENES / texture.get("file")).is_file())
-        for name, filename in (("g1", "g1_29dof.xml"), ("h2", "h2_31dof.xml"), ("upkie", "upkie.xml")):
+        for name, filename in (("g1", "g1_29dof.xml"), ("h2", "h2_31dof.xml"), ("upkie", "upkie.xml"),
+                               ("pineapple", "pineapple.xml")):
             directory = SCENES / "robots" / name
             robot = ET.parse(directory / filename)
             mesh_dir = directory / robot.find("compiler").get("meshdir")
@@ -74,7 +75,7 @@ class SceneLayoutTest(unittest.TestCase):
 
     def test_background_floor_physics_match(self):
         floors = [ET.parse(SCENES / "common" / "backgrounds" / f"background_{name}.xml")
-                  .find("./worldbody/geom") for name in ("day", "night", "night_upkie")]
+                  .find("./worldbody/geom") for name in ("day", "night", "night_upkie", "night_pineapple")]
         physics = lambda geom: {key: value for key, value in geom.attrib.items() if key != "material"}
         for floor in floors[1:]:
             self.assertEqual(physics(floors[0]), physics(floor))
