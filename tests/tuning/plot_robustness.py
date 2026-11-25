@@ -101,7 +101,8 @@ def main():
         axes[1][0].legend(fontsize=8)
     counts = sorted({s["runs"] for data in datasets for s in data["summary"]})
     per_point = f"{counts[0]}" if len(counts) == 1 else f"{counts[0]}-{counts[-1]}"
-    title = Path(datasets[0]["sweep"]).stem if compare else (datasets[0].get("name") or Path(datasets[0]["sweep"]).stem)
+    # Compared: the variants' sweep (the first summary may be its baseline, another sweep).
+    title = Path(datasets[-1]["sweep"]).stem if compare else (datasets[0].get("name") or Path(datasets[0]["sweep"]).stem)
     fig.suptitle(f"{title}: success rate vs modeling error ({per_point} runs per point, same commands"
                  f"{'; dashed: success and tracking' if compare else ''})", fontsize=11)
     fig.tight_layout()
