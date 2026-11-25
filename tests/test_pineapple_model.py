@@ -56,11 +56,34 @@ class PineappleModelTest(unittest.TestCase):
         self.assertGreaterEqual(table["heights"][-1], reference["maxBaseHeight"])
         default = table["joint_states"][table["heights"].index(reference["defaultBaseHeight"])]
         self.assertEqual(default, reference["defaultJointState"])
-        pose = yaml.safe_load((CONFIG / "initial_pose.yaml").read_text())
-        self.assertEqual([pose["pineapple_joints"][n] for n in LEGS], default)
-        self.assertEqual(sorted(pose["pineapple_joints"]), sorted(LEGS + ARM))
+        standing = yaml.safe_load((CONFIG / "initial_pose_standing.yaml").read_text())
+        self.assertEqual([standing["pineapple_joints"][n] for n in LEGS], default)
+        self.assertEqual(sorted(standing["pineapple_joints"]), sorted(LEGS + ARM))
+        self.assertLessEqual(table["heights"][0], p["bringUp"]["sitDownHeight"])
         for row in table["joint_states"]:
             self.assertEqual(row[:4], row[4:])  # same axes on both sides: right equals left
+
+    def test_seated_spawn_is_the_planners_idle(self):
+        spec = importlib.util.spec_from_file_location("rollout", CONFIG / "stand_up_to/rollout.py")
+        if importlib.util.find_spec("mujoco") is None:
+            self.skipTest("Python MuJoCo is not installed")
+        rollout = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(rollout)
+        pose = yaml.safe_load((CONFIG / "initial_pose.yaml").read_text())
+        self.assertEqual([pose["pineapple_joints"][n] for n in LEGS], rollout.IDLE.tolist())
+        self.assertEqual(rollout.JOINTS, LEGS)
+        self.assertAlmostEqual(pose["pineapple_base"]["z"], rollout.Rollout().spawn_idle(0.0), places=4)
+
+    def test_stand_up_plan_matches_the_geometry(self):
+        plan = yaml.safe_load((CONFIG / "stand_up_trajectory.yaml").read_text())["stand_up"]
+        geometry = yaml.safe_load((CONFIG / "geometry.yaml").read_text())["geometry"]
+        self.assertEqual(plan["joint_names"], LEGS)
+        self.assertEqual(plan["wheel_radius"], geometry["wheel"]["radius"])
+        self.assertEqual(plan["wheel_half_width"], geometry["wheel"]["half_width"])
+        self.assertEqual(plan["knee_contacts"], geometry["knee_housings"])
+        self.assertLess(plan["mpc_start_time"], plan["handover_time"])
+        self.assertEqual(len(plan["state"][0]), 2 * (6 + len(LEGS)))
+        self.assertEqual(len(plan["feedback"][0]), len(LEGS) * 2 * (6 + len(LEGS)))
 
     @unittest.skipIf(importlib.util.find_spec("mujoco") is None, "Python MuJoCo is not installed")
     def test_posture_table_reproduces(self):

@@ -109,27 +109,28 @@ class RobotLaunchTest(unittest.TestCase):
         self.assertEqual(stand_up.parts[-3:], ('config', 'upkie', 'stand_up_trajectory.yaml'))
         self.assertTrue(stand_up.is_file())
 
-    def test_pineapple_starts_standing_with_the_ground_truth_base(self):
-        # No planned stand-up: spawned standing at the default height, the MPC on the ground-truth base from the
-        # first tick, the linear KF logged alongside.
+    def test_pineapple_starts_seated_with_the_planned_stand_up(self):
+        # As Upkie: the linear KF drives, the robot spawns seated and plays the planned stand-up.
         context, _ = self.resolve('pineapple')
         values = context.launch_configurations
         self.assertEqual((values['floatingBaseSource'], values['floatingBaseEstimator']),
-                         ('ground_truth_state', 'humanoid_linear_kf'))
+                         ('state_estimator', 'humanoid_linear_kf'))
         self.assertEqual(values['gt_body_frame'], 'base_link')
         self.assertEqual(values['commandFrame'], '')
-        self.assertEqual(values['postureController'], '')
+        self.assertEqual(values['postureController'], '/' + WB_ID)
         pose = yaml.safe_load(Path(values['initialPoseFile']).read_text())
         config = yaml.safe_load(Path(values['controllersParamsFile']).read_text())[WB_ID]['ros__parameters']
-        height = config['ocs2']['reference']['defaultBaseHeight']
-        self.assertAlmostEqual(pose['pineapple_base']['z'], height, delta=0.005)
-        self.assertFalse(config['bringUp'].get('standUpTrajectoryFile'))
-        table = yaml.safe_load(Path(config['ocs2']['reference']['postureTableFile']).read_text())['posture_table']
-        default = table['joint_states'][table['heights'].index(height)]
-        self.assertEqual(default, config['ocs2']['reference']['defaultJointState'])
-        self.assertEqual([pose['pineapple_joints'][name] for name in config['robot']['jointNames']], default)
-        context, _ = self.resolve('pineapple', floatingBaseSource='state_estimator')
-        self.assertEqual(context.launch_configurations['floatingBaseSource'], 'state_estimator')
+        reference = config['ocs2']['reference']
+        self.assertLess(pose['pineapple_base']['z'], reference['minBaseHeight'])
+        stand_up = Path(config['bringUp']['standUpTrajectoryFile'])
+        self.assertEqual(stand_up.parts[-3:], ('config', 'pineapple', 'stand_up_trajectory.yaml'))
+        self.assertTrue(stand_up.is_file())
+        plan = yaml.safe_load(stand_up.read_text())['stand_up']
+        self.assertEqual(plan['joint_names'], config['robot']['jointNames'])
+        table = yaml.safe_load(Path(reference['postureTableFile']).read_text())['posture_table']
+        self.assertLessEqual(table['heights'][0], config['bringUp']['sitDownHeight'])
+        self.assertEqual(table['joint_states'][table['heights'].index(reference['defaultBaseHeight'])],
+                         reference['defaultJointState'])
 
     def test_scene_path_remains_unrestricted(self):
         for robot in ('g1', 'h2'):

@@ -1,15 +1,17 @@
-# Pineapple's spawn pose (robot.launch.py's default initialPoseFile): standing at the 0.36 m default height, the
-# posture table's balanced posture (config/pineapple/posture_table.yaml), arm stowed at zero. There is no planned
-# stand-up: the MPC balances from the first physics step (floatingBaseSource:=ground_truth_state). Spawned 2 mm above
-# the floor.
+# Pineapple's spawn pose (robot.launch.py's default initialPoseFile): seated idle, the deepest leg fold
+# (config/pineapple/stand_up_to/rollout.py IDLE). Spawned upright with these joints, its lowest collision bounding
+# sphere 1 cm above the floor, it settles onto the base box's back bottom edge and both tires (pitched back about
+# 0.1 rad, calves on their -3.229 rad stops), and the planned stand-up (stand_up_trajectory.yaml,
+# bringUp.standUpTrajectoryFile) starts from the state it settles into. initial_pose_standing.yaml is the standing
+# spawn for the ground-truth base without a stand-up.
 pineapple_joints:
   L_hip_joint: 0.0
-  L_thigh_joint: 0.896393
-  L_calf_joint: -1.610735
+  L_thigh_joint: 1.65
+  L_calf_joint: -3.15
   L_wheel_joint: 0.0
   R_hip_joint: 0.0
-  R_thigh_joint: 0.896393
-  R_calf_joint: -1.610735
+  R_thigh_joint: 1.65
+  R_calf_joint: -3.15
   R_wheel_joint: 0.0
   arm_joint: 0.0
   arm_base_joint: 0.0
@@ -18,4 +20,4 @@ pineapple_joints:
   5dof_joint: 0.0
   gripper_case_joint: 0.0
 pineapple_base:
-  z: 0.362
+  z: 0.1107

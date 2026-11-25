@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise real controller posture services, repeat cycles and a latched fall in MuJoCo."""
+"""Exercise real controller posture services, repeat cycles and a latched fall in MuJoCo (Upkie or Pineapple)."""
 
 import argparse
 import json
@@ -32,8 +32,11 @@ CONTROLLER = "/humanoid_whole_body_inverse_dynamics_mpc_controller"
 
 
 class Probe(Node):
-    def __init__(self, joystick=False):
+    def __init__(self, joystick=False, reference=None):
         super().__init__("upkie_posture_cycle_probe")
+        # Command height and the teleop profile: the robot YAML's reference (Upkie's historical 0.22/0.2/0.33).
+        reference = reference or dict(defaultBaseHeight=0.22, minBaseHeight=0.2, maxBaseHeight=0.33)
+        self.height = reference["defaultBaseHeight"]
         self.phase = "unknown"
         self.transitions = []
         self.samples = []
@@ -52,9 +55,9 @@ class Probe(Node):
                 "ros2", "run", "legged_robot_teleop", "base_twist", "--ros-args",
                 "-p", "joy_topic:=/codex/upkie/joy",
                 "-p", f"posture_controller:={CONTROLLER}",
-                "-p", "reference_height:=0.22",
-                "-p", "minimum_height:=0.2",
-                "-p", "maximum_height:=0.33",
+                "-p", f"reference_height:={reference['defaultBaseHeight']}",
+                "-p", f"minimum_height:={reference['minBaseHeight']}",
+                "-p", f"maximum_height:={reference['maxBaseHeight']}",
                 "-p", "scale_forward:=1.0",
                 "-p", "scale_lateral:=0.0",
             ])
@@ -94,7 +97,7 @@ class Probe(Node):
             self.joy_publisher.publish(message)
             return
         message = WalkingVelocityCommand()
-        message.desired_pelvis_height = 0.22
+        message.desired_pelvis_height = self.height
         message.linear_velocity_x = vx
         message.angular_velocity_z = yaw
         self.publisher.publish(message)
@@ -142,6 +145,7 @@ class Probe(Node):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--robot-name", choices=("upkie", "pineapple"), default="upkie")
     parser.add_argument("--prefix", default="/tmp/codex_upkie_posture")
     parser.add_argument("--cycles", type=int, default=3)
     parser.add_argument("--source", choices=("ground_truth_state", "state_estimator"), default="state_estimator")
@@ -153,14 +157,18 @@ def main():
     if not -1.0 <= args.yaw_command <= 1.0:
         parser.error("--yaw-command must lie in [-1, 1]")
     prefix = Path(args.prefix)
-    scene = write_scene(str(prefix) + ".xml", robot="upkie", terrain="none")
-    cmd = ["ros2", "launch", "legged_robot_mpc_controller", "robot.launch.py", "robotName:=upkie",
+    robot = args.robot_name
+    scene = write_scene(str(prefix) + ".xml", robot=robot, terrain="none")
+    robot_config = yaml.safe_load((Path(__file__).resolve().parents[1] /
+                                   f"config/{robot}/ros2_controllers.yaml").read_text())
+    # Pineapple drives the teleop/command height from its YAML; Upkie keeps the historical values.
+    reference = robot_config[CONTROLLER.lstrip("/")]["ros__parameters"]["ocs2"]["reference"] if robot != "upkie" else None
+    cmd = ["ros2", "launch", "legged_robot_mpc_controller", "robot.launch.py", f"robotName:={robot}",
            "mpcFreq:=200", "mrtFreq:=1000", "rviz:=false", "mujoco_headless:=true", "baseCommandDevice:=none",
            f"mujocoModelFile:={scene}", f"floatingBaseSource:={args.source}",
            "floatingBaseEstimator:=" + ("humanoid_linear_kf" if args.source == "state_estimator" else "none")]
     if args.trajectory:
-        config = yaml.safe_load((Path(__file__).resolve().parents[1] /
-                                 "config/upkie/ros2_controllers.yaml").read_text())
+        config = robot_config
         config[CONTROLLER.lstrip("/")]["ros__parameters"]["bringUp"]["standUpTrajectoryFile"] = str(args.trajectory.resolve())
         config_path = Path(str(prefix) + ".yaml")
         config_path.write_text(yaml.safe_dump(config, sort_keys=False))
@@ -172,7 +180,7 @@ def main():
     try:
         with Path(str(prefix) + ".log").open("w") as log:
             process = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
-            probe = Probe(args.joystick)
+            probe = Probe(args.joystick, reference)
             probe.wait("idle", 90)
             probe.pump(4)
             assert probe.phase == "idle", "Must wait for the operator"
@@ -204,7 +212,9 @@ def main():
                 probe.wait("locomotion")
                 probe.pump(5)
                 probe.stage = "injected_fall"
-                sequence = WrenchSequence([dict(link="base", force=[0, 150, 0], duration=0.5)])
+                # A sideways shove that tips the robot over: 150 N on Upkie's 5.7 kg base, 400 N on Pineapple's 15 kg.
+                link, force = ("base", 150) if robot == "upkie" else ("base_link", 400)
+                sequence = WrenchSequence([dict(link=link, force=[0, force, 0], duration=0.5)])
                 sender = WrenchPublisher(probe, sequence)
                 start = time.monotonic()
                 while time.monotonic() - start < 0.6:

@@ -187,6 +187,18 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
                   stand_up_trajectory_->time.size(), stand_up_trajectory_->time.back(), stand_up_trajectory_->handoverTime,
                   parameters_.bringUp.standUpTrajectoryFile.c_str());
     }
+    sit_down_trajectory_.reset();
+    if (stand_up_trajectory_ && YAML::LoadFile(parameters_.bringUp.standUpTrajectoryFile)["sit_down"]) {
+      sit_down_trajectory_ =
+        load_stand_up_trajectory(parameters_.bringUp.standUpTrajectoryFile, parameters_.robot.jointNames, "sit_down");
+      if (sit_down_trajectory_->state.empty()) {
+        throw std::invalid_argument("the planned sit-down needs its state and feedback");
+      }
+      check_generated_geometry("sit-down plan", parameters_.bringUp.standUpTrajectoryFile,
+                               sit_down_trajectory_->wheelRadius);
+      RCLCPP_INFO(get_node()->get_logger(), "%s planned sit-down: %zu samples over %.3f s from %.3f m (bringUp.sitDownHeight "
+                  "unused)", kTag, sit_down_trajectory_->time.size(), sit_down_trajectory_->time.back(), sit_down_height());
+    }
 
     configure_stage = "building the target-trajectories calculator / reference manager";
     auto reference_config = common::buildReferenceConfig(parameters_);
@@ -1017,11 +1029,11 @@ void HumanoidWholeBodyInverseDynamicsMpcController::load_posture_table(
 
 HumanoidWholeBodyInverseDynamicsMpcController::StandUpTrajectory
 HumanoidWholeBodyInverseDynamicsMpcController::load_stand_up_trajectory(
-  const std::string& file, const std::vector<std::string>& joint_names)
+  const std::string& file, const std::vector<std::string>& joint_names, const std::string& key)
 {
-  const YAML::Node root = YAML::LoadFile(file)["stand_up"];
+  const YAML::Node root = YAML::LoadFile(file)[key];
   if (!root) {
-    throw std::invalid_argument("stand-up trajectory " + file + " has no 'stand_up' map");
+    throw std::invalid_argument("stand-up trajectory " + file + " has no '" + key + "' map");
   }
   if (root["joint_names"].as<std::vector<std::string>>() != joint_names) {
     throw std::invalid_argument("stand-up trajectory " + file + ": joint_names must equal robot.jointNames, in order");
@@ -1138,23 +1150,34 @@ HumanoidWholeBodyInverseDynamicsMpcController::StandUpTrajectory::sample(double 
 HumanoidWholeBodyInverseDynamicsMpcController::JointActionCommand
 HumanoidWholeBodyInverseDynamicsMpcController::sample_stand_up(double t, const ocs2::SystemObservation& observation) const
 {
-  const auto& plan = *stand_up_trajectory_;
+  return sample_plan(*stand_up_trajectory_, stand_up_anchor_state_, t, observation);
+}
+
+double HumanoidWholeBodyInverseDynamicsMpcController::sit_down_height() const
+{
+  return sit_down_trajectory_ ? sit_down_trajectory_->state.front()(2) : parameters_.bringUp.sitDownHeight;
+}
+
+HumanoidWholeBodyInverseDynamicsMpcController::JointActionCommand
+HumanoidWholeBodyInverseDynamicsMpcController::sample_plan(const StandUpTrajectory& plan, const vector_t& anchor, double t,
+                                                           const ocs2::SystemObservation& observation) const
+{
   if (plan.feedback.empty()) return plan.sample(t);
   vector_t state = observation.state;
   const auto& initial = plan.state.front();
   const auto n = static_cast<Eigen::Index>(plan.kp.size());
-  const double yaw = stand_up_anchor_state_(3) - initial(3);
+  const double yaw = anchor(3) - initial(3);
   const Eigen::Matrix3d rotation = Eigen::AngleAxisd(-yaw, Eigen::Vector3d::UnitZ()).toRotationMatrix();
-  Eigen::Vector3d delta = state.head<3>() - stand_up_anchor_state_.head<3>();
+  Eigen::Vector3d delta = state.head<3>() - anchor.head<3>();
   delta.z() = 0.0;
   const Eigen::Vector3d position = initial.head<3>() + rotation * delta;
   state.head<2>() = position.head<2>();
   state.segment<3>(6 + n) = rotation * state.segment<3>(6 + n).eval();
-  state(3) = initial(3) + std::atan2(std::sin(state(3) - stand_up_anchor_state_(3)),
-                                  std::cos(state(3) - stand_up_anchor_state_(3)));
+  state(3) = initial(3) + std::atan2(std::sin(state(3) - anchor(3)),
+                                  std::cos(state(3) - anchor(3)));
   vector_t offsets = vector_t::Zero(n);
   for (Eigen::Index i = 0; i < n; ++i) {
-    if (plan.kp(i) == 0.0) offsets(i) = stand_up_anchor_state_(6 + i) - initial(6 + i);
+    if (plan.kp(i) == 0.0) offsets(i) = anchor(6 + i) - initial(6 + i);
   }
   state.segment(6, n) -= offsets;
   auto command = plan.sample(t, state);
@@ -1487,7 +1510,7 @@ HumanoidWholeBodyInverseDynamicsMpcController::run_bring_up(
       if (t - phase_start_time_ >= bu.sitDownBrakeSeconds &&
           velocity.head<2>().norm() < bu.sitDownVelocityMax && velocity.tail<3>().norm() < 0.3) {
         motion_manager_->requestVelocityTargetFilterReset(control_model_->getBasePose(observation.state)(2));
-        motion_manager_->setPostureHeightOverride(bu.sitDownHeight);
+        motion_manager_->setPostureHeightOverride(sit_down_height());
         enter_bring_up_phase(BringUpPhase::Lowering, t);
       } else if (t - phase_start_time_ > bu.sitDownBrakeSeconds + 5.0) {
         RCLCPP_ERROR(get_node()->get_logger(), "%s sit-down could not brake to rest; latching FAULT.", kTag);
@@ -1504,8 +1527,22 @@ HumanoidWholeBodyInverseDynamicsMpcController::run_bring_up(
         break;
       }
       const auto base = control_model_->getBasePose(observation.state);
-      if (base(2) <= bu.sitDownHeight + 0.02 && orientation &&
-          orientation->toRotationMatrix()(2, 2) > std::cos(0.3)) {
+      bool crouched = base(2) <= bu.sitDownHeight + 0.02 && orientation &&
+                      orientation->toRotationMatrix()(2, 2) > std::cos(0.3);
+      if (sit_down_trajectory_) {
+        // The planned sit-down starts from rest at its first state: height, level trunk and leg posture.
+        const auto& plan = *sit_down_trajectory_;
+        const auto velocity = control_model_->getBaseComVelocity(observation.state);
+        const double posture_error = ((q - plan.position.front()).array() *
+          (plan.kp.array() > 0.0).cast<double>()).abs().maxCoeff();
+        crouched = std::abs(base(2) - sit_down_height()) < 0.01 && orientation &&
+                   orientation->toRotationMatrix()(2, 2) > std::cos(0.1) && velocity.head<2>().norm() < 0.05 &&
+                   velocity.tail<3>().norm() < 0.2 && posture_error < 0.1;
+        if (crouched) {
+          sit_down_anchor_state_ = observation.state;
+        }
+      }
+      if (crouched) {
         stand_up_start_joints_ = q;
         locomotion_requested_.store(false, std::memory_order_release);
         has_active_policy_ = active_policy_ready_ = false;
@@ -1520,6 +1557,23 @@ HumanoidWholeBodyInverseDynamicsMpcController::run_bring_up(
       [[fallthrough]];
     }
     case BringUpPhase::SitDown: {
+      if (sit_down_trajectory_) {
+        const auto& plan = *sit_down_trajectory_;
+        servo_kp_override_ = plan.kp;
+        servo_kd_override_ = plan.kd;
+        const double elapsed = t - phase_start_time_;
+        JointActionCommand command = sample_plan(plan, sit_down_anchor_state_, elapsed, observation);
+        clamp_torque(command.feedforward);
+        if (elapsed >= plan.time.back() + 0.5 && v.norm() < 1.0) {
+          stand_up_requested_.store(false);
+          estimator_driving_control_ = false;
+          enter_bring_up_phase(BringUpPhase::Passive, t);
+        } else if (elapsed > plan.time.back() + 5.0) {
+          RCLCPP_ERROR(get_node()->get_logger(), "%s planned sit-down did not come to rest; latching FAULT.", kTag);
+          enter_bring_up_phase(BringUpPhase::Fault, t);
+        }
+        return command;
+      }
       servo_kp_override_ = stand_up_trajectory_->kp;
       servo_kd_override_ = stand_up_trajectory_->kd;
       const double s = std::clamp((t - phase_start_time_) / bu.sitDownSeconds, 0.0, 1.0);

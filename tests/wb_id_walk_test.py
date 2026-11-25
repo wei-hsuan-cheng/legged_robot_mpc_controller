@@ -231,8 +231,8 @@ def main():
             parser.error("arm-target-delay must be finite and nonnegative")
     if args.record_tracking:
         params["diagnostics"]["trackingRate"] = 100.0
-    # Automated locomotion trials explicitly opt into standing up; interactive Upkie waits for its operator.
-    if args.robot_name == "upkie":
+    # Automated locomotion trials explicitly opt into standing up; interactive Upkie/Pineapple wait for the operator.
+    if args.robot_name in ("upkie", "pineapple"):
         params["bringUp"]["autoStart"] = True
     # A key absent from the robot YAML is accepted when the controller declares it (its parameter schema).
     schema = yaml.safe_load((Path(__file__).resolve().parents[1] / "src/controller/parameters.yaml").read_text())

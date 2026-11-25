@@ -110,15 +110,11 @@ def generate_launch_description():
                         "launch directory; each MPC uses its own subfolder.",
         ),
         DeclareLaunchArgument(
-            "floatingBaseSource",
-            # Pineapple has no planned stand-up yet: it spawns standing and needs the base from the first tick.
-            default_value=PythonExpression([
-                "'ground_truth_state' if '", robot_name, "' == 'pineapple' else 'state_estimator'"]),
+            "floatingBaseSource", default_value="state_estimator",
             choices=["ground_truth_state", "state_estimator"],
             description="Floating-base feedback source for the MPC: "
                         "ground_truth_state (simulator/hardware body state) | state_estimator (the "
-                        "estimator named by floatingBaseEstimator). Default: state_estimator, "
-                        "ground_truth_state for pineapple."),
+                        "estimator named by floatingBaseEstimator)."),
         DeclareLaunchArgument(
             "floatingBaseEstimator", default_value="humanoid_linear_kf",
             choices=["none", "humanoid_inekf", "humanoid_linear_kf"],

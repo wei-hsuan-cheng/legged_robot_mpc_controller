@@ -3,7 +3,7 @@
 ocs2.reference.postureTableFile points at (default config/pineapple/posture_table.yaml).
 
     pip install mujoco numpy pyyaml   # offline tool; not needed at run time
-    python3 config/pineapple/compute_posture_table.py [--min 0.20] [--max 0.46] [--step 0.01] [--output FILE]
+    python3 config/pineapple/compute_posture_table.py [--min 0.14] [--max 0.46] [--step 0.01] [--output FILE]
 
 The tire radius comes from config/pineapple/geometry.yaml (checked against pineapple.xml's collision tire) and is
 recorded in the table, so the controller can refuse a table generated for other geometry.
@@ -88,7 +88,7 @@ class Model:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--min", type=float, default=0.20)
+    parser.add_argument("--min", type=float, default=0.14)
     parser.add_argument("--max", type=float, default=0.46)
     parser.add_argument("--step", type=float, default=0.01)
     parser.add_argument("--output", type=Path, default=HERE / "posture_table.yaml")

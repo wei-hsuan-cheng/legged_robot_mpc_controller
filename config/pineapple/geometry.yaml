@@ -1,13 +1,22 @@
 # Pineapple contact geometry, the single source for every consumer:
-#   WB-ID MPC              paths.geometryFile: wheel radius, axle and tire centre (rolling-contact rows and frames)
+#   WB-ID MPC              paths.geometryFile: wheel radius, axle and tire centre (rolling-contact rows and frames),
+#                          the stand-up support guard, and the check of the stand-up plan and posture table
 #   wheel-aware linear KF  geometryFile: wheel radius, axle and tire centre (tread-velocity and height rows)
+#   stand-up TO            config/pineapple/stand_up_to/plan.py: tire and seat contacts, exported to the plan
 #   posture table          config/pineapple/compute_posture_table.py: tire on the floor at each height
-# It describes the simulated robot (description/mujoco/robots/pineapple/pineapple.xml and the URDF); the posture
-# generator checks the MJCF collision tire against it. After a change, regenerate the posture table, which the
-# controller refuses when it was made for other geometry.
+# It describes the simulated robot (description/mujoco/robots/pineapple/pineapple.xml and the URDF); the offline
+# generators check the MJCF collision geoms against it. After a change, regenerate the stand-up and the posture
+# table, which the controller refuses when they were made for other geometry.
 geometry:
   wheel:
     radius: 0.0925                        # [m] pineapple.xml tire_collision (the vendor's cylinder radius)
     half_width: 0.0175                    # [m] half the 35 mm tire width along the axle
     center_offset: [0.0, 0.0, 0.0]        # [m] tire centre in the wheel link frame (the wheel frames sit at the tire centres)
     axle_axis: [0.0, 1.0, 0.0]            # axle direction in the wheel link frame
+  # Supports other than the tires, each a cylinder along its frame's z axis (the controller's stand-up guard keeps
+  # it clear of the ground before the MPC takes over). Pineapple sits on its base: the lowest base collision box
+  # (pineapple.xml, half sizes 0.115 x 0.04 x 0.06 at [-0.005, 0, 0.05]) as a disk of the box's half length; level, its
+  # lowest point is the box bottom, and tilted by theta it is the box's lower edge, cz - 0.115 sin(theta) -
+  # 0.06 cos(theta). The stand-up TO's seat contact is the box's back bottom edge, where it rests.
+  knee_housings:
+    - {frame: base_link, center: [-0.005, 0.0, 0.05], radius: 0.115, half_width: 0.06}

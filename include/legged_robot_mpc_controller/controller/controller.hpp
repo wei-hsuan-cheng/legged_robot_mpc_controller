@@ -158,7 +158,9 @@ private:
     double wheelRadius{std::numeric_limits<double>::quiet_NaN()};
     JointActionCommand sample(double t, const vector_t& measured_state = vector_t()) const;
   };
-  static StandUpTrajectory load_stand_up_trajectory(const std::string& file, const std::vector<std::string>& joint_names);
+  //! key: the plan's map in the file, "stand_up", or the optional "sit_down" (played the same way, to its end).
+  static StandUpTrajectory load_stand_up_trajectory(const std::string& file, const std::vector<std::string>& joint_names,
+                                                    const std::string& key = "stand_up");
   //! ocs2.reference.postureTableFile: heights and row-major joint states; the reference calculator checks the order.
   //! wheel_radius is the radius the table was generated for (NaN if the file has none).
   static void load_posture_table(const std::string& file, const std::vector<std::string>& joint_names,
@@ -183,6 +185,11 @@ private:
   //! ocs2.mpc.testObservationDelay: recent observations, the MPC gets the one that old.
   std::deque<ocs2::SystemObservation> delayed_observations_;
   JointActionCommand sample_stand_up(double t, const ocs2::SystemObservation& observation) const;
+  //! A plan sampled with its state feedback, XY, heading and free wheel angles anchored at the state it started from.
+  JointActionCommand sample_plan(const StandUpTrajectory& plan, const vector_t& anchor, double t,
+                                 const ocs2::SystemObservation& observation) const;
+  //! The MPC crouch the sit-down starts from: the sit-down plan's first base height, else bringUp.sitDownHeight.
+  double sit_down_height() const;
   bool stand_up_support_ready(const ocs2::SystemObservation& observation);
   //! The bring-up phase machine runs for the estimator, and for any robot with a planned stand-up.
   bool uses_bring_up() const;
@@ -223,6 +230,10 @@ private:
   vector_t servo_kd_override_;
   std::optional<StandUpTrajectory> stand_up_trajectory_;
   vector_t stand_up_anchor_state_;
+  //! Optional planned sit-down (the plan file's sit_down map): from rest at its first state to the seated idle,
+  //! replacing the joint-space fold for a robot that cannot drop onto supports from its crouch.
+  std::optional<StandUpTrajectory> sit_down_trajectory_;
+  vector_t sit_down_anchor_state_;
   double stand_up_support_since_{-1.0};
   //! Command-interface indices of <joint>/kp, <joint>/kd, interleaved per MPC joint.
   std::vector<std::size_t> gain_command_index_;
