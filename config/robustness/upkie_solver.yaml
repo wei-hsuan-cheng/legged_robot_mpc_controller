@@ -1,0 +1,18 @@
+# Milestone 6: solver effort and time step against modeling error, as in Khazoom et al. (arXiv 2407.10789): the
+# after-takeover Upkie sweep under each solver variant (<output>/<variant>/), with the default solver (200 Hz requested,
+# 1 SQP iteration, dt 0.02 s, 1 s horizon) taken from that sweep's results (baseline) instead of run again.
+#   python3 tests/robustness_sweep.py config/robustness/upkie_solver.yaml [--variants rate_60 ...]
+# Writes comparison.png (every variant over the baseline) next to the variant folders.
+sweep:
+  extends: upkie_after_takeover.yaml
+  baseline: upkie_after_takeover
+  # Each edge the after-takeover sweep found, with the last level the default solver held (10/10) and the first it fell
+  # at; inertia never failed, so its largest level. Delays of 60 ms and more failed every run and are left out.
+  select: [nominal, inertia_0.6, joint_friction_high_8, joint_friction_high_16, sensing_delay_0.03, sensing_delay_0.04,
+           actuation_delay_0.02, actuation_delay_0.04]
+  variants:
+    rate_100: {harness_args: [--mpc-rate, 100]}      # the last --mpc-rate wins
+    rate_60: {harness_args: [--mpc-rate, 60]}        # the lowest rate considered for deployment
+    sqp_2: {set: {ocs2.solver.sqp.sqpIteration: 2}}  # more solver effort per solve, at the rate it then reaches
+    dt_0.01: {set: {ocs2.solver.sqp.dt: 0.01}}       # finer time step: 100 nodes over the horizon, slower solves
+    dt_0.04: {set: {ocs2.solver.sqp.dt: 0.04}}       # coarser: 25 nodes, faster solves

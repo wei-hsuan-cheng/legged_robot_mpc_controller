@@ -5,9 +5,10 @@ The original [implementation checklist](design_notes/wheeled_biped/wheeled_biped
 Update this file at each milestone.
 The implemented equations, current weights, rolling-contact equalities and execution limits are collected in [Wheeled-Biped WB-ID MPC](wheeled_biped_whole_body_inverse_dynamics_mpc.md).
 
-## MPC Robustness to Modeling Errors (2026-11-25, milestones 1-5 done)
+## MPC Robustness to Modeling Errors (2026-11-25, milestones 1-5 done, 6 running)
 
-Branch `feat/model_error_robustness` in this repository and in `mujoco_ros2_control` (both local, uncommitted).
+Branch `feat/model_error_robustness` in this repository and in `mujoco_ros2_control`; milestones 1-5 pushed (`eaf485f`,
+`31fb487`), the deferred onset, the sweep options below and the after-takeover results not yet committed.
 Following Khazoom et al. (arXiv 2407.10789), the simulated plant gets modeling errors while the MPC keeps its nominal
 model; full design, usage and results: [MPC Robustness to Modeling Errors](mpc_robustness.md).
 
@@ -30,20 +31,36 @@ model; full design, usage and results: [MPC Robustness to Modeling Errors](mpc_r
   invocation, so a metric change needs no new simulation.
 - The full Upkie matrix (42 points x 10 runs of 20 s, about 3.3 h of simulation) is in `demo_videos/robustness/upkie/`
   (`summary.md`, `summary.json`, `robustness.png`); the plot is also `docs/results/assets/upkie_robustness.png`.
+- Deferred onset: `onset: request` and `ramp: s` in the model-error map start the simulation on the nominal plant;
+  the simulator's `~/apply_model_error` (std_srvs/Trigger) blends inertia, frictions and delays in over the ramp
+  (`blend_model`, `mj_setConst` each step); `wb_id_walk_test.py --model-error-onset` calls it at the MPC takeover, and
+  a sweep's `model_error_onset: {ramp: s}` adds both. This keeps Upkie's open-loop stand-up on the nominal plant.
+- Sweep runner: `extends:` (a sweep on top of another), `select:` / `--settings` by setting or source, `--widen W`
+  (points whose 95 % interval is wider than W get twice the runs, same command set), `variants:` (solver overlays into
+  `<output>/<variant>/`, `comparison.png` over a `baseline:` sweep); `plot_robustness.py` overlays several summaries.
+- Errors from the takeover (`config/robustness/upkie_after_takeover.yaml`, 23 points, 250 runs, in
+  `demo_videos/robustness/upkie_after_takeover/`; plot `docs/results/assets/upkie_robustness_after_takeover.png`):
+  the MPC alone holds ±60 % inertia 10/10 at every level; joint friction 16 x 13/20; sensing delay 9/10 at 40 ms,
+  0/10 at 60 ms; actuation delay 16/20 at 40 ms, 0/10 at 60 and 80 ms. The main sweep added computation 70 ms (10/10
+  up, 1/10 tracked) and 20 runs at slippery -90/-95 % (15/20, 11/20). At the edges most falls come 1-2 s after a fast
+  command steps to zero (braking).
+- Milestone 6 is running detached in `ros_jazzy` (`config/robustness/upkie_solver.yaml`, about 3.5 h from 00:38 UTC,
+  `demo_videos/robustness/upkie_solver/matrix.done` when finished): MPC rate 100 and 60 Hz, 2 SQP iterations, dt 0.01
+  and 0.04 s, each at nominal, ±60 % inertia, joint friction 8 and 16 x, sensing 30/40 ms, actuation 20/40 ms.
 - Rebuild `mujoco_ros2_control` and `legged_robot_mpc_controller` after pulling (new yaml-cpp dependency, new parameter).
 
 | Milestone | Status |
 | --- | --- |
 | 1 Sweep harness, nominal baseline | Done: Upkie nominal 10/10 (k = 10 runs of 20 s, full command range), 186 Hz |
 | 2 Simulator model-error loader | Done: report matches MuJoCo's compiled model to 4e-12; ±20 % draws, CoM shift and A + B >= C checked; ground friction patches (`mjSpec`, 400 patches, higher geom priority) |
-| 3 Inertial errors | Done: ±10-60 %: 10, 10, 9, 8, 7, 5, 4 /10; every fall in the open-loop stand-up, the MPC never fell; forward error 0.04 -> 0.19 m/s |
-| 4 Joint friction, ground friction patches | Done: no effect up to 0.9 N m joint friction or ±90 % patches; 3/10 at up to 1.7 N m (5 stand-up, 2 MPC falls); slippery patches 8/10 at -90 %, 5/10 at -95 % |
-| 5 Delays | Done: sensing and actuation no fall to 40 ms except 2 sensing falls at 40 ms, tracking 5/10 and 7/10 there; 60 ms: stand-up fails; computation no fall to 60 ms but tracking 7/10 from 20 ms; 80 ms: 0/10 |
-| 6 Solver effort and time step against error | Pending |
+| 3 Inertial errors | Done: ±10-60 %: 10, 10, 9, 8, 7, 5, 4 /10, every fall in the open-loop stand-up; switched on at the takeover 10/10 at every level, forward error 0.04 -> 0.14 m/s |
+| 4 Joint friction, ground friction patches | Done: no effect up to 0.9 N m joint friction or ±90 % patches; 16 x (up to 1.7 N m): 13/20 from the takeover; slippery patches 15/20 at -90 %, 11/20 at -95 % |
+| 5 Delays | Done: from the takeover sensing 10/10 to 30 ms, 9/10 at 40, 0/10 at 60 ms; actuation 10/10 to 20 ms, 16/20 at 40, 0/10 at 60 ms; computation 10/10 to 70 ms (tracking 7/10 from 20 ms, 1/10 at 70), 0/10 at 80 ms |
+| 6 Solver effort and time step against error | Running (`upkie_solver.yaml`) |
 | 7 Combined errors, report | Pending |
 
-Next: start the runs standing (no planned stand-up) to measure the MPC alone where the stand-up fails first; milestone
-6. The nominal controller turns about 0.2 rad/s slower than commanded (pre-existing).
+Next: read milestone 6 (`upkie_solver/*/summary.md`, `comparison.png`), then milestone 7 (combined random errors).
+The nominal controller turns about 0.2 rad/s slower than commanded (pre-existing).
 
 ## Shared Geometry File (2026-11-23)
 

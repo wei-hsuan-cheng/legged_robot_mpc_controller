@@ -31,6 +31,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "launch"))
 from push_recovery_test import FEEDBACK_TOPIC, WrenchPublisher, WrenchSequence
 from geometry_msgs.msg import WrenchStamped
 from std_msgs.msg import Float64MultiArray, String
+from std_srvs.srv import Trigger
 
 
 CONTROLLER = "humanoid_whole_body_inverse_dynamics_mpc_controller"
@@ -183,6 +184,9 @@ def main():
     parser.add_argument("--scene", help="Scene filename or absolute path; omitted generates an isolated flat test scene")
     parser.add_argument("--minimum-height", type=float, default=0.38)
     parser.add_argument("--startup-timeout", type=float, default=600.0)
+    parser.add_argument("--model-error-onset", action="store_true", help="Switch the simulator's deferred model error "
+                        "(model-error file with onset: request) on at the MPC takeover, so the start-up runs on the "
+                        "nominal plant")
     parser.add_argument("--record-joints", action="store_true", help="Save latest joint sample with each base pose for collision analysis and render replay")
     parser.add_argument("--record-tracking", action="store_true", help="Enable 100 Hz controller tracking and record policy modes, planned wrenches and foot motion")
     parser.add_argument("--arm-target", type=json.loads, help="Optional JSON array for all shoulder/elbow positions, in robot.jointNames order")
@@ -340,6 +344,9 @@ def main():
                 depth=1, reliability=ReliabilityPolicy.RELIABLE)) if args.gait_sequence else None
             gait_sent = None
             sender = WrenchPublisher(probe, sequence) if sequence else None
+            onset_client = probe.create_client(Trigger, "/mujoco_ros2_control/apply_model_error") \
+                if args.model_error_onset else None
+            onset_future = None
             process = subprocess.Popen(launch_cmd, cwd=launch_cwd, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
             deadline = time.monotonic() + args.startup_timeout
             start = None
@@ -387,8 +394,18 @@ def main():
                         continue
                     start = probe.gt[0]
                     result["takeover_time"] = start
+                    if onset_client is not None:
+                        onset_future = onset_client.call_async(Trigger.Request())
+                        result["model_error_onset_time"] = start
                     deadline = time.monotonic() + 6 * (args.settle + 2 * args.ramp + args.hold + args.rest) + 60
                 elapsed = probe.gt[0] - start
+                if onset_future is not None and onset_future.done():
+                    response = onset_future.result()
+                    onset_future = None
+                    result["model_error_onset"] = response.message
+                    if not response.success:
+                        verdict = "STARTUP_ERROR"
+                        break
                 if arm_publisher is not None and not arm_sent and elapsed >= args.arm_target_delay:
                     target = MpcTargets()
                     target.command_type = "joint"

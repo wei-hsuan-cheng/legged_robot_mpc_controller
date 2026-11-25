@@ -64,6 +64,6 @@ sweep:
         delay: {actuation: $level}
     computation_delay:
       label: "computation delay [s]: the MPC plans from an older observation"
-      levels: [0.005, 0.01, 0.02, 0.04, 0.06, 0.08]
+      levels: [0.005, 0.01, 0.02, 0.04, 0.06, 0.07, 0.08]
       set:
         ocs2.mpc.testObservationDelay: $level

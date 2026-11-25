@@ -1,0 +1,10 @@
+# The Upkie sweep (upkie.yaml) with every plant error switched on at the MPC takeover and blended in over 1 s, so the
+# planned stand-up always runs on the nominal plant and every failure is the MPC's. Only the sources where the stand-up
+# failed first in upkie.yaml; computation delay is the controller's own and not switched by the simulator.
+#   python3 tests/robustness_sweep.py config/robustness/upkie_after_takeover.yaml
+sweep:
+  extends: upkie.yaml
+  model_error_onset: {ramp: 1.0}   # [s] the blend from the nominal to the perturbed plant
+  command:
+    start: 3.0                     # [s] after the takeover: the 1 s blend, then 2 s standing on the perturbed plant
+  select: [nominal, inertia, joint_friction_high, sensing_delay, actuation_delay]

@@ -77,13 +77,17 @@ def harness_command(sweep, setting, command, prefix, limits, run=0):
     cmd += [str(a) for a in sweep.get("harness_args", [])] + [str(a) for a in setting.get("harness_args", [])]
     for key, value in {**sweep.get("set", {}), **setting.get("set", {})}.items():
         cmd += ["--set", f"{key}={json.dumps(value)}"]
-    for argument in setting.get("launch_args", []):
+    for argument in list(sweep.get("launch_args", [])) + list(setting.get("launch_args", [])):
         cmd += ["--launch-arg", argument]
     if setting.get("model_error"):
         # One file per setting; each run draws its own errors (seed + run index) and reports what it drew.
+        model_error = dict(setting["model_error"])
+        if sweep.get("model_error_onset"):  # switched on at the MPC takeover, blended in over `ramp` seconds
+            model_error.update(onset="request", ramp=float(sweep["model_error_onset"].get("ramp", 1.0)))
+            cmd += ["--model-error-onset"]
         error_file = Path(prefix).parent / "model_error.yaml"
         if not error_file.exists():
-            error_file.write_text(yaml.safe_dump(dict(model_error=setting["model_error"]), sort_keys=False))
+            error_file.write_text(yaml.safe_dump(dict(model_error=model_error), sort_keys=False))
         cmd += ["--launch-arg", f"modelErrorFile:={error_file}",
                 "--launch-arg", f"modelErrorSeed:={int(sweep.get('seed', 0)) * 100000 + run}",
                 "--launch-arg", f"modelErrorReport:={prefix}_model_error.json"]
@@ -138,6 +142,38 @@ def run_metrics(prefix, command, sweep, limits):
     metrics["tracked"] = metrics["survived"] and all(
         metrics[f"{axis}_error"] <= tolerance["relative"] * abs(command[axis]) + tolerance[axis] for axis in axes)
     return metrics
+
+
+def merge(base, override):
+    """`override` on top of `base`: maps merge recursively, anything else replaces."""
+    if not (isinstance(base, dict) and isinstance(override, dict)):
+        return override
+    return {**base, **{key: merge(base.get(key), value) for key, value in override.items()}}
+
+
+def load_sweep(path):
+    """The sweep map of a sweep YAML; `extends: <file>` (relative to it) takes that sweep and overrides its keys, so
+    a variant (another start-up protocol, solver setting, ...) is a few lines, not a copy."""
+    sweep = yaml.safe_load(path.read_text())["sweep"]
+    if "extends" in sweep:
+        sweep = merge(load_sweep(path.parent / sweep.pop("extends")), sweep)
+    return sweep
+
+
+def select(settings, names):
+    """The settings named, where a source name stands for every level of that source."""
+    chosen = {name: settings[name] for name in settings
+              if name in names or settings[name].get("source") in names}
+    unknown = set(names) - set(chosen) - {s.get("source") for s in settings.values()}
+    return chosen, unknown
+
+
+def existing_runs(directory):
+    """How many runs of a setting have a result: run_000.json, run_001.json, ... without a gap."""
+    count = 0
+    while (directory / f"run_{count:03d}.json").exists():
+        count += 1
+    return count
 
 
 def expand_sources(sweep):
@@ -197,27 +233,63 @@ def summarize(name, runs, setting=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("sweep", type=Path)
-    parser.add_argument("--settings", nargs="+", help="run only these settings (default: all)")
-    parser.add_argument("--runs", type=int, help="override the sweep's runs per setting")
+    parser.add_argument("--settings", nargs="+", help="run only these settings or sources (default: all, or the "
+                        "sweep's select); the summary still covers every setting with results")
+    parser.add_argument("--runs", type=int, help="override the sweep's runs per setting (more runs add to the kept ones)")
     parser.add_argument("--jobs", type=int, default=1, help="parallel runs; each uses its own ROS domain and CPU")
     parser.add_argument("--domain-base", type=int, default=180, help="ROS_DOMAIN_ID of the first job")
     parser.add_argument("--output", type=Path, help="default: <repo>/demo_videos/robustness/<sweep file stem>")
     parser.add_argument("--timeout", type=float, default=600.0, help="wall-clock limit per run [s]")
     parser.add_argument("--dry-run", action="store_true", help="print the commands and harness calls, run nothing")
+    parser.add_argument("--widen", type=float, help="afterwards, give every setting run now whose success-rate 95%% "
+                        "interval is wider than this (a point with partial failures; 10 runs: 8/10 is 0.45) more runs")
+    parser.add_argument("--widen-runs", type=int, help="runs of a widened setting (default: twice the runs)")
+    parser.add_argument("--variants", nargs="+", help="run only these of the sweep's variants (default: all)")
     args = parser.parse_args()
 
-    sweep = yaml.safe_load(args.sweep.read_text())["sweep"]
+    sweep = load_sweep(args.sweep)
+    output = args.output or ROOT / "demo_videos" / "robustness" / args.sweep.stem
+    variants = sweep.pop("variants", None)
+    if not variants:
+        return run_sweep(sweep, output, args, parser, args.sweep.stem)
+    # Variants (solver settings, ...): each is an overlay of set, launch_args and harness_args on every setting, run
+    # into <output>/<variant>/ (harness arguments given again override: the last one wins).
+    names = args.variants or list(variants)
+    unknown = set(names) - set(variants)
+    if unknown:
+        parser.error(f"unknown variants {sorted(unknown)}; the sweep has {sorted(variants)}")
+    for name in names:
+        overlay = variants[name] or {}
+        run_sweep(dict(sweep, set={**sweep.get("set", {}), **overlay.get("set", {})},
+                       launch_args=list(sweep.get("launch_args", [])) + list(overlay.get("launch_args", [])),
+                       harness_args=list(sweep.get("harness_args", [])) + list(overlay.get("harness_args", []))),
+                  output / name, args, parser, f"{args.sweep.stem} {name}")
+    # baseline: another sweep's output folder (e.g. the default solver setting), the first curve of the comparison.
+    baseline = [output.parent / sweep["baseline"] / "summary.json"] if sweep.get("baseline") else []
+    summaries = [path for path in baseline + [output / name / "summary.json" for name in variants] if path.exists()]
+    if summaries and not args.dry_run:
+        subprocess.run([sys.executable, str(ROOT / "tests/tuning/plot_robustness.py"), *map(str, summaries),
+                        "--output", str(output / "comparison.png")])
+    return 0
+
+
+def run_sweep(sweep, output, args, parser, name):
+    """Runs and summarizes one sweep (one variant) into `output`."""
     limits = robot_limits(sweep["robot"])
     runs = args.runs or int(sweep["runs"])
-    commands = sample_commands(sweep, limits, runs)
-    settings = expand_sources(sweep)
-    if args.settings:
-        unknown = set(args.settings) - set(settings)
-        if unknown:
-            parser.error(f"unknown settings {sorted(unknown)}; the sweep has {sorted(settings)}")
-        settings = {name: settings[name] for name in args.settings}
-    output = args.output or ROOT / "demo_videos" / "robustness" / args.sweep.stem
+    every = expand_sources(sweep)  # the sweep's settings (only those its select: names), all summarized
+    settings = every  # the ones run now
+    for names, restrict_sweep in ((sweep.get("select"), True), (args.settings, False)):
+        if names:
+            chosen, unknown = select(every, names)
+            if unknown:
+                parser.error(f"unknown settings or sources {sorted(unknown)}; the sweep has {sorted(every)}")
+            settings = chosen
+            every = chosen if restrict_sweep else every
     output.mkdir(parents=True, exist_ok=True)
+    counts = {name: max(runs if name in settings else 0, existing_runs(output / name)) for name in every}
+    # Seeded per run index, so a longer list keeps the first commands: added runs extend the same command set.
+    commands = sample_commands(sweep, limits, max(counts.values()))
     (output / "commands.json").write_text(json.dumps(commands, indent=1) + "\n")
 
     jobs = [(name, index) for name in settings for index in range(runs)]
@@ -268,14 +340,31 @@ def main():
         return name, index, metrics
 
     with ThreadPoolExecutor(max_workers=args.jobs) as pool:
-        finished = list(pool.map(execute, jobs))
+        list(pool.map(execute, jobs))
 
-    per_setting = {name: [m for n, _, m in sorted(finished) if n == name] for name in settings}
-    summary = [summarize(name, per_setting[name], settings[name]) for name in settings]
+    def rescore():
+        """Every setting with results, re-scored from its files (also the ones not run this time)."""
+        per_setting = {name: [run_metrics(output / name / f"run_{index:03d}", commands[index], sweep, limits)
+                              for index in range(existing_runs(output / name))] for name in every}
+        return per_setting, [summarize(name, per_setting[name], every[name]) for name in every if per_setting[name]]
+
+    per_setting, summary = rescore()
+    if args.widen:
+        target = args.widen_runs or 2 * runs
+        wide = [s["setting"] for s in summary if s["setting"] in settings and s["runs"] < target and
+                s["success_rate_ci95"][1] - s["success_rate_ci95"][0] > args.widen]
+        if wide:
+            print(f"widening to {target} runs: {' '.join(wide)}", flush=True)
+            commands = sample_commands(sweep, limits, max(target, len(commands)))  # extends the same command set
+            (output / "commands.json").write_text(json.dumps(commands, indent=1) + "\n")
+            with ThreadPoolExecutor(max_workers=args.jobs) as pool:
+                list(pool.map(execute, [(name, index) for name in wide for index in range(target)]))
+            per_setting, summary = rescore()
     labels = {source: spec.get("label", source) for source, spec in sweep.get("sources", {}).items()}
-    (output / "summary.json").write_text(json.dumps(dict(sweep=str(args.sweep), labels=labels, commands=commands,
-                                                         summary=summary,
-                                                         runs={n: r for n, r in per_setting.items()}), indent=1) + "\n")
+    (output / "summary.json").write_text(json.dumps(dict(sweep=str(args.sweep), name=name, labels=labels,
+                                                         commands=commands, summary=summary,
+                                                         runs={n: r for n, r in per_setting.items() if r}), indent=1)
+                                    + "\n")
     fmt = lambda pair: "-" if pair is None else f"{pair[0]:.3f} / {pair[1]:.3f}"
     lines = ["| setting | success | 95% CI | tracked | failures | vx error p50/p90 | yaw-rate error p50/p90 | max tilt p50/p90 "
              "| MPC Hz |", "| --- | ---: | ---: | ---: | --- | ---: | ---: | ---: | ---: |"]

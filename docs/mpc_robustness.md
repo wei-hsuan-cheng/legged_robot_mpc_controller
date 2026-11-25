@@ -59,6 +59,12 @@ with the floor's friction and compiles; each patch then draws its friction and i
 The patches get a higher geom priority than the robot, because MuJoCo otherwise uses the larger of the two geoms'
 friction coefficients for a contact.
 
+The error can also start later: with `onset: request` and `ramp: <s>` in the map the simulation starts on the nominal
+plant (patches at the floor's friction, no delays) and the simulator's `~/apply_model_error` service switches it on,
+blending masses, CoM, inertias, frictions and delays in over the ramp (a blend of two valid inertias is valid; the
+derived constants are recomputed every step of the blend). `wb_id_walk_test.py --model-error-onset` calls it at the MPC
+takeover, so a start-up the study is not about (Upkie's open-loop planned stand-up) always runs on the nominal plant.
+
 Launch arguments of `robot.launch.py`: `modelErrorFile` (the YAML; empty = nominal plant), `modelErrorSeed` and
 `modelErrorReport` (a JSON of every realized value: per-body mass, CoM and inertia before and after, per-joint friction,
 contact friction range, total mass).
@@ -88,7 +94,15 @@ Each quantity draws from its own random stream, so enabling one error does not c
 - per setting: success and tracking rates with Wilson 95 % intervals, failure types, tracking and tilt percentiles of the
   runs that stayed up; results in `demo_videos/robustness/<sweep>/` (`summary.json`, `summary.md`, one folder per
   setting);
-- finished runs are kept and skipped on a restart; `--jobs N` runs N launches in parallel.
+- finished runs are kept and skipped on a restart; `--jobs N` runs N launches in parallel;
+- `extends: <sweep>.yaml` takes another sweep and overrides some of its keys (maps merge, the rest replaces), so a
+  variant of a protocol is a few lines; `select:` (or `--settings`) names settings or whole sources;
+  `model_error_onset: {ramp: s}` switches every plant error on at the MPC takeover;
+- `--widen W` afterwards gives every point whose 95 % interval is wider than W (a point with partial failures; 8/10 is
+  0.45 wide) twice the runs (`--widen-runs`); runs are seeded per index, so added runs extend the same command set;
+  the summary covers every setting with results, also the ones not run in that invocation;
+- `variants:` crosses the settings with solver (or other) overlays (`set`, `launch_args`, `harness_args`), each into
+  `<output>/<variant>/`, and draws `comparison.png` of every variant over a `baseline:` sweep's results.
 
 The whole matrix (every setting and every level of every source, k runs each) is one command; it is meant to run
 unattended and leave a compact record, so reading the result is cheap:
@@ -115,6 +129,8 @@ cd /root/ocs2_ros2_ws && source install/setup.bash
 R=/root/src/mpc/legged_robot_mpc_controller
 python3 $R/tests/robustness_sweep.py $R/config/robustness/upkie.yaml --jobs 2           # all settings
 python3 $R/tests/robustness_sweep.py $R/config/robustness/upkie.yaml --settings nominal  # one setting
+python3 $R/tests/robustness_sweep.py $R/config/robustness/upkie_after_takeover.yaml --widen 0.4  # errors from the takeover
+python3 $R/tests/robustness_sweep.py $R/config/robustness/upkie_solver.yaml  # solver variants (milestone 6)
 # on the host (numpy, matplotlib): success rate vs error, one panel per source
 python3 tests/tuning/plot_robustness.py demo_videos/robustness/upkie/summary.json
 ```
@@ -125,51 +141,79 @@ python3 tests/tuning/plot_robustness.py demo_videos/robustness/upkie/summary.jso
 | --- | --- | --- |
 | 1 | Sweep harness and nominal baseline | Done: Upkie nominal 10/10 |
 | 2 | Simulator model-error loader (YAML, in memory), including ground friction patches | Done: verified against MuJoCo's compiled model |
-| 3 | Inertial errors (the paper's study) | Done: Upkie, ±10-60 % |
+| 3 | Inertial errors (the paper's study) | Done: Upkie, ±10-60 %; the MPC alone never fell |
 | 4 | Joint friction and ground friction patches | Done: Upkie |
 | 5 | Delays: sensing and actuation (simulator), computation (MPC) | Done: Upkie, 5-80 ms |
-| 6 | Solver effort and time step against error | Pending |
+| 6 | Solver effort and time step against error | Running: `upkie_solver.yaml`, 5 variants at the edges of milestones 3-5 |
 | 7 | Combined random errors, report | Pending |
 
 ## Results: Upkie (80 mm wheels)
 
 Flat scene only (uneven terrain later); OCS2 MPC at 200 Hz requested (186-188 Hz achieved at every point), the
-wheel-aware linear KF in control, k = 10 runs of 20 s per point: 2 s standing after the MPC takeover, a 16 s constant
-command drawn within ±1 m/s and ±3.14 rad/s, 2 s stop; every run starts kneeling and includes the planned stand-up.
-42 points, 420 runs (2026-11-25); `demo_videos/robustness/upkie/summary.md` has every row.
+wheel-aware linear KF in control; every run starts kneeling and includes the planned stand-up; each run's command is
+drawn within ±1 m/s and ±3.14 rad/s, held 16 s, then 2 s at zero. k = 10 runs per point, 20 where the first 10 had
+partial failures (`--widen 0.4`). The runs are not bit-for-bit repeatable (ROS timing), so a point at the edge can
+differ by a run or two between sweeps (2026-11-25).
+
+### Errors from the start (`upkie.yaml`)
+
+The plant error is present from the simulation's start, so it also acts on the open-loop planned stand-up; 2 s standing
+after the takeover, then the command. 43 points, 450 runs; `demo_videos/robustness/upkie/summary.md` has every row.
 
 ![Upkie success rate vs modeling error](results/assets/upkie_robustness.png)
 
 | Source | Range | No fall (MPC falls) | Success and tracking | Where it breaks |
 | --- | --- | --- | --- | --- |
 | nominal | - | 10/10 | 10/10 | forward error p50 0.043 m/s, tilt 0.004 rad |
-| Inertia (mass, CoM, inertia, every body) | ±10-60 % | 10, 9, 8, 7, 5, 4 /10 (0) | same as no fall | every fall is in the planned stand-up, before the MPC runs; the MPC never fell; forward error 0.04 -> 0.19 m/s |
+| Inertia (mass, CoM, inertia, every body) | ±10-60 % | 10, 9, 8, 7, 5, 4 /10 (0) | same as no fall | every fall is in the planned stand-up, before the MPC runs; with the error switched on at the takeover the MPC holds every level (below) |
 | Joint Coulomb friction | ±25-100 % (0-0.2 N m) | 10/10 (0) | 10/10 | no effect: the nominal 0.1 N m is small for Upkie |
 | Joint friction increased | 0 to +2, 4, 8, 16 x (up to 0.3-1.7 N m) | 10/10 to 8 x; 3/10 at 16 x (2) | same | up to 0.9 N m no fall; at up to 1.7 N m (the wheel torque limit) 5 stand-up falls, 2 of the 5 MPC runs fell |
 | Ground friction patches | ±25-90 % (μ 0.08-1.52) | 10/10 (0) | 10/10 | no effect |
-| Slippery ground (every patch reduced) | 0 to -50, 75, 90, 95 % | 10, 10, 8, 5 /10 (0, 0, 2, 5) | same | μ down to 0.08: falls at the command onset or about 1 s into the stop (braking) |
-| Sensing delay | 5-60 ms | 10/10 to 30 ms; 8/10 at 40 ms (2); 0/10 at 60 ms | 9/10 at 30 ms, 5/10 at 40 ms | at 40 ms the large yaw commands are not followed; at 60 ms the stand-up handover is rejected (robot not on its wheels) |
-| Actuation delay | 5-80 ms | 10/10 to 40 ms (0); 0/10 at 60, 80 ms | 7/10 at 40 ms | as sensing, but no MPC fall at 40 ms; 60 ms and more: the stand-up fails |
-| Computation delay | 5-80 ms | 10/10 to 60 ms (0); 0/10 at 80 ms (10) | 7/10 at 20 ms, 6/10 at 40-60 ms | yaw tracking degrades first (yaw-rate error p50 0.22 -> 0.70 rad/s at 20 ms); at 80 ms every run falls 0.6-2.7 s after the command onset |
+| Slippery ground (every patch reduced) | 0 to -50, 75, 90, 95 % | 10/10, 10/10, 15/20, 11/20 (all MPC) | same | μ down to 0.04: falls 0.7-1.5 s after the command onset or 1.0-1.3 s into the stop (braking), one while standing |
+| Sensing delay | 5-60 ms | 10/10 to 30 ms; 8/10 at 40 ms (2); 0/10 at 60 ms | 9/10 at 30 ms, 5/10 at 40 ms | at 60 ms the stand-up handover is rejected (robot not on its wheels) |
+| Actuation delay | 5-80 ms | 10/10 to 40 ms (0); 0/10 at 60, 80 ms | 7/10 at 40 ms | 60 ms and more: the stand-up fails; at 40 ms one run reached 0.78 rad pitch (the fall limit is 0.8) |
+| Computation delay | 5-80 ms | 10/10 to 70 ms (0); 0/10 at 80 ms (10) | 7/10 at 20 ms, 6/10 at 40-60 ms, 1/10 at 70 ms | yaw tracking degrades first (yaw-rate error p50 0.22 -> 0.70 rad/s at 20 ms); at 70 ms the robot stays up but sways (tilt p50 0.51 rad, forward error 0.56 m/s); at 80 ms every run falls 0.6-2.7 s after the command onset |
+
+Slippery ground and computation delay never failed in the stand-up, so these rows already measure the MPC alone.
+
+### Errors switched on at the MPC takeover (`upkie_after_takeover.yaml`)
+
+The stand-up runs on the nominal plant; the simulator blends the error in over 1 s from the takeover
+(`model_error_onset`), then 2 s standing and the command, so every failure is the MPC's. Only the sources where the
+stand-up failed first above. 23 points, 250 runs; `demo_videos/robustness/upkie_after_takeover/summary.md`.
+
+![Upkie success rate vs modeling error switched on at the MPC takeover](results/assets/upkie_robustness_after_takeover.png)
+
+| Source | Range | No fall | Success and tracking | Where it breaks |
+| --- | --- | --- | --- | --- |
+| nominal | - | 10/10 | 10/10 | as above |
+| Inertia (mass, CoM, inertia, every body) | ±10-60 % | 10/10 at every level | 10/10 | never falls; forward error p50 0.043 -> 0.135 m/s and tilt p50 0.005 -> 0.060 rad, both about linear in the level |
+| Joint friction increased | 0 to +2, 4, 8, 16 x | 10/10 to 8 x; 13/20 at 16 x | 9/20 at 16 x | falls 1.0-4.4 s into the command, one while standing: at 16 x the wheels' friction (up to 1.7 N m) reaches their torque limit |
+| Sensing delay | 5-60 ms | 10/10 to 30 ms; 9/10 at 40 ms; 0/10 at 60 ms | 10/10 at 30 ms, 8/10 at 40 ms | 40 ms: one fall 1.7 s into the stop; 60 ms: falls 0.7-12.7 s into the command |
+| Actuation delay | 5-80 ms | 10/10 to 20 ms; 16/20 at 40 ms; 0/10 at 60, 80 ms | 15/20 at 40 ms | 40 ms: every fall 1.4-1.9 s into the stop, after a forward command of 0.78-0.92 m/s; 60 ms: 7 of 10 falls within 3 s of the command onset; 80 ms: all, one while standing |
+
+At 40 ms of actuation delay the two sweeps give 10/10 and 16/20; both are the same marginal point (26/30 pooled).
 
 Readings:
 
-- The MPC tolerates the inertial errors of the paper's range (±10-40 %) and beyond: forward tracking degrades
-  (median error 0.04 -> 0.19 m/s at ±60 %) but it never fell. The open-loop planned stand-up is the weak
-  part: from ±20 % it tips over (trunk tilt over 1.2 rad) before the knees clear, so it is what the success curve
-  measures there.
-- Friction is not where Upkie's MPC is fragile on flat ground: joint friction needs 8 x the nominal (0.9 N m, half the
-  wheel torque limit) and the ground needs patches far below the MPC's friction cone (μ 0.6) before anything falls;
-  the slippery falls happen when the wheels must brake or accelerate hard (the command onset and the stop).
-- Delays are the sensitive axis. Sensing and actuation delay keep the robot up to 40 ms but cost tracking at high yaw
-  rates; computation delay costs yaw tracking already at 20 ms and is a cliff at 80 ms. At 60 ms of sensing or
-  actuation delay the stand-up cannot finish, so the MPC is not evaluated there.
+- The MPC alone tolerates every inertial error tested, ±60 % of mass, CoM and inertia on every body (the paper went
+  to ±40 %): it never fell, and the forward tracking error and the tilt grow about linearly with the level. With the
+  error present from the start, the open-loop planned stand-up is what fails: from ±20 % it tips over (trunk tilt over
+  1.2 rad) before the knees clear.
+- Friction is not where Upkie's MPC is fragile on flat ground: joint friction needs 16 x the nominal, where the wheels'
+  friction reaches their torque limit, and the ground needs patches far below the MPC's friction cone (μ 0.6), down to
+  μ 0.08, before anything falls.
+- Delays are the sensitive axis, and those in the plant more than in the MPC: sensing and actuation delay hold to 30
+  and 20 ms, are marginal at 40 ms and fail every run at 60 ms, while a 70 ms computation delay keeps every run up
+  (badly tracked) and 80 ms fails every run. Sensing and actuation delay act on the whole loop; a computation delay only
+  ages the observation the MPC plans from, while the controller loop and the joint servo run on the current state.
+- At the edges the hardest moment is braking: at 40 ms of sensing or actuation delay and on slippery ground most falls
+  come 1-2 s after a fast command (|vx| 0.56-0.92 m/s) steps to zero, most of the rest at the command onset.
 - The nominal controller turns about 0.2 rad/s slower than commanded at every yaw command, steady over the hold
   (e.g. -0.40 rad/s for -0.56); it predates this study.
 
-Open items: start the runs standing (no planned stand-up) to measure the MPC alone where the stand-up fails first
-(inertia above ±20 %, delays of 60 ms); more runs per point where the interval is wide (the 95 % interval of 8/10 is
-0.49-0.94).
+Open items: milestone 6, solver effort and time step at these edges (`upkie_solver.yaml`, running); milestone 7,
+combined random errors; the planned stand-up's sensitivity to inertia (outside the MPC).
 
 Injection checks (one run each, `demo_videos/robustness/smoke_delay`):
 
