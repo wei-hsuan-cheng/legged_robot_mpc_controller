@@ -159,6 +159,21 @@ class RobotLaunchTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'finite and positive'):
                 self.resolve('h2', refBaseHeight=height)
 
+    def test_model_error_file_is_a_name_under_config_or_a_path(self):
+        from ament_index_python.packages import get_package_share_directory
+        share = Path(get_package_share_directory('legged_robot_mpc_controller'))
+        template = share / 'config/model_error/template.yaml'
+        self.assertEqual(yaml.safe_load(template.read_text())['model_error'], {'seed': 0})  # as shipped: no error
+        context, _ = self.resolve('upkie')
+        self.assertEqual(context.launch_configurations['modelErrorPath'], '')  # the nominal plant
+        context, _ = self.resolve('upkie', modelErrorFile='template.yaml')
+        self.assertEqual(context.launch_configurations['modelErrorPath'], str(template))
+        with tempfile.NamedTemporaryFile(suffix='.yaml') as stream:
+            context, _ = self.resolve('upkie', modelErrorFile=stream.name)
+            self.assertEqual(context.launch_configurations['modelErrorPath'], stream.name)
+        with self.assertRaises(ValueError):
+            self.resolve('upkie', modelErrorFile='missing.yaml')
+
 
 if __name__ == '__main__':
     unittest.main()

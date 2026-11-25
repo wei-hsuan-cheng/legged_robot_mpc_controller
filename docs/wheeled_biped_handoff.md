@@ -35,6 +35,8 @@ model; full design, usage and results: [MPC Robustness to Modeling Errors](mpc_r
   the simulator's `~/apply_model_error` (std_srvs/Trigger) blends inertia, frictions and delays in over the ramp
   (`blend_model`, `mj_setConst` each step); `wb_id_walk_test.py --model-error-onset` calls it at the MPC takeover, and
   a sweep's `model_error_onset: {ramp: s}` adds both. This keeps Upkie's open-loop stand-up on the nominal plant.
+- `config/model_error/template.yaml`: every entry, commented out (as shipped the zero-error case); `robot.launch.py
+  modelErrorFile:=<name>` finds a file there (a new file needs a rebuild to be installed), or takes a path.
 - Sweep runner: `extends:` (a sweep on top of another), `select:` / `--settings` by setting or source, `--widen W`
   (points whose 95 % interval is wider than W get twice the runs, same command set), `variants:` (solver overlays into
   `<output>/<variant>/`, `comparison.png` over a `baseline:` sweep); `plot_robustness.py` overlays several summaries.

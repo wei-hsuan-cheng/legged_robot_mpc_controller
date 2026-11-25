@@ -1,0 +1,45 @@
+# Plant modeling error for the MuJoCo simulator (mujoco_ros2_control): applied in memory to the loaded MJCF, while the
+# controller keeps its nominal model. As written this file is the zero-error case (only the seed is set); uncomment a
+# block to apply it, or copy the file next to it under another name. It works for every robot: bodies and joints are
+# all selected unless named (MJCF names).
+#
+#   ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=upkie mpcFreq:=200 \
+#     modelErrorFile:=template.yaml modelErrorSeed:=0 modelErrorReport:=/tmp/model_error.json
+#
+# modelErrorFile: a name under config/model_error/ or an absolute path; empty (the default) is the nominal plant.
+# modelErrorReport (optional): a JSON of every realized value. Each value below is a number (a fixed relative change,
+# x -> x (1 + value)), {uniform: [lo, hi]} (a relative change drawn per element from the seed) or {value: v} (an
+# absolute value). Reference: mujoco_ros2_control include/mujoco_ros2_control/model_error.hpp, docs/mpc_robustness.md.
+model_error:
+  seed: 0                                  # the draws; modelErrorSeed overrides it when >= 0
+
+  # Inertia of every body but the world; bodies: [...] or exclude: [...] to select.
+  # inertia:
+  #   mass: {uniform: [-0.2, 0.2]}
+  #   com: {uniform: [-0.2, 0.2]}          # CoM shift per axis, relative to the body's radius of gyration
+  #   inertia: {uniform: [-0.2, 0.2]}      # each principal moment, kept physically valid (A + B >= C)
+
+  # Friction of every non-free joint; joints: [...] to select.
+  # joint_friction:
+  #   frictionloss: {uniform: [0.0, 1.0]}  # Coulomb friction, up to x 2
+  #   damping: {value: 0.05}               # [N m s/rad]
+  #   armature: 0.0
+
+  # Sliding friction of every geom, the floor's included.
+  # contact_friction: -0.5
+
+  # The flat floor as a grid of patches, each with its own sliding friction relative to the floor's (darker =
+  # slipperier in the MuJoCo window); needs one colliding floor plane in the scene.
+  # ground_regions:
+  #   size: 2.0                            # [m] patch edge
+  #   extent: 20.0                         # [m] the grid covers [-extent, extent]^2
+  #   friction: {uniform: [-0.9, 0.0]}     # slippery: each patch down to 10 % of the floor's
+
+  # Plant delays [s], fixed or {uniform: [lo, hi]} drawn once per run: what the controller reads is `sensing` old, its
+  # commands reach the joints `actuation` late. (Computation delay is the controller's ocs2.mpc.testObservationDelay.)
+  # delay: {sensing: 0.02, actuation: 0.02}
+
+  # Start on the nominal plant and switch the error on later, blended in over `ramp` seconds, with
+  #   ros2 service call /mujoco_ros2_control/apply_model_error std_srvs/srv/Trigger
+  # onset: request
+  # ramp: 1.0

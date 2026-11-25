@@ -81,7 +81,9 @@ def generate_launch_description():
         DeclareLaunchArgument("mujoco_publish_rate", default_value="100.0"),
         # Plant-side modeling error for robustness studies (config/robustness, tests/robustness_sweep.py): a YAML
         # model_error map the simulator applies to the compiled model in memory; the controller keeps its own model.
-        DeclareLaunchArgument("modelErrorFile", default_value="", description="Model-error YAML; empty: nominal plant"),
+        DeclareLaunchArgument("modelErrorFile", default_value="",
+                              description="Model-error YAML: a name under config/model_error/ (e.g. template.yaml) "
+                                          "or an absolute path; empty: nominal plant"),
         DeclareLaunchArgument("modelErrorSeed", default_value="-1", description="Overrides the file's seed when >= 0"),
         DeclareLaunchArgument("modelErrorReport", default_value="", description="JSON file of the realized errors"),
         DeclareLaunchArgument("gt_enabled", default_value="true"),
@@ -308,7 +310,7 @@ def generate_launch_description():
                     LaunchConfiguration("mujoco_publish_rate"), value_type=float
                 )
             },
-            {"model_error_file": ParameterValue(LaunchConfiguration("modelErrorFile"), value_type=str)},
+            {"model_error_file": ParameterValue(LaunchConfiguration("modelErrorPath"), value_type=str)},
             {"model_error_seed": ParameterValue(LaunchConfiguration("modelErrorSeed"), value_type=int)},
             {"model_error_report": ParameterValue(LaunchConfiguration("modelErrorReport"), value_type=str)},
             {"gt_enabled": ParameterValue(LaunchConfiguration("gt_enabled"), value_type=bool)},
@@ -466,10 +468,24 @@ def generate_launch_description():
         condition=IfCondition(PythonExpression(['"', LaunchConfiguration("commandFrame"), '" != ""'])),
     )
 
+    def resolve_model_error_file(context):
+        # A name is a file under config/model_error/ (installed: a new file there needs a rebuild), else a path from
+        # the working directory; empty is the nominal plant.
+        name = LaunchConfiguration("modelErrorFile").perform(context)
+        folder = os.path.join(mpc_share_dir, "config", "model_error")
+        path = name
+        if name and not os.path.isabs(name):
+            path = os.path.join(folder, name) if os.path.isfile(os.path.join(folder, name)) else os.path.abspath(name)
+        if path and not os.path.isfile(path):
+            raise ValueError(f"Model-error file '{name}' is neither in {folder} (a new file there needs a rebuild) "
+                             "nor a path to a file.")
+        return [SetLaunchConfiguration("modelErrorPath", path)]
+
     return LaunchDescription(
         declared_arguments
         + [
             OpaqueFunction(function=resolve_controllers_params_file),
+            OpaqueFunction(function=resolve_model_error_file),
             ros2_control_node,
             mujoco_ros2_control_node,
             controller_sequence,
