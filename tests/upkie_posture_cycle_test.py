@@ -60,7 +60,7 @@ class Probe(Node):
                 "-p", f"maximum_height:={reference['maxBaseHeight']}",
                 "-p", "scale_forward:=1.0",
                 "-p", "scale_lateral:=0.0",
-            ])
+            ], start_new_session=True)  # its own process group: `ros2 run` does not pass SIGINT on to base_twist
         self.create_subscription(String, CONTROLLER + "/motion_state", self.state, qos)
         self.create_subscription(Odometry, "/mujoco/ground_truth/odom", self.observe, qos)
         self.create_subscription(JointState, "/joint_states", self.observe_joints, qos)
@@ -238,11 +238,11 @@ def main():
             results["max_locomotion_tilt"] = max((s["tilt"] for s in active), default=None)
             Path(str(prefix) + ".replay.json").write_text(json.dumps(probe.samples))
             if probe.teleop is not None:
-                probe.teleop.send_signal(signal.SIGINT)
+                os.killpg(probe.teleop.pid, signal.SIGINT)
                 try:
                     probe.teleop.wait(timeout=5)
                 except subprocess.TimeoutExpired:
-                    probe.teleop.kill()
+                    os.killpg(probe.teleop.pid, signal.SIGKILL)
             probe.destroy_node()
         Path(str(prefix) + ".json").write_text(json.dumps(results, indent=2))
         print(json.dumps(results, indent=2), flush=True)
