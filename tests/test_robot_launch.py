@@ -28,7 +28,7 @@ class RobotLaunchTest(unittest.TestCase):
         spec.loader.exec_module(module)
         description = module.generate_launch_description()
         context = LaunchContext()
-        context.launch_configurations.update(robotName=robot, mpcControllerName=controller, **overrides)
+        context.launch_configurations.update(robot_name=robot, mpc_controller_name=controller, **overrides)
         for action in description.entities:
             if isinstance(action, DeclareLaunchArgument):
                 action.execute(context)
@@ -42,35 +42,35 @@ class RobotLaunchTest(unittest.TestCase):
         for robot, height in (('g1', .795), ('h2', 1.02)):
             context, description = self.resolve(robot)
             values = context.launch_configurations
-            config = yaml.safe_load(Path(values['controllersParamsFile']).read_text())
+            config = yaml.safe_load(Path(values['controllers_params_file']).read_text())
             reference = config[WB_ID]['ros__parameters']['ocs2']['reference']
             self.assertEqual(reference['defaultBaseHeight'], height)
-            self.assertEqual(float(values['guiRefBaseHeight']), height)
-            self.assertEqual(float(values['guiMinBaseHeight']), reference['minBaseHeight'])
-            self.assertEqual(float(values['guiMaxBaseHeight']), reference['maxBaseHeight'])
+            self.assertEqual(float(values['gui_ref_base_height']), height)
+            self.assertEqual(float(values['gui_min_base_height']), reference['minBaseHeight'])
+            self.assertEqual(float(values['gui_max_base_height']), reference['maxBaseHeight'])
             self.assertAlmostEqual(reference['minBaseHeight'], height - .4)
             self.assertAlmostEqual(reference['maxBaseHeight'], height + .4)
-            for mode, argument in (('stair_climbing', 'stairClimbingFile'), ('terrain_walking', 'terrainWalkingFile')):
+            for mode, argument in (('stair_climbing', 'stair_climbing_file'), ('terrain_walking', 'terrain_walking_file')):
                 self.assertEqual(Path(values[argument]).parts[-4:], ('config', 'terrains', mode, f'{robot}.yaml'))
                 self.assertTrue(Path(values[argument]).is_file())
-            for argument in ('urdfFile', 'controllersFile', 'initialPoseFile'):
+            for argument in ('urdf_file', 'controllers_file', 'initial_pose_file'):
                 self.assertTrue(Path(values[argument]).is_file())
                 self.assertIn(robot, Path(values[argument]).parts)
-            self.assertEqual(values['libFolder'], f'auto_generated/{robot}')
-            self.assertEqual(values['mujocoModelFile'], 'scene.xml')
-            self.assertEqual(values['refBaseHeight'], '')
-            self.assertEqual(float(values['guiMaxVx']), reference['maxDisplacementVelocityX'])
+            self.assertEqual(values['lib_folder'], f'auto_generated/{robot}')
+            self.assertEqual(values['mujoco_model_file'], 'scene.xml')
+            self.assertEqual(values['ref_base_height'], '')
+            self.assertEqual(float(values['gui_max_vx']), reference['maxDisplacementVelocityX'])
 
     def test_height_override_does_not_modify_the_source_yaml(self):
         for robot in ('g1', 'h2'):
             source = ROOT / 'config' / robot / 'ros2_controllers.yaml'
             before = source.read_bytes()
-            context, description = self.resolve(robot, refBaseHeight='0.9')
+            context, description = self.resolve(robot, ref_base_height='0.9')
             values = context.launch_configurations
-            resolved = yaml.safe_load(Path(values['controllersParamsFile']).read_text())
+            resolved = yaml.safe_load(Path(values['controllers_params_file']).read_text())
             self.assertEqual(resolved[WB_ID]['ros__parameters']['ocs2']['reference']['defaultBaseHeight'], .9)
-            self.assertEqual(float(values['guiRefBaseHeight']), .9)
-            self.assertNotEqual(Path(values['controllersParamsFile']), source)
+            self.assertEqual(float(values['gui_ref_base_height']), .9)
+            self.assertNotEqual(Path(values['controllers_params_file']), source)
             self.assertEqual(source.read_bytes(), before)
 
     def test_upkie_gui_height_range_comes_from_yaml(self):
@@ -78,31 +78,31 @@ class RobotLaunchTest(unittest.TestCase):
         values = context.launch_configurations
         config = yaml.safe_load((ROOT / 'config/upkie/ros2_controllers.yaml').read_text())
         reference = config[WB_ID]['ros__parameters']['ocs2']['reference']
-        self.assertEqual(float(values['guiRefBaseHeight']), reference['defaultBaseHeight'])
-        self.assertEqual((float(values['guiMinBaseHeight']), float(values['guiMaxBaseHeight'])),
+        self.assertEqual(float(values['gui_ref_base_height']), reference['defaultBaseHeight'])
+        self.assertEqual((float(values['gui_min_base_height']), float(values['gui_max_base_height'])),
                          (reference['minBaseHeight'], reference['maxBaseHeight']))
-        context, _ = self.resolve('upkie', refBaseHeight='0.28')
-        self.assertEqual(float(context.launch_configurations['guiRefBaseHeight']), .28)
-        self.assertEqual(float(context.launch_configurations['guiMaxBaseHeight']), reference['maxBaseHeight'])
+        context, _ = self.resolve('upkie', ref_base_height='0.28')
+        self.assertEqual(float(context.launch_configurations['gui_ref_base_height']), .28)
+        self.assertEqual(float(context.launch_configurations['gui_max_base_height']), reference['maxBaseHeight'])
         with self.assertRaisesRegex(ValueError, 'outside'):
-            self.resolve('upkie', refBaseHeight='0.38')
+            self.resolve('upkie', ref_base_height='0.38')
 
     def test_command_frame_comes_from_yaml(self):
         context, _ = self.resolve('upkie')
         values = context.launch_configurations
-        self.assertEqual(values['commandFrame'], 'base_forward')
-        self.assertAlmostEqual(float(values['commandFrameYaw']), 3.141592653589793)
+        self.assertEqual(values['command_frame'], 'base_forward')
+        self.assertAlmostEqual(float(values['command_frame_yaw']), 3.141592653589793)
         context, _ = self.resolve('h2')
-        self.assertEqual(context.launch_configurations['commandFrame'], '')
+        self.assertEqual(context.launch_configurations['command_frame'], '')
 
     def test_upkie_starts_kneeling_with_the_planned_stand_up(self):
         # Plain launch: the linear KF drives, the robot spawns kneeling and plays the planned stand-up.
         context, _ = self.resolve('upkie')
         values = context.launch_configurations
-        self.assertEqual((values['floatingBaseSource'], values['floatingBaseEstimator']),
+        self.assertEqual((values['floating_base_source'], values['floating_base_estimator']),
                          ('state_estimator', 'humanoid_linear_kf'))
-        pose = yaml.safe_load(Path(values['initialPoseFile']).read_text())
-        config = yaml.safe_load(Path(values['controllersParamsFile']).read_text())
+        pose = yaml.safe_load(Path(values['initial_pose_file']).read_text())
+        config = yaml.safe_load(Path(values['controllers_params_file']).read_text())
         # Kneeling: spawned below the standing height.
         self.assertLess(pose['upkie_base']['z'], config[WB_ID]['ros__parameters']['ocs2']['reference']['defaultBaseHeight'])
         stand_up = Path(config[WB_ID]['ros__parameters']['bringUp']['standUpTrajectoryFile'])
@@ -113,13 +113,13 @@ class RobotLaunchTest(unittest.TestCase):
         # As Upkie: the linear KF drives, the robot spawns seated and plays the planned stand-up.
         context, _ = self.resolve('pineapple')
         values = context.launch_configurations
-        self.assertEqual((values['floatingBaseSource'], values['floatingBaseEstimator']),
+        self.assertEqual((values['floating_base_source'], values['floating_base_estimator']),
                          ('state_estimator', 'humanoid_linear_kf'))
         self.assertEqual(values['gt_body_frame'], 'base_link')
-        self.assertEqual(values['commandFrame'], '')
-        self.assertEqual(values['postureController'], '/' + WB_ID)
-        pose = yaml.safe_load(Path(values['initialPoseFile']).read_text())
-        config = yaml.safe_load(Path(values['controllersParamsFile']).read_text())[WB_ID]['ros__parameters']
+        self.assertEqual(values['command_frame'], '')
+        self.assertEqual(values['posture_controller'], '/' + WB_ID)
+        pose = yaml.safe_load(Path(values['initial_pose_file']).read_text())
+        config = yaml.safe_load(Path(values['controllers_params_file']).read_text())[WB_ID]['ros__parameters']
         reference = config['ocs2']['reference']
         self.assertLess(pose['pineapple_base']['z'], reference['minBaseHeight'])
         stand_up = Path(config['bringUp']['standUpTrajectoryFile'])
@@ -134,8 +134,8 @@ class RobotLaunchTest(unittest.TestCase):
 
     def test_scene_path_remains_unrestricted(self):
         for robot in ('g1', 'h2'):
-            context, description = self.resolve(robot, mujocoModelFile='/tmp/my_scene.xml')
-            self.assertEqual(context.launch_configurations['mujocoModelFile'], '/tmp/my_scene.xml')
+            context, description = self.resolve(robot, mujoco_model_file='/tmp/my_scene.xml')
+            self.assertEqual(context.launch_configurations['mujoco_model_file'], '/tmp/my_scene.xml')
             self.assertFalse(any(isinstance(action, DeclareLaunchArgument) and action.name == 'environmentDescription'
                                  for action in description.entities))
 
@@ -167,20 +167,28 @@ class RobotLaunchTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'controllers.yaml'
             path.write_text(yaml.safe_dump(config, sort_keys=False))
-            context, description = self.resolve('h2', controllersFile=str(path))
-            self.assertEqual(float(context.launch_configurations['guiRefBaseHeight']), .98)
+            context, description = self.resolve('h2', controllers_file=str(path))
+            self.assertEqual(float(context.launch_configurations['gui_ref_base_height']), .98)
 
     def test_controller_selection_and_invalid_inputs(self):
         for robot in ('g1', 'h2', 'upkie', 'pineapple'):
             _, description = self.resolve(robot)
             argument = next(action for action in description.entities
-                            if isinstance(action, DeclareLaunchArgument) and action.name == 'mpcControllerName')
+                            if isinstance(action, DeclareLaunchArgument) and action.name == 'mpc_controller_name')
             self.assertEqual(list(argument.choices), [WB_ID])
         with self.assertRaisesRegex(ValueError, 'Mid-360'):
-            self.resolve('h2', enableLidar='true')
+            self.resolve('h2', enable_lidar='true')
         for height in ('nan', 'inf', '0', '-1'):
             with self.assertRaisesRegex(ValueError, 'finite and positive'):
-                self.resolve('h2', refBaseHeight=height)
+                self.resolve('h2', ref_base_height=height)
+
+    def test_arguments_are_snake_case_and_old_names_are_rejected(self):
+        _, description = self.resolve('upkie')
+        names = [action.name for action in description.entities if isinstance(action, DeclareLaunchArgument)]
+        self.assertEqual([name for name in names if name != name.lower()], [])
+        # ros2 launch accepts undeclared names silently: robotName:=upkie would otherwise start G1.
+        with self.assertRaisesRegex(ValueError, 'robotName:= -> robot_name:='):
+            self.resolve('upkie', robotName='upkie')
 
     def test_model_error_file_is_a_name_under_config_or_a_path(self):
         from ament_index_python.packages import get_package_share_directory
@@ -188,14 +196,14 @@ class RobotLaunchTest(unittest.TestCase):
         template = share / 'config/model_error/template.yaml'
         self.assertEqual(yaml.safe_load(template.read_text())['model_error'], {'seed': 0})  # as shipped: no error
         context, _ = self.resolve('upkie')
-        self.assertEqual(context.launch_configurations['modelErrorPath'], '')  # the nominal plant
-        context, _ = self.resolve('upkie', modelErrorFile='template.yaml')
-        self.assertEqual(context.launch_configurations['modelErrorPath'], str(template))
+        self.assertEqual(context.launch_configurations['model_error_path'], '')  # the nominal plant
+        context, _ = self.resolve('upkie', model_error_file='template.yaml')
+        self.assertEqual(context.launch_configurations['model_error_path'], str(template))
         with tempfile.NamedTemporaryFile(suffix='.yaml') as stream:
-            context, _ = self.resolve('upkie', modelErrorFile=stream.name)
-            self.assertEqual(context.launch_configurations['modelErrorPath'], stream.name)
+            context, _ = self.resolve('upkie', model_error_file=stream.name)
+            self.assertEqual(context.launch_configurations['model_error_path'], stream.name)
         with self.assertRaises(ValueError):
-            self.resolve('upkie', modelErrorFile='missing.yaml')
+            self.resolve('upkie', model_error_file='missing.yaml')
 
 
 if __name__ == '__main__':

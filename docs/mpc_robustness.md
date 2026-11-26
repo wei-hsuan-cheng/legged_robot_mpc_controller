@@ -28,7 +28,7 @@ element from the seed) or `{value: v}` (an absolute value):
 
 ```yaml
 model_error:
-  seed: 0                                   # the launch argument modelErrorSeed overrides it when >= 0
+  seed: 0                                   # the launch argument model_error_seed overrides it when >= 0
   inertia:                                  # every body but the world; optional bodies: [...] or exclude: [...]
     mass: {uniform: [-0.2, 0.2]}
     com: {uniform: [-0.2, 0.2]}             # CoM shift per axis, relative to the body's radius of gyration
@@ -65,17 +65,17 @@ blending masses, CoM, inertias, frictions and delays in over the ramp (a blend o
 derived constants are recomputed every step of the blend). `wb_id_walk_test.py --model-error-onset` calls it at the MPC
 takeover, so a start-up the study is not about (Upkie's open-loop planned stand-up) always runs on the nominal plant.
 
-Launch arguments of `robot.launch.py`: `modelErrorFile` (a name under `config/model_error/` or an absolute path;
-empty, the default, is the nominal plant), `modelErrorSeed` and
-`modelErrorReport` (a JSON of every realized value: per-body mass, CoM and inertia before and after, per-joint friction,
+Launch arguments of `robot.launch.py`: `model_error_file` (a name under `config/model_error/` or an absolute path;
+empty, the default, is the nominal plant), `model_error_seed` and
+`model_error_report` (a JSON of every realized value: per-body mass, CoM and inertia before and after, per-joint friction,
 contact friction range, total mass).
 Each quantity draws from its own random stream, so enabling one error does not change the draws of another.
 [`config/model_error/template.yaml`](../config/model_error/template.yaml) lists every entry, commented out; as shipped
 it is the zero-error case (only the seed), so copy it and uncomment what to apply:
 
 ```bash
-ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=upkie mpcFreq:=200 \
-  modelErrorFile:=my_error.yaml modelErrorSeed:=0 modelErrorReport:=/tmp/model_error.json
+ros2 launch legged_robot_mpc_controller robot.launch.py robot_name:=upkie mpc_freq:=200 \
+  model_error_file:=my_error.yaml model_error_seed:=0 model_error_report:=/tmp/model_error.json
 ```
 
 ## Sweep

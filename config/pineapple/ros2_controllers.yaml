@@ -1,6 +1,6 @@
 controller_manager:
   ros__parameters:
-    update_rate: $(var mrtFreq)
+    update_rate: $(var mrt_freq)
 
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
@@ -12,13 +12,13 @@ controller_manager:
       type: legged_robot_mpc_controller/HumanoidWholeBodyInverseDynamicsMpcController
 
 
-# Wheel-aware two-stage linear KF (floatingBaseEstimator:=humanoid_linear_kf), Upkie's setup: attitude from the IMU;
+# Wheel-aware two-stage linear KF (floating_base_estimator:=humanoid_linear_kf), Upkie's setup: attitude from the IMU;
 # each tire measures the base velocity (tread material at rest) and height (lowest tire point on the plane z = 0).
 # It initialises while the robot sits on its base and tires, then drives the planned stand-up and the MPC.
 humanoid_linear_kf:
   ros__parameters:
-    update_rate: $(var mrtFreq)
-    urdfFile: $(var urdfFile)
+    update_rate: $(var mrt_freq)
+    urdfFile: $(var urdf_file)
     baseFrame: base_link
     jointNames: [L_hip_joint, L_thigh_joint, L_calf_joint, L_wheel_joint,
                  R_hip_joint, R_thigh_joint, R_calf_joint, R_wheel_joint]
@@ -60,17 +60,17 @@ humanoid_linear_kf:
 
 # Pineapple wheel-legged robot: Upkie's WB-ID MPC with rolling-wheel contacts (docs/pineapple.md), plus a hip ab/ad
 # joint per leg; the 6-DOF arm is locked out of the MPC and held stowed at zero.
-# Estimated base: floatingBaseSource:=state_estimator floatingBaseEstimator:=humanoid_linear_kf (the default),
+# Estimated base: floating_base_source:=state_estimator floating_base_estimator:=humanoid_linear_kf (the default),
 # starting seated with the planned stand-up, as Upkie. Ground-truth base from a standing spawn:
-# floatingBaseSource:=ground_truth_state initialPoseFile:=<share>/config/pineapple/initial_pose_standing.yaml and
+# floating_base_source:=ground_truth_state initial_pose_file:=<share>/config/pineapple/initial_pose_standing.yaml and
 # bringUp.standUpTrajectoryFile empty.
 humanoid_whole_body_inverse_dynamics_mpc_controller:
   ros__parameters:
-    update_rate: $(var mrtFreq)
+    update_rate: $(var mrt_freq)
 
     paths:
-      urdfFile: $(var urdfFile)
-      libFolder: $(var libFolder)
+      urdfFile: $(var urdf_file)
+      libFolder: $(var lib_folder)
       # Wheel radius, half width, tire centre and axle: the shared geometry file, also read by the estimator. It
       # supplies ocs2.constraints.wheelContact.radius/axleAxis and ocs2.model.contactGeometry.frameTranslation, and
       # the controller refuses a posture table generated for other geometry.
@@ -109,8 +109,8 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
       contactSensorNames: [left_wheel_contact, right_wheel_contact]
 
     floatingBase:
-      source: $(var floatingBaseSource)
-      estimator: $(var floatingBaseEstimator)
+      source: $(var floating_base_source)
+      estimator: $(var floating_base_estimator)
       stateInterfaceName: base
       imuInterfaceName: base_imu
       imuFrame: imu
@@ -169,8 +169,8 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
 
       mpc:
         solverType: sqp
-        mpcDesiredFrequency: $(var mpcFreq)
-        mrtDesiredFrequency: $(var mrtFreq)
+        mpcDesiredFrequency: $(var mpc_freq)
+        mrtDesiredFrequency: $(var mrt_freq)
         timeHorizon: 1.0
         solutionTimeWindow: -1.0
         coldStart: false

@@ -20,7 +20,7 @@ Usage (scene paths are relative to description/mujoco/robots/<robot-name>):
 The default run updates the shared common/backgrounds/background_night.xml. Appearance overrides write
 an output-specific background module. Preview rendering needs the mujoco Python
 package; XML/texture generation uses only the standard library. Select the scene
-with robot.launch.py robotName:=g1 mujocoModelFile:=scene.xml (or robotName:=h2).
+with robot.launch.py robot_name:=g1 mujoco_model_file:=scene.xml (or robot_name:=h2).
 """
 
 import argparse

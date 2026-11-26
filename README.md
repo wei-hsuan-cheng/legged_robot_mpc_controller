@@ -94,7 +94,7 @@ colcon build --symlink-install \
 
 ## Robots and Launch
 
-| Robot | `robotName` | Actuated / MPC joints | Nominal base height | Details |
+| Robot | `robot_name` | Actuated / MPC joints | Nominal base height | Details |
 | --- | --- | --- | --- | --- |
 | Unitree G1 | `g1` | 29 / 23 (wrists fixed) | 0.795 m (pelvis) | [WB-ID MPC](./docs/humanoid_whole_body_inverse_dynamics_mpc.md), [running](./docs/wb_id_running.md) |
 | Unitree H2 | `h2` | 31 / 25 (wrists fixed) | 1.02 m (pelvis) | [H2 integration](./docs/h2_wb_id_mpc.md), [model source](./description/urdf/robots/h2/MODEL_SOURCE.md) |
@@ -102,10 +102,10 @@ colcon build --symlink-install \
 | Pineapple (wheel-legged) | `pineapple` | 14 / 8 (arm stowed) | 0.36 m (base) | [Pineapple](./docs/pineapple.md) |
 
 ```bash
-ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=g1 mpcFreq:=90
-ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=h2 mpcFreq:=80
-ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=upkie mpcFreq:=200
-ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=pineapple mpcFreq:=200
+ros2 launch legged_robot_mpc_controller robot.launch.py robot_name:=g1 mpc_freq:=90
+ros2 launch legged_robot_mpc_controller robot.launch.py robot_name:=h2 mpc_freq:=80
+ros2 launch legged_robot_mpc_controller robot.launch.py robot_name:=upkie mpc_freq:=200
+ros2 launch legged_robot_mpc_controller robot.launch.py robot_name:=pineapple mpc_freq:=200
 ```
 
 The first launch of each robot generates and compiles its CppAD libraries (several minutes); later launches load them from the cache.
@@ -116,48 +116,48 @@ The first launch of each robot generates and compiles its CppAD libraries (sever
 
 ### Launch arguments
 
-Common to every robot; defaults follow `robotName`, and file paths are relative to the package share.
+Common to every robot; defaults follow `robot_name`, and file paths are relative to the package share.
 
 ```bash
 # Robot and control
-robotName:=g1 | h2 | upkie | pineapple
-mpcFreq:=100                          # MPC rate [Hz], integer
-mrtFreq:=1000                         # MRT rate [Hz], integer
-refBaseHeight:=<m>                    # empty: ocs2.reference.defaultBaseHeight from the controller YAML
-baseCommandDevice:=gui | joystick | none   # one command source; none for scripted commands
-floatingBaseSource:=state_estimator | ground_truth_state   # ground truth: simulation debugging only
-floatingBaseEstimator:=humanoid_linear_kf | humanoid_inekf | none
-mpcControllerName:=humanoid_whole_body_inverse_dynamics_mpc_controller   # the only controller
-spawnMpcController:=true | false      # false: environment smoke test; the robot will not balance
+robot_name:=g1 | h2 | upkie | pineapple
+mpc_freq:=100                               # MPC rate [Hz], integer
+mrt_freq:=1000                              # MRT rate [Hz], integer
+ref_base_height:=<m>                        # empty: ocs2.reference.defaultBaseHeight from the controller YAML
+base_command_device:=gui | joystick | none  # one command source; none for scripted commands
+floating_base_source:=state_estimator | ground_truth_state  # ground truth: simulation debugging only
+floating_base_estimator:=humanoid_linear_kf | humanoid_inekf | none
+mpc_controller_name:=humanoid_whole_body_inverse_dynamics_mpc_controller  # the only controller
+spawn_mpc_controller:=true | false          # false: environment smoke test; the robot will not balance
 
 # Files
-controllersFile:=config/<robotName>/ros2_controllers.yaml
-initialPoseFile:=config/<robotName>/initial_pose.yaml   # Upkie kneels, Pineapple sits
-urdfFile:=description/urdf/robots/<robotName>/<model>.urdf
-libFolder:=auto_generated/<robotName>                   # CppAD cache, relative to the launch directory
-stairClimbingFile:=config/terrains/stair_climbing/<robotName>.yaml
-terrainWalkingFile:=config/terrains/terrain_walking/<robotName>.yaml
+controllers_file:=config/<robot_name>/ros2_controllers.yaml
+initial_pose_file:=config/<robot_name>/initial_pose.yaml  # Upkie kneels, Pineapple sits
+urdf_file:=description/urdf/robots/<robot_name>/<model>.urdf
+lib_folder:=auto_generated/<robot_name>     # CppAD cache, relative to the launch directory
+stair_climbing_file:=config/terrains/stair_climbing/<robot_name>.yaml
+terrain_walking_file:=config/terrains/terrain_walking/<robot_name>.yaml
 
 # Simulation
-mujocoModelFile:=scene.xml            # a scene in description/mujoco/robots/<robotName>/, or an absolute path
+mujoco_model_file:=scene.xml                # a scene in description/mujoco/robots/<robot_name>/, or an absolute path
 mujoco_headless:=false | true
-mujoco_wait_to_start:=true | false    # paused start + /mujoco_ros2_control/start service
+mujoco_wait_to_start:=true | false          # paused start + /mujoco_ros2_control/start service
 mujoco_real_time_factor:=1.0
 mujoco_publish_rate:=100.0
-use_mujoco_sim:=true | false          # false: plain ros2_control_node
-use_fake_hardware:=false | true       # mock_components/GenericSystem when not using MuJoCo
-ros2ControlCommandInterface:=effort_pd | effort | position   # position: G1 and H2 only
-mujocoEffortCommandMode:=actuator | qfrc_applied             # qfrc_applied bypasses actuator force limits
-gt_enabled:=true | false              # ground-truth base odometry for visualization and logging
-gt_body_frame:=<body>                 # pelvis (G1, H2), base (Upkie), base_link (Pineapple)
-enableLidar:=false | true             # simulated Livox Mid-360 on /livox/lidar (G1 only)
-modelErrorFile:=<name or path>        # plant modeling error YAML, e.g. template.yaml in config/model_error/
-modelErrorSeed:=-1                    # >= 0 overrides the file's seed
-modelErrorReport:=<path>              # JSON of the realized errors
+use_mujoco_sim:=true | false                # false: plain ros2_control_node
+use_fake_hardware:=false | true             # mock_components/GenericSystem when not using MuJoCo
+ros2_control_command_interface:=effort_pd | effort | position  # position: G1 and H2 only
+mujoco_effort_command_mode:=actuator | qfrc_applied  # qfrc_applied bypasses actuator force limits
+gt_enabled:=true | false                    # ground-truth base odometry for visualization and logging
+gt_body_frame:=<body>                       # pelvis (G1, H2), base (Upkie), base_link (Pineapple)
+enable_lidar:=false | true                  # simulated Livox Mid-360 on /livox/lidar (G1 only)
+model_error_file:=<name or path>            # plant modeling error YAML, e.g. template.yaml in config/model_error/
+model_error_seed:=-1                        # >= 0 overrides the file's seed
+model_error_report:=<path>                  # JSON of the realized errors
 
 # Visualization
 rviz:=true | false
-rvizconfig:=config/rviz/humanoid.rviz
+rviz_config:=config/rviz/humanoid.rviz
 ```
 
 The model-error arguments perturb only the simulated plant (inertia, friction, ground patches, delays); see the [robustness study](./docs/mpc_robustness.md).
@@ -167,7 +167,7 @@ The model-error arguments perturb only the simulated plant (inertia, friction, g
 
 ### GUI and DualSense gamepad
 
-The GUI (`baseCommandDevice:=gui`, default) and the separate [`legged_robot_teleop`](https://github.com/wei-hsuan-cheng/legged_robot_teleop) package (`baseCommandDevice:=joystick`) publish the same base velocity and height command; run only one of them.
+The GUI (`base_command_device:=gui`, default) and the separate [`legged_robot_teleop`](https://github.com/wei-hsuan-cheng/legged_robot_teleop) package (`base_command_device:=joystick`) publish the same base velocity and height command; run only one of them.
 
 - Release L2 and center both sticks, then hold L2 to drive: left stick forward/sideways, right stick yaw, D-pad up/down height.
 - Release L2 to stop; L1 with L2 released centers (zero velocity, nominal height).
@@ -176,7 +176,7 @@ The GUI (`baseCommandDevice:=gui`, default) and the separate [`legged_robot_tele
 
 ### Scripted commands
 
-Launch with `baseCommandDevice:=none`, then:
+Launch with `base_command_device:=none`, then:
 
 ```bash
 # Base twist (desired_pelvis_height is G1's)
@@ -204,7 +204,7 @@ ros2 topic pub --once /humanoid/mpc_targets ocs2_msgs/msg/MpcTargets "{command_t
 
 ## Scenes and Terrains
 
-Each robot's `scene.xml` is flat ground; pick another scene with `mujocoModelFile`.
+Each robot's `scene.xml` is flat ground; pick another scene with `mujoco_model_file`.
 The shared uneven terrain is generated from [`uneven_terrain_params.yaml`](./config/terrains/uneven_terrain_params.yaml) by `description/mujoco/terrains/generate_uneven_terrain.py` (MuJoCo and RViz geometry; [details](./config/terrains/README.md#uneven-terrain)).
 Wheeled robots use the [small-wheel terrain profiles](./config/terrains/upkie/README.md).
 Terrain is environment only: no terrain map is given to the MPC.

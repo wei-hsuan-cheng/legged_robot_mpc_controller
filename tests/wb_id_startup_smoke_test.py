@@ -40,10 +40,10 @@ def main():
     log_path = Path(str(args.prefix) + ".log")
     scene = write_scene(Path(str(args.prefix) + "_scene.xml"))
     command = [
-        "ros2", "launch", "legged_robot_mpc_controller", "robot.launch.py", "robotName:=g1",
-        "mpcControllerName:=humanoid_whole_body_inverse_dynamics_mpc_controller",
-        "mpcFreq:=100", "mrtFreq:=1000", f"mujocoModelFile:={scene}",
-        "rviz:=false", "mujoco_headless:=true", "baseCommandDevice:=none",
+        "ros2", "launch", "legged_robot_mpc_controller", "robot.launch.py", "robot_name:=g1",
+        "mpc_controller_name:=humanoid_whole_body_inverse_dynamics_mpc_controller",
+        "mpc_freq:=100", "mrt_freq:=1000", f"mujoco_model_file:={scene}",
+        "rviz:=false", "mujoco_headless:=true", "base_command_device:=none",
     ]
     failures = (
         "Traceback (most recent call last)", "while initializing controller",

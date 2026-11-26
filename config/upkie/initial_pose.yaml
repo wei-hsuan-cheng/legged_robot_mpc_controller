@@ -1,4 +1,4 @@
-# Upkie's spawn pose (robot.launch.py's default initialPoseFile): kneeling idle. Spawned upright with these joints,
+# Upkie's spawn pose (robot.launch.py's default initial_pose_file): kneeling idle. Spawned upright with these joints,
 # the robot settles forward onto its knee-motor housings and both wheels, and the planned stand-up
 # (stand_up_trajectory.yaml, bringUp.standUpTrajectoryFile) starts from the state it settles into. Spawn height from
 # plan_stand_up.py (lowest collision bounding sphere 1 cm above the floor). See docs/wheeled_biped_handoff.md.

@@ -3,15 +3,15 @@
 # block to apply it, or copy the file next to it under another name. It works for every robot: bodies and joints are
 # all selected unless named (MJCF names).
 #
-#   ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=upkie mpcFreq:=200 \
-#     modelErrorFile:=template.yaml modelErrorSeed:=0 modelErrorReport:=/tmp/model_error.json
+#   ros2 launch legged_robot_mpc_controller robot.launch.py robot_name:=upkie mpc_freq:=200 \
+#     model_error_file:=template.yaml model_error_seed:=0 model_error_report:=/tmp/model_error.json
 #
-# modelErrorFile: a name under config/model_error/ or an absolute path; empty (the default) is the nominal plant.
-# modelErrorReport (optional): a JSON of every realized value. Each value below is a number (a fixed relative change,
+# model_error_file: a name under config/model_error/ or an absolute path; empty (the default) is the nominal plant.
+# model_error_report (optional): a JSON of every realized value. Each value below is a number (a fixed relative change,
 # x -> x (1 + value)), {uniform: [lo, hi]} (a relative change drawn per element from the seed) or {value: v} (an
 # absolute value). Reference: mujoco_ros2_control include/mujoco_ros2_control/model_error.hpp, docs/mpc_robustness.md.
 model_error:
-  seed: 0                                  # the draws; modelErrorSeed overrides it when >= 0
+  seed: 0                                  # the draws; model_error_seed overrides it when >= 0
 
   # Inertia of every body but the world; bodies: [...] or exclude: [...] to select.
   # inertia:

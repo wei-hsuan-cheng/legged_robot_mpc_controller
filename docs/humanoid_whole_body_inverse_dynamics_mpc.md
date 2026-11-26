@@ -37,7 +37,7 @@ flowchart TB
 
 The solver runs asynchronously at the requested MPC frequency, while ros2_control evaluates the latest policy at the MRT/control frequency.
 The body-state feedback comes from the contact-aided InEKF estimate.
-For simulation debugging, `floatingBaseSource:=ground_truth_state` can replace estimator feedback with GT, but this bypass is not available for real-world deployment.
+For simulation debugging, `floating_base_source:=ground_truth_state` can replace estimator feedback with GT, but this bypass is not available for real-world deployment.
 The execution path uses the optimized joint torques and low-level PD tracking directly.
 Requested rates are scheduling targets, so policy age matters when a solve runs slowly.
 During startup, valid observations continue to reach MPC while the joint servo holds the standing posture.

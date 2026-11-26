@@ -184,10 +184,10 @@ def main():
     scene = write_scene(Path(str(prefix) + "_scene.xml"), args.robot_name, args.terrain)
 
     launch = ["ros2", "launch", "legged_robot_mpc_controller", "robot.launch.py",
-              f"robotName:={args.robot_name}", f"mpcControllerName:={CONTROLLER}", f"mujocoModelFile:={scene}",
-              "rviz:=false", "mujoco_headless:=true", "baseCommandDevice:=none",
-              "floatingBaseSource:=state_estimator", f"floatingBaseEstimator:={args.estimator}",
-              f"mpcFreq:={args.mpc_rate}", "mrtFreq:=1000", f"controllersFile:={config_path}"]
+              f"robot_name:={args.robot_name}", f"mpc_controller_name:={CONTROLLER}", f"mujoco_model_file:={scene}",
+              "rviz:=false", "mujoco_headless:=true", "base_command_device:=none",
+              "floating_base_source:=state_estimator", f"floating_base_estimator:={args.estimator}",
+              f"mpc_freq:={args.mpc_rate}", "mrt_freq:=1000", f"controllers_file:={config_path}"]
     result = {key: (str(value) if isinstance(value, Path) else value) for key, value in vars(args).items()}
     result.update(minutes=[], verdict="TIMEOUT")
     log_path = Path(str(prefix) + ".log")

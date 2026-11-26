@@ -514,7 +514,7 @@ Upkie supports forward driving, differential turning and leg-length height adjus
 The GUI still accepts a nonzero lateral command without a wheel-specific rejection, so keep $c_y=0$.
 The GUI's absolute height slider and outgoing height clamp use `minBaseHeight`/`maxBaseHeight` from the selected controller YAML, with the reset mark at `defaultBaseHeight`.
 For Upkie this is $[0.22,0.33]\ \mathrm{m}$ with the reset at $0.30\ \mathrm{m}$; the endpoint labels show the same range, which the posture table must cover.
-Changing `refBaseHeight` moves the reset value only, and the launch rejects a value outside the range.
+Changing `ref_base_height` moves the reset value only, and the launch rejects a value outside the range.
 Configured command maxima are not validated stability limits.
 
 
@@ -820,7 +820,7 @@ Rebuild `mujoco_ros2_control` as well as this package when adopting the correcte
 | Observation, execution, stand-up and tracking diagnostics | [controller.cpp](../src/controller/controller.cpp) |
 
 The handoff preserves the earlier 100 Hz flat-drive/push checkpoint and records the selected balance-first weights tested at requested MPC 200 Hz.
-Use `mpcFreq:=200 mrtFreq:=1000` for the current Upkie examples; measured VM rates are typically about 190-192 Hz, not a guaranteed exact 200 Hz.
+Use `mpc_freq:=200 mrt_freq:=1000` for the current Upkie examples; measured VM rates are typically about 190-192 Hz, not a guaranteed exact 200 Hz.
 The selected weights passed 0.26-0.34 m height steps, a 2-degree ramp, a low uneven field and a 10 mm unequal-wheel-support test while changing height.
 At a 0.34 m request, the selected configuration accepts about 9.93 mm of steady height error, versus the original 33.11 mm; a weaker-posture candidate tracked height more accurately but severely undertracked turns and is not retained.
 The final 1.5 rad/s turning trial averaged 1.146 rad/s with peak pitch/roll below 0.004 rad.

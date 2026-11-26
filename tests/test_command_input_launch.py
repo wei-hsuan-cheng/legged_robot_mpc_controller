@@ -27,7 +27,7 @@ def test_only_one_base_command_source(device):
         a for a in description.entities if isinstance(a, IncludeLaunchDescription)
     )
     context = LaunchContext()
-    context.launch_configurations.update(baseCommandDevice=device)
+    context.launch_configurations.update(base_command_device=device)
     gui_enabled = gui_node.condition.evaluate(context)
     teleop_enabled = teleop_include.condition.evaluate(context)
     assert not (gui_enabled and teleop_enabled)

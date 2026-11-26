@@ -30,10 +30,10 @@ cd /root/ocs2_ros2_ws
 source install/setup.bash
 python3 src/legged_robot_mpc_controller/tests/mujoco_scene.py \
   --robot-name upkie --terrain upkie_ramp --output /tmp/upkie_terrain_scene.xml
-ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=upkie \
-  floatingBaseSource:=ground_truth_state floatingBaseEstimator:=none \
-  mpcFreq:=200 mrtFreq:=1000 mujocoModelFile:=/tmp/upkie_terrain_scene.xml \
-  rviz:=true mujoco_headless:=false baseCommandDevice:=gui
+ros2 launch legged_robot_mpc_controller robot.launch.py robot_name:=upkie \
+  floating_base_source:=ground_truth_state floating_base_estimator:=none \
+  mpc_freq:=200 mrt_freq:=1000 mujoco_model_file:=/tmp/upkie_terrain_scene.xml \
+  rviz:=true mujoco_headless:=false base_command_device:=gui
 ```
 
 For a scripted pass/fail run instead, the harness launches the simulator itself, drives the command profile and writes `PREFIX.json` (verdict, max roll/pitch, mean speeds) plus tracking/solver CSVs.

@@ -14,7 +14,7 @@ model; full design, usage and results: [MPC Robustness to Modeling Errors](mpc_r
 - `mujoco_ros2_control`: `model_error.{hpp,cpp}`; the node reads `model_error_file` / `model_error_seed` /
   `model_error_report` and perturbs the compiled model in memory (inertia, joint friction, contact friction, ground
   friction patches through `mjSpec`), then `mj_setConst`. One nominal MJCF, no generated model files.
-- This repository: `robot.launch.py` arguments `modelErrorFile`, `modelErrorSeed`, `modelErrorReport`;
+- This repository: `robot.launch.py` arguments `model_error_file`, `model_error_seed`, `model_error_report`;
   `tests/robustness_sweep.py` (seeded command set, sources expanded per level, k runs per point, resume, progress log,
   summary and plot); `config/robustness/upkie.yaml`; `tests/tuning/plot_robustness.py`; `tests/wb_id_walk_test.py`
   gained object entries with vy in `--command-sequence` and ends a run at once when the stand-up latches a fall.
@@ -35,7 +35,7 @@ model; full design, usage and results: [MPC Robustness to Modeling Errors](mpc_r
   (`blend_model`, `mj_setConst` each step); `wb_id_walk_test.py --model-error-onset` calls it at the MPC takeover, and
   a sweep's `model_error_onset: {ramp: s}` adds both. This keeps Upkie's open-loop stand-up on the nominal plant.
 - `config/model_error/template.yaml`: every entry, commented out (as shipped the zero-error case); `robot.launch.py
-  modelErrorFile:=<name>` finds a file there (a new file needs a rebuild to be installed), or takes a path.
+  model_error_file:=<name>` finds a file there (a new file needs a rebuild to be installed), or takes a path.
 - Sweep runner: `extends:` (a sweep on top of another), `select:` / `--settings` by setting or source, `--widen W`
   (points whose 95 % interval is wider than W get twice the runs, same command set), `variants:` (solver overlays into
   `<output>/<variant>/`, `comparison.png` over a `baseline:` sweep); `plot_robustness.py` overlays several summaries.
@@ -364,9 +364,9 @@ ffmpeg -i demo_videos/upkie_course/upkie_course.mp4 -vf "trim=start_frame=93,set
 
 ## Default Bring-up: Kneeling Spawn, Stand-up, Linear KF (2026-11-15, Claude)
 
-A plain `ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=upkie mpcFreq:=200` now spawns Upkie kneeling, initialises the linear KF there, plays the planned stand-up and hands over to the MPC, with no ground truth in control.
+A plain `ros2 launch legged_robot_mpc_controller robot.launch.py robot_name:=upkie mpc_freq:=200` now spawns Upkie kneeling, initialises the linear KF there, plays the planned stand-up and hands over to the MPC, with no ground truth in control.
 `config/upkie/initial_pose.yaml` is the kneeling idle pose (the former `initial_pose_idle.yaml`; the standing pose file is gone, its joint values remain the YAML's `defaultJointState`), and the Upkie YAML sets `bringUp.standUpTrajectoryFile` to `$(find-pkg-share legged_robot_mpc_controller)/config/upkie/stand_up_trajectory.yaml`.
-The launch file is unchanged; `floatingBaseSource` and `floatingBaseEstimator` already defaulted to `state_estimator` and `humanoid_linear_kf`.
+The launch file is unchanged; `floating_base_source` and `floating_base_estimator` already defaulted to `state_estimator` and `humanoid_linear_kf`.
 Scripts no longer pass the stand-up arguments; `upkie_acceptance_suite.sh` now starts kneeling too, with `--minimum-height 0.05` for the catch at about 0.09 m.
 Verified with a plain headless launch: kneeling spawn at 0.1346 m, idle, standing up, blend, locomotion, standing at 0.300 m on the estimate, MPC about 190 Hz; `tests/test_robot_launch.py` covers the defaults.
 
@@ -606,7 +606,7 @@ python3 src/legged_robot_mpc_controller/tests/tuning/compare_upkie_estimate.py /
 python3 src/legged_robot_mpc_controller/tests/tuning/analyze_upkie_flight.py /tmp/upkie_jump_est --plot
 ```
 
-Interactive: the plain launch (`robotName:=upkie mpcFreq:=200`) spawns kneeling, stands up and runs on the linear KF; request a gait with `ros2 topic pub --once /humanoid/gait_command std_msgs/String "{data: jump}"` and release it with `"{data: ''}"`.
+Interactive: the plain launch (`robot_name:=upkie mpc_freq:=200`) spawns kneeling, stands up and runs on the linear KF; request a gait with `ros2 topic pub --once /humanoid/gait_command std_msgs/String "{data: jump}"` and release it with `"{data: ''}"`.
 A standing spawn cannot run on the estimator: the robot cannot stand unbalanced while the filter initialises, so start from the kneeling idle.
 
 ### Open after this checkpoint
@@ -662,7 +662,7 @@ The joint reference is interpolated at the target height, and commanded heights 
 They are absolute heights above the ground the model assumes, and `defaultBaseHeight` must lie between them.
 They set the GUI slider ends and its published-command clamp, the clamp of position-command heights, and the clamp of the walking command's height in the MPC.
 That clamp acts on the command before its rate limit, so the stand-up handover, which restarts the height ramp at the measured 0.10 m, still ramps up from there; a first version clamped the MPC reference itself, which turned that ramp into a 12 cm step and made the robot fall at the catch.
-The controller refuses to start if a posture table does not cover the range, and the launch refuses a `refBaseHeight` outside it.
+The controller refuses to start if a posture table does not cover the range, and the launch refuses a `ref_base_height` outside it.
 Upkie is 0.22-0.33 m, so the GUI no longer offers the unreachable 0.38 m.
 H2 (0.62-1.42 m) and G1 (0.395-1.195 m) are their former `defaultBaseHeight +/- 0.4`, so their behaviour is unchanged.
 Experiment 1 also set H2's posture ratio (hip 3 / knee 0.1, terminal 6 / 0.2), passed with `--set` and not yet in the YAML.
@@ -880,7 +880,7 @@ Do not pursue exact height/velocity tracking at the cost of losing balance or ad
 Restoring full posture weights 1/2 with height weight 10000 recovered the 1.5 rad/s turn (1.14294 rad/s measured, max pitch/roll 0.00683/0.00292 rad) in `codex_upkie_heighttune_posture1_yaw`, but this high-height-weight candidate is not selected without terrain validation.
 Another rejected candidate used height/pitch/roll 3000/500/2000, hip position 0.05/0.1 (Q/Qf), and the original knee position 1/2.
 Its `codex_upkie_balancefirst_split20` still fell at 10.73 s on the 20 mm one-sided entry, and `codex_upkie_balancefirst_yaw` undertracked at 0.30974 rad/s with another knee-branch reversal; stronger tilt weights with weak hips were not sufficient.
-The user has independently tested smooth driving/turning at requested MPC 200 Hz; use `mpcFreq:=200` in Upkie examples and keep MRT at 1 kHz and physics/PD at 2 kHz.
+The user has independently tested smooth driving/turning at requested MPC 200 Hz; use `mpc_freq:=200` in Upkie examples and keep MRT at 1 kHz and physics/PD at 2 kHz.
 The shared launch still defaults to 100 Hz for other robots; the Upkie documentation and its acceptance suite select 200 explicitly.
 New measurements here target 200 Hz and average about 190-192 Hz on the VM, not a guaranteed exact 200 Hz.
 The historical 100 Hz results and earlier conservative rate advice below are superseded for the current manual-testing recommendation, not rewritten as 200 Hz evidence.
@@ -1203,7 +1203,7 @@ Friction cone and torque/velocity limits are the existing terms.
 | Gait-request topic: hold a named template instead of the velocity ladder (hop/single-support tests) | `target.gaitTopic` (`/humanoid/gait_command`, `std_msgs/String`, empty = ladder) | subscribed, unused unless published |
 | Tracking columns: wheel gap/slip at the contact point, measured wheel normal force and contact | `diagnostics.contactSensorNames`, `~/tracking` | none |
 | Stand-up playback feed-forward clamped like the MPC's | `clamp_torque` | n/a |
-| Upkie in the launch (`robotName:=upkie`, GT body `base`) and test harness (`--robot-name upkie`, `--launch-arg`) | [robot.launch.py](../launch/robot.launch.py), [wb_id_walk_test.py](../tests/wb_id_walk_test.py) | n/a |
+| Upkie in the launch (`robot_name:=upkie`, GT body `base`) and test harness (`--robot-name upkie`, `--launch-arg`) | [robot.launch.py](../launch/robot.launch.py), [wb_id_walk_test.py](../tests/wb_id_walk_test.py) | n/a |
 
 The torque clamp is the same as H2's: the MPC feed-forward is clamped to `jointTorqueLimits` (URDF efforts 16/1.7 N m), the OCP penalises the same limits, and the MuJoCo motors' `ctrlrange` caps the summed PD + feed-forward.
 
@@ -1303,7 +1303,7 @@ In the `ros_jazzy` container, from `/root/ocs2_ros2_ws` (launch from there: the 
 source install/setup.bash
 # 1. Wheel drive with the GUI: kneeling spawn, planned stand-up, linear KF in control (all defaults), MuJoCo and
 #    RViz windows. The MPC takes over about 5 s after the controller starts; GT is only published for comparison.
-ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=upkie mpcFreq:=200
+ros2 launch legged_robot_mpc_controller robot.launch.py robot_name:=upkie mpc_freq:=200
 #    The GUI's forward axis is normalised by maxDisplacementVelocityX (1.0 m/s); keep vy at 0
 #    (a wheeled-biped cannot move sideways). Yaw rate turns by differential wheel speed.
 
@@ -1337,8 +1337,8 @@ MAKEFLAGS=-j2 colcon build --symlink-install --packages-select legged_robot_mpc_
   --cmake-args -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
 source install/setup.bash
 # manual run (standing spawn, ground truth)
-ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=upkie mpcFreq:=200 mrtFreq:=1000 \
-  floatingBaseSource:=ground_truth_state floatingBaseEstimator:=none rviz:=true mujoco_headless:=false
+ros2 launch legged_robot_mpc_controller robot.launch.py robot_name:=upkie mpc_freq:=200 mrt_freq:=1000 \
+  floating_base_source:=ground_truth_state floating_base_estimator:=none rviz:=true mujoco_headless:=false
 # acceptance suite: TAG N [extra harness args]; results /tmp/upkie_<TAG>_{roll,push}_<i>.*
 bash src/legged_robot_mpc_controller/tests/tuning/upkie_acceptance_suite.sh m1 3 \
   --launch-prefix "gdb -batch -ex run -ex bt --args"

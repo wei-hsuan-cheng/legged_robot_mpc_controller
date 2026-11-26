@@ -21,8 +21,8 @@ WB-ID uses a dedicated generated parameter schema.
 The builder maps solver settings at [line 87](../src/controller/config_builder.cpp#L87), gait settings at [line 119](../src/controller/config_builder.cpp#L119) and costs at [line 167](../src/controller/config_builder.cpp#L167).
 The interface validates the Translation + SphericalZYX dimensions at [WbIdMpcInterface.cpp:44](../src/mpc/wb_id/WbIdMpcInterface.cpp#L44).
 The common launch selects the robot URDF at [line 42](../launch/robot.launch.py#L42), the separate RViz environment at [line 46](../launch/robot.launch.py#L46), and the robot-local MuJoCo scene at [line 155](../launch/robot.launch.py#L155).
-The selected controller YAML supplies both MPC and GUI height through [the parameter resolver](../launch/robot.launch.py#L224-L249); `refBaseHeight` remains an optional override of both.
-Scene names passed through `mujocoModelFile` are unchanged by the description-directory reorganization.
+The selected controller YAML supplies both MPC and GUI height through [the parameter resolver](../launch/robot.launch.py#L224-L249); `ref_base_height` remains an optional override of both.
+Scene names passed through `mujoco_model_file` are unchanged by the description-directory reorganization.
 
 
 ## 2. Model and Observation
@@ -34,7 +34,7 @@ Joint velocities are read from the state at [line 102](../include/legged_robot_m
 
 [build_observation():1559](../src/controller/controller.cpp#L1559) combines joint interfaces and floating-base feedback.
 Estimator feedback is read at [line 1515](../src/controller/controller.cpp#L1515).
-For simulation debugging, `floatingBaseSource:=ground_truth_state` can replace estimator feedback with GT, but this bypass is not available for real-world deployment.
+For simulation debugging, `floating_base_source:=ground_truth_state` can replace estimator feedback with GT, but this bypass is not available for real-world deployment.
 Quaternion normalization, yaw unwrapping and angular velocity conversion are at [line 1624](../src/controller/controller.cpp#L1624).
 The optional generalized velocity low-pass is at [line 1645](../src/controller/controller.cpp#L1645).
 `observation.input` is zeroed at [line 1569](../src/controller/controller.cpp#L1569), not filled with measured torques or wrenches.

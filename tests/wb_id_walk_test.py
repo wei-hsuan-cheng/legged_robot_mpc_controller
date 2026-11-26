@@ -205,7 +205,7 @@ def main():
     parser.add_argument("--config", type=Path, help="Controller YAML (default: config/<robot-name>/ros2_controllers.yaml)")
     parser.add_argument("--set", action="append", default=[], metavar="KEY=JSON", help="Override a dotted controller parameter in a temporary YAML")
     parser.add_argument("--launch-arg", action="append", default=[], metavar="NAME:=VALUE",
-                        help="Extra robot.launch.py argument, e.g. initialPoseFile:=/abs/my_pose.yaml")
+                        help="Extra robot.launch.py argument, e.g. initial_pose_file:=/abs/my_pose.yaml")
     args = parser.parse_args()
     if args.scene is None:
         args.scene = str(write_scene(Path(args.prefix + "_scene.xml"), args.robot_name))
@@ -304,16 +304,16 @@ def main():
         launch_cmd += ["--launch-prefix", args.launch_prefix, "--launch-prefix-filter", "mujoco_ros2_control$"]
     launch_cmd += [
         "legged_robot_mpc_controller", args.launch_file,
-        f"robotName:={args.robot_name}",
-        f"mpcControllerName:={CONTROLLER}", f"mujocoModelFile:={args.scene}",
-        "rviz:=false", "mujoco_headless:=true", "baseCommandDevice:=none",
-        f"floatingBaseSource:={args.source}",
-        f"floatingBaseEstimator:={args.estimator if args.source == 'state_estimator' or args.log_estimator else 'none'}",
-        f"mpcFreq:={args.mpc_rate}", "mrtFreq:=1000",
-        f"controllersFile:={config_path}",
+        f"robot_name:={args.robot_name}",
+        f"mpc_controller_name:={CONTROLLER}", f"mujoco_model_file:={args.scene}",
+        "rviz:=false", "mujoco_headless:=true", "base_command_device:=none",
+        f"floating_base_source:={args.source}",
+        f"floating_base_estimator:={args.estimator if args.source == 'state_estimator' or args.log_estimator else 'none'}",
+        f"mpc_freq:={args.mpc_rate}", "mrt_freq:=1000",
+        f"controllers_file:={config_path}",
     ]
     if height_override is not None:
-        launch_cmd.append(f"refBaseHeight:={args.height}")
+        launch_cmd.append(f"ref_base_height:={args.height}")
     launch_cmd += args.launch_arg
     verdict = "TIMEOUT"
     result = vars(args).copy()

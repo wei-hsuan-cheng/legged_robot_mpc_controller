@@ -141,7 +141,7 @@ Set `minimumLateralSeparation: 0.0` to restore the original collision formulatio
 Set the parent `activate: false` to remove all leg collision soft penalties, then restart the controller.
 The enabled variant uses a separate `_lateral_v1` generated-library cache, avoiding reuse of the incompatible 16-row model.
 
-Trials used `robot.launch.py robotName:=h2 mujocoModelFile:=scene_flat.xml`, `base_twist`, `state_estimator` with `humanoid_linear_kf`, requested MPC90/MRT1000, and no GUI or RViz.
+Trials used `robot.launch.py robot_name:=h2 mujoco_model_file:=scene_flat.xml`, `base_twist`, `state_estimator` with `humanoid_linear_kf`, requested MPC90/MRT1000, and no GUI or RViz.
 The scene was genuinely flat, with no terrain map or foothold plan driving these steps.
 Measured base/joint pose replays were used to inspect renders, signed foot width, 3D foot-point clearance, base height and pose-derived velocity curves.
 The first comparison table below used the original 0.7 gait switch delay fraction; the subsequent abrupt-transition tests motivated the final 0.3 value.
@@ -307,10 +307,10 @@ For manual flat-ground trials, keep only the robot and background includes in H2
 The old `scene_flat.xml` filenames in historical results identify the scene used at the time; that separate file is no longer shipped.
 
 ```bash
-ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=h2 \
-  mujocoModelFile:=scene.xml \
-  mpcFreq:=100 mrtFreq:=1000 \
-  rviz:=true mujoco_headless:=false baseCommandDevice:=gui
+ros2 launch legged_robot_mpc_controller robot.launch.py robot_name:=h2 \
+  mujoco_model_file:=scene.xml \
+  mpc_freq:=100 mrt_freq:=1000 \
+  rviz:=true mujoco_headless:=false base_command_device:=gui
 ```
 
 For an automated isolated forward test from the sourced workspace:

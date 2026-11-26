@@ -661,7 +661,7 @@ See [WB-ID formulation](humanoid_whole_body_inverse_dynamics_mpc.md) for the com
 
 ## Configuration and Test
 
-The common [`robot.launch.py`](../launch/robot.launch.py#L54-L62) selects the shared stair-climbing and terrain-walking variants using `robotName`, preserving the [launch override arguments](../launch/robot.launch.py#L123-L124).
+The common [`robot.launch.py`](../launch/robot.launch.py#L54-L62) selects the shared stair-climbing and terrain-walking variants using `robot_name`, preserving the [launch override arguments](../launch/robot.launch.py#L123-L124).
 The current default controller file is [`ros2_controllers.yaml`](../config/g1/ros2_controllers.yaml#L602-L603), where the WB-ID controller receives these paths under `ocs2.gait`.
 Simulator staircase geometry lives in [`description/mujoco/terrains/`](../description/mujoco/terrains/), and RViz geometry lives in [`description/urdf/terrains/`](../description/urdf/terrains/), with both xacros reading the shared [`config/terrains/stairs_params.yaml`](../config/terrains/stairs_params.yaml#L18).
 Robot models live under each format's `robots/g1/` directory, with shared meshes in [`description/meshes/robots/g1/`](../description/meshes/robots/g1/), as shown in the [description layout](../description/README.md).
@@ -670,8 +670,8 @@ Scene composition is documented in the [MuJoCo guide](../description/mujoco/READ
 Start the WB-ID controller, select terrain mode, and publish a forward walking command:
 
 ```bash
-ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=g1 \
-  mpcControllerName:=humanoid_whole_body_inverse_dynamics_mpc_controller
+ros2 launch legged_robot_mpc_controller robot.launch.py robot_name:=g1 \
+  mpc_controller_name:=humanoid_whole_body_inverse_dynamics_mpc_controller
 
 ros2 topic pub --once /humanoid/target_mode \
   std_msgs/msg/String "{data: terrain_walk}"
@@ -706,7 +706,7 @@ Terrain-mode behavior must be checked separately from blind `base_twist` locomot
 ## Gap to Practical Deployment and Real-Hardware Testing
 
 The current implementation closes the terrain-walking control loop for a known, static staircase in MuJoCo, but it is not yet a complete perceptive-locomotion or real-hardware pipeline.
-For simulation debugging, `floatingBaseSource:=ground_truth_state` can replace estimator feedback with GT, but this bypass is not available for real-world deployment.
+For simulation debugging, `floating_base_source:=ground_truth_state` can replace estimator feedback with GT, but this bypass is not available for real-world deployment.
 
 
 ### Intended complete pipeline

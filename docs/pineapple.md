@@ -208,8 +208,8 @@ arrives after the one-wheel ramp with a heading and lateral error. The one walk 
 the slope, the 60 mm drop (yaw swung 1.2 rad, then recovered) and the staggered one-tire steps.
 
 ```bash
-ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=pineapple mpcFreq:=200 baseCommandDevice:=joystick \
-  mujocoModelFile:=scene_gauntlet.xml        # Circle/Triangle for gaits
+ros2 launch legged_robot_mpc_controller robot.launch.py robot_name:=pineapple mpc_freq:=200 base_command_device:=joystick \
+  mujoco_model_file:=scene_gauntlet.xml        # Circle/Triangle for gaits
 python3 $S --tag gauntlet --cases '*gauntlet*' --repeat 3
 ```
 
@@ -224,9 +224,9 @@ python3 $S --tag gauntlet --cases '*gauntlet*' --repeat 3
 
 ```bash
 cd ~/whcheng_ws && source install/setup.bash
-ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=pineapple mpcFreq:=200                      # GUI
-ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=pineapple mpcFreq:=200 baseCommandDevice:=joystick
-# course: add mujocoModelFile:=scene_course.xml (or scene_gauntlet.xml: gentle to brutal)
+ros2 launch legged_robot_mpc_controller robot.launch.py robot_name:=pineapple mpc_freq:=200                      # GUI
+ros2 launch legged_robot_mpc_controller robot.launch.py robot_name:=pineapple mpc_freq:=200 base_command_device:=joystick
+# course: add mujoco_model_file:=scene_course.xml (or scene_gauntlet.xml: gentle to brutal)
 T=src/legged_robot_mpc_controller/tests
 python3 $T/upkie_posture_cycle_test.py --robot-name pineapple --cycles 3 --joystick --fall-test --prefix /tmp/pineapple/cycles
 python3 $T/wb_id_walk_test.py --robot-name pineapple --scene scene_course.xml --source state_estimator \

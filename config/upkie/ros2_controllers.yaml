@@ -1,6 +1,6 @@
 controller_manager:
   ros__parameters:
-    update_rate: $(var mrtFreq)
+    update_rate: $(var mrt_freq)
 
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
@@ -12,13 +12,13 @@ controller_manager:
       type: legged_robot_mpc_controller/HumanoidWholeBodyInverseDynamicsMpcController
 
 
-# Wheel-aware two-stage linear KF (floatingBaseEstimator:=humanoid_linear_kf): attitude from the IMU with its
+# Wheel-aware two-stage linear KF (floating_base_estimator:=humanoid_linear_kf): attitude from the IMU with its
 # mounting removed; each tire measures the base velocity (tread material at rest) and height (lowest tire point
 # on the ground plane z = 0). Both wheels are in stance unless the gait schedules them off the ground.
 humanoid_linear_kf:
   ros__parameters:
-    update_rate: $(var mrtFreq)
-    urdfFile: $(var urdfFile)
+    update_rate: $(var mrt_freq)
+    urdfFile: $(var urdf_file)
     baseFrame: base
     jointNames: [left_hip, left_knee, left_wheel, right_hip, right_knee, right_wheel]
     imuInterfaceName: base_imu
@@ -52,16 +52,16 @@ humanoid_linear_kf:
 
 
 # Upkie wheeled-biped: the WB-ID MPC with rolling-wheel contacts (docs/wheeled_biped_whole_body_inverse_dynamics_mpc.md).
-# Ground-truth floating base: floatingBaseSource:=ground_truth_state floatingBaseEstimator:=none.
-# Estimated base: floatingBaseSource:=state_estimator floatingBaseEstimator:=humanoid_linear_kf, starting from the
+# Ground-truth floating base: floating_base_source:=ground_truth_state floating_base_estimator:=none.
+# Estimated base: floating_base_source:=state_estimator floating_base_estimator:=humanoid_linear_kf, starting from the
 # kneeling idle pose with the planned stand-up (the estimator initialises while the robot rests on the floor).
 humanoid_whole_body_inverse_dynamics_mpc_controller:
   ros__parameters:
-    update_rate: $(var mrtFreq)
+    update_rate: $(var mrt_freq)
 
     paths:
-      urdfFile: $(var urdfFile)
-      libFolder: $(var libFolder)
+      urdfFile: $(var urdf_file)
+      libFolder: $(var lib_folder)
       # Wheel radius, half width, tire centre and axle, and the knee housings: the shared geometry file, also read by
       # the estimator (geometryFile) and the offline generators. It supplies ocs2.constraints.wheelContact.radius/
       # axleAxis and ocs2.model.contactGeometry.frameTranslation, and the controller refuses a stand-up plan or
@@ -101,8 +101,8 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
       contactSensorNames: [left_wheel_contact, right_wheel_contact]
 
     floatingBase:
-      source: $(var floatingBaseSource)
-      estimator: $(var floatingBaseEstimator)
+      source: $(var floating_base_source)
+      estimator: $(var floating_base_estimator)
       stateInterfaceName: base
       imuInterfaceName: base_imu
       imuFrame: imu
@@ -156,8 +156,8 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
 
       mpc:
         solverType: sqp
-        mpcDesiredFrequency: $(var mpcFreq)
-        mrtDesiredFrequency: $(var mrtFreq)
+        mpcDesiredFrequency: $(var mpc_freq)
+        mrtDesiredFrequency: $(var mrt_freq)
         timeHorizon: 1.0
         solutionTimeWindow: -1.0
         coldStart: false

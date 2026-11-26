@@ -10,7 +10,7 @@ The [stand-up optimization note](upkie_stand_up_optimization.md) gives the equat
 
 ```bash
 ros2 launch legged_robot_mpc_controller robot.launch.py \
-  robotName:=upkie mpcFreq:=200 baseCommandDevice:=gui
+  robot_name:=upkie mpc_freq:=200 base_command_device:=gui
 ```
 
 Press **Stand Up**, wait for **locomotion**, then drive.
@@ -23,7 +23,7 @@ Buttons are disabled during a transition or after a fall/fault.
 
 ```bash
 ros2 launch legged_robot_mpc_controller robot.launch.py \
-  robotName:=upkie mpcFreq:=200 baseCommandDevice:=joystick
+  robot_name:=upkie mpc_freq:=200 base_command_device:=joystick
 ```
 
 Release L2, center both sticks, release L1/D-pad, and press **Square** to stand up.

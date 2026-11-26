@@ -19,12 +19,12 @@ Start with GT feedback to separate controller/terrain issues from the linear KF'
 
 ```bash
 ros2 launch legged_robot_mpc_controller g1.launch.py \
-  mpcControllerName:=humanoid_whole_body_inverse_dynamics_mpc_controller \
-  mujocoModelFile:=scene_ramp.xml \
+  mpc_controller_name:=humanoid_whole_body_inverse_dynamics_mpc_controller \
+  mujoco_model_file:=scene_ramp.xml \
   terrainFromScene:=true \
-  floatingBaseSource:=ground_truth_state \
-  mpcFreq:=100 mrtFreq:=1000 \
-  baseCommandDevice:=none
+  floating_base_source:=ground_truth_state \
+  mpc_freq:=100 mrt_freq:=1000 \
+  base_command_device:=none
 ```
 
 After MPC takes over, select the terrain mode and start slowly:

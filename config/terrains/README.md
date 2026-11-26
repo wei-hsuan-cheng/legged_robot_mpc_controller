@@ -21,7 +21,7 @@ config/terrains/
 [`uneven_terrain_params.yaml`](uneven_terrain_params.yaml) defines a seeded uneven field and matching MuJoCo/RViz geometry, generated with Python rather than xacro.
 The movable boxes are objects, not terrain: their parameters are in [`../objects/boxes_params.yaml`](../objects/boxes_params.yaml).
 The planner YAML files contain matching staircase geometry plus gait/reference settings; keep that geometry synchronized when editing the environment.
-Each launch automatically selects its robot's variant, and `stairClimbingFile` / `terrainWalkingFile` can still select another file explicitly.
+Each launch automatically selects its robot's variant, and `stair_climbing_file` / `terrain_walking_file` can still select another file explicitly.
 
 
 ## Uneven Terrain
@@ -69,13 +69,13 @@ After building and sourcing the workspace, run the existing WB-ID controller:
 
 ```bash
 ros2 launch legged_robot_mpc_controller robot.launch.py \
-  robotName:=g1 \
-  mpcControllerName:=humanoid_whole_body_inverse_dynamics_mpc_controller \
-  mujocoModelFile:=scene.xml \
-  mpcFreq:=90 mrtFreq:=1000 rviz:=true mujoco_headless:=false baseCommandDevice:=gui
+  robot_name:=g1 \
+  mpc_controller_name:=humanoid_whole_body_inverse_dynamics_mpc_controller \
+  mujoco_model_file:=scene.xml \
+  mpc_freq:=90 mrt_freq:=1000 rviz:=true mujoco_headless:=false base_command_device:=gui
 ```
 
-Use `robotName:=h2` for H2; both use the same terrain module and YAML.
+Use `robot_name:=h2` for H2; both use the same terrain module and YAML.
 For RViz, keep `terrains/uneven_terrain.urdf.xacro` included in [`description/urdf/env.urdf.xacro`](../../description/urdf/env.urdf.xacro).
 This changes the simulation environment only and does not supply its heights to the MPC in ordinary `base_twist` mode.
 The larger roughness is not a claim that the current controller can walk over every block without falling.

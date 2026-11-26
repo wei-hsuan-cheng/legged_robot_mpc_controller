@@ -1,4 +1,4 @@
-# Pineapple's spawn pose (robot.launch.py's default initialPoseFile): seated idle, the deepest leg fold
+# Pineapple's spawn pose (robot.launch.py's default initial_pose_file): seated idle, the deepest leg fold
 # (config/pineapple/stand_up_to/rollout.py IDLE). Spawned upright with these joints, its lowest collision bounding
 # sphere 1 cm above the floor, it settles onto the base box's back bottom edge and both tires (pitched back about
 # 0.1 rad, calves on their -3.229 rad stops), and the planned stand-up (stand_up_trajectory.yaml,

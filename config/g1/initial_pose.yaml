@@ -4,7 +4,7 @@
 # inside the sole span [-0.011, +0.129] m, by forward kinematics), so a joint-space
 # stand-up from it is statically stable.
 #
-# Use with floatingBaseSource:=state_estimator, which stands up from here. With
+# Use with floating_base_source:=state_estimator, which stands up from here. With
 # ground_truth_state the MPC starts immediately and expects a standing robot.
 g1_joints:
   # Hip, knee, ankle joints

@@ -88,9 +88,9 @@ def harness_command(sweep, setting, command, prefix, limits, run=0):
         error_file = Path(prefix).parent / "model_error.yaml"
         if not error_file.exists():
             error_file.write_text(yaml.safe_dump(dict(model_error=model_error), sort_keys=False))
-        cmd += ["--launch-arg", f"modelErrorFile:={error_file}",
-                "--launch-arg", f"modelErrorSeed:={int(sweep.get('seed', 0)) * 100000 + run}",
-                "--launch-arg", f"modelErrorReport:={prefix}_model_error.json"]
+        cmd += ["--launch-arg", f"model_error_file:={error_file}",
+                "--launch-arg", f"model_error_seed:={int(sweep.get('seed', 0)) * 100000 + run}",
+                "--launch-arg", f"model_error_report:={prefix}_model_error.json"]
     return cmd
 
 

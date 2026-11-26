@@ -317,7 +317,7 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
     if (uses_state_estimator(parameters_.floatingBase.source) && !has_estimator()) {
       throw std::runtime_error(
         "floatingBase.source is state_estimator but floatingBase.estimator is none; launch with "
-        "floatingBaseEstimator:=humanoid_inekf (or humanoid_linear_kf)");
+        "floating_base_estimator:=humanoid_inekf (or humanoid_linear_kf)");
     }
     estimator_values_.assign(legged_robot_state_estimator::estimator_interfaces::names().size(), 0.0);
     RCLCPP_INFO(

@@ -274,7 +274,7 @@ Plots (`d_kn10/ff_fb.png`):
 | `f_vz20` | vz cost 10 → 20 | **9.7** | **0.55** | 1.32 | 0.097/0.92 | 3.78 | 2.2 | 98 Hz | bounce −18%, roll +38%: no |
 | `g_vz20r100` | vz 20 + pitch/roll rate 100 | 9.8 | 0.51 | 1.28 | 0.096/0.95 | 3.80 | 2.4 | 98 Hz | rates barely help: no |
 | `g_vz10r100` | pitch/roll rate 30 → 100 | 11.9 | 0.43 | 1.21 | 0.081/0.84 | 3.72 | 1.8 | 98 Hz | no effect above 30 |
-| `f_thr6_120` | `sqp.nThreads` 6, `mpcFreq` 120 | 11.8 | 0.42 | 1.22 | 0.081/0.82 | 3.83 | **1.6** | **104 Hz** | faster, more consistent plan, no motion gain; more CPU: not adopted |
+| `f_thr6_120` | `sqp.nThreads` 6, `mpc_freq` 120 | 11.8 | 0.42 | 1.22 | 0.081/0.82 | 3.83 | **1.6** | **104 Hz** | faster, more consistent plan, no motion gain; more CPU: not adopted |
 | `f_vy30` (vy profile) | lateral velocity cost 15 → 30 | 9.6 | 0.18 | 1.01 | 0.077/0.96 | 3.51 | 1.0 | 97 Hz | vy 0.070 → 0.085 of 0.2; hip-roll peak 65 Nm: no |
 
 Plots (`f_vz20/base.png`): the bounce/roll trade-off is a **roll snap at each touchdown**. The planned roll jumps about ±1° at the contact switch and the robot follows. The roll-rate cost does not govern it (`g_*`), so round 7 tests the `walk` gait timing (0.1 s double support, never tuned for WB-ID).

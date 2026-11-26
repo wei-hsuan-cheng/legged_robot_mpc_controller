@@ -77,10 +77,10 @@ The floor's size, friction and priority are identical in both backgrounds.
 Terrain dimensions, contact properties, inertias and actuator settings are independent of the background choice.
 
 The only shipped entry point for each robot is `scene.xml`; flat, ramp and uneven variants are no longer separate files.
-Select it through `robot.launch.py robotName:=g1 mujocoModelFile:=scene.xml`, or use `robotName:=h2` with the same scene name.
+Select it through `robot.launch.py robot_name:=g1 mujoco_model_file:=scene.xml`, or use `robot_name:=h2` with the same scene name.
 For flat ground, keep only robot and background includes; for ramp or uneven terrain, add `../../terrains/ramp.xml` or `../../terrains/uneven_terrain.xml`.
 Remove any other terrain/object includes if you want to test only the selected module.
-`mujocoModelFile` remains unrestricted: another robot-local filename or an absolute custom scene path can still be supplied.
+`mujoco_model_file` remains unrestricted: another robot-local filename or an absolute custom scene path can still be supplied.
 The launch keeps the selected robot's scene, URDF and controller configuration together; an absolute scene path remains available as an explicit override.
 Switch day/night by changing the scene's background include; separate scene files for each appearance are unnecessary.
 

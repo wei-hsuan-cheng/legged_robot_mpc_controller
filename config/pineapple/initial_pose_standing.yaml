@@ -1,5 +1,5 @@
 # Pineapple standing spawn, for the ground-truth base without the planned stand-up
-# (floatingBaseSource:=ground_truth_state, initialPoseFile:=<share>/config/pineapple/initial_pose_standing.yaml,
+# (floating_base_source:=ground_truth_state, initial_pose_file:=<share>/config/pineapple/initial_pose_standing.yaml,
 # bringUp.standUpTrajectoryFile empty): standing at the 0.36 m default height in the posture table's balanced posture
 # (config/pineapple/posture_table.yaml), arm stowed at zero, spawned 2 mm above the floor. The MPC balances from the
 # first physics step.

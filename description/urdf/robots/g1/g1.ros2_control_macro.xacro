@@ -139,7 +139,7 @@
           <state_interface name="linear_acceleration.z"/>
         </sensor>
 
-        <!-- Livox Mid-360 3D lidar, opt-in (enableLidar:=true). Publishes the cloud on
+        <!-- Livox Mid-360 3D lidar, opt-in (enable_lidar:=true). Publishes the cloud on
              /livox/lidar in the livox_ros_driver2 PointCloud2 layout; the state
              interfaces describe the latest completed frame. -->
         <xacro:if value="${use_lidar}">

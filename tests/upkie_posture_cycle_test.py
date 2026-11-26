@@ -163,16 +163,16 @@ def main():
                                    f"config/{robot}/ros2_controllers.yaml").read_text())
     # Pineapple drives the teleop/command height from its YAML; Upkie keeps the historical values.
     reference = robot_config[CONTROLLER.lstrip("/")]["ros__parameters"]["ocs2"]["reference"] if robot != "upkie" else None
-    cmd = ["ros2", "launch", "legged_robot_mpc_controller", "robot.launch.py", f"robotName:={robot}",
-           "mpcFreq:=200", "mrtFreq:=1000", "rviz:=false", "mujoco_headless:=true", "baseCommandDevice:=none",
-           f"mujocoModelFile:={scene}", f"floatingBaseSource:={args.source}",
-           "floatingBaseEstimator:=" + ("humanoid_linear_kf" if args.source == "state_estimator" else "none")]
+    cmd = ["ros2", "launch", "legged_robot_mpc_controller", "robot.launch.py", f"robot_name:={robot}",
+           "mpc_freq:=200", "mrt_freq:=1000", "rviz:=false", "mujoco_headless:=true", "base_command_device:=none",
+           f"mujoco_model_file:={scene}", f"floating_base_source:={args.source}",
+           "floating_base_estimator:=" + ("humanoid_linear_kf" if args.source == "state_estimator" else "none")]
     if args.trajectory:
         config = robot_config
         config[CONTROLLER.lstrip("/")]["ros__parameters"]["bringUp"]["standUpTrajectoryFile"] = str(args.trajectory.resolve())
         config_path = Path(str(prefix) + ".yaml")
         config_path.write_text(yaml.safe_dump(config, sort_keys=False))
-        cmd.append("controllersFile:=" + str(config_path))
+        cmd.append("controllers_file:=" + str(config_path))
     process = None
     probe = None
     results = dict(verdict="FAIL", cycles=0, source=args.source)

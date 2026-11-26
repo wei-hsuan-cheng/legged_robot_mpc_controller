@@ -1,6 +1,6 @@
 controller_manager:
   ros__parameters:
-    update_rate: $(var mrtFreq)
+    update_rate: $(var mrt_freq)
 
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
@@ -18,8 +18,8 @@ controller_manager:
 # Contact-aided right-invariant EKF (Hartley et al. 2018)
 humanoid_inekf:
   ros__parameters:
-    update_rate: $(var mrtFreq)
-    urdfFile: $(var urdfFile)
+    update_rate: $(var mrt_freq)
+    urdfFile: $(var urdf_file)
     baseFrame: pelvis
     # Read by name, so the order is free; the MPC's robot.jointNames.
     jointNames:
@@ -108,8 +108,8 @@ humanoid_inekf:
 # Two-stage linear KF (Bledt et al. 2018)
 humanoid_linear_kf:
   ros__parameters:
-    update_rate: $(var mrtFreq)
-    urdfFile: $(var urdfFile)
+    update_rate: $(var mrt_freq)
+    urdfFile: $(var urdf_file)
     baseFrame: pelvis
     # Read by name, so the order is free; the MPC's robot.jointNames.
     jointNames:
@@ -188,11 +188,11 @@ humanoid_linear_kf:
 
 humanoid_whole_body_inverse_dynamics_mpc_controller:
   ros__parameters:
-    update_rate: $(var mrtFreq)
+    update_rate: $(var mrt_freq)
 
     paths:
-      urdfFile: $(var urdfFile)
-      libFolder: $(var libFolder)
+      urdfFile: $(var urdf_file)
+      libFolder: $(var lib_folder)
 
     target:
       walkingVelocityTopic: /humanoid/walking_velocity_command
@@ -254,8 +254,8 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
       statusLogPeriod: 2.0
 
     floatingBase:
-      source: $(var floatingBaseSource)
-      estimator: $(var floatingBaseEstimator)
+      source: $(var floating_base_source)
+      estimator: $(var floating_base_estimator)
       stateInterfaceName: pelvis
       imuInterfaceName: pelvis_imu
 
@@ -317,8 +317,8 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
 
       mpc:
         solverType: sqp
-        mpcDesiredFrequency: $(var mpcFreq)
-        mrtDesiredFrequency: $(var mrtFreq)
+        mpcDesiredFrequency: $(var mpc_freq)
+        mrtDesiredFrequency: $(var mrt_freq)
         timeHorizon: 1.0
         solutionTimeWindow: -1.0
         coldStart: false
@@ -656,8 +656,8 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
 
       gait:
         phaseTransitionStanceTime: 0.0
-        stairClimbingFile: $(var stairClimbingFile)
-        terrainWalkingFile: $(var terrainWalkingFile)
+        stairClimbingFile: $(var stair_climbing_file)
+        terrainWalkingFile: $(var terrain_walking_file)
         initialModeSequence: [STANCE, STANCE]
         initialEventTimes: [0.5]
         defaultModeSequence: [STANCE]

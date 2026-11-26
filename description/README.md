@@ -39,7 +39,7 @@ The ramp and the movable boxes follow the same pattern: [`config/terrains/ramp_p
 The [shared terrain configuration directory](../config/terrains/README.md) also contains both robots' stair-climbing and terrain-walking planner variants; robot-specific height and foot geometry settings are preserved.
 
 Box attributes are grouped under `boxes.box_1`, `boxes.box_2` and any additional entries; see [box configuration](../config/objects/README.md).
-`robot.launch.py robotName:=g1` or `robotName:=h2` resolves the selected robot's paths automatically, so both use `mujocoModelFile:=scene.xml`.
+`robot.launch.py robot_name:=g1` or `robot_name:=h2` resolves the selected robot's paths automatically, so both use `mujoco_model_file:=scene.xml`.
 Change that file's terrain/object includes instead of maintaining separate shipped scene variants; the launch still accepts any custom scene filename or absolute path.
 The RViz counterpart is [`urdf/env.urdf.xacro`](urdf/env.urdf.xacro): it includes pieces from `urdf/terrains/` and `urdf/objects/` the same way, so comment or uncomment them to match the scene; the launch always publishes it.
 Explicit paths supplied by external launch files must use the new layout.
