@@ -220,7 +220,8 @@ Pineapple (wheel-legged, hip ab/ad per leg, a stowed 6-DOF arm) runs the same co
 ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=pineapple mpcFreq:=200
 ```
 
-See [Pineapple](./docs/pineapple.md) for the model, the configuration and the headless tests.
+Besides rolling (`wheel_drive`) it has Upkie's `jump`, `walk` and `trot` gaits (`/humanoid/gait_command`, or the DualSense Circle and Triangle buttons), and moves sideways: a vy command switches it to `trot`, which steps with the hip ab/ad.
+See [Pineapple](./docs/pineapple.md) for the model, the configuration, the robustness suite (`tests/tuning/pineapple_suite.py`) and the headless tests.
 The [small-wheel terrain profiles](./config/terrains/upkie/README.md) leave the existing humanoid terrains unchanged and provide no terrain map to MPC.
 
 

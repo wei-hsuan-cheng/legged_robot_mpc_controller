@@ -136,11 +136,11 @@ bool ProceduralMpcMotionManager::transitionToFasterGait(const vector4_t& velComm
   // Include the speed boundary despite roundoff in the recursive command filter.
   constexpr scalar_t speedBoundaryTolerance = 1e-9;
   bool fasterGaitRequested = (std::abs(velCommandVec(0)) >= cfg.maxLinVelCmd - speedBoundaryTolerance ||
-                              std::abs(velCommandVec(1)) >= cfg.maxLinVelCmd - speedBoundaryTolerance ||
+                              std::abs(velCommandVec(1)) >= cfg.maxLatVelCmd - speedBoundaryTolerance ||
                               std::abs(velCommandVec(3)) > cfg.maxAngVelCmd);
 
   bool withinMaxSpeedErrorThreshold = (std::abs(baseVelocity(0)) > cfg.maxLinVelCmd - cfg.linVelErrorThresh ||
-                                       std::abs(baseVelocity(1)) > cfg.maxLinVelCmd - cfg.linVelErrorThresh ||
+                                       std::abs(baseVelocity(1)) > cfg.maxLatVelCmd - cfg.linVelErrorThresh ||
                                        std::abs(baseVelocity(3)) > cfg.maxAngVelCmd - cfg.angVelErrorThresh);
   return fasterGaitRequested && withinMaxSpeedErrorThreshold;
 }
@@ -152,7 +152,7 @@ bool ProceduralMpcMotionManager::transitionToFasterGait(const vector4_t& velComm
 bool ProceduralMpcMotionManager::transitionToSlowerGait(const vector4_t& velCommandVec,
                                                         const vector6_t& baseVelocity,
                                                         const GaitModeStateConfig& cfg) {
-  bool slowerGaitRequested = (std::abs(velCommandVec(0)) < cfg.minLinVelCmd && std::abs(velCommandVec(1)) < cfg.minLinVelCmd &&
+  bool slowerGaitRequested = (std::abs(velCommandVec(0)) < cfg.minLinVelCmd && std::abs(velCommandVec(1)) < cfg.minLatVelCmd &&
                               std::abs(velCommandVec(3)) < cfg.minAngVelCmd);
 
   // NOTE the third term reads baseVelocity, not velCommandVec.
@@ -170,7 +170,7 @@ bool ProceduralMpcMotionManager::transitionToSlowerGait(const vector4_t& velComm
   // correct, and it grows until the robot falls - which is exactly the
   // "leans over and falls a moment after I stop walking" failure.
   bool baseSpeedSlowEnough = (std::abs(baseVelocity(0)) < cfg.minLinVelCmd + cfg.linVelErrorThresh &&
-                              std::abs(baseVelocity(1)) < cfg.minLinVelCmd + cfg.linVelErrorThresh &&
+                              std::abs(baseVelocity(1)) < cfg.minLatVelCmd + cfg.linVelErrorThresh &&
                               std::abs(baseVelocity(3)) < cfg.minAngVelCmd + cfg.angVelErrorThresh);
 
   return slowerGaitRequested && baseSpeedSlowEnough;

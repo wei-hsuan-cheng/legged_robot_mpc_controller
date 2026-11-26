@@ -1,0 +1,29 @@
+# Pineapple's rough tiles (92.5 mm tires): 0.25 m cells up to 50 mm high, 6-20 mm between neighbours (Upkie's field,
+# for 55 mm tires, is 3-8 mm). Used by the course files here; no terrain map reaches the MPC.
+uneven_terrain:
+  base:
+    pos: [0.0, 0.0, 0.0]
+    yaw: 0.0
+  size: [4.0, 2.0]
+  grid: [16, 8]
+  seed: 7
+  height:
+    min: 0.0
+    max: 0.05
+    adjacent_difference:
+      min: 0.006
+      max: 0.02
+      distribution: triangular
+      mode: 0.012
+    jitter: 0.0005
+  profile:
+    amplitude: 0.006
+    wavelength: [2.0, 2.5]
+    strength: 0.75
+  clear_patch:
+    center: [0.0, 0.0]
+    size: [0.0, 0.0]
+  depth: 0.1
+  gap: 0.0
+  friction: [0.8, 0.005, 0.0001]
+  color_gray: 0.55

@@ -532,6 +532,9 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           linearVelocity: {type: double_array, default_value: [], description: "Command band [min, max] on |vx| and
               |vy| [m/s] this rung serves: go up when either exceeds max, down when both are below min", validation: {
                 fixed_size<>: [2]}}
+          lateralVelocity: {type: double_array, default_value: [], description: "Optional band [min, max] on |vy|
+              [m/s] replacing linearVelocity for vy (empty: linearVelocity), e.g. a wheeled robot that rolls along x in
+              its rest gait at any speed but steps to move sideways"}
           yawRate: {type: double_array, default_value: [], description: "Command band [min, max] on |yaw rate| [rad/s]
               this rung serves", validation: {fixed_size<>: [2]}}
           measuredMargin: {type: double_array, default_value: [], description: "[linear m/s, yaw rad/s]: go up only

@@ -1,0 +1,9 @@
+# Head-on 40 mm step up at x = 1.5 m and the same drop at x = 3.5 m (both tires at once; tests/tuning/pineapple_suite.py).
+upkie_course:
+  half_width: 3.0
+  tiles: rough_tiles.yaml
+  uneven_fields: []
+  ramps: []
+  plateaus:
+    - {name: step_high, x: [1.5, 3.5], top: 0.04}
+  friction: [0.8, 0.005, 0.0001]

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Planned and physical contact phases of an Upkie run (hops, wheel lifts): wb_id_walk_test --record-tracking.
+"""Planned and physical contact phases of an Upkie or Pineapple run (jumps, wheel lifts): wb_id_walk_test
+--record-tracking.
 
-usage: analyze_upkie_flight.py PREFIX [--plot]     (pip install numpy pyyaml matplotlib)
+usage: analyze_upkie_flight.py PREFIX [--plot] [--robot upkie|pineapple]     (pip install numpy pyyaml matplotlib)
 
 A wheel counts as physically off the ground when its simulated contact sensor reads below 0.5 N. For every planned
 non-STANCE interval it reports the measured off-ground time of each wheel, the tire-centre clearance, the base apex,
@@ -16,8 +17,13 @@ from pathlib import Path
 import numpy as np
 import yaml
 
-# [m] the shared Upkie geometry (config/upkie/geometry.yaml), as the MPC and the estimator use it
-TIRE_RADIUS = yaml.safe_load((Path(__file__).resolve().parents[2] / "config/upkie/geometry.yaml").read_text())["geometry"]["wheel"]["radius"]
+ROBOT = sys.argv[sys.argv.index("--robot") + 1] if "--robot" in sys.argv else "upkie"
+# [m] the shared geometry (config/<robot>/geometry.yaml), as the MPC and the estimator use it
+TIRE_RADIUS = yaml.safe_load((Path(__file__).resolve().parents[2] / f"config/{ROBOT}/geometry.yaml").read_text())["geometry"]["wheel"]["radius"]
+# Actuator torque limits [N m] by joint (the URDF efforts)
+LIMITS = {"upkie": {f"{s}_{j}": v for s in ("left", "right") for j, v in (("hip", 16.0), ("knee", 16.0), ("wheel", 1.7))},
+          "pineapple": {f"{s}_{j}_joint": v for s in "LR" for j, v in (("hip", 27.0), ("thigh", 27.0), ("calf", 40.0),
+                                                                        ("wheel", 11.0))}}[ROBOT]
 
 prefix = sys.argv[1]
 rows = list(csv.DictReader(open(prefix + "_tracking.csv")))
@@ -28,9 +34,8 @@ force = {s: col(f"meas_contact/{s}_wheel_contact/normal_force") for s in ("left"
 off = {s: force[s] < 0.5 for s in force}
 tire_z = {s: col(f"obs_foot/{s}_tire_center/z") for s in force}
 z, pitch, roll = col("obs_base/z"), col("obs_base/pitch"), col("obs_base/roll")
-limits = {"hip": 16.0, "knee": 16.0, "wheel": 1.7}
-tau = {f"{s}_{j}": col(f"cmd_tau/{s}_{j}") for s in force for j in limits}
-saturated = {k: float(np.mean(np.abs(v) >= 0.99 * limits[k.split("_")[1]])) for k, v in tau.items()}
+tau = {j: col(f"cmd_tau/{j}") for j in LIMITS}
+saturated = {j: float(np.mean(np.abs(v) >= 0.99 * LIMITS[j])) for j, v in tau.items()}
 
 # Mode numbers: FLY 0, RF 1 (right in contact), LF 2 (left in contact), STANCE 3.
 planned_air = {"left": np.isin(mode, (0, 1)), "right": np.isin(mode, (0, 2))}

@@ -169,13 +169,19 @@ ocs2::humanoid::ProceduralMpcMotionManager::GaitTransitionConfig buildGaitTransi
       throw std::invalid_argument(where + ": not in ocs2.gait.templates.names");
     }
     const auto& rung = transitions.ladder_map.at(gait);
-    if (rung.linearVelocity[0] > rung.linearVelocity[1] || rung.yawRate[0] > rung.yawRate[1]) {
+    if (!rung.lateralVelocity.empty() && rung.lateralVelocity.size() != 2) {
+      throw std::invalid_argument(where + ".lateralVelocity: [min, max] or empty");
+    }
+    const auto& lateral = rung.lateralVelocity.empty() ? rung.linearVelocity : rung.lateralVelocity;
+    if (rung.linearVelocity[0] > rung.linearVelocity[1] || rung.yawRate[0] > rung.yawRate[1] || lateral[0] > lateral[1]) {
       throw std::invalid_argument(where + ": bands need min <= max");
     }
     ocs2::humanoid::ProceduralMpcMotionManager::GaitModeStateConfig state;
     state.gaitCommand = gait;
     state.minLinVelCmd = rung.linearVelocity[0];
     state.maxLinVelCmd = rung.linearVelocity[1];
+    state.minLatVelCmd = lateral[0];
+    state.maxLatVelCmd = lateral[1];
     state.minAngVelCmd = rung.yawRate[0];
     state.maxAngVelCmd = rung.yawRate[1];
     state.linVelErrorThresh = rung.measuredMargin[0];

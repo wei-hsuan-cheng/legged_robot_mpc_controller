@@ -84,11 +84,13 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
       observationVelocityFilterCutoffHz: 0.0
       feedforward: policy_torque
       jointEffortPd:
-        # Leg servos around the planned trajectory, on top of the MPC torque; wheels get no position gain (their
-        # angle is free) and light velocity damping towards the planned wheel speed. Upkie's gains scaled for the
-        # 2.6x heavier robot.
+        # Leg servos around the planned trajectory, on top of the MPC torque (Upkie's gains scaled for the 2.6x heavier
+        # robot). Wheels get no position gain (their angle is free) but strong damping towards the planned wheel speed:
+        # a tire that slips on an edge or leaves the ground otherwise spins up within 0.1 s (its inertia is tiny) while
+        # the MPC still assumes rolling, and lands at several m/s rim speed; 0.1 -> 2.0 took the suite
+        # (tests/tuning/pineapple_suite.py) from rough-course falls and 20 mm step near-falls to clean runs.
         kp: [30.0, 30.0, 30.0, 0.0, 30.0, 30.0, 30.0, 0.0]
-        kd: [1.0, 1.0, 1.0, 0.1, 1.0, 1.0, 1.0, 0.1]
+        kd: [1.0, 1.0, 1.0, 2.0, 1.0, 1.0, 1.0, 2.0]
 
     diagnostics:
       statusLogPeriod: 2.0
@@ -290,9 +292,10 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
       reference:
         targetDisplacementVelocity: 0.5
         targetRotationVelocity: 0.5
-        # GUI/topic normalization maxima. A wheeled robot cannot move sideways: command vy = 0.
+        # GUI/topic normalization maxima. The tires cannot roll sideways: a vy command selects the stepping gait
+        # (gait.transitions), which moves sideways with the hip ab/ad.
         maxDisplacementVelocityX: 1.0
-        maxDisplacementVelocityY: 0.0
+        maxDisplacementVelocityY: 0.3
         maxRotationVelocity: 3.1416
         defaultBaseHeight: 0.36
         # Commanded height range: GUI slider, command clamp and MPC height reference. Inside the posture table.
@@ -343,17 +346,31 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           impactProximityFactorTouchDownVelocity: 0.3
           impactProximityFactorMidPointValue: 0.0
 
-        # Modes: STANCE = both wheels in contact. wheel_drive is the only gait: both wheels down, rolling and turning
-        # (Upkie's jump/walk/trot are not tuned for Pineapple).
+        # Modes: STANCE = both wheels in contact, LF/RF = only the left/right wheel in contact, FLY = none.
+        # wheel_drive (both wheels down, rolling and turning) is the rest gait; the others are requested on
+        # /humanoid/gait_command (held while requested, "" returns to the ladder) and roll while they step.
         templates:
-          names: [wheel_drive]
+          names: [wheel_drive, jump, walk, trot]
           wheel_drive: {modeSequence: [STANCE], switchingTimes: [0.0, 0.5]}
+          # Symmetric jump: thrust in stance, then both wheels off the ground; FLY plans zero wrenches and lifts the tires.
+          jump: {modeSequence: [STANCE, FLY], switchingTimes: [0.0, 0.4, 0.55], swingHeight: 0.05}
+          # Alternating single support with long double support. The hip ab/ad shifts the body over the stance wheel,
+          # so a lift can be longer than Upkie's.
+          walk: {modeSequence: [STANCE, RF, STANCE, LF], switchingTimes: [0.0, 0.3, 0.55, 0.85, 1.1], swingHeight: 0.05}
+          # Alternating single support with a short double support between the lifts. 0.1 s of it (Upkie: 0.05 s) lets a
+          # stance wheel stalled at a 10 mm edge recover (Upkie course: 2 falls in 4 with 0.05 s, none in 6 with 0.1 s).
+          trot: {modeSequence: [RF, STANCE, LF, STANCE], switchingTimes: [0.0, 0.25, 0.35, 0.6, 0.7], swingHeight: 0.04}
 
         transitions:
           minDwellTime: 0.2
           switchDelayHorizonFraction: 0.3
-          ladder: [wheel_drive]
-          wheel_drive: {linearVelocity: [-0.1, 10.0], yawRate: [-0.1, 10.0], measuredMargin: [10.0, 10.0]}
+          # wheel_drive serves any vx and yaw rate; a vy command (the tires cannot roll sideways) steps up to trot, which
+          # moves sideways by placing the lifted wheel with the hip ab/ad, and back once |vy| is under 0.03 m/s.
+          ladder: [wheel_drive, trot]
+          wheel_drive: {linearVelocity: [-0.1, 10.0], lateralVelocity: [-0.1, 0.05], yawRate: [-0.1, 10.0],
+                        measuredMargin: [10.0, 10.0]}
+          trot: {linearVelocity: [10.0, 10.0], lateralVelocity: [0.03, 10.0], yawRate: [10.0, 10.0],
+                 measuredMargin: [0.05, 10.0]}
 
     visualization:
       frameId: odom

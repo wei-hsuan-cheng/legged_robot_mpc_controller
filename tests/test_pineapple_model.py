@@ -85,6 +85,24 @@ class PineappleModelTest(unittest.TestCase):
         self.assertEqual(len(plan["state"][0]), 2 * (6 + len(LEGS)))
         self.assertEqual(len(plan["feedback"][0]), len(LEGS) * 2 * (6 + len(LEGS)))
 
+    def test_gaits_and_sideways_drive(self):
+        p = params()
+        gait = p["ocs2"]["gait"]
+        self.assertEqual(gait["templates"]["names"], ["wheel_drive", "jump", "walk", "trot"])
+        # wheel_drive serves any vx and yaw rate; only a vy command steps up to trot, which steps sideways.
+        self.assertEqual(gait["transitions"]["ladder"], ["wheel_drive", "trot"])
+        rest, step = (gait["transitions"][name] for name in gait["transitions"]["ladder"])
+        self.assertGreaterEqual(rest["linearVelocity"][1], p["ocs2"]["reference"]["maxDisplacementVelocityX"])
+        self.assertGreaterEqual(rest["yawRate"][1], p["ocs2"]["reference"]["maxRotationVelocity"])
+        self.assertLess(rest["lateralVelocity"][1], p["ocs2"]["reference"]["maxDisplacementVelocityY"])
+        self.assertLess(step["lateralVelocity"][0], rest["lateralVelocity"][1])
+        for name in gait["templates"]["names"][1:]:
+            template = gait["templates"][name]
+            self.assertEqual(len(template["switchingTimes"]), len(template["modeSequence"]) + 1)
+        # Strong wheel damping towards the planned wheel speed (docs/pineapple.md, robustness).
+        kd = p["control"]["jointEffortPd"]["kd"]
+        self.assertEqual([kd[3], kd[7]], [2.0, 2.0])
+
     @unittest.skipIf(importlib.util.find_spec("mujoco") is None, "Python MuJoCo is not installed")
     def test_posture_table_reproduces(self):
         with tempfile.TemporaryDirectory() as directory:

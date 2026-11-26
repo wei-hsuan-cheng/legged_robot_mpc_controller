@@ -1,0 +1,16 @@
+# Pineapple push recovery (tests/tuning/pineapple_suite.py): pulses at base_link's centre of mass, world frame,
+# forces [N], torques [N m], simulation seconds. Pineapple weighs 14.9 kg (146 N): a 0.2 s pulse of F changes the
+# robot's momentum by 0.2 F, i.e. its speed by F / 74.6 m/s (60 N: 0.80 m/s).
+# Forward (+x, the robot's front) then backward.
+- link: base_link
+  frame: world
+  force: [60.0, 0.0, 0.0]
+  torque: [0.0, 0.0, 0.0]
+  duration: 0.2
+  wait_after: 3.0
+- link: base_link
+  frame: world
+  force: [-60.0, 0.0, 0.0]
+  torque: [0.0, 0.0, 0.0]
+  duration: 0.2
+  wait_after: 3.0

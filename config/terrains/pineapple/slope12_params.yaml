@@ -1,0 +1,11 @@
+# A 12-degree slope up (x = 1.0-2.5 m, to 0.32 m), a 1 m plateau and the same slope down (tests/tuning/pineapple_suite.py).
+upkie_course:
+  half_width: 3.0
+  tiles: rough_tiles.yaml
+  uneven_fields: []
+  ramps:
+    - {name: slope_up, x: [1.0, 2.5], z: [0.0, 0.3188]}
+    - {name: slope_down, x: [3.5, 5.0], z: [0.3188, 0.0]}
+  plateaus:
+    - {name: slope_top, x: [2.5, 3.5], top: 0.3188}
+  friction: [0.8, 0.005, 0.0001]

@@ -70,6 +70,10 @@ class ProceduralMpcMotionManager : public SolverSynchronizedModule {
     std::string gaitCommand = "stance";
     scalar_t minLinVelCmd;
     scalar_t maxLinVelCmd;
+    //! Band on |vy|; the linear band unless the rung sets lateralVelocity (a wheeled robot rolls along x at any
+    //! speed in its rest gait but has to step to move sideways).
+    scalar_t minLatVelCmd;
+    scalar_t maxLatVelCmd;
     scalar_t minAngVelCmd;
     scalar_t maxAngVelCmd;
     scalar_t linVelErrorThresh;
