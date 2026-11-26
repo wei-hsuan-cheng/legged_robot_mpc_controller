@@ -119,6 +119,15 @@ class PineappleModelTest(unittest.TestCase):
             apex = min(1.0, lift / scale) * templates[name]["swingHeight"]
             self.assertGreater(apex, 0.04 if name == "walk" else 0.034, name)  # the step, the rough field's tiles
 
+    def test_gauntlet_scene_is_current(self):
+        """scene_gauntlet.xml's terrain is generate_upkie_course.py's output for gauntlet_params.yaml."""
+        subprocess.run([sys.executable, str(ROOT / "description/mujoco/terrains/generate_upkie_course.py"), "--check",
+                        "--params", str(ROOT / "config/terrains/pineapple/gauntlet_params.yaml"),
+                        "--mjcf", str(ROOT / "description/mujoco/terrains/pineapple_gauntlet.xml")],
+                       check=True, capture_output=True)
+        scene = ET.parse(ROOT / "description/mujoco/robots/pineapple/scene_gauntlet.xml").getroot()
+        self.assertIn("../../terrains/pineapple_gauntlet.xml", [e.get("file") for e in scene.iter("include")])
+
     @unittest.skipIf(importlib.util.find_spec("mujoco") is None, "Python MuJoCo is not installed")
     def test_posture_table_reproduces(self):
         with tempfile.TemporaryDirectory() as directory:

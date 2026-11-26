@@ -1,0 +1,10 @@
+<mujoco model="pineapple_gauntlet_scene">
+  <!-- sim rate: effort_pd runs every physics step; 2 kHz with the 1 kHz controller -->
+  <option timestep="0.0005" />
+  <!-- background: H2 night style, with lights aimed at Pineapple's base_link -->
+  <include file="../../common/backgrounds/background_night_pineapple.xml" />
+  <!-- terrain: the gauntlet, gentle to brutal (config/terrains/pineapple/gauntlet_params.yaml), spawn on its flat start -->
+  <include file="../../terrains/pineapple_gauntlet.xml" />
+  <!-- robot -->
+  <include file="pineapple.xml" />
+</mujoco>

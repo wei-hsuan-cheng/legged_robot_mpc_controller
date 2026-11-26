@@ -1,0 +1,30 @@
+# Pineapple's brutal tiles (92.5 mm tires): 0.25 m cells up to 80 mm high, 15-35 mm between neighbours (rough_tiles.yaml
+# is up to 50 mm, 6-20 mm; Upkie's field is 3-8 mm). The last section of gauntlet_params.yaml; beyond what the suite
+# passes reliably, on purpose.
+uneven_terrain:
+  base:
+    pos: [0.0, 0.0, 0.0]
+    yaw: 0.0
+  size: [4.0, 2.0]
+  grid: [16, 8]
+  seed: 7
+  height:
+    min: 0.0
+    max: 0.08
+    adjacent_difference:
+      min: 0.015
+      max: 0.035
+      distribution: triangular
+      mode: 0.025
+    jitter: 0.0005
+  profile:
+    amplitude: 0.01
+    wavelength: [2.0, 2.5]
+    strength: 0.75
+  clear_patch:
+    center: [0.0, 0.0]
+    size: [0.0, 0.0]
+  depth: 0.1
+  gap: 0.0
+  friction: [0.8, 0.005, 0.0001]
+  color_gray: 0.4

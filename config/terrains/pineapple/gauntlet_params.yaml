@@ -1,0 +1,45 @@
+# Pineapple's gauntlet along world +x (the robot spawns at the origin facing +x; tires at y = +-0.227 m), in three
+# sections of rising difficulty. generate_upkie_course.py format; generated into
+# description/mujoco/terrains/pineapple_gauntlet.xml (scene: description/mujoco/robots/pineapple/scene_gauntlet.xml).
+#   gentle (green, x = 0.8-7.2 m): the Upkie course: 3-8 mm tiles, a 40 mm ramp, 10 mm steps, a 100 mm one-wheel ramp.
+#   hard (grey, x = 7.8-17.0 m): extreme_course_params.yaml: 6-20 mm tiles up to 50 mm, a 20 mm step up and 30 mm down,
+#     a 120 mm one-wheel ramp, then step40_params.yaml's head-on 40 mm step up and down.
+#   brutal (red, x = 17.6-27.1 m): 15-35 mm tiles up to 80 mm (brutal_tiles.yaml), a 12-degree slope with a 40 mm
+#     step up and a 60 mm drop on top, 40 mm steps under one tire then the other (staggered, the base twists), three
+#     30 mm stairs up and a 90 mm drop. Not passed reliably: this section is meant to find the limits.
+# Flat floor behind the spawn and beyond x = 27.1 m.
+upkie_course:
+  half_width: 3.0
+  tiles: rough_tiles.yaml
+  uneven_fields:
+    - {name: gentle_field, x: [0.8, 1.8], seed: 7, tiles: ../upkie/uneven_terrain_params.yaml}
+    - {name: hard_field, x: [7.8, 10.0], seed: 11}
+    - {name: brutal_field, x: [17.6, 19.6], seed: 23, tiles: brutal_tiles.yaml}
+  ramps:
+    - {name: gentle_ramp_up, x: [2.0, 2.8], z: [0.0, 0.04], rgba: "0.8 1 0.8 1"}
+    - {name: gentle_ramp_down, x: [4.4, 5.2], z: [0.04, 0.0], rgba: "0.8 1 0.8 1"}
+    - {name: gentle_one_wheel_ramp_up, x: [5.6, 6.4], z: [0.0, 0.10], y: [0.04, 0.34], rgba: "0.8 1 0.8 1"}
+    - {name: gentle_one_wheel_ramp_down, x: [6.4, 7.2], z: [0.10, 0.0], y: [0.04, 0.34], rgba: "0.8 1 0.8 1"}
+    - {name: hard_ramp_up, x: [10.2, 11.0], z: [0.0, 0.06]}
+    - {name: hard_ramp_down, x: [12.5, 13.3], z: [0.05, 0.0]}
+    - {name: hard_one_wheel_ramp_up, x: [13.9, 14.7], z: [0.0, 0.12], y: [0.07, 0.40]}
+    - {name: hard_one_wheel_ramp_down, x: [14.7, 15.5], z: [0.12, 0.0], y: [0.07, 0.40]}
+    - {name: brutal_slope_up, x: [20.0, 21.0], z: [0.0, 0.2126], rgba: "1 0.75 0.7 1"}
+    - {name: brutal_slope_down, x: [22.8, 23.7], z: [0.1926, 0.0], rgba: "1 0.75 0.7 1"}
+  plateaus:
+    - {name: gentle_plateau_a, x: [2.8, 3.3], top: 0.04, rgba: "0.8 1 0.8 1"}
+    - {name: gentle_step, x: [3.3, 3.9], top: 0.05, rgba: "0.6 0.9 0.6 1"}
+    - {name: gentle_plateau_b, x: [3.9, 4.4], top: 0.04, rgba: "0.8 1 0.8 1"}
+    - {name: hard_plateau_a, x: [11.0, 11.5], top: 0.06}
+    - {name: step_high, x: [11.5, 12.0], top: 0.08}
+    - {name: hard_plateau_b, x: [12.0, 12.5], top: 0.05}
+    - {name: hard_step40, x: [16.0, 17.0], top: 0.04, rgba: "1 0.9 0.8 1"}
+    - {name: brutal_slope_top, x: [21.0, 21.6], top: 0.2126, rgba: "1 0.75 0.7 1"}
+    - {name: brutal_step_up40, x: [21.6, 22.2], top: 0.2526, rgba: "1 0.55 0.5 1"}
+    - {name: brutal_drop60, x: [22.2, 22.8], top: 0.1926, rgba: "1 0.75 0.7 1"}
+    - {name: brutal_left_step40, x: [24.2, 25.0], top: 0.04, y: [0.07, 0.40], rgba: "1 0.55 0.5 1"}
+    - {name: brutal_right_step40, x: [24.6, 25.4], top: 0.04, y: [-0.40, -0.07], rgba: "1 0.55 0.5 1"}
+    - {name: brutal_stair1, x: [25.9, 26.3], top: 0.03, rgba: "1 0.75 0.7 1"}
+    - {name: brutal_stair2, x: [26.3, 26.7], top: 0.06, rgba: "1 0.65 0.6 1"}
+    - {name: brutal_stair3, x: [26.7, 27.1], top: 0.09, rgba: "1 0.55 0.5 1"}
+  friction: [0.8, 0.005, 0.0001]

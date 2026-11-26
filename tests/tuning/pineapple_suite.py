@@ -112,6 +112,12 @@ CASES = {
                         past=6.0),
     "walk_course": gait("walk", 0.3, start=1, stop=24, hold=25, params="extreme_course_params.yaml",
                         past=6.0),
+    # The gauntlet (gauntlet_params.yaml, scene_gauntlet.xml): gentle, hard, then brutal sections in one run; `forward`
+    # says which section stopped it (gentle to 7.2 m, hard to 17.0 m, brutal to 27.1 m).
+    "gauntlet": terrain("gauntlet_params.yaml", 0.4, 74, past=27.3),
+    "gauntlet_fast": terrain("gauntlet_params.yaml", 0.8, 38, past=27.3),
+    "walk_gauntlet": gait("walk", 0.3, start=1, stop=120, hold=121, params="gauntlet_params.yaml", past=27.3),
+    "trot_gauntlet": gait("trot", 0.3, start=1, stop=120, hold=121, params="gauntlet_params.yaml", past=27.3),
     "jump_turn": dict(args=["--command-sequence", json.dumps([[0, 0, 1.0, H]]), "--gait-sequence",
                             json.dumps([[3, "jump"], [10, ""]]), "--hold", "12"]),
     "gait_switch": dict(args=["--command-sequence", json.dumps([[1, 0.5, 0, H, 1], [14, 0, 0, H]]), "--gait-sequence",
