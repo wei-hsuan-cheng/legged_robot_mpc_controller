@@ -119,14 +119,14 @@ class SceneLayoutTest(unittest.TestCase):
     @unittest.skipIf(mujoco is None, "mujoco Python package is not installed")
     def test_all_scenes_and_generated_terrains_compile(self):
         scenes = list(SCENES.glob("robots/*/scene*.xml"))
-        self.assertEqual(len(scenes), 3)
-        self.assertTrue(all(path.name == "scene.xml" for path in scenes))
+        self.assertEqual(len(scenes), 6)  # Pineapple also has its course and gauntlet scenes
+        self.assertTrue(all(path.name == "scene.xml" or path.parent.name == "pineapple" for path in scenes))
         for path in scenes:
             with self.subTest(scene=path.name):
                 model = mujoco.MjModel.from_xml_path(str(path))
                 robot = path.parent.name
-                self.assertEqual(model.opt.timestep, 0.0005 if robot == "upkie" else 0.0001)
-                self.assertEqual(model.nu, {"g1": 29, "h2": 31, "upkie": 6}[robot])
+                self.assertEqual(model.opt.timestep, 0.0005 if robot in ("upkie", "pineapple") else 0.0001)
+                self.assertEqual(model.nu, {"g1": 29, "h2": 31, "upkie": 6, "pineapple": 14}[robot])
         for background in ("day", "night"):
             for terrain in ["none", *creator.TERRAIN_FILES]:
                 with self.subTest(background=background, terrain=terrain):
