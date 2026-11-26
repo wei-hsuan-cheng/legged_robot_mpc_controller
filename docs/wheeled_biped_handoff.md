@@ -5,10 +5,9 @@ The original [implementation checklist](design_notes/wheeled_biped/wheeled_biped
 Update this file at each milestone.
 The implemented equations, current weights, rolling-contact equalities and execution limits are collected in [Wheeled-Biped WB-ID MPC](wheeled_biped_whole_body_inverse_dynamics_mpc.md).
 
-## MPC Robustness to Modeling Errors (2026-11-25, milestones 1-5 done, 6 running)
+## MPC Robustness to Modeling Errors (2026-11-25, milestones 1-6 done)
 
-Branch `feat/model_error_robustness` in this repository and in `mujoco_ros2_control`; milestones 1-5 pushed (`eaf485f`,
-`31fb487`), the deferred onset, the sweep options below and the after-takeover results not yet committed.
+Branch `feat/model_error_robustness` in this repository and in `mujoco_ros2_control`, pushed.
 Following Khazoom et al. (arXiv 2407.10789), the simulated plant gets modeling errors while the MPC keeps its nominal
 model; full design, usage and results: [MPC Robustness to Modeling Errors](mpc_robustness.md).
 
@@ -46,9 +45,11 @@ model; full design, usage and results: [MPC Robustness to Modeling Errors](mpc_r
   0/10 at 60 ms; actuation delay 16/20 at 40 ms, 0/10 at 60 and 80 ms. The main sweep added computation 70 ms (10/10
   up, 1/10 tracked) and 20 runs at slippery -90/-95 % (15/20, 11/20). At the edges most falls come 1-2 s after a fast
   command steps to zero (braking).
-- Milestone 6 is running detached in `ros_jazzy` (`config/robustness/upkie_solver.yaml`, about 3.5 h from 00:38 UTC,
-  `demo_videos/robustness/upkie_solver/matrix.done` when finished): MPC rate 100 and 60 Hz, 2 SQP iterations, dt 0.01
-  and 0.04 s, each at nominal, ±60 % inertia, joint friction 8 and 16 x, sensing 30/40 ms, actuation 20/40 ms.
+- Milestone 6 (`config/robustness/upkie_solver.yaml`, 400 runs, `demo_videos/robustness/upkie_solver/`, plot
+  `docs/results/assets/upkie_robustness_solver.png`): MPC rate 100 and 60 Hz, 2 SQP iterations, dt 0.01 and 0.04 s
+  at the edge levels, same commands and error draws as the default's runs 0-9. Without a fall, of 80: default 72,
+  97 Hz 71, 59 Hz 69 (40 ms sensing delay 3/10), 2 SQP iterations 75, dt 0.01 s 71, dt 0.04 s 78 (kept 6 of the
+  default's failed runs, lost none, paired p 0.03; nominal yaw-rate error 0.31 against 0.21 rad/s).
 - Rebuild `mujoco_ros2_control` and `legged_robot_mpc_controller` after pulling (new yaml-cpp dependency, new parameter).
 
 | Milestone | Status |
@@ -58,10 +59,10 @@ model; full design, usage and results: [MPC Robustness to Modeling Errors](mpc_r
 | 3 Inertial errors | Done: ±10-60 %: 10, 10, 9, 8, 7, 5, 4 /10, every fall in the open-loop stand-up; switched on at the takeover 10/10 at every level, forward error 0.04 -> 0.14 m/s |
 | 4 Joint friction, ground friction patches | Done: no effect up to 0.9 N m joint friction or ±90 % patches; 16 x (up to 1.7 N m): 13/20 from the takeover; slippery patches 15/20 at -90 %, 11/20 at -95 % |
 | 5 Delays | Done: from the takeover sensing 10/10 to 30 ms, 9/10 at 40, 0/10 at 60 ms; actuation 10/10 to 20 ms, 16/20 at 40, 0/10 at 60 ms; computation 10/10 to 70 ms (tracking 7/10 from 20 ms, 1/10 at 70), 0/10 at 80 ms |
-| 6 Solver effort and time step against error | Running (`upkie_solver.yaml`) |
+| 6 Solver effort and time step against error | Done: dt 0.04 s is the one change that helped (78/80 against 72/80, p 0.03); 59 Hz loses the 40 ms sensing delay; a second SQP iteration costs 4 Hz, no significant gain |
 | 7 Combined errors, report | Pending |
 
-Next: read milestone 6 (`upkie_solver/*/summary.md`, `comparison.png`), then milestone 7 (combined random errors).
+Next: milestone 7 (combined random errors); dt 0.04 s over every level and more runs before changing the default.
 The nominal controller turns about 0.2 rad/s slower than commanded (pre-existing).
 
 ## Shared Geometry File (2026-11-23)

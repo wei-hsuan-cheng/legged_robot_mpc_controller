@@ -152,7 +152,7 @@ python3 tests/tuning/plot_robustness.py demo_videos/robustness/upkie/summary.jso
 | 3 | Inertial errors (the paper's study) | Done: Upkie, ±10-60 %; the MPC alone never fell |
 | 4 | Joint friction and ground friction patches | Done: Upkie |
 | 5 | Delays: sensing and actuation (simulator), computation (MPC) | Done: Upkie, 5-80 ms |
-| 6 | Solver effort and time step against error | Running: `upkie_solver.yaml`, 5 variants at the edges of milestones 3-5 |
+| 6 | Solver effort and time step against error | Done: Upkie; dt 0.04 s 78/80 against the default's 72/80 (paired p 0.03), 59 Hz loses the 40 ms sensing delay |
 | 7 | Combined random errors, report | Pending |
 
 ## Results: Upkie (80 mm wheels)
@@ -202,6 +202,28 @@ stand-up failed first above. 23 points, 250 runs; `demo_videos/robustness/upkie_
 
 At 40 ms of actuation delay the two sweeps give 10/10 and 16/20; both are the same marginal point (26/30 pooled).
 
+### Solver effort and time step (`upkie_solver.yaml`, milestone 6)
+
+The after-takeover protocol at the edge of each source (the last level the default solver held and the first it fell
+at; inertia at its largest), under five solver settings, 10 runs each, 400 runs. Commands and error draws are seeded per
+run index, so run i of every setting, and of the default (runs 0-9 of the after-takeover sweep), faces the same command
+and the same plant. Default: 200 Hz requested (187 Hz achieved), 1 SQP iteration, dt 0.02 s, 1 s horizon.
+`demo_videos/robustness/upkie_solver/<setting>/summary.md`.
+
+![Upkie success rate vs modeling error per solver setting](results/assets/upkie_robustness_solver.png)
+
+| Solver setting | MPC rate | nominal | inertia ±60 % | joint friction 8 x / 16 x | sensing 30 / 40 ms | actuation 20 / 40 ms | Pooled | vs default |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| default | 187 Hz | 10 | 10 | 10 / 6 | 10 / 9 | 10 / 7 | 72/80 | - |
+| 100 Hz requested | 97 Hz | 9 | 10 | 10 / 6 | 10 / 8 | 10 / 8 | 71/80 | +2 -3, p 1.0 |
+| 60 Hz requested | 59 Hz | 10 | 10 | 10 / 7 | 10 / 3 | 10 / 9 | 69/80 | +3 -6, p 0.51 |
+| 2 SQP iterations | 183 Hz | 10 | 10 | 10 / 6 | 10 / 10 | 10 / 9 | 75/80 | +4 -1, p 0.38 |
+| dt 0.01 s (100 nodes) | 185 Hz | 10 | 10 | 10 / 6 | 10 / 7 | 10 / 8 | 71/80 | +3 -4, p 1.0 |
+| dt 0.04 s (25 nodes) | 187 Hz | 10 | 10 | 10 / 8 | 10 / 10 | 10 / 10 | 78/80 | +6 -0, p 0.03 |
+
+Runs without a fall, of 10 per point. "vs default": runs the default solver lost that this setting kept (+) and runs
+the default kept that it lost (-), on the same command and plant; p is the exact McNemar test of the two counts.
+
 Readings:
 
 - The MPC alone tolerates every inertial error tested, ±60 % of mass, CoM and inertia on every body (the paper went
@@ -217,11 +239,20 @@ Readings:
   ages the observation the MPC plans from, while the controller loop and the joint servo run on the current state.
 - At the edges the hardest moment is braking: at 40 ms of sensing or actuation delay and on slippery ground most falls
   come 1-2 s after a fast command (|vx| 0.56-0.92 m/s) steps to zero, most of the rest at the command onset.
+- A coarser time step is the one solver change that helped: with dt 0.04 s every run stayed up at 40 ms of sensing and
+  of actuation delay, and it kept 6 of the default's 8 failed runs without losing any (p 0.03), at the same rate; it
+  costs nominal yaw tracking (yaw-rate error p50 0.31 against 0.21 rad/s). A finer step (0.01 s) did not help and
+  tracked worse at the edges (yaw-rate error p50 up to 1.24 rad/s at 40 ms of sensing delay).
+- The MPC rate matters at the delay edge: at 59 Hz, 40 ms of sensing delay fell in 7 of 10 runs (the default 1), the
+  one point whose 95 % intervals do not overlap; at 97 Hz nothing changed significantly, but one nominal run tipped
+  over (pitch 1.56 rad, 11.6 s into a slow turn), the only nominal fall of the study.
+- Solver effort is cheap on Upkie: a second SQP iteration, or 100 nodes, costs only 2-4 Hz (the solve fits the 5 ms
+  period either way); the second iteration kept 4 failed runs for 1 lost, not significant at 10 runs.
 - The nominal controller turns about 0.2 rad/s slower than commanded at every yaw command, steady over the hold
   (e.g. -0.40 rad/s for -0.56); it predates this study.
 
-Open items: milestone 6, solver effort and time step at these edges (`upkie_solver.yaml`, running); milestone 7,
-combined random errors; the planned stand-up's sensitivity to inertia (outside the MPC).
+Open items: milestone 7, combined random errors; dt 0.04 s over every level and more runs, with its yaw-tracking
+cost, before any change of the default; the planned stand-up's sensitivity to inertia (outside the MPC).
 
 Injection checks (one run each, `demo_videos/robustness/smoke_delay`):
 
