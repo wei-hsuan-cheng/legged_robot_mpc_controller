@@ -467,7 +467,49 @@ Visualization Manager:
       Target Frame: pelvis
       Value: Orbit (rviz)
       Yaw: 0.17449307441711426
-    Saved: ~
+    # Views panel: double-click a saved view to switch. robot.launch.py replaces 'pelvis' with the robot's base frame
+    # (gt_body_frame), so the camera follows the robot; <Fixed Frame> is a free camera.
+    Saved:
+      - Class: rviz_default_plugins/Orbit
+        Distance: 2.4502856731414795
+        Enable Stereo Rendering:
+          Stereo Eye Separation: 0.05999999865889549
+          Stereo Focal Distance: 1
+          Swap Stereo Eyes: false
+          Value: false
+        Focal Point:
+          X: 0.5489431023597717
+          Y: 0.008744755759835243
+          Z: 0.13134783506393433
+        Focal Shape Fixed Size: true
+        Focal Shape Size: 0.05000000074505806
+        Invert Z Axis: false
+        Name: Follow robot
+        Near Clip Distance: 0.009999999776482582
+        Pitch: 0.5337981581687927
+        Target Frame: pelvis
+        Value: Orbit (rviz)
+        Yaw: 0.17449307441711426
+      - Class: rviz_default_plugins/Orbit
+        Distance: 2.4502856731414795
+        Enable Stereo Rendering:
+          Stereo Eye Separation: 0.05999999865889549
+          Stereo Focal Distance: 1
+          Swap Stereo Eyes: false
+          Value: false
+        Focal Point:
+          X: 0.5489431023597717
+          Y: 0.008744755759835243
+          Z: 0.13134783506393433
+        Focal Shape Fixed Size: true
+        Focal Shape Size: 0.05000000074505806
+        Invert Z Axis: false
+        Name: Free
+        Near Clip Distance: 0.009999999776482582
+        Pitch: 0.5337981581687927
+        Target Frame: <Fixed Frame>
+        Value: Orbit (rviz)
+        Yaw: 0.17449307441711426
 Window Geometry:
   Displays:
     collapsed: false

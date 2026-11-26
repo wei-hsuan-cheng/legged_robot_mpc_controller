@@ -5,6 +5,11 @@
   <include file="../../common/backgrounds/background_night_pineapple.xml" />
   <!-- terrain: the Upkie test course (uneven field, ramps, steps, one-wheel ramp), robot spawned on its flat start -->
   <include file="../../terrains/upkie_course.xml" />
+  <!-- MuJoCo viewer (mujoco_ros2_control): follow the robot's centre of mass, T toggles; delete for the free camera.
+       Optional: <text name="viewer_camera.body" data="base_link"/>, <numeric name="viewer_camera.track_distance" data="2.0"/> -->
+  <custom>
+    <text name="viewer_camera.mode" data="track" />
+  </custom>
   <!-- robot -->
   <include file="pineapple.xml" />
 </mujoco>

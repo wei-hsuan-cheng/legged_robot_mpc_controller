@@ -7,6 +7,7 @@ controller YAML owns the reference height used by MPC and the selected command f
 
 import math
 import os
+import tempfile
 import yaml
 from typing import List
 
@@ -453,7 +454,7 @@ def generate_launch_description():
         executable="rviz2",
         output="screen",
         condition=IfCondition(LaunchConfiguration("rviz")),
-        arguments=["-d", LaunchConfiguration("rvizconfig")],
+        arguments=["-d", LaunchConfiguration("rvizResolvedConfig")],
         parameters=[{"use_sim_time": use_sim_time}],
     )
 
@@ -469,6 +470,21 @@ def generate_launch_description():
         parameters=[{"use_sim_time": use_sim_time}],
         condition=IfCondition(PythonExpression(['"', LaunchConfiguration("commandFrame"), '" != ""'])),
     )
+
+    def resolve_rviz_config(context):
+        # The Orbit views in the RViz config target 'pelvis' (G1's base); follow this robot's base body instead.
+        # The rewritten copy lives in /tmp, so RViz's "Save Config" writes there: edit the source to keep a change.
+        source = LaunchConfiguration("rvizconfig").perform(context)
+        base = LaunchConfiguration("gt_body_frame").perform(context)
+        with open(source) as file:
+            text = file.read()
+        if base == "pelvis" or "Target Frame: pelvis" not in text:
+            return [SetLaunchConfiguration("rvizResolvedConfig", source)]
+        name = os.path.splitext(os.path.basename(source))[0]
+        path = os.path.join(tempfile.gettempdir(), f"{name}_{LaunchConfiguration('robotName').perform(context)}_{os.getpid()}.rviz")
+        with open(path, "w") as file:
+            file.write(text.replace("Target Frame: pelvis", f"Target Frame: {base}"))
+        return [SetLaunchConfiguration("rvizResolvedConfig", path)]
 
     def resolve_model_error_file(context):
         # A name is a file under config/model_error/ (installed: a new file there needs a rebuild), else a path from
@@ -488,6 +504,7 @@ def generate_launch_description():
         + [
             OpaqueFunction(function=resolve_controllers_params_file),
             OpaqueFunction(function=resolve_model_error_file),
+            OpaqueFunction(function=resolve_rviz_config),
             ros2_control_node,
             mujoco_ros2_control_node,
             controller_sequence,
