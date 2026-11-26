@@ -5,49 +5,43 @@
 
 ## Demos
 
+### Humanoid
+
 <table align="center">
   <tr>
-    <td align="center" width="50%">
-      <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/g1.gif?raw=true" width="400" alt="Unitree G1 velocity and base-height control" />
+    <td align="center" width="33%">
+      <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/h2_mpc_future_robot_visualization.gif?raw=true" width="300" alt="Unitree H2 MPC future robot visualization" />
     </td>
-    <td align="center" width="50%">
-      <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/h2_mpc_future_robot_visualization.gif?raw=true" width="400" alt="Unitree H2 MPC future robot visualization" />
+    <td align="center" width="33%">
+      <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/h2_run.gif?raw=true" width="300" alt="H2 runs, stops, stumbles, and regains balance" />
+    </td>
+    <td align="center" width="33%">
+      <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/h2_uneven_terrain.gif?raw=true" width="300" alt="H2 walking on uneven terrain with proprioception only" />
     </td>
   </tr>
   <tr>
-    <td align="center"><b>Unitree G1</b><br />Velocity and base-height control</td>
     <td align="center"><b>Unitree H2</b><br />Visualization of MPC future robot trajectory</td>
+    <td align="center"><b>Unitree H2</b><br />Runs, stops, stumbles, and regains balance</td>
+    <td align="center"><b>Unitree H2</b><br />Uneven terrain locomotion with proprioception only</td>
   </tr>
 </table>
 
-<p align="center">
-  <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/h2_run.gif?raw=true" width="800" alt="H2 runs, stops, stumbles, and regains balance" />
-  <br />
-  <b>Unitree H2</b><br />Runs, stops, stumbles, and regains balance
-</p>
-
-<p align="center">
-  <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/h2_uneven_terrain.gif?raw=true" width="700" alt="H2 walking on uneven terrain with proprioception only" />
-  <br />
-  <b>Unitree H2</b><br />Uneven terrain locomotion with proprioception only
-</p>
-
-<p align="center">
-  <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/upkie_standup_course.gif?raw=true" width="700" alt="Upkie stands up and drives through a terrain course" />
-  <br />
-  <b>Wheeled-Biped <a href="https://github.com/upkie/upkie">Upkie</a> (with rolling-contact conditions)</b><br />Swings itself up, balances, and drives through uneven terrains with steps and ramps
-</p>
+### Wheeled-Biped
 
 <table align="center">
   <tr>
-    <td align="center" width="50%">
-      <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/pineapple_wheel_drive.gif?raw=true" width="400" alt="Pineapple stands up from sitting and drives off" />
+    <td align="center" width="33%">
+      <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/upkie_standup_course.gif?raw=true" width="300" alt="Upkie stands up and drives through a terrain course" />
     </td>
-    <td align="center" width="50%">
-      <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/pineapple_gaits.gif?raw=true" width="400" alt="Pineapple steps over rough tiles, steps and ramps, then down a one-wheel ramp" />
+    <td align="center" width="33%">
+      <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/pineapple_wheel_drive.gif?raw=true" width="300" alt="Pineapple stands up from sitting and drives off" />
+    </td>
+    <td align="center" width="33%">
+      <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/pineapple_gaits.gif?raw=true" width="300" alt="Pineapple steps over rough tiles, steps and ramps, then down a one-wheel ramp" />
     </td>
   </tr>
   <tr>
+    <td align="center"><b><a href="https://github.com/upkie/upkie">Upkie</a></b> (rolling-contact conditions)<br />Swings itself up, balances, and drives through uneven terrains with steps and ramps</td>
     <td align="center"><b>Wheel-Legged Pineapple</b><br />Planned stand-up from sitting, then drives off</td>
     <td align="center"><b>Wheel-Legged Pineapple</b><br />Stepping gaits over rough tiles, steps and ramps, ending on a one-wheel ramp, without a terrain map</td>
   </tr>
