@@ -26,7 +26,7 @@
   </tr>
 </table>
 
-### Wheeled-Biped
+### Wheeled-Biped (with rolling-contact conditions)
 
 <table align="center">
   <tr>
@@ -41,7 +41,7 @@
     </td>
   </tr>
   <tr>
-    <td align="center"><b><a href="https://github.com/upkie/upkie">Upkie</a></b> (rolling-contact conditions)<br />Swings itself up, balances, and drives through uneven terrains with steps and ramps</td>
+    <td align="center"><b><a href="https://github.com/upkie/upkie">Upkie</a></b><br />Swings itself up, balances, and drives through uneven terrains with steps and ramps</td>
     <td align="center"><b>Wheel-Legged Pineapple</b><br />Planned stand-up from sitting, then drives off</td>
     <td align="center"><b>Wheel-Legged Pineapple</b><br />Stepping gaits over rough tiles, steps and ramps, ending on a one-wheel ramp, without a terrain map</td>
   </tr>
