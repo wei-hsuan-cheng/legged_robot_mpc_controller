@@ -33,10 +33,25 @@
 </p>
 
 <p align="center">
-  <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/upkie_standup_course.gif?raw=true" width="700" alt="H2 walking on uneven terrain with proprioception only" />
+  <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/upkie_standup_course.gif?raw=true" width="700" alt="Upkie stands up and drives through a terrain course" />
   <br />
   <b>Wheeled-Biped <a href="https://github.com/upkie/upkie">Upkie</a> (with rolling-contact conditions)</b><br />Swings itself up, balances, and drives through uneven terrains with steps and ramps
 </p>
+
+<table align="center">
+  <tr>
+    <td align="center" width="50%">
+      <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/pineapple_wheel_drive.gif?raw=true" width="400" alt="Pineapple stands up and drives over ramps, steps and rough tiles" />
+    </td>
+    <td align="center" width="50%">
+      <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/pineapple_gaits.gif?raw=true" width="400" alt="Pineapple steps over ramps, steps and rough tiles" />
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><b>Wheel-Legged Pineapple</b><br />Stands up, then drives over ramps, steps and rough tiles</td>
+    <td align="center"><b>Wheel-Legged Pineapple</b><br />Stepping gaits over ramps, steps and rough tiles, without a terrain map</td>
+  </tr>
+</table>
 
 
 ## MPC Formulation
@@ -73,8 +88,11 @@ See [package health scan](./docs/results/package_health_scan.md) for the subsequ
 | --- | --- | --- | --- | --- | --- |
 | Unitree G1 | `g1` | 29 | 23 | WB-ID | 0.795 m |
 | Unitree H2 | `h2` | 31 | 25 | WB-ID | 1.02 m |
+| Upkie (wheeled biped) | `upkie` | 6 | 6 | WB-ID, rolling wheels | 0.245 m (base) |
+| Pineapple (wheel-legged, stowed arm) | `pineapple` | 14 | 8 | WB-ID, rolling wheels | 0.36 m (base) |
 
-The six wrist joints are fixed in each reduced MPC model and held by the joint servos; the floating base adds six configuration and six velocity coordinates, separate from the actuated-joint DoFs above.
+For G1 and H2, the six wrist joints are fixed in each reduced MPC model and held by the joint servos; the floating base adds six configuration and six velocity coordinates, separate from the actuated-joint DoFs above.
+Pineapple's six arm joints are fixed (stowed) in its MPC model.
 H2's two head joints remain active and use the existing orientation/angular-velocity frame cost; torso stabilization uses `torsoTiltCost`.
 See [H2 Integration and Validation](./docs/h2_wb_id_mpc.md) and [official model provenance](./description/urdf/robots/h2/MODEL_SOURCE.md) for its model corrections and tested range.
 
@@ -223,6 +241,8 @@ ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=pineapple mpc
 Besides rolling (`wheel_drive`) it has Upkie's `jump`, `walk` and `trot` gaits (`/humanoid/gait_command`, or the DualSense Circle and Triangle buttons), and moves sideways: a vy command switches it to `trot`, which steps with the hip ab/ad.
 Its estimator and MPC keep a ground height per tire. Together with higher lifts, this lets `walk` step onto a 40 mm step and `walk` or `trot` cross a rough field of 34 mm tiles, without a terrain map.
 See [Pineapple](./docs/pineapple.md) for the model, the configuration, the robustness suite (`tests/tuning/pineapple_suite.py`) and the headless tests.
+`scene_gauntlet.xml` runs gentle (the Upkie course), hard and brutal terrain in one scene (`mujocoModelFile:=scene_gauntlet.xml`); see [Pineapple](./docs/pineapple.md#gauntlet-gentle-to-brutal-in-one-scene) for how far each gait gets.
+In Pineapple's scenes the MuJoCo viewer follows the robot's centre of mass (**T** toggles the free camera); RViz follows the robot's base.
 The [small-wheel terrain profiles](./config/terrains/upkie/README.md) leave the existing humanoid terrains unchanged and provide no terrain map to MPC.
 
 
@@ -242,10 +262,10 @@ The selected controller YAML and effective nominal height are passed to teleop a
 Stop any separately running `joy` driver or standalone teleop launch before using the integrated launch.
 The left stick controls forward/sideways motion, the right stick controls yaw, and D-pad up/down changes height while L2 is held.
 Release L2 to stop velocity commands; L1 acts as Center only with L2 released, zeroing velocity/yaw and restoring nominal height.
-Circle is unassigned and reserved for future use.
+On Upkie and Pineapple, Circle cycles `walk` -> `trot` -> `wheel_drive` and Triangle jumps while held (in locomotion); Circle is unassigned on G1 and H2.
 L1 presses while driving are ignored rather than queued; release L1 before re-enabling L2.
 L2 engages at 50% of its ROS trigger range and releases at 20%; the mapping and thresholds are configurable in the teleop package.
-Upkie ignores sideways input.
+Upkie ignores sideways input; on Pineapple a sideways command switches to `trot`, which steps sideways.
 Start with the [isolated topic check](https://github.com/wei-hsuan-cheng/legged_robot_teleop/blob/main/docs/testing.md) before controlling the robot.
 Do not run the GUI, scripted command examples, and teleop on the same command topic together.
 
