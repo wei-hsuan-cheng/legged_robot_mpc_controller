@@ -9,14 +9,14 @@
 
 <table align="center">
   <tr>
-    <td align="center">
-      <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/h2_mpc_future_robot_visualization.gif?raw=true" height="170" alt="Unitree H2 MPC future robot visualization" />
+    <td align="center" width="17%">
+      <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/h2_mpc_future_robot_visualization.gif?raw=true" width="100%" alt="Unitree H2 MPC future robot visualization" />
     </td>
-    <td align="center">
-      <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/h2_run.gif?raw=true" height="170" alt="H2 runs, stops, stumbles, and regains balance" />
+    <td align="center" width="58%">
+      <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/h2_run.gif?raw=true" width="100%" alt="H2 runs, stops, stumbles, and regains balance" />
     </td>
-    <td align="center">
-      <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/h2_uneven_terrain.gif?raw=true" height="170" alt="H2 walking on uneven terrain with proprioception only" />
+    <td align="center" width="25%">
+      <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/h2_uneven_terrain.gif?raw=true" width="100%" alt="H2 walking on uneven terrain with proprioception only" />
     </td>
   </tr>
   <tr>
@@ -30,14 +30,14 @@
 
 <table align="center">
   <tr>
-    <td align="center">
-      <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/upkie_standup_course.gif?raw=true" height="250" alt="Upkie stands up and drives through a terrain course" />
+    <td align="center" width="31%">
+      <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/upkie_standup_course.gif?raw=true" width="100%" alt="Upkie stands up and drives through a terrain course" />
     </td>
-    <td align="center">
-      <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/pineapple_wheel_drive.gif?raw=true" height="250" alt="Pineapple stands up from sitting and drives off" />
+    <td align="center" width="35%">
+      <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/pineapple_wheel_drive.gif?raw=true" width="100%" alt="Pineapple stands up from sitting and drives off" />
     </td>
-    <td align="center">
-      <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/pineapple_gaits.gif?raw=true" height="250" alt="Pineapple steps over rough tiles, steps and ramps, then down a one-wheel ramp" />
+    <td align="center" width="35%">
+      <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/pineapple_gaits.gif?raw=true" width="100%" alt="Pineapple steps over rough tiles, steps and ramps, then down a one-wheel ramp" />
     </td>
   </tr>
   <tr>
