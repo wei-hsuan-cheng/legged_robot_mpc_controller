@@ -151,7 +151,9 @@ class SwitchedModelReferenceManager : public ReferenceManager {
 
   /**
    * Use the measured stance-foot height as the swing planner's ground reference,
-   * instead of assuming a flat floor at z = 0.
+   * instead of assuming a flat floor at z = 0. Each contact keeps its own ground
+   * (measured in contact, held in swing); a swing lands on its partner's ground
+   * (contactHeightSequences), and the base-height target follows the mean.
    *
    * adaptToCurrentGroundHeight() computes a ground-height estimate from the
    * stance feet and then, historically, discarded it with `terrainHeight = 0.0`.
@@ -175,6 +177,12 @@ class SwitchedModelReferenceManager : public ReferenceManager {
     useTerrainHeightEstimate_ = enabled;
     maxTerrainHeightStep_ = maxStepPerSolve;
   }
+
+  /**
+   * Height of a contact frame above the ground it rests on: the wheel radius for rolling wheels, whose contact
+   * frames are the wheel centres; zero for feet. The terrain estimate subtracts it.
+   */
+  void setContactGroundOffset(scalar_t offset) { contactGroundOffset_ = offset; }
   bool usesTerrainHeightEstimate() const { return useTerrainHeightEstimate_; }
 
   void setCaptureFootPlacementSettings(const CaptureFootPlacementSettings& settings) {
@@ -317,6 +325,9 @@ scalar_t maxOffset = 0.6;
   // Adjusts the height of the target trajectories to current terrain height and returns that height.
   scalar_t adaptToCurrentGroundHeight(TargetTrajectories& targetTrajectories, const vector_t& initState, size_t initMode);
   scalar_t previousGroundHeightEstimate_{0.0};
+  // Terrain estimate on: the ground under each contact, measured while it is in contact and held in swing.
+  feet_array_t<scalar_t> contactGroundHeights_{};
+  scalar_t contactGroundOffset_{0.0};
 
   PinocchioInterface pinocchioInterface_;
   const MpcRobotModelBase<scalar_t>* mpcRobotModelPtr_;

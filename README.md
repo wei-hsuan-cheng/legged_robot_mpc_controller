@@ -221,6 +221,7 @@ ros2 launch legged_robot_mpc_controller robot.launch.py robotName:=pineapple mpc
 ```
 
 Besides rolling (`wheel_drive`) it has Upkie's `jump`, `walk` and `trot` gaits (`/humanoid/gait_command`, or the DualSense Circle and Triangle buttons), and moves sideways: a vy command switches it to `trot`, which steps with the hip ab/ad.
+Its estimator and MPC keep a ground height per tire. Together with higher lifts, this lets `walk` step onto a 40 mm step and `walk` or `trot` cross a rough field of 34 mm tiles, without a terrain map.
 See [Pineapple](./docs/pineapple.md) for the model, the configuration, the robustness suite (`tests/tuning/pineapple_suite.py`) and the headless tests.
 The [small-wheel terrain profiles](./config/terrains/upkie/README.md) leave the existing humanoid terrains unchanged and provide no terrain map to MPC.
 

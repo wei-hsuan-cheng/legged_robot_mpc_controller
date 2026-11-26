@@ -107,8 +107,25 @@ scalar_t SwitchedModelReferenceManager::getPhaseVariable(scalar_t time) const {
 scalar_t SwitchedModelReferenceManager::adaptToCurrentGroundHeight(TargetTrajectories& targetTrajectories,
                                                                    const vector_t& initState,
                                                                    size_t initMode) {
-  scalar_t terrainHeight = computeGroundHeightEstimate(pinocchioInterface_, *mpcRobotModelPtr_,
-                                                       mpcRobotModelPtr_->getGeneralizedCoordinates(initState), initMode);
+  // The ground under each contact in measured contact: its frame's height less the frame's height above the ground
+  // (the wheel radius for wheel centres). A contact in the air keeps the ground it left.
+  updateFramePlacements<scalar_t>(mpcRobotModelPtr_->getGeneralizedCoordinates(initState), pinocchioInterface_);
+  const auto contactPositions = getContactPositions<scalar_t>(pinocchioInterface_, *mpcRobotModelPtr_);
+  const contact_flag_t measuredContacts = modeNumber2StanceLeg(initMode);
+  scalar_t terrainHeight = 0.0;
+  size_t numInContact = 0;
+  for (size_t i = 0; i < N_CONTACTS; ++i) {
+    if (measuredContacts[i] && std::isfinite(contactPositions[i](2))) {
+      contactGroundHeights_[i] = contactPositions[i](2) - contactGroundOffset_;
+      terrainHeight += contactGroundHeights_[i];
+      ++numInContact;
+    }
+  }
+  if (numInContact > 0) {
+    terrainHeight /= static_cast<scalar_t>(numInContact);
+  } else {
+    terrainHeight = std::numeric_limits<scalar_t>::quiet_NaN();  // flight: hold the last value below
+  }
 
   // This value is the swing planner's ground reference and the base-height target
   // offset, so pinning it to zero hard-codes a flat floor at the world origin -
@@ -314,7 +331,15 @@ void SwitchedModelReferenceManager::modifyReferences(scalar_t initTime,
     swingTrajectoryPtr_->update(modeSchedule, liftOffHeightSequence, touchDownHeightSequence, swingHeights);
   } else {
     scalar_t terrainHeight = adaptToCurrentGroundHeight(targetTrajectories, initState, initMode);
-    swingTrajectoryPtr_->update(modeSchedule, terrainHeight, swingHeights);
+    if (useTerrainHeightEstimate_) {
+      feet_array_t<scalar_array_t> liftOffHeightSequence;
+      feet_array_t<scalar_array_t> touchDownHeightSequence;
+      contactHeightSequences(modeSchedule, contactGroundHeights_, swingTrajectoryPtr_->getConfig().touchDownHeightOffset,
+                             liftOffHeightSequence, touchDownHeightSequence);
+      swingTrajectoryPtr_->update(modeSchedule, liftOffHeightSequence, touchDownHeightSequence, swingHeights);
+    } else {
+      swingTrajectoryPtr_->update(modeSchedule, terrainHeight, swingHeights);
+    }
   }
 
   modeSchedule_ = modeSchedule;

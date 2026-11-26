@@ -91,7 +91,8 @@ class RunningGaitTest(unittest.TestCase):
         source = (ROOT / "src/mpc/common/reference_manager/ProceduralMpcMotionManager.cpp").read_text()
         self.assertIn("constexpr scalar_t speedBoundaryTolerance = 1e-9;", source)
         self.assertIn("std::abs(velCommandVec(0)) >= cfg.maxLinVelCmd - speedBoundaryTolerance", source)
-        self.assertIn("std::abs(velCommandVec(1)) >= cfg.maxLinVelCmd - speedBoundaryTolerance", source)
+        # The lateral command has its own band (gait.transitions.<rung>.lateralVelocity, defaulting to linearVelocity).
+        self.assertIn("std::abs(velCommandVec(1)) >= cfg.maxLatVelCmd - speedBoundaryTolerance", source)
         # Reference boundary arithmetic, not an invocation of the compiled C++ guard.
         for speed in (.75, .75 - 1e-14, -.75, 1.0):
             self.assertTrue(abs(speed) >= .75 - 1e-9)

@@ -275,4 +275,57 @@ scalar_t SwingTrajectoryPlanner::swingTrajectoryScaling(scalar_t startTime, scal
 }
 
 
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+
+void contactHeightSequences(const ModeSchedule& modeSchedule, const feet_array_t<scalar_t>& groundHeights, scalar_t touchDownHeightOffset,
+                            feet_array_t<scalar_array_t>& liftOff, feet_array_t<scalar_array_t>& touchDown) {
+  const size_t numPhases = modeSchedule.modeSequence.size();
+  std::vector<contact_flag_t> flags(numPhases);
+  for (size_t p = 0; p < numPhases; ++p) {
+    flags[p] = modeNumber2StanceLeg(modeSchedule.modeSequence[p]);
+  }
+  // The ground each contact is predicted to stand on, advanced through the schedule in time order: a touch-down
+  // lands on the ground of the contacts that stood during its last swing phase (on its own ground if none did), so
+  // a later step sees the level an earlier one landed on.
+  feet_array_t<scalar_t> ground = groundHeights;
+  const auto partnersGround = [&](size_t j, const contact_flag_t& standing) {
+    scalar_t sum = 0.0;
+    size_t count = 0;
+    for (size_t k = 0; k < N_CONTACTS; ++k) {
+      if (k != j && standing[k]) {
+        sum += ground[k];
+        ++count;
+      }
+    }
+    return count > 0 ? sum / static_cast<scalar_t>(count) : ground[j];
+  };
+  for (size_t j = 0; j < N_CONTACTS; ++j) {
+    liftOff[j].assign(numPhases, ground[j]);
+    touchDown[j].assign(numPhases, ground[j] + touchDownHeightOffset);
+  }
+  feet_array_t<size_t> swingStart{};
+  for (size_t p = 0; p <= numPhases; ++p) {
+    for (size_t j = 0; j < N_CONTACTS; ++j) {
+      const bool inContact = p < numPhases ? flags[p][j] : true;  // close a swing still open at the horizon end
+      const bool wasInContact = p == 0 ? true : flags[p - 1][j];
+      if (p < numPhases && !inContact && wasInContact) {
+        swingStart[j] = p;
+      }
+      if (p > 0 && inContact && !wasInContact) {
+        const scalar_t landing = partnersGround(j, flags[p - 1]);
+        for (size_t q = swingStart[j]; q < p; ++q) {
+          liftOff[j][q] = ground[j];
+          touchDown[j][q] = landing + touchDownHeightOffset;
+        }
+        ground[j] = landing;
+      }
+      if (p < numPhases && inContact) {
+        liftOff[j][p] = ground[j];
+      }
+    }
+  }
+}
+
 }  // namespace ocs2::humanoid

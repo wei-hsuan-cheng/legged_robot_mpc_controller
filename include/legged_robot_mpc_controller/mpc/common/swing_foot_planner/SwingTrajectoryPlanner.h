@@ -60,6 +60,8 @@ class SwingTrajectoryPlanner {
               const feet_array_t<scalar_array_t>& touchDownHeightSequence,
               const scalar_array_t& swingHeightSequence = {});
 
+  const Config& getConfig() const { return config_; }
+
   scalar_t getZaccelerationConstraint(size_t leg, scalar_t time) const;
 
   scalar_t getZvelocityConstraint(size_t leg, scalar_t time) const;
@@ -119,5 +121,16 @@ class SwingTrajectoryPlanner {
   feet_array_t<std::vector<scalar_t>> feetHeightTrajectoriesEvents_;
 };
 
+
+/**
+ * Lift-off and touch-down height sequences for ground that differs per contact, without a terrain map. Contact j
+ * stands on `groundHeights[j]` (measured) until its next touch-down; each touch-down, in time order, lands on the
+ * ground of the contacts that stood during its last swing phase (its own if none did) and stands there afterwards.
+ * The leading wheel of a step has no other information; the trailing one lands on the level the leading one found,
+ * and every later step stays there.
+ */
+void contactHeightSequences(const ModeSchedule& modeSchedule, const feet_array_t<scalar_t>& groundHeights,
+                            scalar_t touchDownHeightOffset,
+                            feet_array_t<scalar_array_t>& liftOff, feet_array_t<scalar_array_t>& touchDown);
 
 }  // namespace ocs2::humanoid

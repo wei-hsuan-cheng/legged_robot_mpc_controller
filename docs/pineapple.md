@@ -61,7 +61,7 @@ The stand-up ends about 0.2 m behind the spawn and turned by about 0.22 rad (the
 
 ## Robustness, gaits and sideways driving (2026-11-26)
 
-[`tests/tuning/pineapple_suite.py`](../tests/tuning/pineapple_suite.py) runs 40 headless cases, each a
+[`tests/tuning/pineapple_suite.py`](../tests/tuning/pineapple_suite.py) runs 38 headless cases, each a
 `wb_id_walk_test.py` run from the seated spawn and planned stand-up with the wheel KF driving the MPC, three in parallel
 on their own ROS domains (`--list`, `--cases 'push_*'`, `--repeat N`, `--set KEY=VALUE` passed to every run;
 results in `/tmp/pineapple_suite/TAG/summary.md`). Worst values are taken from 1.5 s after the takeover, so the stand-up
@@ -116,29 +116,66 @@ sideways with the hip ab/ad by itself.
 | case | result |
 | --- | --- |
 | `jump` in place / rolling 0.3 m/s / turning 1 rad/s | pass; both tires off 0.13-0.15 s, 17 mm clearance, 260-300 N landing per wheel, tilt <= 0.016 rad; in place it drifts 0.26 m forward over 8 s |
-| `walk` in place / rolling | pass; one tire off 0.22-0.24 s, 30 mm, tilt <= 0.03 rad |
-| `trot` in place / rolling | pass; one tire off 0.23-0.25 s, 24 mm, tilt <= 0.03 rad |
+| `walk` in place / rolling | pass; one tire off 0.22-0.24 s, tilt <= 0.04 rad (measured at 30 mm clearance before the swing heights below were raised; planned apex now 50 mm) |
+| `trot` in place / rolling | pass; one tire off 0.23-0.25 s, tilt <= 0.03 rad (measured at 24 mm; planned apex now 44 mm) |
 | vy 0.2 m/s left / right for 6 s | pass; 1.28-1.34 m sideways (1.2 m commanded plus the stop), 0.15-0.2 m forward drift, 0.05-0.08 rad yaw drift, roll <= 0.036 |
 | vy with vx and with turning | pass, roll <= 0.07 rad |
 | 50 N sideways pushes in trot, 60 N fore/aft in walk | pass, tilt <= 0.05 rad |
 | walk, trot rolling 0.3 m/s over the Upkie course (ramps, 10 mm steps, 10 cm one-wheel ramp) | walk 3/3; trot 4/4 with 0.1 s double support (2/4 with 0.05 s); roll <= 0.05 rad |
 | gait switching at 0.5 m/s (walk, trot, jump, wheel_drive, trot, wheel_drive within 9 s) | pass, roll 0.065 rad |
-| walk/trot over the hard course's rough field, walk/jump onto the 40 mm step | fall |
+| walk/trot over the hard course's rough field, walk/jump onto the 40 mm step | see stepping up, below |
 
-The last row is the open part: the wheel KF measures the base height above the plane of the tires (both at z = 0)
-and the swing planner lands on flat ground, so a tire put down on a 34-40 mm higher tile is a model error the gait
-cannot absorb; stepping up needs terrain-aware height estimation (`reference.groundHeight.useEstimate` assumes an
-estimator that does not pin the contacts to zero).
+### Stepping up: ground per tire, slip rejection, higher lifts
 
-Final suite (`--tag final`, one run each): 32/38 pass; the 6 failures are the slow 40 mm step, the slow hard course,
-and the four gait cases of the last row. In 3 of about 120 suite runs a robot held its height 3-5 cm low for a whole
-run (first runs of a parallel batch); with the estimate logged, estimate and ground truth agree within 8 mm, and it
-did not recur in a fresh batch: not diagnosed.
+Stepping onto higher ground failed with the estimator driving, for three reasons, each fixed:
+
+1. **Ground model.** The wheel KF pinned both tires to the plane z = 0, and the MPC aimed every swing and held every
+   stance tire at one ground height. Now the estimator keeps a ground height per tire (legged_robot_state_estimator
+   `wheel.terrain`): nearly fixed while the tire is in contact, free while it swings, latched at touch-down, only the
+   mean weakly anchored to the plane. The MPC (`reference.groundHeight.useEstimate`) takes each stance tire's ground
+   from its tire bottom (the wheel centre less the radius), holds it through the swing, and lands each swing on the
+   ground its partner stands on at that moment, walking the schedule in time order. The leading tire therefore aims
+   at its own level and meets the step, and the trailing tire lands on top. With the ground-truth base this alone
+   walks onto the 40 mm step; `trot_course` also passes.
+2. **Tire spin.** A tire pressed against the step corner spins. The KF read the spin as base speed (2 m/s estimated
+   while the base stood at the edge), and the MPC threw the robot. A tire in contact whose tread speed along its
+   rolling direction disagrees with the IMU-propagated base speed by more than `wheel.slipGate` (0.5 m/s) has that
+   direction of its velocity ignored, for at most 0.5 s. Only the rolling direction is gated: sideways stepping
+   scrubs the stance tire sideways, and gating all three axes (tried first) let the other tire alone steer the lateral
+   estimate (`vy_mixed` near-falls in 1 of about 6). Without the gate, walk and jump onto the step fell 3/3 each.
+   Raising the gate to 0.8 or 1.2 m/s, or requiring 30 ms of disagreement first, cost the step (2/3, 2/3, 0/6).
+3. **Lift height.** The planner scales a 0.25 s lift's apex to 0.625 of `swingHeight`: walk's 0.05 m gave 31 mm and
+   trot's 0.04 m gave 25 mm, below a 40 mm step and the rough field's 34 mm tiles. Now 0.08 m for walk (50 mm) and
+   0.07 m for trot (44 mm). The in-contact ground random walk (`wheel.terrain.groundProcessNoise` 0.003) lets the IMU
+   tell a base drop from a tile edge under the stance tire in trot.
+
+Shipped configuration, repeated runs:
+
+| case | before | now |
+| --- | --- | --- |
+| walk onto the 40 mm step at 0.3 m/s | fall | 6/7, tilt <= 0.035 rad on passes |
+| trot over the hard course (rough field, ramps, 20 mm up / 30 mm down, 120 mm one-wheel ramp) | fall in the rough field | 4/4 to the end, tilt <= 0.06 rad |
+| walk over the hard course | fall in the rough field | 4/4 to the end |
+| jump onto the 40 mm step | fall | 0/4: it lands on the step, then pitches over with the tires on the edge (it also falls with the ground-truth base; with the all-axis gate it was 3 of 5) |
+| wheel drive head-on into 30 / 40 mm at 0.4 m/s | stochastic falls | STUCK upright at the edge (the physics limit above), sometimes over |
+| `vy_mixed` | pass | 6/6 clean, pitch <= 0.033 rad |
+
+The suite reports STUCK when a step or course case stays upright but ends short of the obstacle's far side.
+
+Final suite (`--tag final2`, one run each): 35/38. Not passing: wheel drive into 30 mm and into 40 mm at 0.4 m/s (both
+STUCK upright at the edge: momentum-limited, use 0.8 m/s or a gait) and the jump onto the 40 mm step (fall).
+
+**The "occasional low run" was the test setup.** Orphaned Upkie teleop nodes (`base_twist`, reading
+`/codex/upkie/joy`, parent process gone, about 22 h old) lived on ROS domain 171, the first domain of every batch.
+They commanded Upkie's height range (at most 0.33 m) to our controller, so the first case of a batch held about 0.31 m
+and bounced against the 0.36 m it started with. The suite now skips every ROS domain another process uses (it prints
+which). Results of earlier batches' first cases on domain 171 (including some of the wheel-kd table above) ran beside
+these nodes.
 
 ```bash
 cd ~/whcheng_ws && source install/setup.bash
 S=src/legged_robot_mpc_controller/tests/tuning/pineapple_suite.py
-python3 $S --tag mine                                   # all 40 cases, about 10 min
+python3 $S --tag mine                                   # all 38 cases, about 25 min
 python3 $S --tag gaits --cases 'jump_*' 'walk_*' 'trot_*' 'vy_*' --record-tracking
 python3 src/legged_robot_mpc_controller/tests/tuning/analyze_upkie_flight.py /tmp/pineapple_suite/gaits/jump_place --robot pineapple
 ros2 topic pub --once /humanoid/gait_command std_msgs/String "{data: trot}"   # interactive; "{data: ''}" releases
@@ -165,5 +202,7 @@ python3 $T/wb_id_walk_test.py --robot-name pineapple --scene scene_course.xml --
   --command-sequence "[[2,0.3,0,0.36,1],[32,0,0,0.36]]" --prefix /tmp/pineapple/course
 ```
 
-Not tested: the physical DualSense on Pineapple (the teleop path is the same C++ node driven by synthetic `Joy`), stepping onto higher ground (above), arm motion (stowed), model errors, real hardware.
+Not tested: the physical DualSense on Pineapple (the teleop path is the same C++ node driven by synthetic `Joy`; the
+connected controller reports the SDL layout, 21 buttons, in which Circle is 1 and Triangle 3, as configured), arm
+motion (stowed), model errors, real hardware.
 Joint velocity limits are placeholders (the vendor model has none).

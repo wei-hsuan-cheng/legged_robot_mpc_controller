@@ -91,4 +91,40 @@ int main() {
   assert(heights == scalar_array_t(3, -1.0));
   planner.update(schedule.getCurrentModeSchedule(), 0.0, heights);
   assert(std::abs(planner.getZpositionConstraint(1, 0.2) - 0.08) < 1e-12);
+
+  // Ground per contact: contact 1 already stands on a 40 mm step, contact 0 (trailing) on the floor. Contact 0's
+  // swing lifts off the floor and lands on the step; contact 1's next swing stays on the step; both stand there.
+  {
+    size_t swing0 = STANCE;
+    size_t swing1 = STANCE;
+    for (size_t mode = 0; mode < 4; ++mode) {
+      const auto flags = modeNumber2StanceLeg(mode);
+      if (!flags[0] && flags[1]) swing0 = mode;
+      if (flags[0] && !flags[1]) swing1 = mode;
+    }
+    const ModeSchedule steps({0.2, 0.45, 0.6, 0.85}, {STANCE, swing0, STANCE, swing1, STANCE});
+    feet_array_t<scalar_array_t> liftOff, touchDown;
+    contactHeightSequences(steps, {0.0, 0.04}, 0.0, liftOff, touchDown);
+    SwingTrajectoryPlanner::Config flat;
+    flat.swingHeight = 0.08;
+    flat.swingTimeScale = 0.01;
+    SwingTrajectoryPlanner stepping(flat, 2);
+    stepping.update(steps, liftOff, touchDown);
+    const auto z = [&](size_t foot, double time) { return stepping.getZpositionConstraint(foot, time); };
+    assert(std::abs(z(0, 0.1) - 0.0) < 1e-12);     // standing on the floor
+    assert(std::abs(z(0, 0.2) - 0.0) < 1e-9);      // lift-off from the floor
+    assert(std::abs(z(0, 0.45) - 0.04) < 1e-9);    // touch-down on the step
+    assert(std::abs(z(0, 0.5) - 0.04) < 1e-12);    // standing on the step
+    assert(std::abs(z(1, 0.3) - 0.04) < 1e-12);    // the leading contact stands on the step
+    assert(std::abs(z(1, 0.6) - 0.04) < 1e-9);     // and steps on it
+    assert(std::abs(z(1, 0.85) - 0.04) < 1e-9);
+    assert(std::abs(z(1, 0.725) - (0.04 + 0.08)) < 1e-9);  // apex above the step
+    assert(std::abs(z(0, 1.0) - 0.04) < 1e-12);
+
+    // A jump (no contact stands during the flight) lands each contact on its own ground.
+    const ModeSchedule jump({0.4, 0.55}, {STANCE, 0, STANCE});
+    contactHeightSequences(jump, {0.0, 0.04}, 0.0, liftOff, touchDown);
+    stepping.update(jump, liftOff, touchDown);
+    assert(std::abs(z(0, 0.55) - 0.0) < 1e-9 && std::abs(z(1, 0.55) - 0.04) < 1e-9);
+  }
 }

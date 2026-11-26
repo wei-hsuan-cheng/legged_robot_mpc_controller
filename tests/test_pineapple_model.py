@@ -103,6 +103,22 @@ class PineappleModelTest(unittest.TestCase):
         kd = p["control"]["jointEffortPd"]["kd"]
         self.assertEqual([kd[3], kd[7]], [2.0, 2.0])
 
+    def test_stepping_up(self):
+        """Ground per tire in both the estimator and the MPC, slip rejection, and lifts that clear a 40 mm step."""
+        p = params()
+        controllers = yaml.safe_load((CONFIG / "ros2_controllers.yaml").read_text())
+        estimator = controllers["humanoid_linear_kf"]["ros__parameters"]
+        self.assertTrue(estimator["wheel"]["terrain"]["enabled"])
+        self.assertGreater(estimator["wheel"]["slipGate"], 0.0)
+        self.assertTrue(p["ocs2"]["reference"]["groundHeight"]["useEstimate"])
+        templates = p["ocs2"]["gait"]["templates"]
+        scale = p["ocs2"]["gait"]["swingTrajectory"]["swingTimeScale"]
+        for name in ["walk", "trot"]:
+            times = templates[name]["switchingTimes"]
+            lift = min(b - a for a, b, m in zip(times, times[1:], templates[name]["modeSequence"]) if m != "STANCE")
+            apex = min(1.0, lift / scale) * templates[name]["swingHeight"]
+            self.assertGreater(apex, 0.04 if name == "walk" else 0.034, name)  # the step, the rough field's tiles
+
     @unittest.skipIf(importlib.util.find_spec("mujoco") is None, "Python MuJoCo is not installed")
     def test_posture_table_reproduces(self):
         with tempfile.TemporaryDirectory() as directory:

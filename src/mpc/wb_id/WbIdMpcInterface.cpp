@@ -83,6 +83,8 @@ WbIdMpcInterface::WbIdMpcInterface(Config config, bool setupOCP)
   referenceManagerPtr_->setArmSwingSettings(config_.armSwing);
   referenceManagerPtr_->setCaptureFootPlacementSettings(config_.captureFootPlacement);
   referenceManagerPtr_->setUseTerrainHeightEstimate(config_.useTerrainHeightEstimate, config_.maxTerrainHeightStep);
+  // Rolling wheels: the contact frames are the wheel centres, a radius above the ground.
+  referenceManagerPtr_->setContactGroundOffset(config_.activateWheelContact ? config_.wheelContactSettings.radius : 0.0);
 
   if (config_.initialState.size() != static_cast<Eigen::Index>(mpcRobotModelPtr_->getStateDim())) {
     throw std::invalid_argument("[WbIdMpcInterface] initialState size (" + std::to_string(config_.initialState.size()) +

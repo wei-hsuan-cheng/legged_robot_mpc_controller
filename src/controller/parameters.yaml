@@ -413,9 +413,11 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         activate: {type: bool, default_value: true, description: "Enable zero contact-wrench equalities for swing feet; disable only for diagnostic ablation"}
     reference:
       groundHeight:
-        useEstimate: {type: bool, default_value: false, description: "Use stance-foot FK height for the ordinary
-            swing/support-height reference instead of fixed z=0. Requires a floating-base estimator that does
-            not itself pin contact heights to zero; does not supply a terrain map or surface normals."}
+        useEstimate: {type: bool, default_value: false, description: "Ground per contact from the estimate instead of
+            fixed z=0: each stance contact's FK height (a wheel's tire bottom) is its ground, held through its swing,
+            and each swing lands on the ground its partner stands on. The base-height target follows the mean.
+            Requires a floating-base estimator that does not itself pin contact heights to zero (the linear KF's
+            wheel.terrain); does not supply a terrain map or surface normals."}
         maxStepPerSolve: {type: double, default_value: 0.01, description: "Bound [m] on the support-height reference
             change per solver iteration, limiting reference jumps at contact transitions", validation: {gt: [0.0]}}
       targetDisplacementVelocity: {type: double, default_value: 0.5, description: "Nominal displacement velocity

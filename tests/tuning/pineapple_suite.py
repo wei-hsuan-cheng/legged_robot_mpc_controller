@@ -45,16 +45,18 @@ def drive(push, hold, speed=0.5):
                       "--wrench-sequence", str(PUSHES / push), "--wrench-delay", "4"])
 
 
-def terrain(params, speed, until):
-    """Drive along the spawn line at `speed` from 2 s to `until` s, then stop."""
-    return dict(terrain=params, args=["--command-sequence", json.dumps([[2, speed, 0, H, 1], [until, 0, 0, H]]),
-                                      "--hold", str(until + 1)])
+def terrain(params, speed, until, past=None):
+    """Drive along the spawn line at `speed` from 2 s to `until` s, then stop; `past`: the forward distance [m] that
+    clears the obstacle (shorter is STUCK)."""
+    commands = json.dumps([[2, speed, 0, H, 1], [until, 0, 0, H]])
+    return dict(terrain=params, past=past, args=["--command-sequence", commands, "--hold", str(until + 1)])
 
 
-def gait(name, speed=0.0, start=4, stop=12, hold=14, params=None, scene=None):
+def gait(name, speed=0.0, start=4, stop=12, hold=14, params=None, scene=None, past=None):
     """Request the gait template `name` from `start` to `stop` s (standing, or rolling at `speed` along the spawn line)."""
-    case = dict(args=["--command-sequence", json.dumps([[1, speed, 0, H, 1]] if speed else [[0, 0, 0, H]]),
-                      "--gait-sequence", json.dumps([[start, name], [stop, ""]]), "--hold", str(hold)])
+    commands = json.dumps([[1, speed, 0, H, 1]] if speed else [[0, 0, 0, H]])
+    case = dict(past=past, args=["--command-sequence", commands, "--gait-sequence", json.dumps([[start, name], [stop, ""]]),
+                                 "--hold", str(hold)])
     if params:
         case["terrain"] = params
     if scene:
@@ -76,11 +78,11 @@ CASES = {
     "push_torque": stand("push_torque.yaml", 23),
     "drive_push_x100": drive("push_x100.yaml", 10), "drive_push_y50": drive("push_y50.yaml", 10),
     "drive_push_mixed": drive("push_mixed.yaml", 17),
-    "step20": terrain("step20_params.yaml", 0.4, 14), "step30": terrain("step30_params.yaml", 0.4, 14),
-    "step40": terrain("step40_params.yaml", 0.4, 14), "step30_fast": terrain("step30_params.yaml", 0.8, 8),
+    "step20": terrain("step20_params.yaml", 0.4, 14, past=2.0), "step30": terrain("step30_params.yaml", 0.4, 14, past=2.0),
+    "step40": terrain("step40_params.yaml", 0.4, 14, past=2.0), "step30_fast": terrain("step30_params.yaml", 0.8, 8, past=2.0),
     "slope12": terrain("slope12_params.yaml", 0.4, 16),
-    "extreme_course": terrain("extreme_course_params.yaml", 0.4, 25),
-    "extreme_course_fast": terrain("extreme_course_params.yaml", 0.7, 15),
+    "extreme_course": terrain("extreme_course_params.yaml", 0.4, 25, past=6.0),
+    "extreme_course_fast": terrain("extreme_course_params.yaml", 0.7, 15, past=6.0),
     "upkie_course_fast": dict(scene="scene_course.xml", args=[
         "--command-sequence", json.dumps([[2, 0.8, 0, H, 1], [13, 0, 0, H]]), "--hold", "14"]),
     # Full-speed drive, reversals, spins and height swings while moving (vx, yaw rate at the command limits).
@@ -92,8 +94,10 @@ CASES = {
     "walk_place": gait("walk"), "walk_drive": gait("walk", 0.3),
     "trot_place": gait("trot"), "trot_drive": gait("trot", 0.3),
     # The 40 mm step wheel_drive cannot climb slowly (docs/pineapple.md), walked and jumped onto at 0.3 m/s.
-    "walk_step40": gait("walk", 0.3, start=2, stop=14, hold=15, params="step40_params.yaml"),
-    "jump_step40": gait("jump", 0.3, start=2, stop=14, hold=15, params="step40_params.yaml"),
+    "walk_step40": gait("walk", 0.3, start=2, stop=14, hold=15, params="step40_params.yaml",
+                        past=2.0),
+    "jump_step40": gait("jump", 0.3, start=2, stop=14, hold=15, params="step40_params.yaml",
+                        past=2.0),
     # Sideways: vy selects the stepping gait (ocs2.gait.transitions), then vy with vx and with turning.
     # Gaits under pushes, on the rough course, while turning and switched while driving.
     "trot_push": dict(args=["--command-sequence", json.dumps([[0, 0, 0, H]]), "--gait-sequence",
@@ -104,8 +108,10 @@ CASES = {
                             "--wrench-sequence", str(PUSHES / "push_x60.yaml"), "--wrench-delay", "4"]),
     "trot_upkie_course": gait("trot", 0.3, start=1, stop=26, hold=27, scene="scene_course.xml"),
     "walk_upkie_course": gait("walk", 0.3, start=1, stop=26, hold=27, scene="scene_course.xml"),
-    "trot_course": gait("trot", 0.3, start=1, stop=24, hold=25, params="extreme_course_params.yaml"),
-    "walk_course": gait("walk", 0.3, start=1, stop=24, hold=25, params="extreme_course_params.yaml"),
+    "trot_course": gait("trot", 0.3, start=1, stop=24, hold=25, params="extreme_course_params.yaml",
+                        past=6.0),
+    "walk_course": gait("walk", 0.3, start=1, stop=24, hold=25, params="extreme_course_params.yaml",
+                        past=6.0),
     "jump_turn": dict(args=["--command-sequence", json.dumps([[0, 0, 1.0, H]]), "--gait-sequence",
                             json.dumps([[3, "jump"], [10, ""]]), "--hold", "12"]),
     "gait_switch": dict(args=["--command-sequence", json.dumps([[1, 0.5, 0, H, 1], [14, 0, 0, H]]), "--gait-sequence",
@@ -177,6 +183,7 @@ def run(name, case, out, domain, extra):
     final = result.get("final_state") or [0.0] * 7
     row = dict(case=name, verdict=result.get("verdict"), x=final[1], y=final[2], sim_seconds=result.get("sim_seconds"),
                wall_seconds=round(time.monotonic() - began), **after_takeover(prefix, result.get("takeover_time")))
+    judge(row, case)
     if "push_final_recovery" in result:
         row["push_recovered"] = result["push_final_recovery"]
     print(f"{name:22s} {row['verdict']:14s} roll {row['max_roll']:.3f} pitch {row['max_pitch']:.3f} "
@@ -184,11 +191,33 @@ def run(name, case, out, domain, extra):
     return row
 
 
+def busy_domains():
+    """ROS domains some running process already uses (from /proc): a leftover node there, e.g. a teleop publishing
+    height commands, would drive the test robot. Linux only; empty elsewhere."""
+    busy = set()
+    for environ in Path("/proc").glob("[0-9]*/environ"):
+        try:
+            found = re.search(rb"(?:^|\0)ROS_DOMAIN_ID=(\d+)", environ.read_bytes())
+        except OSError:
+            continue
+        if found:
+            busy.add(int(found.group(1)))
+    return busy
+
+
+def judge(row, case):
+    """STUCK: upright to the end, but short of the far side of the case's obstacle."""
+    if row["verdict"] == "SUCCESS" and case.get("past") and row["forward"] < case["past"]:
+        row["verdict"] = "STUCK"
+    return row
+
+
 def summarize_only(name, out):
     result = json.loads((out / f"{name}.json").read_text())
     final = result.get("final_state") or [0.0] * 7
-    return dict(case=name, verdict=result.get("verdict"), x=final[1], y=final[2], sim_seconds=result.get("sim_seconds"),
-                wall_seconds=0, **after_takeover(out / name, result.get("takeover_time")))
+    row = dict(case=name, verdict=result.get("verdict"), x=final[1], y=final[2], sim_seconds=result.get("sim_seconds"),
+               wall_seconds=0, **after_takeover(out / name, result.get("takeover_time")))
+    return judge(row, CASES[re.sub(r"_r\d+$", "", name)])
 
 
 def main():
@@ -198,7 +227,8 @@ def main():
     parser.add_argument("--cases", nargs="+", default=["*"], help="case names or glob patterns")
     parser.add_argument("--jobs", type=int, default=3)
     parser.add_argument("--repeat", type=int, default=1, help="runs per case (CASE, CASE_r2, ...): results near a limit vary")
-    parser.add_argument("--domain", type=int, default=171, help="ROS domains domain .. domain + jobs - 1")
+    parser.add_argument("--domain", type=int, default=171,
+                        help="first ROS domain; each job takes the next one no other process uses")
     parser.add_argument("--list", action="store_true")
     parser.add_argument("--summarize", action="store_true", help="only rebuild the summary of an existing tag")
     args, extra = parser.parse_known_args()  # the rest (--set, --config, --gait-sequence ...) goes to the harness
@@ -214,8 +244,13 @@ def main():
     if not args.summarize:
         (out / "extra_args.json").write_text(json.dumps(extra))
     domains = queue.Queue()  # a free ROS domain per running case: concurrent launches must not share one
-    for k in range(args.jobs):
-        domains.put(args.domain + k)
+    busy, candidate = busy_domains(), args.domain
+    for _ in range(args.jobs):
+        while candidate in busy:
+            print(f"ROS domain {candidate} is in use by another process: skipped", flush=True)
+            candidate += 1
+        domains.put(candidate)
+        candidate += 1
 
     def job(name):
         if args.summarize:
@@ -232,6 +267,7 @@ def main():
     passed = sum(r["verdict"] == "SUCCESS" for r in rows)
     lines = [f"# Pineapple suite `{args.tag}`: {passed}/{len(rows)} SUCCESS", "", f"harness extra: `{' '.join(extra)}`", "",
              "Worst values from 1.5 s after the MPC takeover (the stand-up excluded); min z is the world height of the base.",
+             "STUCK: upright to the end, but short of the far side of the case's step or course.", "",
              "", "Forward and lateral: displacement in the robot's settled heading (the stand-up leaves it turned in the world).",
              "", "| case | verdict | max roll | max pitch | min z | max speed | forward | lateral | min MPC Hz |",
              "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"]

@@ -37,6 +37,17 @@ humanoid_linear_kf:
     footSensorNoiseVelocity: 0.1
     footHeightSensorNoise: 0.01
     swingNoiseMultiplier: 100.0
+    # Ground height per tire: a stepping gait can put one tire on a step while the other holds the base height
+    # (docs/pineapple.md, stepping up). Pairs with reference.groundHeight.useEstimate in the MPC.
+    wheel:
+      # A tire spinning against an edge or after a bump reads as base speed: ignore its rolling-direction velocity
+      # while it disagrees with the IMU-propagated speed by more than this [m/s].
+      slipGate: 0.5
+      terrain:
+        enabled: true
+        # The ground under a rolling tire changes over tiles and edges: loose enough for the IMU to tell base motion
+        # from a bump.
+        groundProcessNoise: 0.003
     readiness:
       minSeconds: 1.0
       rollPitchStdDevMax: 0.10
@@ -309,8 +320,10 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         # The stand-up catch's rise from the handover height to the commanded height.
         takeoverHeightRate: 0.1
 
+        # Ground under each tire from the estimate (the estimator's wheel.terrain), not the plane z = 0: stance
+        # tires hold their own ground, a swinging tire aims at the ground the standing one is on.
         groundHeight:
-          useEstimate: false
+          useEstimate: true
           maxStepPerSolve: 0.002
 
         # The arm is locked out of the MPC: no arm swing.
@@ -356,10 +369,12 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           jump: {modeSequence: [STANCE, FLY], switchingTimes: [0.0, 0.4, 0.55], swingHeight: 0.05}
           # Alternating single support with long double support. The hip ab/ad shifts the body over the stance wheel,
           # so a lift can be longer than Upkie's.
-          walk: {modeSequence: [STANCE, RF, STANCE, LF], switchingTimes: [0.0, 0.3, 0.55, 0.85, 1.1], swingHeight: 0.05}
+          # The swing planner scales a 0.25 s lift's apex to 0.25 / swingTimeScale = 0.625 of swingHeight: 0.08 m clears a
+          # 40 mm step (50 mm), 0.07 m the rough field's 34 mm tiles (44 mm).
+          walk: {modeSequence: [STANCE, RF, STANCE, LF], switchingTimes: [0.0, 0.3, 0.55, 0.85, 1.1], swingHeight: 0.08}
           # Alternating single support with a short double support between the lifts. 0.1 s of it (Upkie: 0.05 s) lets a
           # stance wheel stalled at a 10 mm edge recover (Upkie course: 2 falls in 4 with 0.05 s, none in 6 with 0.1 s).
-          trot: {modeSequence: [RF, STANCE, LF, STANCE], switchingTimes: [0.0, 0.25, 0.35, 0.6, 0.7], swingHeight: 0.04}
+          trot: {modeSequence: [RF, STANCE, LF, STANCE], switchingTimes: [0.0, 0.25, 0.35, 0.6, 0.7], swingHeight: 0.07}
 
         transitions:
           minDwellTime: 0.2
