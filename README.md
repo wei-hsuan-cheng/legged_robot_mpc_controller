@@ -41,14 +41,14 @@
 <table align="center">
   <tr>
     <td align="center" width="50%">
-      <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/pineapple_wheel_drive.gif?raw=true" width="400" alt="Pineapple stands up and drives over ramps, steps and rough tiles" />
+      <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/pineapple_wheel_drive.gif?raw=true" width="400" alt="Pineapple stands up from sitting and drives off" />
     </td>
     <td align="center" width="50%">
       <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/pineapple_gaits.gif?raw=true" width="400" alt="Pineapple steps over ramps, steps and rough tiles" />
     </td>
   </tr>
   <tr>
-    <td align="center"><b>Wheel-Legged Pineapple</b><br />Stands up, then drives over ramps, steps and rough tiles</td>
+    <td align="center"><b>Wheel-Legged Pineapple</b><br />Planned stand-up from sitting, then drives off</td>
     <td align="center"><b>Wheel-Legged Pineapple</b><br />Stepping gaits over ramps, steps and rough tiles, without a terrain map</td>
   </tr>
 </table>
