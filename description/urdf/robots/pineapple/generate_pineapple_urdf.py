@@ -27,9 +27,12 @@ MJCF = os.path.join(HERE, "..", "..", "..", "mujoco", "robots", "pineapple", "pi
 OUT = os.path.join(HERE, "pineapple.urdf")
 MESH_URI = "package://legged_robot_mpc_controller/description/meshes/robots/pineapple/"
 
-# Effort limits: the MJCF actuator ctrlrange of each joint. Velocity limits are not in the vendor model: placeholders
-# (leg 20 rad/s, wheel 60 rad/s = 5.5 m/s at the tire, arm 10 rad/s) until the motor data is known.
-VELOCITY = {"leg": 20.0, "wheel": 60.0, "arm": 10.0}
+# Effort limits: the MJCF actuator ctrlrange of each joint. Velocity limits are not in the vendor model. Legs: the
+# no-load output speed at 24 V (the BOM's battery) of the BOM motors, from third-party listings of Damiao's manuals
+# (not yet checked against the manuals): hip DM-J4340P-2EC and thigh DM-J4340-2EC 52.5 rpm = 5.5 rad/s, calf
+# DM-J6248P-2EC 60 rpm = 6.28 rad/s (motor output; the calf motor sits in the thigh, so a linkage ratio may apply).
+# Wheel (DM-J6006-2EC, no-load speed not found) 60 rad/s = 5.5 m/s at the tire and arm 10 rad/s stay placeholders.
+VELOCITY = {"hip": 5.5, "thigh": 5.5, "calf": 6.28, "wheel": 60.0, "arm": 10.0}
 WHEEL_PLACEHOLDER_BOUND = 1.0e4  # [rad], never active: wheel angles are masked in the MPC
 FIXED_JOINTS = ("gripper_left_joint", "gripper_right_joint")
 
@@ -129,7 +132,7 @@ def joint_kind(name):
     if name.endswith("wheel_joint"):
         return "wheel"
     if name[:2] in ("L_", "R_"):
-        return "leg"
+        return name[2:].removesuffix("_joint")  # hip, thigh, calf
     return "arm"
 
 

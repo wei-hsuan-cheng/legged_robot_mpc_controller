@@ -237,4 +237,4 @@ python3 $T/wb_id_walk_test.py --robot-name pineapple --scene scene_course.xml --
 Not tested: the physical DualSense on Pineapple (the teleop path is the same C++ node driven by synthetic `Joy`; the
 connected controller reports the SDL layout, 21 buttons, in which Circle is 1 and Triangle 3, as configured), arm
 motion (stowed), model errors, real hardware.
-Joint velocity limits are placeholders (the vendor model has none).
+Joint velocity limits: legs 5.5 rad/s (hip, thigh) and 6.28 rad/s (calf) from the BOM motors' no-load speed at 24 V, wheels and arm placeholders ([MODEL_SOURCE.md](../description/urdf/robots/pineapple/MODEL_SOURCE.md)); MuJoCo does not limit joint speed, the MPC does.

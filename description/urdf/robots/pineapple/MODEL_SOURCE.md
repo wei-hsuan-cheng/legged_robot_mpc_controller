@@ -7,7 +7,7 @@ Pineapple V3 is a wheel-legged robot: per leg a hip ab/ad (x axis), thigh and ca
 | Simulation reference | Vendor MJCF `pineapple_v3/pineapple_v3.xml` (with `scene.xml`) |
 | Meshes | The 37 OBJ and 3 STL files that MJCF references, copied unchanged to `description/meshes/robots/pineapple/` |
 | Effort limits | The MJCF actuator `ctrlrange`s: 27 N m hip/thigh, 40 N m calf, 11 N m wheel, 27/7 N m arm |
-| Velocity limits | Not in the vendor model: placeholders (leg 20 rad/s, wheel 60 rad/s, arm 10 rad/s) in `generate_pineapple_urdf.py` |
+| Velocity limits | Not in the vendor model. Legs: the no-load output speed at 24 V of the BOM motors (`pineapple_v3_bom.csv`), from third-party listings of Damiao's manuals, not yet checked against the manuals: hip DM-J4340P-2EC and thigh DM-J4340-2EC 5.5 rad/s (52.5 rpm), calf DM-J6248P-2EC 6.28 rad/s (60 rpm, motor output; the motor sits in the thigh). Wheel (DM-J6006-2EC) 60 rad/s and arm 10 rad/s are placeholders. All in `generate_pineapple_urdf.py`; MuJoCo does not limit joint speed, the MPC does |
 
 There is no vendor URDF; [`pineapple.urdf`](pineapple.urdf) is generated from the project MJCF by [`generate_pineapple_urdf.py`](generate_pineapple_urdf.py), so every frame, axis, mass, CoM and inertia equals MuJoCo's (FK and CoM agree to 1e-15 over random states).
 The gripper slides are fixed in the URDF (mass lumped into the gripper case); the arm joints stay revolute and the controller locks them (`ocs2.model.fixedJointNames`).
