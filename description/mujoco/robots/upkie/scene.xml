@@ -6,6 +6,11 @@
   <!-- terrain/object: optional; keep flat ground for the current wheel-drive checkpoint -->
   <!-- <include file="../../terrains/uneven_terrain.xml" /> -->
   <!-- <include file="../../terrains/ramp.xml" /> -->
+  <!-- MuJoCo viewer (mujoco_ros2_control): follow the robot's centre of mass, T toggles; delete for the free camera.
+       Optional: <text name="viewer_camera.body" data="base"/>, <numeric name="viewer_camera.track_distance" data="2.0"/> -->
+  <custom>
+    <text name="viewer_camera.mode" data="track" />
+  </custom>
   <!-- robot -->
   <include file="upkie.xml" />
 </mujoco>
