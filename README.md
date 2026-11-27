@@ -30,20 +30,16 @@
 
 <table align="center">
   <tr>
-    <td align="center" width="31%">
+    <td align="center" width="50%">
       <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/upkie_standup_course.gif?raw=true" width="100%" alt="Upkie stands up and drives through a terrain course" />
     </td>
-    <td align="center" width="35%">
-      <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/pineapple_wheel_drive.gif?raw=true" width="100%" alt="Pineapple stands up from sitting and drives off" />
-    </td>
-    <td align="center" width="35%">
-      <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/pineapple_gaits.gif?raw=true" width="100%" alt="Pineapple steps over rough tiles, steps and ramps, then down a one-wheel ramp" />
+    <td align="center" width="50%">
+      <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/pineapple.gif?raw=true" width="100%" alt="Pineapple stands up, drives and steps over rough tiles, steps and ramps" />
     </td>
   </tr>
   <tr>
     <td align="center"><b><a href="https://github.com/upkie/upkie">Upkie</a></b><br />Swings itself up, balances, and drives through uneven terrains with steps and ramps</td>
-    <td align="center"><b>Wheel-Legged Pineapple</b><br />Planned stand-up from sitting, then drives off</td>
-    <td align="center"><b>Wheel-Legged Pineapple</b><br />Stepping gaits over rough tiles, steps and ramps, ending on a one-wheel ramp, without a terrain map</td>
+    <td align="center"><b>Wheel-Legged Pineapple</b><br />Planned stand-up from sitting, driving and stepping over rough tiles, steps and ramps, without a terrain map</td>
   </tr>
 </table>
 
