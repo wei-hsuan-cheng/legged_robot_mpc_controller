@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Render an Upkie run (wb_id_walk_test --record-joints) to MP4 with captions, from its replay and labels.
+"""Render an Upkie or Pineapple run (wb_id_walk_test --record-joints) to MP4 with captions, from its replay and labels.
 
 usage: render_upkie_video.py PREFIX [--out OUT.mp4] [--start T] [--end T] [--speed 1.0] [--fps 30]
                              [--dist 1.25] [--elev -8] [--terrain NAME] [--no-text]
                              [--follow] [--fovy 45] [--size 1280x720] [--rviz-frames DIR]
+                             [--robot upkie|pineapple] [--azimuth 90] [--follow-z -0.1]
 Reads PREFIX_replay.json (GT base pose + joints per sample) and, when present, PREFIX_labels.json written by
 tests/upkie_demo.py (terrain, time window, captions, camera). Times are simulation seconds. The states are replayed
 into the same scene and rendered offscreen; nothing is re-simulated. The camera follows the base from the side
@@ -12,6 +13,8 @@ time (camera_keys: [[t, distance, elevation], ...], linear in between). --no-tex
 --follow uses config/rviz/upkie_video.rviz's camera instead: focal point 0.1 m below the base origin, 1.6 m away, 14 deg
 above, from world -y. --rviz-frames stacks the frames of tests/tuning/render_rviz_replay.py (same sim times) on top,
 rendering MuJoCo at RViz's render-area size (DIR/rviz_size.json) with the same vertical field of view (--fovy).
+Pineapple's RViz view is config/rviz/pineapple_video.rviz: render it with --robot pineapple --azimuth 146 --elev -17
+--dist 2.0 --follow-z -0.15 (MuJoCo's azimuth is the RViz Orbit yaw + 180 deg, its elevation minus the pitch).
 
 Needs: mujoco (the version the simulator links, 3.13.0), numpy, Pillow, and ffmpeg on PATH.
 """
@@ -56,6 +59,9 @@ def main():
     parser.add_argument("--fovy", type=float, help="vertical field of view [deg] (MuJoCo's default 45)")
     parser.add_argument("--size", help="render size WxH (default 1280x720, or RViz's with --rviz-frames)")
     parser.add_argument("--rviz-frames", type=Path, help="stack DIR/rviz_%%05d.png (render_rviz_replay.py) on top")
+    parser.add_argument("--robot", choices=["upkie", "pineapple"], default="upkie")
+    parser.add_argument("--azimuth", type=float, default=90.0, help="camera azimuth [deg]; 90 looks along +y (from -y)")
+    parser.add_argument("--follow-z", type=float, default=FOLLOW_Z, help="--follow: focal point below the base origin [m]")
     parser.add_argument("--background", choices=["night", "day"], default="night",
                         help="appearance only: the replay is kinematic (flat scenes are simulated with the day one)")
     args = parser.parse_args()
@@ -93,9 +99,9 @@ def main():
         return (float(np.interp(t, times, [k[1] for k in keys])), float(np.interp(t, times, [k[2] for k in keys])))
 
     with tempfile.TemporaryDirectory() as tmp:
-        scene = write_scene(Path(tmp) / "scene.xml", "upkie", terrain)
+        scene = write_scene(Path(tmp) / "scene.xml", args.robot, terrain)
         if args.background == "night":
-            scene.write_text(scene.read_text().replace("background_day.xml", "background_night_upkie.xml"))
+            scene.write_text(scene.read_text().replace("background_day.xml", f"background_night_{args.robot}.xml"))
         model = mujoco.MjModel.from_xml_path(str(scene))
     model.vis.global_.offwidth, model.vis.global_.offheight = max(model.vis.global_.offwidth, rw), max(model.vis.global_.offheight, rh)
     if args.fovy:
@@ -123,9 +129,9 @@ def main():
             mujoco.mj_forward(model, data)
             camera = mujoco.MjvCamera()
             camera.type = mujoco.mjtCamera.mjCAMERA_FREE
-            camera.lookat[:] = [data.qpos[0], data.qpos[1], data.qpos[2] + FOLLOW_Z if args.follow else 0.2]
+            camera.lookat[:] = [data.qpos[0], data.qpos[1], data.qpos[2] + args.follow_z if args.follow else 0.2]
             camera.distance, camera.elevation = camera_at(t)
-            camera.azimuth = 90.0
+            camera.azimuth = args.azimuth
             renderer.update_scene(data, camera=camera)
             image = Image.fromarray(renderer.render()).resize((W, row_h), Image.LANCZOS)
             if args.rviz_frames:
