@@ -1,0 +1,76 @@
+{
+  "robot": "pineapple",
+  "scene": "scene_gauntlet.xml",
+  "controller": "unchanged shipped WB-ID MPC",
+  "floating_base_source": "state_estimator",
+  "estimator": "humanoid_linear_kf",
+  "mpc_target_hz": 200,
+  "validation": "One selected continuous simulation run, not a repeated robustness acceptance.",
+  "artifact": "demo_videos/pineapple_gauntlet/operator_034_final",
+  "video_start_s": 4.080999999,
+  "video_end_s": 111.2915,
+  "video_duration_s": 107.210500001,
+  "actual_x_at_course_clearance_m": 27.80202149411147,
+  "course_clearance_time_s": 109.7915,
+  "actual_x_at_video_end_m": 28.190334025592534,
+  "max_abs_roll_rad": 0.2619827479660226,
+  "max_abs_pitch_rad": 0.41893802789320866,
+  "max_abs_lateral_position_m": 0.713599362381132,
+  "mpc_actual_hz_mean": 186.2611111111111,
+  "mpc_actual_hz_min": 117.65,
+  "mpc_rate_scope": "Controller timing reports over the complete 192 s trial, including flat ground beyond the video.",
+  "solver_exceptions_max": 0,
+  "torque_window_overruns_max": 0,
+  "operator": {
+    "height_m": 0.34,
+    "stages": [
+      {
+        "estimated_x_below_m": 15.0,
+        "gait": "wheel_drive",
+        "vx_m_s": 0.4
+      },
+      {
+        "estimated_x_below_m": 17.4,
+        "gait": "walk",
+        "vx_m_s": 0.18
+      },
+      {
+        "estimated_x_below_m": 20.7,
+        "gait": "wheel_drive",
+        "vx_m_s": 0.32
+      },
+      {
+        "estimated_x_below_m": null,
+        "gait": "walk",
+        "vx_m_s": 0.25
+      }
+    ],
+    "heading": "Existing estimated-state line-hold command helper.",
+    "note": "Gaits/speeds selected for the demonstration; not autonomous terrain recognition."
+  },
+  "camera": {
+    "rviz_config": "config/rviz/pineapple_video.rviz",
+    "distance_m": 2.0,
+    "azimuth_deg": 146,
+    "elevation_deg": -17,
+    "focal_offset_z_m": -0.15,
+    "vertical_fov_deg": 45,
+    "crop_top": [
+      1280,
+      646,
+      0,
+      35
+    ],
+    "crop_bottom": [
+      1280,
+      646,
+      0,
+      35
+    ],
+    "gif_size": [
+      400,
+      404
+    ]
+  },
+  "terrain_sha256": "2cd74f6b225bd82d366b3b850f05c68d73932178073d7be47fb230322340c596"
+}

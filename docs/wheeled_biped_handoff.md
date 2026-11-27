@@ -5,6 +5,40 @@ The original [implementation checklist](design_notes/wheeled_biped/wheeled_biped
 Update this file at each milestone.
 The implemented equations, current weights, rolling-contact equalities and execution limits are collected in [Wheeled-Biped WB-ID MPC](wheeled_biped_whole_body_inverse_dynamics_mpc.md).
 
+## Pineapple Gauntlet Capture
+
+The selected `operator_034_final` run cleared the original gauntlet's final stairs/drop at world x = 27.1 m and continued upright beyond 50 m.
+The video window ends at x = 28.19 m; completion is checked from ground truth, not drifting wheel odometry.
+It uses the shipped model/YAML, wheel KF feedback and a 200 Hz MPC target; no model, cost, constraint, estimator, solver or terrain settings changed.
+The test harness enables automatic stand-up and 100 Hz tracking diagnostics in its temporary configuration.
+The demo operator requests height 0.34 m and changes gait/speed from estimated x: wheel drive 0.4 m/s below 15.0 m, walk 0.18 below 17.4 m, wheel drive 0.32 below 20.7 m, then walk 0.25 m/s.
+The existing estimated-state line-hold helper supplies yaw commands.
+This is a selected operator-commanded demonstration, not autonomous terrain recognition or repeated robustness acceptance.
+GT is only recorded for validation/rendering, not injected into the estimator, OCP or operator.
+The selected clip has max absolute roll/pitch 0.262/0.419 rad and lateral displacement up to 0.714 m.
+Over the complete 192 s trial (including later flat-ground walking), logged MPC rate averaged 186.3 Hz, minimum 117.7 Hz; solver exceptions and torque-window overruns stayed zero.
+Metrics: [pineapple_gauntlet_demo.json](results/assets/pineapple_gauntlet_demo.json).
+
+Earlier attempts are preserved locally: `walk_030` missed initial MPC readiness; `walk_030_r2` fell at x = 7.77 m; `mixed_025` fell at 15.71 m; `operator_034` stayed upright but stopped at 21.53 m; `operator_034_fast` fell at 16.33 m.
+Do not relabel these as complete traversals: the generic harness's SUCCESS only means no sustained fall when its nominal scalar speed is zero.
+The slower operator run showed several metres of estimated-x drift under wheel slip, so estimated progress is not proof of obstacle clearance.
+Gait-switch timing, slip/odometry drift and repeated gauntlet completion remain open robustness questions.
+
+All raw recordings, bags, replay states, per-run scripts, controller diagnostics and rendering intermediates stay under ignored `demo_videos/pineapple_gauntlet/` on the Mac.
+The selected run's video covers simulation t = 4.081 to 111.292 s continuously, with no spliced resets or hidden sections.
+RViz is replayed from its recorded TF/markers above MuJoCo replay of the same timestamps at 20 fps.
+The existing `pineapple_video.rviz` camera is matched in MuJoCo: azimuth 146 degrees/elevation -17 degrees/distance 2 m/focal z offset -0.15 m.
+Both rows retain the full 1280 px width and crop to 646 px height at y = 35; the 400x404 GIF matches the old wheel-drive demo's wider stacked framing, not the later sideways demo's tight 800x448 crop.
+Only the web GIF is accelerated to 2x; the locally saved MP4/MOV are real-time playback.
+`tests/mujoco_scene.py` gained only the `pineapple_gauntlet` render-fixture alias.
+Final local video files: `demo_videos/pineapple_gauntlet/pineapple_gauntlet_rviz_mujoco.{mp4,mov}`, 1280x1292, 20 fps, 107.25 s.
+The GIF repository asset is `legged_robot_mpc_controller/pineapple_gauntlet.gif`, 400x404, 53.6 s at 2x, about 14.6 MB.
+The README and website keep one Pineapple GIF, beside Upkie at matching display height; the About page's three MPC GIFs also use aspect-ratio-proportional columns.
+Validation: nine Pineapple model tests passed; scene-layout tests had 12 passes and four optional-xacro skips; the replay fixture matches the original scene's 589 geometries.
+Both video and GIF decode cleanly; representative frames were visually checked.
+Browser checks of the proposed markup with the live GitHub/site styles passed at widths 1280, 768 and 375 px; website image heights differ by less than one pixel and the README pair by less than two pixels.
+All owned simulation, replay, RViz and isolated Xvfb processes were stopped after capture; other ROS processes were left alone.
+
 ## MPC Robustness to Modeling Errors (2026-11-25, milestones 1-6 done)
 
 Branch `feat/model_error_robustness` in this repository and in `mujoco_ros2_control`, pushed.

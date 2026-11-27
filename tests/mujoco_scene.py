@@ -12,6 +12,7 @@ MODULES = {"none": None, "stairs": "terrains/stairs.xml", "ramp": "terrains/ramp
            "rough": "terrains/uneven_terrain.xml", "slope": "terrains/slope.xml", "boxes": "objects/boxes.xml",
            "upkie_ramp": "terrains/upkie_ramp.xml", "upkie_rough": "terrains/upkie_uneven_terrain.xml",
            "upkie_course": "terrains/upkie_course.xml",
+           "pineapple_gauntlet": "terrains/pineapple_gauntlet.xml",
            "split_height": None}
 
 

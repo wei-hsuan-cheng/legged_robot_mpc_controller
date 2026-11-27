@@ -80,6 +80,18 @@ class SceneLayoutTest(unittest.TestCase):
         for floor in floors[1:]:
             self.assertEqual(physics(floors[0]), physics(floor))
 
+    @unittest.skipIf(mujoco is None, "MuJoCo Python package is not installed")
+    def test_pineapple_gauntlet_replay_fixture(self):
+        original = mujoco.MjModel.from_xml_path(str(SCENES / "robots/pineapple/scene_gauntlet.xml"))
+        with temporary_scene("pineapple", "pineapple_gauntlet") as path:
+            replay = mujoco.MjModel.from_xml_path(str(path))
+        self.assertEqual((replay.nq, replay.nv, replay.nu, replay.ngeom),
+                         (original.nq, original.nv, original.nu, original.ngeom))
+        for index in range(original.ngeom):
+            name = mujoco.mj_id2name(original, mujoco.mjtObj.mjOBJ_GEOM, index)
+            if name:
+                self.assertGreaterEqual(mujoco.mj_name2id(replay, mujoco.mjtObj.mjOBJ_GEOM, name), 0)
+
     def test_upkie_night_style_and_light_target(self):
         humanoid = ET.parse(SCENES / "common/backgrounds/background_night.xml")
         upkie = ET.parse(SCENES / "common/backgrounds/background_night_upkie.xml")

@@ -30,16 +30,16 @@
 
 <table align="center">
   <tr>
-    <td align="center" width="50%">
+    <td align="center" width="47.48%">
       <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/upkie_standup_course.gif?raw=true" width="100%" alt="Upkie stands up and drives through a terrain course" />
     </td>
-    <td align="center" width="50%">
-      <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/pineapple.gif?raw=true" width="100%" alt="Pineapple stands up, drives and steps over rough tiles, steps and ramps" />
+    <td align="center" width="52.52%">
+      <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/pineapple_gauntlet.gif?raw=true" width="100%" alt="Pineapple traverses the gauntlet with RViz above MuJoCo" />
     </td>
   </tr>
   <tr>
     <td align="center"><b><a href="https://github.com/upkie/upkie">Upkie</a></b><br />Swings itself up, balances, and drives through uneven terrains with steps and ramps</td>
-    <td align="center"><b>Wheel-Legged Pineapple</b><br />Planned stand-up from sitting, driving and stepping over rough tiles, steps and ramps, without a terrain map</td>
+    <td align="center"><b>Wheel-Legged Pineapple</b><br />Stand-up, driving and stepping through the gauntlet<br />RViz above MuJoCo (2x playback)</td>
   </tr>
 </table>
 

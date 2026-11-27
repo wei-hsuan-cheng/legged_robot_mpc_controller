@@ -194,7 +194,7 @@ world +x from the spawn (tires at y = +-0.227 m):
 | brutal (red) | 17.6-27.1 | 15-35 mm tiles up to 80 mm (`brutal_tiles.yaml`); a 12-degree slope with a 40 mm step up and a 60 mm drop on top; 40 mm steps under the left tire (24.2 m) then the right (24.6 m); three 30 mm stairs up and a 90 mm drop at 27.1 m |
 
 Suite cases `gauntlet` (wheel drive 0.4 m/s), `gauntlet_fast` (0.8 m/s), `walk_gauntlet`, `trot_gauntlet` (0.3 m/s).
-Nothing crosses it yet (2026-11-26, 12 runs, world x where each ended):
+The earlier fixed-command suite did not complete it (2026-11-26, 12 runs, world x where each ended):
 
 | Case | Runs | End |
 | --- | --- | --- |
@@ -212,6 +212,16 @@ ros2 launch legged_robot_mpc_controller robot.launch.py robot_name:=pineapple mp
   mujoco_model_file:=scene_gauntlet.xml        # Circle/Triangle for gaits
 python3 $S --tag gauntlet --cases '*gauntlet*' --repeat 3
 ```
+
+### Stacked gauntlet demo
+
+The README demo is one continuous run from stand-up through the final stairs and drop, with RViz above MuJoCo.
+The controller uses the wheel-aware linear KF at a 200 Hz MPC target, with the shipped model, control settings and terrain unchanged; the harness enables auto-start and 100 Hz tracking diagnostics.
+The demo operator changes gait and speed using estimated forward position and commands a 0.34 m height: wheel drive at 0.4 m/s, walk at 0.18 m/s, wheel drive at 0.32 m/s, then walk at 0.25 m/s.
+This is an operator-commanded example, not autonomous terrain recognition or a repeated robustness result.
+Ground truth is used only to verify actual course completion and render the lower row, not for MPC state feedback or foothold references.
+The video uses the old Pineapple camera and crop; the web GIF plays at 2x speed.
+The local recording, bag, commands and metrics are under `demo_videos/pineapple_gauntlet/operator_034_final/` (git-ignored).
 
 ## Trunk roll (2026-11-27)
 
