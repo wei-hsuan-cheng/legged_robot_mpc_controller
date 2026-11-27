@@ -170,8 +170,12 @@ The model-error arguments perturb only the simulated plant (inertia, friction, g
 The GUI (`base_command_device:=gui`, default) and the separate [`legged_robot_teleop`](https://github.com/wei-hsuan-cheng/legged_robot_teleop) package (`base_command_device:=joystick`) publish the same base velocity and height command; run only one of them.
 
 - Release L2 and center both sticks, then hold L2 to drive: left stick forward/sideways, right stick yaw, D-pad up/down height.
-- Release L2 to stop; L1 with L2 released centers (zero velocity, nominal height).
+- Release L2 to stop; L1 with L2 released centers (zero velocity, nominal height, level trunk).
 - Upkie and Pineapple: Circle cycles `walk` -> `trot` -> `wheel_drive`, Triangle jumps while held, Square stands up or sits down.
+- Upkie and Pineapple: D-pad left/right (with L2 held) leans the trunk left/right, up to `ocs2.reference.maxBaseRoll`
+  (0.25 / 0.3 rad); the roll holds when L2 is released and levels on L1, a stand-up, sit-down or fall. Each leg takes
+  the posture of its own hip height, so the wheels stay on the ground. Other publishers: `geometry_msgs/Vector3` on
+  `/humanoid/base_orientation_command` (x roll, y pitch [rad], command frame); pitch is not enabled on any robot yet ([details](./docs/base_orientation_control.md)).
 - Start with the teleop package's [isolated topic check](https://github.com/wei-hsuan-cheng/legged_robot_teleop/blob/main/docs/testing.md), and stop any separately running `joy` driver first.
 
 ### Scripted commands

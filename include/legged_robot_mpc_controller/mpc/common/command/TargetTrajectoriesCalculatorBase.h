@@ -30,7 +30,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #pragma once
 
+#include <atomic>
+#include <limits>
 #include <functional>
+#include <vector>
 
 #include <ocs2_core/reference/TargetTrajectories.h>
 #include <ocs2_mpc/SystemObservation.h>
@@ -65,6 +68,17 @@ struct ReferenceConfig {
   // target joint state at every height.
   scalar_array_t postureHeights;
   vector_array_t postureJointStates;
+  // Commanded base roll and pitch [rad] in the base_twist mode (an absolute setpoint, e.g. from the joystick),
+  // clamped to +-maxBaseRoll / +-maxBasePitch; 0 disables the axis and keeps the trunk level.
+  scalar_t maxBaseRoll{0.0};
+  scalar_t maxBasePitch{0.0};
+  // Slew limit [rad/s] of the reference roll and pitch towards the commanded values.
+  scalar_t baseOrientationRate{0.5};
+  // Roll by leg length: joint j belongs to the leg on side legSides[j] (+1 left, -1 right, 0 neither), whose wheel or
+  // foot is rollLegHalfWidth [m] from the base centre. With a roll phi each leg takes the posture-table row of
+  // the height h + side * rollLegHalfWidth * sin(phi), so the joint reference matches the rolled trunk.
+  scalar_t rollLegHalfWidth{0.0};
+  std::vector<int> legSides;
 };
 
 class TargetTrajectoriesCalculatorBase {
@@ -84,6 +98,15 @@ class TargetTrajectoriesCalculatorBase {
    * it), else the target joint state.
    */
   vector_t getPostureForHeight(scalar_t height) const;
+
+  /** Joint posture reference for a base pose [x, y, z, yaw, pitch, roll]: per-leg posture-table rows for its roll. */
+  vector_t getPostureForPose(const vector6_t& basePose) const;
+
+  /** Commanded base roll and pitch [rad] in the base frame; clamped to the configured limits. Thread-safe. */
+  void setBaseOrientationCommand(scalar_t roll, scalar_t pitch);
+
+  /** Drops the commanded roll and pitch, and the reference's, back to level (e.g. outside locomotion). Thread-safe. */
+  void resetBaseOrientation();
 
   /**
    * Converts command line to TargetTrajectories.
@@ -111,6 +134,9 @@ class TargetTrajectoriesCalculatorBase {
 
  protected:
   scalar_t estimateTimeToTarget(const vector_t& desiredBaseDisplacement) const;
+
+  /** Reference [roll, pitch] at `time`, slewed towards the command at baseOrientationRate. MPC thread only. */
+  vector2_t updateBaseOrientation(scalar_t time);
 
   scalar_t estimateTimeToBasePoseTarget(const vector6_t& desiredBaseDisplacement) const;
 
@@ -148,6 +174,17 @@ class TargetTrajectoriesCalculatorBase {
   scalar_array_t postureHeights_;
   vector_array_t postureJointStates_;
   scalar_t mpcHorizon_;
+
+  scalar_t maxBaseRoll_ = 0.0;
+  scalar_t maxBasePitch_ = 0.0;
+  scalar_t baseOrientationRate_ = 0.5;
+  scalar_t rollLegHalfWidth_ = 0.0;
+  std::vector<int> legSides_;
+  std::atomic<scalar_t> commandedRoll_{0.0};
+  std::atomic<scalar_t> commandedPitch_{0.0};
+  std::atomic<bool> baseOrientationResetRequested_{false};
+  vector2_t referenceOrientation_{vector2_t::Zero()};  // [roll, pitch], MPC thread
+  scalar_t referenceOrientationTime_ = std::numeric_limits<scalar_t>::quiet_NaN();
 };
 
 }  // namespace ocs2::humanoid

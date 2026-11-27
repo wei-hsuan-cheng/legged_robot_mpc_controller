@@ -20,7 +20,7 @@ vector_t WbIdMpcTargetTrajectoriesCalculator::makeState(const vector6_t& basePos
   state.head<6>() = basePose;
   // With a posture table the joint reference is the balanced posture of the target height, so holding the
   // posture and holding the height never pull in different directions.
-  state.segment(6, nj) = getPostureForHeight(basePose(2));
+  state.segment(6, nj) = getPostureForPose(basePose);
   state.segment<6>(6 + nj) = baseVelocity;
   return state;
 }
@@ -75,7 +75,13 @@ TargetTrajectories WbIdMpcTargetTrajectoriesCalculator::commandedVelocityToTarge
   const vector6_t finalTargetPose = integrateBodyTwistTargetBasePose(currentPoseTarget, commandedVelocities, mpcHorizon_);
 
   const scalar_array_t timeTrajectory{initTime, initTime + intermediateTargetTime, initTime + mpcHorizon_};
-  const std::array<vector6_t, 3> poses{currentPoseTarget, intermediateTargetPose, finalTargetPose};
+  std::array<vector6_t, 3> poses{currentPoseTarget, intermediateTargetPose, finalTargetPose};
+  // Commanded trunk roll and pitch (ZYX: pose(4) pitch, pose(5) roll), slewed; level unless configured.
+  const vector2_t rollPitch = updateBaseOrientation(initTime);
+  for (auto& pose : poses) {
+    pose(4) = rollPitch(1);
+    pose(5) = rollPitch(0);
+  }
   vector_array_t stateTrajectory;
   stateTrajectory.reserve(poses.size());
   for (const auto& pose : poses) {

@@ -213,6 +213,13 @@ ros2 launch legged_robot_mpc_controller robot.launch.py robot_name:=pineapple mp
 python3 $S --tag gauntlet --cases '*gauntlet*' --repeat 3
 ```
 
+## Trunk roll (2026-11-27)
+
+D-pad left/right with L2 held leans the trunk up to 0.3 rad (`ocs2.reference.maxBaseRoll`); each leg takes the
+posture of its own hip height (wheels at y = +-0.227 m), so both tires stay down. Commanded +-0.2 rad on
+`/humanoid/base_orientation_command` was held at +0.201 / -0.202 rad with the height at 0.363 m (0.36 m commanded).
+See [base_orientation_control.md](base_orientation_control.md).
+
 ## Tests (2026-11-25, `jetpack_jazzy`, `~/whcheng_ws`)
 
 | Run | Result |

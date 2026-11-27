@@ -29,6 +29,9 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         base z axis. Twist commands (vx, vy) are rotated into the base frame and base pose commands give the control
         frame's orientation; planning and estimation stay in the base frame. Upkie: pi, so +x points away from the
         knees"}
+    baseOrientationTopic: {type: string, default_value: "/humanoid/base_orientation_command", description:
+        "geometry_msgs/Vector3: commanded trunk roll (x) and pitch (y) [rad] in the command frame (commandFrameYaw),
+        absolute, clamped to ocs2.reference.maxBaseRoll/maxBasePitch; subscribed only when one of those is > 0"}
     gaitTopic: {type: string, default_value: "/humanoid/gait_command", description: "std_msgs/String: a gait template
         name held instead of the velocity ladder (e.g. a hop); an empty string returns to the ladder. Empty topic
         name = no subscription"}
@@ -444,6 +447,17 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           validation: {bounds<>: [0.0, 100.0]}}
       defaultBaseHeight: {type: double, default_value: 0.7925, description: "Default pelvis height above ground
           [m]"}
+      maxBaseRoll: {type: double, default_value: 0.0, description: "Largest commanded trunk roll [rad] in base_twist
+          (target.baseOrientationTopic); 0 keeps the trunk level. Needs rollLegHalfWidth: each leg takes the posture
+          for its own hip height", validation: {bounds<>: [0.0, 1.0]}}
+      maxBasePitch: {type: double, default_value: 0.0, description: "Largest commanded trunk pitch [rad] in base_twist;
+          0 keeps the trunk level. The joint posture reference is not adjusted for pitch", validation: {bounds<>: [0.0,
+          1.0]}}
+      baseOrientationRate: {type: double, default_value: 0.5, description: "Slew limit [rad/s] of the reference roll
+          and pitch towards the commanded values", validation: {gt: [0.0]}}
+      rollLegHalfWidth: {type: double, default_value: 0.0, description: "Lateral distance [m] from the base centre to
+          each leg's wheel or foot, for the per-leg posture under roll (legs are found by a left/L_ or right/R_ joint
+          name prefix, arm joints excluded)", validation: {gt_eq: [0.0]}}
       basePosePositionTolerance: {type: double, default_value: 0.02, description: "Planar position error below which
           a base pose target no longer requests walking [m]", validation: {gt_eq: [0.0]}}
       basePoseOrientationTolerance: {type: double, default_value: 0.03, description: "Yaw error below which a base

@@ -1,6 +1,7 @@
 #ifndef LEGGED_ROBOT_MPC_CONTROLLER__COMMON__CONFIG__CONFIG_BUILDER_UTILS_HPP_
 #define LEGGED_ROBOT_MPC_CONTROLLER__COMMON__CONFIG__CONFIG_BUILDER_UTILS_HPP_
 
+#include <algorithm>
 #include <cmath>
 #include <stdexcept>
 #include <string>
@@ -122,6 +123,20 @@ ocs2::humanoid::ReferenceConfig buildReferenceConfig(const Params& params)
   config.basePosePositionTolerance = r.basePosePositionTolerance;
   config.basePoseOrientationTolerance = r.basePoseOrientationTolerance;
   config.defaultJointState = toVector(r.defaultJointState);
+  config.maxBaseRoll = r.maxBaseRoll;
+  config.maxBasePitch = r.maxBasePitch;
+  config.baseOrientationRate = r.baseOrientationRate;
+  config.rollLegHalfWidth = r.rollLegHalfWidth;
+  // Leg side of each joint from its name (left_/L_ +1, right_/R_ -1); arm joints and others 0.
+  const auto& names = params.robot.jointNames;
+  const auto arms = findArmJointIndices(names);
+  for (size_t i = 0; i < names.size(); ++i) {
+    const std::string& n = names[i];
+    const bool arm = std::find(arms.begin(), arms.end(), i) != arms.end();
+    const bool left = n.rfind("left", 0) == 0 || n.rfind("L_", 0) == 0;
+    const bool right = n.rfind("right", 0) == 0 || n.rfind("R_", 0) == 0;
+    config.legSides.push_back(arm ? 0 : (left ? 1 : (right ? -1 : 0)));
+  }
   return config;
 }
 

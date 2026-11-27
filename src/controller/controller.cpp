@@ -274,6 +274,20 @@ controller_interface::CallbackReturn HumanoidWholeBodyInverseDynamicsMpcControll
       get_node(), command_qos, parameters_.target.walkingVelocityTopic,
       parameters_.target.basePoseTopic, parameters_.target.modeTopic,
       parameters_.target.globalFrame, parameters_.target.gaitTopic);
+    if (parameters_.ocs2.reference.maxBaseRoll > 0.0 || parameters_.ocs2.reference.maxBasePitch > 0.0) {
+      // Roll (x) and pitch (y) in the command frame, turned by commandFrameYaw into the base frame.
+      const double c = std::cos(parameters_.target.commandFrameYaw);
+      const double s = std::sin(parameters_.target.commandFrameYaw);
+      base_orientation_subscription_ = get_node()->create_subscription<geometry_msgs::msg::Vector3>(
+        parameters_.target.baseOrientationTopic, command_qos,
+        [this, c, s](const geometry_msgs::msg::Vector3::ConstSharedPtr message) {
+          if (bring_up_phase_.load() != BringUpPhase::Locomotion) {
+            return;
+          }
+          target_trajectories_calculator_->setBaseOrientationCommand(c * message->x - s * message->y,
+                                                                     s * message->x + c * message->y);
+        });
+    }
     motion_manager_->subscribeMpcTargets(
       get_node(), parameters_.target.mpcTargetsTopic,
       common::selectAtIndices(parameters_.robot.jointNames, common::findArmJointIndices(parameters_.robot.jointNames)));
@@ -1221,6 +1235,10 @@ void HumanoidWholeBodyInverseDynamicsMpcController::enter_bring_up_phase(BringUp
               to_string(phase));
   bring_up_phase_.store(phase);
   at_rest_.store(false);
+  if (phase != BringUpPhase::Locomotion && target_trajectories_calculator_) {
+    // Stand-up, sit-down, braking and faults plan with a level trunk.
+    target_trajectories_calculator_->resetBaseOrientation();
+  }
   phase_start_time_ = time;
   settled_since_ = -1.0;
   rest_filter_initialized_ = false;

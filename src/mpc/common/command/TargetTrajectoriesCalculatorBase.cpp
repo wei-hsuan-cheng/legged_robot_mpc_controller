@@ -79,6 +79,74 @@ TargetTrajectoriesCalculatorBase::TargetTrajectoriesCalculatorBase(const Referen
   maxDisplacementVelocityX_ = referenceConfig.maxDisplacementVelocityX;
   maxDisplacementVelocityY_ = referenceConfig.maxDisplacementVelocityY;
   maxRotationVelocity_ = referenceConfig.maxRotationVelocity;
+
+  const auto finiteNonNegative = [](scalar_t v) { return std::isfinite(v) && v >= 0.0; };
+  if (!finiteNonNegative(referenceConfig.maxBaseRoll) || !finiteNonNegative(referenceConfig.maxBasePitch) ||
+      !finiteNonNegative(referenceConfig.rollLegHalfWidth) || !(referenceConfig.baseOrientationRate > 0.0) ||
+      !std::isfinite(referenceConfig.baseOrientationRate)) {
+    throw std::invalid_argument("[TargetTrajectoriesCalculatorBase] maxBaseRoll, maxBasePitch and rollLegHalfWidth must be >= 0 "
+                                "and baseOrientationRate > 0");
+  }
+  if (referenceConfig.maxBaseRoll > 0.0 &&
+      (referenceConfig.legSides.size() != static_cast<size_t>(mpcRobotModel.getJointDim()) || !(referenceConfig.rollLegHalfWidth > 0.0))) {
+    throw std::invalid_argument("[TargetTrajectoriesCalculatorBase] maxBaseRoll > 0 needs rollLegHalfWidth > 0 and one leg side per joint");
+  }
+  maxBaseRoll_ = referenceConfig.maxBaseRoll;
+  maxBasePitch_ = referenceConfig.maxBasePitch;
+  baseOrientationRate_ = referenceConfig.baseOrientationRate;
+  rollLegHalfWidth_ = referenceConfig.rollLegHalfWidth;
+  legSides_ = referenceConfig.legSides;
+}
+
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+
+void TargetTrajectoriesCalculatorBase::setBaseOrientationCommand(scalar_t roll, scalar_t pitch) {
+  commandedRoll_.store(std::isfinite(roll) ? std::clamp(roll, -maxBaseRoll_, maxBaseRoll_) : 0.0);
+  commandedPitch_.store(std::isfinite(pitch) ? std::clamp(pitch, -maxBasePitch_, maxBasePitch_) : 0.0);
+}
+
+void TargetTrajectoriesCalculatorBase::resetBaseOrientation() {
+  commandedRoll_.store(0.0);
+  commandedPitch_.store(0.0);
+  baseOrientationResetRequested_.store(true);
+}
+
+vector2_t TargetTrajectoriesCalculatorBase::updateBaseOrientation(scalar_t time) {
+  if (baseOrientationResetRequested_.exchange(false) || !std::isfinite(referenceOrientationTime_) || time < referenceOrientationTime_) {
+    referenceOrientation_.setZero();
+    referenceOrientationTime_ = time;
+  }
+  const scalar_t step = baseOrientationRate_ * std::min(time - referenceOrientationTime_, 0.1);
+  referenceOrientationTime_ = time;
+  const vector2_t command(commandedRoll_.load(), commandedPitch_.load());
+  for (int i = 0; i < 2; ++i) {
+    referenceOrientation_(i) += std::clamp(command(i) - referenceOrientation_(i), -step, step);
+  }
+  return referenceOrientation_;
+}
+
+/******************************************************************************************************/
+/******************************************************************************************************/
+/******************************************************************************************************/
+
+vector_t TargetTrajectoriesCalculatorBase::getPostureForPose(const vector6_t& basePose) const {
+  const scalar_t roll = basePose(5);
+  if (legSides_.empty() || !(rollLegHalfWidth_ > 0.0) || roll == 0.0) {
+    return getPostureForHeight(basePose(2));
+  }
+  // Pitch-only legs keep their wheel in the leg's plane: the left one sits rollLegHalfWidth * sin(roll) higher.
+  const scalar_t offset = rollLegHalfWidth_ * std::sin(roll);
+  const vector_t level = getPostureForHeight(basePose(2));
+  const vector_t left = getPostureForHeight(basePose(2) + offset);
+  const vector_t right = getPostureForHeight(basePose(2) - offset);
+  vector_t posture = level;
+  for (Eigen::Index j = 0; j < posture.size(); ++j) {
+    const int side = legSides_[static_cast<size_t>(j)];
+    posture(j) = side > 0 ? left(j) : (side < 0 ? right(j) : level(j));
+  }
+  return posture;
 }
 
 /******************************************************************************************************/

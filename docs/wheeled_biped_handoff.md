@@ -1468,3 +1468,17 @@ Release L2 to stop driving while retaining the height command and MPC balance.
 Square stand/sit, L1 Center, native controller FSM and MPC tuning are unchanged.
 Previous Circle references in earlier checkpoint results are historical.
 The shared teleop package built and passed all 82 checks in both the OCS2 and TurboMPC workspaces; no native MPC changes or robot simulation were required.
+
+
+## Trunk Roll from the Joystick (2026-11-27)
+
+Upkie and Pineapple lean the trunk on command: D-pad left/right with L2 held (0.3 rad/s, up to `maxBaseRoll` 0.25 /
+0.3 rad, held on L2 release, levelled by L1 and by any stand-up, sit-down or fall), or `geometry_msgs/Vector3` on
+`/humanoid/base_orientation_command` (x roll, y pitch, command frame). As on other wheel-legged robots (DIABLO, patented
+leg-length roll controllers), the roll comes from the leg-length difference: the base reference takes the commanded
+roll (it was fixed at 0) and each leg takes the posture-table row of its own hip height, h +- `rollLegHalfWidth` *
+sin(roll). Off by default (G1, H2 unchanged); pitch has the command path but is not enabled yet.
+Headless: topic +-0.2 rad tracked to 0.195 (Upkie) and 0.201 (Pineapple), height held; synthetic-DualSense D-pad to
+0.175 / 0.181 rad and back to level on L1; posture cycles with the forced fall still pass.
+Design, parameters, results and sources: [base_orientation_control.md](base_orientation_control.md).
+

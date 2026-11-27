@@ -15,6 +15,7 @@
 
 #include <std_msgs/msg/float64_multi_array.hpp>
 #include <std_msgs/msg/string.hpp>
+#include <geometry_msgs/msg/vector3.hpp>
 #include <std_srvs/srv/trigger.hpp>
 
 #include <controller_interface/chainable_controller_interface.hpp>
@@ -217,6 +218,8 @@ private:
   std::unique_ptr<ocs2::PinocchioInterface> control_pinocchio_;
   Eigen::Quaterniond base_to_imu_{Eigen::Quaterniond::Identity()};  //!< IMU mounting (floatingBase.imuFrame)
   std::unique_ptr<ocs2::humanoid::WbIdMpcTargetTrajectoriesCalculator> target_trajectories_calculator_;
+  // Commanded trunk roll/pitch (target.baseOrientationTopic), only with ocs2.reference.maxBaseRoll/maxBasePitch > 0.
+  rclcpp::Subscription<geometry_msgs::msg::Vector3>::SharedPtr base_orientation_subscription_;
   std::shared_ptr<Ros2ProceduralMpcMotionManager> motion_manager_;
   std::unique_ptr<ocs2::MPC_BASE> mpc_solver_;
   std::unique_ptr<ocs2::MPC_MRT_Interface> mrt_interface_;

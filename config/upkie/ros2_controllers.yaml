@@ -307,6 +307,12 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         # Commanded height range: GUI slider, command clamp and MPC height reference. Must lie inside the posture table.
         minBaseHeight: 0.225
         maxBaseHeight: 0.355
+        # Trunk roll from the joystick (D-pad left/right) or target.baseOrientationTopic: each leg takes the posture-table
+        # row of its own hip height, h +- rollLegHalfWidth * sin(roll) (wheel at y = +-0.191 m). Pitch stays level.
+        maxBaseRoll: 0.25
+        maxBasePitch: 0.0
+        baseOrientationRate: 0.5
+        rollLegHalfWidth: 0.191
         basePosePositionTolerance: 0.02
         basePoseOrientationTolerance: 0.03
         # [ax, ay (m/s^2), height rate (m/s), yaw acceleration (rad/s^2)] on GUI/topic commands.
