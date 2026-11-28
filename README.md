@@ -34,7 +34,7 @@
       <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/upkie_standup_course.gif?raw=true" width="100%" alt="Upkie stands up and drives through a terrain course" />
     </td>
     <td align="center" width="50%">
-      <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/pineapple_gauntlet.gif?raw=true&amp;v=20261128" width="100%" alt="Pineapple traverses the gauntlet with RViz above MuJoCo" />
+      <img src="https://github.com/wei-hsuan-cheng/gifs/blob/main/legged_robot_mpc_controller/pineapple_gauntlet.gif?raw=true&amp;v=20261128-cropped" width="84%" alt="Pineapple traverses the gauntlet with RViz above MuJoCo" />
     </td>
   </tr>
   <tr>

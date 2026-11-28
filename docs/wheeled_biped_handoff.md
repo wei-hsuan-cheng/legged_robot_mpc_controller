@@ -1698,3 +1698,11 @@ Remaining scope: user terrain/gait evaluation of the arm-free robot, optional ar
 The new TO is a stationary flat-floor maneuver with about 0.40 m backward reference travel; keep sufficient clear space behind the robot.
 Regeneration commands and scope are documented in `docs/pineapple.md`; use `config/pineapple/regenerate.sh` with phase cap `2.5`, and set `WS` to the built ROS workspace for `check`.
 
+### Pineapple Family GIF Viewport Crop
+
+At the user's request, the existing manipulator gauntlet GIF is cropped instead of painting over its RViz sidebar arrow.
+Removing 32 pixels from each side changes the asset from 400x450 to 336x450; both stacked halves now exclude the narrow RViz/MuJoCo side strips and the arrow.
+All 361 frames were checked against the exact corresponding source crop: retained pixels, frame delays, 36.1 s duration and infinite looping are unchanged.
+README and both website references use 84% image width inside their existing columns, preserving the previous display height and alignment with Upkie and the about-page MPC GIFs without distortion.
+The filename remains `pineapple_gauntlet.gif`, with a new cache-busting query; no raw video is committed.
+
