@@ -1530,3 +1530,26 @@ Headless: topic +-0.2 rad tracked to 0.195 (Upkie) and 0.201 (Pineapple), height
 0.175 / 0.181 rad and back to level on L1; posture cycles with the forced fall still pass.
 Design, parameters, results and sources: [base_orientation_control.md](base_orientation_control.md).
 
+## Right-stick Pitch (2026-11-28)
+
+The user requested pitch for OCS2 first; TurboMPC is left unchanged.
+Upkie/Pineapple now enable `ocs2.reference.maxBasePitch: 0.2`; existing roll limits, baseOrientationRate, costs, constraints, dynamics and posture tables are unchanged.
+The shared teleop integrates right-stick forward/back (SDL axis 3) at up to 0.3 rad/s with L2 held, with the existing signed-power stick curve.
+Neutral stick or released L2 holds the pitch target; L1 with L2 released levels both tilt axes and resets height.
+Pitch-stick neutrality participates in L2 arming and Square stand/sit guards, and both axes reset outside locomotion.
+The profile reads the pitch limit from the selected robot's YAML; absent/zero limits keep pitch disabled, so G1/H2 do not change.
+The initial expectation that pitch would require a new compensated joint-posture reference was not borne out by testing: the existing joint posture objective is soft, so MPC can adjust hip/thigh/knee joints to balance the commanded pitch.
+Do not add a separate IK or modify locomotion tuning without evidence of a failing case.
+The teleop and OCS2 legged MPC Release builds passed in `ros_jazzy`, and all 63 teleop checks passed (including pitch-only DDS output and lifecycle resets).
+Nine targeted controller launch/GUI/posture-table checks passed; one GUI check was skipped because the run had no display.
+Initial headless synthetic-joystick tests with wheel-aware linear KF feedback and requested MPC 200 Hz passed stand-up, +-0.2 rad pitch, hold on release, combined tilt, L1 level and sit-down on both robots.
+Pineapple settled at +0.1947/-0.1944 rad, Upkie at -0.1964/+0.1964 rad in the base frame (Upkie's command frame is rotated by pi).
+The final Pineapple repeat also passed combined roll 0.3 rad, pitch 0.1 rad and physical forward speed 0.1 m/s (settled roll 0.3012, pitch 0.0981 rad).
+The final Upkie repeat also passed the 0.1 m/s command with combined tilt (base-frame roll -0.2442, pitch -0.0994 rad for command-frame +0.25/+0.10), then leveled and returned to idle.
+Final pitch-only means were Upkie -0.1967/+0.1949 rad and Pineapple +0.1943/-0.1946 rad for command-frame +0.2/-0.2.
+All test processes were stopped; no build or simulation was left running.
+The user subsequently requested committing and pushing both the OCS2 controller and shared teleop changes.
+Artifacts in `ros_jazzy`: `/tmp/codex_pitch_pineapple*` and `/tmp/codex_pitch_upkie*` (`.json`, `.replay.json`, `.xml`, `.log`).
+Repeat using `tests/base_orientation_test.py`; the documented commands select a separate ROS domain and stop only their own launch/teleop process groups.
+Physical joystick, hardware, terrain and stepping while tilted remain untested; these flat-ground runs are not a guarantee for those cases.
+

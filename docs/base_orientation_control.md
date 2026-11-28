@@ -1,8 +1,8 @@
-# Trunk roll (and pitch) commands (2026-11-27)
+# Trunk roll and pitch commands
 
 Upkie and Pineapple lean their trunk left or right on command: D-pad left/right on the DualSense (L2 held), or a
 `geometry_msgs/Vector3` on `/humanoid/base_orientation_command` from any node. Both wheels stay on the ground; the
-legs take different lengths. Pitch has the same command path but is not enabled on any robot yet.
+legs take different lengths. Right stick forward/back with L2 held commands pitch on both robots as well.
 
 ## How other projects do it
 
@@ -33,9 +33,13 @@ reference takes the matching leg lengths.
   roll.
 - **Command frame**: the topic is in the command frame; `target.commandFrameYaw` turns it into the base frame (Upkie:
   pi, so a positive command is a negative base roll and the robot leans right as the operator sees it).
+- **Pitch posture**: the height-table joint reference remains nominal under pitch; it is a soft preference, not
+  a fixed joint trajectory. The MPC optimizes hip/thigh and knee motion to balance the pitched trunk while satisfying
+  rolling contact and inverse dynamics. Flat-ground tests at +-0.2 rad passed without extra pitch compensation or
+  changing any cost/constraint weights.
 - **Level outside locomotion**: the controller drops the command and the reference to level on every bring-up phase
   other than locomotion (stand-up, sit-down, braking, fall, fault) and ignores the topic outside locomotion; the
-  teleop also levels its roll when the robot leaves locomotion.
+  teleop also levels roll and pitch when the robot leaves locomotion.
 - **Off by default**: `maxBaseRoll` and `maxBasePitch` default to 0 (no subscription, level trunk), so G1 and H2
   are unchanged.
 
@@ -46,7 +50,7 @@ reference takes the matching leg lengths.
 | parameter | Upkie | Pineapple | meaning |
 | --- | --- | --- | --- |
 | `maxBaseRoll` | 0.25 | 0.3 | roll limit [rad]; 0 disables |
-| `maxBasePitch` | 0.0 | 0.0 | pitch limit [rad]; 0 disables (the posture is not adjusted for pitch yet) |
+| `maxBasePitch` | 0.2 | 0.2 | pitch limit [rad]; 0 disables; leg adjustment is optimized, not prescribed |
 | `baseOrientationRate` | 0.5 | 0.5 | slew of the reference roll/pitch [rad/s] |
 | `rollLegHalfWidth` | 0.191 | 0.227 | wheel offset from the base centre [m] (URDF wheel joints at y = +-0.191 / +-0.227) |
 
@@ -61,6 +65,10 @@ runs off the table and is held at its last row; the MPC then trades a little rol
 legged_robot_teleop: with L2 held, D-pad left (button 13) / right (14) ramps the roll at `roll_rate` (0.3 rad/s) up
 to the robot's `maxBaseRoll`, which the launch reads from the controller YAML (0: roll buttons off). The roll holds
 when L2 is released; L1 (Center) levels it with the height. D-pad up/down stays height.
+Right stick forward/back (axis 3) ramps pitch at `pitch_rate` (0.3 rad/s at full deflection) with L2 held, using the
+same signed-power response curve as the velocity sticks. Positive pitch leans forward in the command frame.
+Centering the stick or releasing L2 holds the tilt target; L1 with L2 released restores level roll/pitch and nominal
+height. Both sticks must be centered before enabling L2; an active pitch stick also blocks the Square stand/sit toggle.
 
 ```bash
 # from another node or a terminal (Pineapple: lean right 0.2 rad)
@@ -88,14 +96,38 @@ L2 released; 0.6 s at 0.3 rad/s is 0.18 rad):
 Regression: `upkie_posture_cycle_test.py --cycles 2 --joystick --fall-test` passes on Upkie (max locomotion tilt
 0.040 rad) and Pineapple (0.029 rad); controller Python tests 95 passed; teleop 58 tests (three new roll tests).
 
-Not tested: the physical DualSense (D-pad left/right are SDL buttons 13/14, the layout D-pad up/down 11/12 already
-use), roll while driving or stepping, roll on terrain, pitch. The base command GUI has no roll control.
+Not tested: the physical DualSense, tilt while stepping, or tilt commands on terrain. The base command GUI has no
+roll/pitch control.
 
-## Pitch, next
+## Pitch validation (2026-11-28)
 
-The command path, limit and slew exist (`maxBasePitch`, the topic's y). Enabling it needs the joint posture adjusted
-for pitch: a pitched trunk with the legs unchanged turns them with it, so the hip (Upkie) or thigh (Pineapple)
-reference must take the pitch back, and the centre of mass moves over the wheels.
+Headless MuJoCo in `ros_jazzy`, wheel-aware linear KF feedback, requested MPC 200 Hz, the real C++ teleop node driven
+by synthetic DualSense messages: stand up, pitch forward/back, hold with L2 released, combine roll and pitch, L1
+level, sit down. Upkie's command frame is turned by pi: a positive pitch command becomes negative base-frame pitch.
+
+| Robot | Base pitch for +0.2 rad command | Base pitch for -0.2 rad command | L1 level pitch |
+| --- | --- | --- | --- |
+| Upkie | -0.1967 | +0.1949 | +0.0009 |
+| Pineapple | +0.1943 | -0.1946 | +0.0002 |
+
+Both passed without a fall or changes to optimization weights, posture tables, dynamics or solver code.
+The final repeat also commanded 0.1 m/s forward while holding combined roll/pitch: Upkie settled at base-frame
+roll -0.2442 and pitch -0.0994 rad (commands +0.25/+0.10); Pineapple at +0.3012/+0.0981 rad (commands +0.30/+0.10).
+Both then leveled on L1 and completed sit-down to idle. The 63 teleop checks passed, including pitch-only DDS output,
+arming guards, limits, hold-on-release, best-effort QoS and reset outside locomotion.
+Only the OCS2 robot YAMLs enable pitch; TurboMPC is unchanged, and G1/H2 retain disabled pitch commands.
+The shared teleop defaults to `maximum_pitch: 0` when the selected controller has no pitch limit.
+No CppAD library regeneration is needed for this reference/input change.
+
+Repeat in an otherwise unused ROS domain, from the sourced workspace with this repository as the current directory:
+
+```bash
+ROS_DOMAIN_ID=196 python3 tests/base_orientation_test.py --robot-name upkie --prefix /tmp/codex_pitch_upkie
+ROS_DOMAIN_ID=196 python3 tests/base_orientation_test.py --robot-name pineapple --prefix /tmp/codex_pitch_pineapple
+```
+
+The test launches and stops its own flat-ground simulation and teleop, saves ground-truth/joint samples and stage
+statistics beside the prefix, and checks both pitch limits, combined tilt tracking, L1 leveling and return to idle.
 
 ## Sources
 
