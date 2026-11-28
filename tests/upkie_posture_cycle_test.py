@@ -2,6 +2,7 @@
 """Exercise real controller posture services, repeat cycles and a latched fall in MuJoCo (Upkie or Pineapple)."""
 
 import argparse
+import hashlib
 import json
 import math
 import os
@@ -178,7 +179,9 @@ def main():
         cmd.append("controllers_file:=" + str(config_path))
     process = None
     probe = None
-    results = dict(verdict="FAIL", cycles=0, source=args.source)
+    results = dict(verdict="FAIL", cycles=0, source=args.source, robot=robot)
+    if args.trajectory:
+        results["trajectory_sha256"] = hashlib.sha256(args.trajectory.read_bytes()).hexdigest()
     rclpy.init()
     try:
         with Path(str(prefix) + ".log").open("w") as log:

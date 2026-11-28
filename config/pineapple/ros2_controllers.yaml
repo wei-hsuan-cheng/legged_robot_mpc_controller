@@ -119,8 +119,8 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
     bringUp:
       # Stand Up / Sit Down in the GUI, or Square with L2 released on the joystick.
       autoStart: false
-      # Deliberately reuse the arm-equipped TO (including its feedback and feedforward) without regeneration.
-      # The missing arm is a stand-up model mismatch for this baseline trial; the MPC uses the arm-free URDF.
+      # Own arm-free contact-aware TO, including matching feedforward and LQR gains for stand-up/sit-down.
+      # Regenerate with config/pineapple/regenerate.sh; locomotion tuning and the posture table remain the baseline.
       # Empty: no planned stand-up, for a standing spawn with the ground-truth base only.
       standUpTrajectoryFile: "$(find-pkg-share legged_robot_mpc_controller)/config/pineapple/stand_up_trajectory.yaml"
       idleSeconds: 3.0             # the plan starts from the pose settled for 3 s

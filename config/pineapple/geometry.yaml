@@ -2,7 +2,7 @@
 #   WB-ID MPC              paths.geometryFile: wheel radius, axle and tire centre (rolling-contact rows and frames),
 #                          the stand-up support guard, and the check of the stand-up plan and posture table
 #   wheel-aware linear KF  geometryFile: wheel radius, axle and tire centre (tread-velocity and height rows)
-#   inherited stand-up TO config/pineapple_manipulator/stand_up_to/plan.py: the arm-equipped baseline
+#   arm-free stand-up TO   config/pineapple/regenerate.sh: shared tools with the arm-free physical model
 #   posture table          config/pineapple/compute_posture_table.py: tire on the floor at each height
 # It describes the simulated robot (description/mujoco/robots/pineapple/pineapple.xml and the URDF); the offline
 # generators check the MJCF collision geoms against it. After a change, regenerate the stand-up and the posture

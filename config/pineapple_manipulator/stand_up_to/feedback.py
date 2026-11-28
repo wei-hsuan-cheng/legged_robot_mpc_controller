@@ -1,6 +1,7 @@
 """Finite-horizon LQR tracking gains for the Pineapple stand-up plan and its export (Upkie's feedback.py)."""
 
 import json
+import hashlib
 from pathlib import Path
 
 import casadi as ca
@@ -32,7 +33,10 @@ def linearizations(model):
         mat, jac, b, c = terms(state[:to.NX], state[to.NX:], torque)
         jac, c = jac[indices, :], c[indices]
         nc = len(indices)
-        K = ca.blockcat([[mat, -jac.T], [jac, ca.MX.eye(nc) * 1e-5]])
+        # The arm-free folded posture needs a less rigid linearization to avoid large
+        # terminal sit-down gains. This regularizes the LQR model, not the TO contacts.
+        regularization = 1e-3 if r.ROBOT == "pineapple" else 1e-5
+        K = ca.blockcat([[mat, -jac.T], [jac, ca.MX.eye(nc) * regularization]])
         sol = ca.solve(K, ca.vertcat(-b, -c))
         ode = ca.vertcat(state[to.NX:], sol[:to.NX])
         result.append(ca.Function("linearize" + str(nc), [state, torque],
@@ -57,11 +61,29 @@ class Tracking:
         self.geometry = geometry
         self.reverse = reverse
         self.plan = json.loads(Path(solution_path).read_text())
+        if self.plan.get("robot", r.ROBOT) != r.ROBOT:
+            raise ValueError("solution robot does not match the selected model")
+        for key in ("max_constraint_violation", "terminal_dynamics_error", "contact_error", "initial_reference_error"):
+            error = self.plan.get(key, float("inf"))
+            if not np.isfinite(error) or error > 1e-5:
+                raise ValueError(f"refusing export without a passing {key} check")
+        mass = self.plan.get("model_mass_kg", float("nan"))
+        if not np.isfinite(mass) or not np.isclose(mass, r.Rollout().m.body_subtreemass[1], atol=1e-8, rtol=1e-8):
+            raise ValueError("solution mass does not match the physical robot; refusing intermediate-model export")
+        samples = sum(self.plan.get("counts", to.COUNTS)) + 1
+        for key, rows in (("x", to.NX), ("v", to.NX), ("torque", to.NJ)):
+            values = np.array(self.plan[key])
+            if values.shape != (rows, samples) or not np.isfinite(values).all():
+                raise ValueError(f"invalid {key} trajectory")
+        duration = np.array(self.plan["duration"])
+        if duration.shape != (2,) or not np.isfinite(duration).all() or np.any(duration <= 0):
+            raise ValueError("invalid contact-phase durations")
         self.X, self.V = np.array(self.plan["x"]), np.array(self.plan["v"])
         self.U = np.array(self.plan["torque"])
         D = self.plan["duration"]
+        counts = self.plan.get("counts", to.COUNTS)
         self.switch = np.cumsum(D)
-        self.times = np.r_[np.linspace(0, D[0], to.COUNTS[0] + 1), D[0] + np.linspace(0, D[1], to.COUNTS[1] + 1)[1:]]
+        self.times = np.r_[0, np.cumsum(np.repeat(np.array(D) / counts, counts))]
         if reverse:
             self.U = self.U - 2 * joint_friction(self.V[6:])
             self.X, self.V, self.U = self.X[:, ::-1], -self.V[:, ::-1], self.U[:, ::-1]
@@ -113,7 +135,7 @@ class Tracking:
             # The controller loads this map like the stand-up: it plays it to the end (handover_time), no MPC.
             handover_time=float(self.end),
             mpc_start_time=0.0,
-            seat_contact_time=float(self.end - self.switch[0]),  # the seat takes load (informational)
+            seat_contact_time=float(self.plan["duration"][-1]),  # the seat takes load (informational)
             kp=r.KP.tolist(),
             kd=r.KD.tolist(),
             time=times.tolist(),
@@ -130,16 +152,17 @@ class Tracking:
     def export(self, path):
         import yaml
 
-        last_phase = self.plan["duration"][1]
+        last_phase = self.plan["duration"][-1]
+        seat_release = self.end - last_phase
         handover = self.end - 0.4 * last_phase
-        times = np.unique(np.r_[np.arange(0, handover, 0.02), self.switch[:1], handover])
+        times = np.unique(np.r_[np.arange(0, handover, 0.02), self.switch[:-1], handover])
         states = np.array([np.r_[self.spline(t), self.spline(t, 1)] for t in times])
         gains = np.array([self.gains[min(int(t / 0.01), len(self.grid) - 1)].reshape(-1) for t in times])
         data = dict(
             joint_names=r.JOINTS,
             handover_time=float(handover),
-            mpc_start_time=float(self.switch[0] + 0.25 * last_phase),
-            seat_release_time=float(self.switch[0]),  # end of the seated phase (informational)
+            mpc_start_time=float(seat_release + 0.25 * last_phase),
+            seat_release_time=float(seat_release),  # end of the seated phases (informational)
             kp=r.KP.tolist(),
             kd=r.KD.tolist(),
             time=times.tolist(),
@@ -163,8 +186,25 @@ class Tracking:
         Dumper.add_representer(list, lambda dumper, values: dumper.represent_sequence(
             "tag:yaml.org,2002:seq", values, flow_style=all(isinstance(v, (int, float)) for v in values)))
         header = ("# Offline full-body ID stand-up: seat and tire contacts, then tire-only support.\n"
-                  "# Generated by config/pineapple_manipulator/stand_up_to/plan.py; validate in MuJoCo after regenerating.\n")
-        maps = dict(stand_up=data)
+                  f"# Generated by config/pineapple_manipulator/stand_up_to/plan.py --robot {r.ROBOT}; validate after regenerating.\n")
+        urdf = r.ROOT / "description/urdf/robots" / r.ROBOT / (r.ROBOT + ".urdf")
+        maps = dict(generation=dict(
+            robot=r.ROBOT,
+            model_mass_kg=self.plan["model_mass_kg"],
+            urdf_sha256=hashlib.sha256(urdf.read_bytes()).hexdigest(),
+            max_constraint_violation=self.plan["max_constraint_violation"],
+            terminal_dynamics_error=self.plan["terminal_dynamics_error"],
+            contact_error=self.plan["contact_error"],
+            initial_reference_error=self.plan["initial_reference_error"],
+            initial_pose_tolerance=self.plan["initial_pose_tolerance"],
+            phase_durations=self.plan["duration"],
+            max_displacement=self.plan["max_displacement"],
+            max_yaw_change=self.plan["max_yaw_change"],
+            symmetric=self.plan["symmetric"],
+            velocity_limits=self.plan["velocity_limits"],
+            acceleration_limits=self.plan["acceleration_limits"],
+            contact_regularization=1e-3 if r.ROBOT == "pineapple" else 1e-5,
+        ), stand_up=data)
         if self.sit_down is not None:
             maps["sit_down"] = self.sit_down.export_sit_down()
         Path(path).parent.mkdir(parents=True, exist_ok=True)

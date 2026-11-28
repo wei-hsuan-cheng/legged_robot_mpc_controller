@@ -1,6 +1,8 @@
 """Pineapple module composition, unchanged baseline settings and matching robot interfaces."""
 
 import importlib.util
+import hashlib
+import math
 from pathlib import Path
 import subprocess
 import sys
@@ -45,11 +47,69 @@ class PineappleVariantsTest(unittest.TestCase):
         self.assertNotIn("fixedJointNames", p["ocs2"]["model"])
         self.assertTrue(p["paths"]["libFolder"].endswith("/chassis_only"))
 
-    def test_stand_up_is_one_unchanged_shared_baseline(self):
+    def test_stand_up_is_a_validated_arm_free_plan(self):
         armless = ROOT / "config/pineapple/stand_up_trajectory.yaml"
         original = ROOT / "config/pineapple_manipulator/stand_up_trajectory.yaml"
-        self.assertTrue(armless.is_symlink())
-        self.assertEqual(armless.resolve(), original.resolve())
+        self.assertFalse(armless.is_symlink())
+        self.assertNotEqual(armless.read_bytes(), original.read_bytes())
+        self.assertEqual(hashlib.sha256(original.read_bytes()).hexdigest(),
+                         "65008be561ffbd77acb0e0b348a7dc290841cc96fc52c10ae3746718290c1136")
+        data = yaml.safe_load(armless.read_text())
+        generation = data["generation"]
+        self.assertEqual(generation["robot"], "pineapple")
+        self.assertAlmostEqual(generation["model_mass_kg"], 10.92, places=6)
+        urdf = DESCRIPTION / "urdf/robots/pineapple/pineapple.urdf"
+        self.assertEqual(generation["urdf_sha256"], hashlib.sha256(urdf.read_bytes()).hexdigest())
+        for key in ("max_constraint_violation", "terminal_dynamics_error", "contact_error", "initial_reference_error"):
+            self.assertTrue(math.isfinite(generation[key]))
+            self.assertLessEqual(generation[key], 1e-5)
+        self.assertEqual(len(generation["phase_durations"]), 2)
+        self.assertTrue(generation["symmetric"])
+        self.assertEqual(generation["max_yaw_change"], 0)
+        self.assertEqual(generation["contact_regularization"], 1e-3)
+        geometry = yaml.safe_load((ROOT / "config/pineapple/geometry.yaml").read_text())["geometry"]
+        self.assertEqual(data["stand_up"]["knee_contacts"], geometry["knee_housings"])
+        for key in ("stand_up", "sit_down"):
+            plan = data[key]
+            self.assertEqual(plan["joint_names"], LEGS)
+            self.assertEqual(plan["wheel_radius"], geometry["wheel"]["radius"])
+            self.assertTrue(all(b > a for a, b in zip(plan["time"], plan["time"][1:])))
+            self.assertAlmostEqual(plan["time"][-1], plan["handover_time"])
+            for field, width in (("position", 8), ("velocity", 8), ("effort", 8),
+                                 ("state", 28), ("feedback", 224)):
+                self.assertEqual(len(plan[field]), len(plan["time"]))
+                self.assertTrue(all(len(row) == width and all(math.isfinite(x) for x in row)
+                                    for row in plan[field]))
+        self.assertLess(data["stand_up"]["mpc_start_time"], data["stand_up"]["handover_time"])
+        self.assertAlmostEqual(data["sit_down"]["state"][0][2], 0.3, places=6)
+
+    def test_arm_free_seed_matches_the_export_and_preserves_full_dynamics_checks(self):
+        import json
+        seed = json.loads((ROOT / "config/pineapple/stand_up_seed.json").read_text())
+        generation = yaml.safe_load((ROOT / "config/pineapple/stand_up_trajectory.yaml").read_text())["generation"]
+        self.assertEqual(seed["return_status"], "Solve_Succeeded")
+        for key in ("robot", "model_mass_kg", "max_constraint_violation", "terminal_dynamics_error", "contact_error"):
+            self.assertEqual(seed[key], generation[key])
+        self.assertEqual(seed["duration"], generation["phase_durations"])
+        self.assertEqual(len(seed["initial_pose_tolerance"]), 14)
+        for field in ("x", "v", "a"):
+            rows = seed[field]
+            self.assertEqual(len(rows), 14)
+            self.assertTrue(all(len(row) == 61 for row in rows))
+            self.assertTrue(all(abs(value) < 1e-9 for i in (5, 6, 10) for value in rows[i]))
+            for left, right in ((7, 11), (8, 12), (9, 13)):
+                self.assertTrue(all(abs(a - b) < 1e-9 for a, b in zip(rows[left], rows[right])))
+        self.assertTrue(all(abs(yaw - seed["x"][3][0]) < 1e-9 for yaw in seed["x"][3]))
+        for index, row in enumerate(seed["torque"]):
+            self.assertTrue(all(abs(value) <= [19, 19, 28, 7.7][index % 4] + 1e-5 for value in row))
+        urdf = ET.parse(DESCRIPTION / "urdf/robots/pineapple/pineapple.urdf")
+        for index, name in enumerate(LEGS, 6):
+            limit = urdf.find(f"./joint[@name='{name}']/limit")
+            lo, hi, speed = (float(limit.get(key)) for key in ("lower", "upper", "velocity"))
+            self.assertTrue(all(lo - 1e-6 <= value <= hi + 1e-6 for value in seed["x"][index]))
+            self.assertTrue(all(abs(value) <= speed + 1e-6 for value in seed["v"][index]))
+
+    def test_locomotion_posture_table_remains_the_original_baseline(self):
         a = yaml.safe_load((ROOT / "config/pineapple/posture_table.yaml").read_text())["posture_table"]
         b = yaml.safe_load((ROOT / "config/pineapple_manipulator/posture_table.yaml").read_text())["posture_table"]
         self.assertEqual(a, b)
@@ -90,6 +150,25 @@ class PineappleVariantsTest(unittest.TestCase):
                              ["../../common/scenes/pineapple_scene.xml", robot + ".xml"])
             self.assertIsNone(scene.find("option"))
             self.assertIsNone(scene.find("worldbody"))
+
+    @unittest.skipIf(importlib.util.find_spec("mujoco") is None, "Python MuJoCo is not installed")
+    def test_stand_up_helpers_select_the_matching_physical_model(self):
+        path = ROOT / "config/pineapple_manipulator/stand_up_to/rollout.py"
+        spec = importlib.util.spec_from_file_location("pineapple_rollout", path)
+        rollout = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(rollout)
+        for robot, mass, arms in (("pineapple", 10.92, 0), ("pineapple_manipulator", 14.919995, 6)):
+            with self.subTest(robot=robot):
+                rollout.configure(robot)
+                model = rollout.Rollout()
+                self.assertAlmostEqual(model.m.body_subtreemass[1], mass, places=6)
+                self.assertEqual(len(model.arm), arms)
+                self.assertEqual(len(rollout.FRAMES), 7 if arms == 0 else 9)
+                self.assertEqual(rollout.GEOMETRY.parent.name, robot)
+                model.spawn_idle(settle=0.01)
+                self.assertEqual(model.state().shape, (28,))
+        with self.assertRaises(ValueError):
+            rollout.configure("pineapple_arm")
 
     @unittest.skipIf(importlib.util.find_spec("mujoco") is None, "Python MuJoCo is not installed")
     def test_compiled_physical_dimensions_and_mass(self):

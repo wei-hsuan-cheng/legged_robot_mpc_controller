@@ -16,10 +16,10 @@ Both variants start with the original numeric settings: costs, constraints, gain
 The arm-free MPC and estimator use their matching arm-free URDF, not the old arm-equipped dynamics.
 Its `paths.libFolder` adds `chassis_only` to avoid loading the previously cached arm-equipped dynamics under the old `pineapple` name.
 
-The arm-free variant intentionally reuses the original stand-up TO, including its feedforward and feedback gains.
-`config/pineapple/stand_up_trajectory.yaml` is a symlink to the unchanged file under `config/pineapple_manipulator/`.
-The height/posture reference is also kept at the old values for this first modeling-error baseline; it was not rebalanced for the lighter robot.
-A newly optimized stand-up and posture table may be useful later, but neither was regenerated or tuned for this trial.
+The arm-free variant has its own optimized stand-up, reversed sit-down, feedforward and LQR gains in `config/pineapple/stand_up_trajectory.yaml`.
+Its accepted full-state seed is `config/pineapple/stand_up_seed.json`; neither asset is shared with the manipulator.
+The height/posture reference and all locomotion MPC tuning remain at the old values; the posture table was not rebalanced for the lighter robot.
+The original manipulator trajectory remains unchanged.
 
 ### Shared MuJoCo Modules
 
@@ -49,7 +49,7 @@ colcon build --symlink-install --packages-select legged_robot_mpc_controller leg
   --cmake-args -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
 source install/setup.bash
 
-# Arm-free baseline, GUI; click Stand Up.
+# Arm-free robot, GUI; click Stand Up.
 ros2 launch legged_robot_mpc_controller robot.launch.py \
   robot_name:=pineapple mpc_freq:=200 base_command_device:=gui
 
@@ -93,8 +93,61 @@ The controller Python suite passed 161 tests (16 skipped), and teleop passed all
 The arm-equipped assembled model matches the original model's inertias, joint properties, mass matrix, bias forces and CoM over 20 random states.
 Its joystick-driven stand-up, short forward drive and sit-down cycle passed with wheel-aware KF feedback and requested MPC 200 Hz; max locomotion tilt was 0.0327 rad.
 The arm-free model passed only the requested basic test: Square stand-up on the inherited TO and 8 seconds of MPC balance, max tilt 0.0156 rad.
-No arm-free drive, terrain, push, full sit-down cycle or tuning was attempted; these remain for user testing first.
+At that initial split checkpoint, no arm-free drive, terrain, push, full sit-down cycle or tuning was attempted.
+The arm-free stand-up update below supersedes only its inherited stand-up/sit-down baseline.
 Both test launches were stopped after acceptance.
+
+## Arm-free Stand-up Update (2026-11-28)
+
+`pineapple` now uses a new TO for its 10.92 kg arm-free model, not a scaled copy of the manipulator plan.
+The shared generator still models two supports: seat edge plus both tires, then tires only.
+Its offline coordinates are forward travel, height, pitch, and matching left/right thigh, calf and wheel angles.
+The offline reference keeps the hips at zero and the heading and roll constant; this does not restrict the runtime MPC's three-dimensional motion.
+The TO still enforces full-body inverse dynamics, unilateral contact forces, friction, rolling without slip, ground clearance and the torque reserve.
+The arm-free joint-position bounds now come from the physical MJCF, including the -3.229 rad calf stop; unlimited wheel joints are not mistaken for fixed joints.
+The 0.30 m endpoint is balanced for the arm-free CoM (thigh 1.149477, calf -1.938803 rad), independently of the unchanged locomotion posture table.
+
+| Item | Arm-free plan |
+| --- | --- |
+| Seat / tire-only phases | 0.069 / 1.217 s |
+| MPC warm-up / handover | 0.374 / 0.799 s |
+| Full reference duration / backward travel | 1.286 s / 0.40 m |
+| Offline stand-up replay | Handover height 0.256 m, tilt 0.006 rad, peak motor use about 36% |
+| Offline sit-down replay | Settled height 0.030 m, residual speed about 0.001, maximum tilt 0.211 rad, peak motor use about 34% |
+
+These are flat-ground simulation results, not hardware or arm-free terrain acceptance.
+The final exported file passed three Square/L2 stand-drive-sit cycles with wheel-aware KF feedback at requested MPC 200 Hz, followed by a forced-fall latch check; maximum locomotion tilt was 0.0089 rad.
+The original manipulator also passed a separate stand-drive-sit regression without changing its trajectory.
+The plan uses 24 seated and 36 tire-only intervals, with each phase allowed 0.05--2.5 s.
+Its offline speed bounds in the six coordinates above are `[1, 1, 3, 5.5, 6, 15]`, and acceleration bounds are `[10, 12, 30, 50, 50, 100]` in SI units.
+These wider maneuver bounds permit the brief seat release; the cost still penalizes motion, acceleration, effort and force changes.
+They are not changes to MPC weights, command limits or actuator limits.
+The nominal fold may differ from the settled idle by up to 10 mm in height, 0.07 rad in pitch and 0.15 rad at the thigh/calf/wheel joints; replay starts from the actual settled robot, not this nominal state.
+
+The old sit-down LQR linearization produced excessive gains on this new maneuver.
+The arm-free generator uses contact regularization `1e-3` instead of the manipulator's `1e-5`, reducing the maximum reverse gain from about 11,545 to 31 on the final plan.
+This regularizes only the feedback linearization; it does not soften the TO's contact or dynamics equalities.
+The generator checks all tire/seat rows after solving, including symmetric duplicate rows omitted from the NLP and the dependent terminal pitch-balance row.
+The exported `generation` map records the robot mass, URDF hash, solver checks and generation settings.
+Installation requires a passing ROS check for the same robot and candidate-file hash.
+
+To regenerate, inside Linux with the controller workspace built:
+
+```bash
+R=/path/to/legged_robot_mpc_controller
+export WS=/path/to/your_ros2_workspace
+bash "$R/config/pineapple/regenerate.sh" setup
+bash "$R/config/pineapple/regenerate.sh" plan 2.5
+bash "$R/config/pineapple/regenerate.sh" simulate 2.5
+bash "$R/config/pineapple/regenerate.sh" check 2.5
+bash "$R/config/pineapple/regenerate.sh" install 2.5
+```
+
+The wrapper uses the shared tools under `config/pineapple_manipulator/stand_up_to`, but separate models, seed, candidates and exports.
+It will not follow the historical arm-free trajectory symlink and overwrite the manipulator file.
+The manipulator's original trajectory, both robots' locomotion tuning, and their baseline posture tables remain unchanged.
+
+## Original Manipulator Baseline
 
 The detailed results and older robustness/terrain measurements below describe the original arm-equipped robot, now `pineapple_manipulator`, not the arm-free variant.
 

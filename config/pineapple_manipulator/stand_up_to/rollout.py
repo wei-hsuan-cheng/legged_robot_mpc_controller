@@ -9,8 +9,23 @@ import yaml
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
-SCENE = ROOT / "description/mujoco/robots/pineapple_manipulator/scene.xml"
-GEOMETRY = HERE.parent / "geometry.yaml"
+ROBOT = "pineapple_manipulator"
+SCENE = ROOT / "description/mujoco/robots" / ROBOT / "scene.xml"
+GEOMETRY = ROOT / "config" / ROBOT / "geometry.yaml"
+FRAMES = ["wheel_l", "wheel_r", "base_link", "thigh_l", "thigh_r", "calf_l", "calf_r", "upper_arm", "fore_arm"]
+
+
+def configure(robot):
+    """Select the matching model, geometry and clearance frames before constructing any helpers."""
+    global ROBOT, SCENE, GEOMETRY, FRAMES
+    if robot not in ("pineapple", "pineapple_manipulator"):
+        raise ValueError(f"unsupported Pineapple variant: {robot}")
+    ROBOT = robot
+    SCENE = ROOT / "description/mujoco/robots" / robot / "scene.xml"
+    GEOMETRY = ROOT / "config" / robot / "geometry.yaml"
+    FRAMES = ["wheel_l", "wheel_r", "base_link", "thigh_l", "thigh_r", "calf_l", "calf_r"]
+    if robot == "pineapple_manipulator":
+        FRAMES += ["upper_arm", "fore_arm"]
 
 # Robot joints in robot.jointNames order (the MPC's), then the arm, held at zero by the hardware PD.
 JOINTS = ["L_hip_joint", "L_thigh_joint", "L_calf_joint", "L_wheel_joint",
@@ -26,8 +41,8 @@ KD = np.array([1.0, 1.0, 1.0, 0.1, 1.0, 1.0, 1.0, 0.1])
 IDLE = np.array([0.0, 1.65, -3.15, 0.0, 0.0, 1.65, -3.15, 0.0])
 
 
-def load_geometry(path=GEOMETRY):
-    return yaml.safe_load(Path(path).read_text())["geometry"]
+def load_geometry(path=None):
+    return yaml.safe_load(Path(path or GEOMETRY).read_text())["geometry"]
 
 
 def euler_rates_matrix(pitch, roll):
@@ -37,11 +52,14 @@ def euler_rates_matrix(pitch, roll):
 
 
 class Rollout:
-    def __init__(self, scene=SCENE):
-        self.m = mujoco.MjModel.from_xml_path(str(scene))
+    def __init__(self, scene=None):
+        self.m = mujoco.MjModel.from_xml_path(str(scene or SCENE))
         self.d = mujoco.MjData(self.m)
         m = self.m
-        names = JOINTS + ARM
+        self.arm = [n for n in ARM if mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_JOINT, n) >= 0]
+        names = JOINTS + self.arm
+        self.arm_kp = ARM_KP[[ARM.index(n) for n in self.arm]]
+        self.arm_kd = ARM_KD[[ARM.index(n) for n in self.arm]]
         self.qa = np.array([m.joint(n).qposadr[0] for n in names])
         self.va = np.array([m.joint(n).dofadr[0] for n in names])
         self.act = np.array([next(a for a in range(m.nu) if m.actuator_trnid[a][0] == m.joint(n).id) for n in names])
@@ -54,8 +72,9 @@ class Rollout:
 
     def apply(self, q_des, v_des, feedforward, kp=KP, kd=KD):
         q, v = self.d.qpos[self.qa], self.d.qvel[self.va]
-        target = np.r_[q_des, np.zeros(6)]
-        tau = np.r_[kp, ARM_KP] * (target - q) + np.r_[kd, ARM_KD] * (np.r_[v_des, np.zeros(6)] - v)
+        target = np.r_[q_des, np.zeros(len(self.arm))]
+        tau = np.r_[kp, self.arm_kp] * (target - q) + np.r_[kd, self.arm_kd] * (
+            np.r_[v_des, np.zeros(len(self.arm))] - v)
         tau[:8] += feedforward
         tau = np.clip(tau, -self.limits, self.limits)
         self.d.ctrl[self.act] = tau

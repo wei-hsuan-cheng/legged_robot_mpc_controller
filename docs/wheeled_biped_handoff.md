@@ -1596,3 +1596,105 @@ Suggested future commit message: `feat(pineapple): split arm-free and manipulato
 After reviewing the completion summary and gauntlet commands, the user requested committing and pushing this checkpoint on `main` in both the controller and companion teleop repositories.
 No additional simulation or tuning was performed for that publication request; raw videos and GIFs are excluded.
 
+## Arm-free Pineapple Stand-up TO (2026-11-28, In Progress)
+
+The user requested a new arm-free stand-up TO and a push after validation, superseding the inherited-trajectory baseline for stand-up only.
+Keep locomotion MPC settings and the original manipulator trajectory unchanged.
+The existing two-phase formulation already models the correct seated supports (base seat edge plus tires, then tires only); no new contact formulation is required.
+At the 0.30 m terminal height, the arm-free balanced thigh/calf angles are 1.149477/-1.938803 rad versus 1.105960/-1.949246 rad with the arm.
+Only the TO endpoint uses this freshly computed static posture; the shipped locomotion posture table is not regenerated.
+The existing TO tools are being extended to select either physical model, omit absent arm joints/clearance frames, and prevent a candidate export from following the old shared YAML symlink.
+The arm-free regeneration entry point delegates to those shared tools with separate generated models, candidates and seed/export paths.
+Validation will include Pinocchio/MuJoCo dynamics and CoM parity, offline stand-up/sit-down replay, and estimated-state ROS posture cycles before installation.
+The arm-free Pinocchio/CasADi model passed inverse-dynamics and CoM parity against MuJoCo 3.13.0 at five perturbed 3D states, matching the ROS simulator version.
+The initial solves seeded from the old trajectory reached local infeasibility at seat-contact path equalities (about 0.021 m), not a dynamics-parity failure; longer phase bounds did not fix it.
+Those candidates were rejected without replacing either shipped trajectory; initialization is being examined before relaxing any physical constraint.
+The infeasible iterates saturated the old 0.25 m backward-travel bound and 8 rad/s wheel-speed bound with modest joint torques; the arm-equipped seed already used 0.232 m of that travel allowance.
+An aligned warm start and a redundant seated-pitch bound did not resolve the local infeasibility; the redundant bound was removed.
+The next candidate permits more offline stand-up travel and longer phases while retaining the same contact, friction, collision-clearance and torque constraints; locomotion MPC remains unchanged.
+
+### Paused at User Request
+
+The user requested pausing this work and will explicitly ask to resume; do not continue optimization or robot tests until then.
+The 0.40 m travel / 2.5 s phase-cap trial also failed feasibility at seat-contact equalities, so neither longer duration nor more travel alone resolves the issue.
+All rejected candidates remain outside the repository under `/tmp/codex_pineapple_to` in `ros_jazzy`; the shipped arm-free YAML is still the original relative symlink, and the manipulator export is unchanged.
+No new TO was installed, no locomotion MPC parameters were changed, and no commits or pushes were made for this task.
+The shared exporter builds successfully; both variants passed five-state Pinocchio/CasADi versus MuJoCo dynamics/CoM parity.
+The shared rollout/model regression passed seven checks and the original manipulator model/config regression passed nine checks locally.
+Current local edits add dual-robot selection to shared offline tools, an arm-free regeneration wrapper, safe symlink replacement on installation, configurable offline travel allowance, rejection diagnostics and a model-selection regression.
+On resume, first inspect the failed solutions' last seated nodes and seat-contact assumptions: failures favor forward pitch and an already-lifted rear seat while the prescribed rear-seat contact is still required.
+Determine whether the arm-free robot needs a different support transition (for example rear seat to front seat before tire-only support), or a better feasible initialization, rather than simply relaxing physical constraints.
+Temporary aligned-seed generator on the Mac: `/tmp/codex_pineapple_warm_start.py`; dynamics build in the container: `/tmp/codex_pineapple_to_build`; dependency environment: `/root/upkie_stand_up/env`.
+No accepted replacement exists yet: next required stages remain a feasible solve, offline stand/sit replay, estimated-state ROS posture-cycle acceptance, documentation updates, and only then the requested commit/push.
+
+### Resumed Investigation
+
+The user resumed the task and requested a push after completion.
+Selecting the lower seat edge during rocking did not produce a feasible solve; that experimental model change was removed, retaining the original rear-seat/tire contact formulation.
+Increasing the initial-pose envelope and softening the terminal static joint target also failed to resolve the seated-path violation; neither is an accepted setting.
+A warm-start issue was found: the old implementation replaced saved phase durations with the upper bounds and rescaled velocities/accelerations with a jump at the contact switch.
+Warm starts now preserve saved durations within the allowed bounds, retaining derivatives when those durations are unchanged; this is being tested before adopting more contact phases or looser constraints.
+The stored manipulator seed was evaluated against the shared tools and still matches its original contact geometry and inverse dynamics, ruling out a module-refactor dynamics regression.
+Preserving warm timing reduced the aligned seed's initial violation from 0.64 to 0.0455, but did not alone recover a feasible full-mass-change solve.
+An external continuation script gradually blends the locked-arm and arm-free inertias, settled-pose envelope and exact static endpoint; intermediate trial files stay in `/tmp`, and only the exact final arm-free model may be exported.
+The intermediate endpoint must be solved for the blended model's actual CoM, not linearly interpolated joint angles: the latter creates an incompatible hard terminal static-balance condition.
+The exact-Hessian runs show large regularization and MUMPS memory reallocations; a separate L-BFGS Hessian trial retains analytic derivatives and all physical constraints to test conditioning.
+Temporary scripts on the Mac are `/tmp/codex_pineapple_continuation.py` and `/tmp/codex_pineapple_lbfgs.py`; neither is a runtime controller change.
+Further rejected probes included an explicit front-seat phase, a 2 mm/s tread-speed tolerance and temporary supported-idle hip offsets; none was accepted or installed.
+At a fixed static terminal posture, the base pitch-balance equality is dependent on terminal force balance and the already fixed balanced geometry.
+Removing only that dependent terminal NLP row, while rechecking all terminal RNEA rows before export, avoids a singular terminal KKT block without discarding physical balance.
+With the timing fix, exact intermediate static endpoints, correctly scaled continuation forces/mass and the terminal rank fix, continuation reached feasible 5%, 10% and 15% arm-removal stages.
+The 15% stage returned `Solve_Succeeded` with maximum constraint violation 8.78e-7; later stages are still being solved.
+The continuation uses the original two phases, exact rolling, original initial-pose envelope, original hard terminal posture and original travel/torque/clearance limits; no physical relaxation has been accepted.
+At 35% removal, a 5% model step stalled near the active initial-pose envelope and minimum phase duration; continuation was restarted with 1% steps and saved constraint multipliers for proper primal/dual warm starts.
+The arm-free offline initial-reference envelope is now 6 mm in height, 0.04 rad in pitch, 0.01 rad in roll and 0.06 rad per joint, with XY and heading still anchored exactly.
+This allows a nearby supported nominal fold despite the lighter robot's idle servo deflection; it does not change the actual idle pose, servo gains or locomotion MPC, and must be validated by replay from the actual settled robot.
+The manipulator retains its original initial-reference envelope and shipped trajectory.
+The 35% stage then returned `Solve_Succeeded` with maximum violation 8.29e-7; exact rolling, two phases, terminal static posture and physical bounds remain unchanged.
+Clearing the Opti callback after each solve breaks a callback/Opti reference cycle observed to retain multiple large NLPs during continuation.
+Rejected experimental front-seat, slip, free-terminal and idle-offset options have been removed from the repository code.
+
+### Continuation Timing Check
+
+Continuation reached 47% arm removal with all physical constraints satisfied, then stalled at a 12.6 micrometre seated-gap residual at 48%.
+The preceding feasible path saturated the 0.40 m travel allowance and wheel-speed bounds, with phase durations at the old 0.5/1.5 s bounds.
+Allowing 0.25--2.5 s per phase recovered `Solve_Succeeded` at 47% and 48%, with maximum violations below 8e-7.
+Those solutions use a shorter seated phase (0.25 s) and a longer rise (about 1.7--1.8 s), rather than requiring extra contact slip or weaker inverse dynamics.
+These remain intermediate virtual-mass solutions, not deployable exports; the physical arm-free model and estimated-state posture cycles still require validation.
+
+### Physical Arm-free Candidate
+
+A sagittal-plane parameterization converged on the physical 10.92 kg robot in 83 iterations (about 2.3 s), with maximum NLP violation 3.25e-8 and full normalized RNEA residual below 8e-11.
+It fixes only the offline reference's roll, heading and hip abduction, and uses matching left/right thigh, calf and wheel angles; the runtime MPC remains fully three-dimensional.
+Full independent tire and seat contact checks confirmed XY no-slip errors below 3e-11, including rows omitted from the NLP as analytic duplicates.
+The successful maneuver needs a shorter allowed seat phase (0.05 s minimum) and wider offline velocity/acceleration allowances; none of these bounds is a runtime MPC tuning change.
+Its durations are about 0.090/1.430 s, handover 0.948 s, and backward displacement 0.40 m.
+Ground-truth offline stand-up replay reached handover at 0.265 m and 0.005 rad tilt, with peak motor usage below 32%.
+The first estimated-state ROS cycle stood successfully and held MPC balance below 0.003 rad tilt, but the reverse plan failed the sit-down rest guard.
+The original 1e-5 LQR contact regularization produced a maximum reverse gain near 11,545; changing only the arm-free LQR linearization's regularization to 1e-3 reduced it to 83.
+This does not soften the TO's exact contact or inverse-dynamics constraints; the full contact Jacobian was checked and has full row rank along this candidate.
+With the new gains, offline sit-down settled at 0.030 m with negligible residual speed, maximum tilt 0.209 rad, and peak motor use below 33%; the subsequent estimated-state ROS stand/drive/sit cycle passed.
+The shared production tool regenerated this candidate with `Solve_Succeeded` in 17 iterations, and its own accepted seed then regenerated it in two iterations.
+The Release controller build passed; three joystick cycles plus the forced-fall latch check are being completed before installation.
+An additional audit found the inherited offline calf bound (-3.26 rad) is slightly beyond the URDF/MJCF stop (-3.229 rad); a candidate using the actual joint ranges is being checked before final acceptance.
+
+### Installed and Validated
+
+The final arm-free TO uses the actual bounded MJCF joint ranges, including the -3.229 rad calf stop; unlimited wheels retain free angles.
+The first range-audit probes incorrectly treated MuJoCo's unlimited-wheel `[0, 0]` ranges as fixed limits and were rejected; honoring `jnt_limited` corrected that probe error.
+Its initial-reference envelope is 10 mm height, 0.07 rad pitch, 0.01 rad roll, 0.06 rad hips and 0.15 rad thigh/calf/wheel, checked against the actual settled pose before export.
+The final offline forward/height/pitch/thigh/calf/wheel speed bounds are `[1, 1, 3, 5.5, 6, 15]`, and acceleration bounds `[10, 12, 30, 50, 50, 100]`; these do not change runtime MPC settings.
+The production generator returned `Solve_Succeeded` with maximum violation 3.23e-8, durations 0.069317/1.216736 s, warm-up 0.373501 s and handover 0.799359 s.
+The accepted full-state seed is stored in `config/pineapple/stand_up_seed.json`, and the old trajectory symlink has been replaced with this robot's own export.
+The final export's three synthetic-joystick stand/short-drive/sit cycles and forced-fall latch check passed using the wheel-aware KF at requested MPC 200 Hz; maximum locomotion tilt was 0.008824 rad.
+Artifact prefix in `ros_jazzy`: `/tmp/codex_pineapple_deploy_cycles`, with the exact candidate and raw solution under `/tmp/codex_pineapple_to/candidate_deploy.yaml` and `solution_deploy.json`.
+The installer checked the robot name and passing report's candidate SHA-256 before installing; no force-install bypass was used.
+Offline stand-up reached handover near 0.256 m with 0.006 rad tilt and about 36% peak motor use; reverse playback settled near 0.030 m, residual speed 0.001, maximum tilt 0.211 rad and about 34% motor use.
+The manipulator's original trajectory SHA-256 is still `65008be561ffbd77acb0e0b348a7dc290841cc96fc52c10ae3746718290c1136`.
+Its separate synthetic-joystick stand/short-drive/sit regression passed, maximum locomotion tilt 0.026565 rad; artifact prefix `/tmp/codex_pineapple_manipulator_regression`.
+Release build passed; all eight native C++ regression tests passed; the sourced ROS Python suite passed 163 tests with 17 skips; all 18 local Pineapple tests passed with MuJoCo available.
+No locomotion MPC weights, constraints, command bounds, posture tables, low-level servo gains, runtime FSM or robot description were changed for this task.
+Remaining scope: user terrain/gait evaluation of the arm-free robot, optional arm-free locomotion/posture tuning only after feedback, and real-hardware validation; flat posture-cycle success is not terrain or hardware acceptance.
+The new TO is a stationary flat-floor maneuver with about 0.40 m backward reference travel; keep sufficient clear space behind the robot.
+Regeneration commands and scope are documented in `docs/pineapple.md`; use `config/pineapple/regenerate.sh` with phase cap `2.5`, and set `WS` to the built ROS workspace for `check`.
+

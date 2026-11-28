@@ -41,11 +41,14 @@ def seat_clearance(rollout, geometry):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("plan", nargs="?", type=Path, default=HERE.parent / "stand_up_trajectory.yaml")
+    parser.add_argument("--robot", choices=("pineapple", "pineapple_manipulator"), default="pineapple_manipulator")
+    parser.add_argument("plan", nargs="?", type=Path)
     parser.add_argument("--idle", type=float, default=3.0, help="seated settle before the plan [s]")
     parser.add_argument("--sit-down", action="store_true", help="replay the sit_down map instead, from its first "
                         "state (standing at rest); reports the seat touchdown and the final seated state")
     args = parser.parse_args()
+    r.configure(args.robot)
+    args.plan = args.plan or r.ROOT / "config" / args.robot / "stand_up_trajectory.yaml"
     plan = yaml.safe_load(args.plan.read_text())["sit_down" if args.sit_down else "stand_up"]
     geometry = r.load_geometry()
     times = np.array(plan["time"])

@@ -1,8 +1,8 @@
 // Pineapple stand-up model: Pinocchio RNEA, frame placements and CoM as CasADi functions, for plan.py.
 // Scalar conversion follows Pinocchio's official example:
 // https://github.com/stack-of-tasks/pinocchio/blob/devel/examples/casadi/casadi-rnea.cpp
-// The arm is locked at zero, as the MPC holds it (ocs2.model.fixedJointNames); the gripper slides are fixed in the
-// URDF. Usage: pineapple_manipulator_stand_up_model pineapple_manipulator.urdf PREFIX  (writes PREFIX_rnea.casadi and PREFIX_frames.casadi)
+// Accepts either Pineapple variant. If present, the arm is locked at zero as in the MPC.
+// Usage: pineapple_manipulator_stand_up_model ROBOT.urdf PREFIX (writes CasADi RNEA and frame functions).
 #include <pinocchio/autodiff/casadi.hpp>
 #include <pinocchio/parsers/urdf.hpp>
 #include <pinocchio/algorithm/model.hpp>
@@ -21,7 +21,7 @@ int main(int argc, char **argv) {
   std::vector<pinocchio::JointIndex> locked;
   for (const char *name : {"arm_joint", "arm_base_joint", "upper_arm_joint", "fore_arm_joint", "5dof_joint",
                            "gripper_case_joint"}) {
-    locked.push_back(full.getJointId(name));
+    if (full.existJointName(name)) locked.push_back(full.getJointId(name));
   }
   const pinocchio::Model model = pinocchio::buildReducedModel(full, locked, pinocchio::neutral(full));
   if (model.nv != 14 || model.nq != 15) throw std::runtime_error("expected the eight-joint Pineapple leg model");
@@ -42,11 +42,14 @@ int main(int argc, char **argv) {
   pinocchio::forwardKinematics(am, data, eq);
   pinocchio::updateFramePlacements(am, data);
   pinocchio::centerOfMass(am, data, eq);
-  // Frame origins and rotations only: plan.py places the tire centres and the base seat in these frames from
-  // config/pineapple_manipulator/geometry.yaml, and the ground-clearance points at the MJCF collision box corners.
-  const char *names[] = {"wheel_l", "wheel_r", "base_link", "thigh_l", "thigh_r", "calf_l", "calf_r", "upper_arm",
-                         "fore_arm"};
-  const int count = sizeof(names) / sizeof(names[0]);
+  // Frame origins and rotations only: plan.py reads tire/seat offsets from geometry.yaml
+  // and ground-clearance box corners from the selected MJCF.
+  std::vector<std::string> names = {"wheel_l", "wheel_r", "base_link", "thigh_l", "thigh_r", "calf_l", "calf_r"};
+  if (!locked.empty()) {
+    names.push_back("upper_arm");
+    names.push_back("fore_arm");
+  }
+  const int count = names.size();
   SX fk = SX::zeros(count * 12 + 3);
   for (int j = 0; j < count; ++j) {
     const auto &f = data.oMf[armed.getFrameId(names[j])];
