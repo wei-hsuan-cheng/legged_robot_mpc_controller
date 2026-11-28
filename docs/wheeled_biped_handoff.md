@@ -5,7 +5,21 @@ The original [implementation checklist](design_notes/wheeled_biped/wheeled_biped
 Update this file at each milestone.
 The implemented equations, current weights, rolling-contact equalities and execution limits are collected in [Wheeled-Biped WB-ID MPC](wheeled_biped_whole_body_inverse_dynamics_mpc.md).
 
-## Pineapple Gauntlet Capture
+## Replacement User Recording
+
+The current web GIF is derived from the user's `demo_videos/pineapple.mov`, not the instrumented run below.
+The source is 2826x1452 and about 72.12 s; the full-resolution two-pass H.264 MP4 is 18,874,305 bytes.
+The compressed copy is saved locally as `demo_videos/pineapple_compressed.mp4` and in iCloud Drive at `robotics_videos/mpc/legged_robot_mpc/pineapple_wb_id_mpc.mp4`; their SHA-256 checksums match.
+The original recording is preserved and neither source nor compressed videos are committed.
+The GIF replaces `legged_robot_mpc_controller/pineapple_gauntlet.gif` in the GIF repository and reorders the recorded side-by-side panes to RViz above MuJoCo.
+Each pane is cropped to 1396x900 at y = 200 (MuJoCo x = 16, RViz x = 1430), retaining the robot throughout the inspected beginning, middle and end frames.
+Each crop is scaled uniformly to 349x225 and side-padded to 400x225, so the stacked GIF is 400x450 like Upkie, without stretching or cutting off the robot.
+The GIF runs at 10 fps and 2x recorded playback; page columns preserve matching image heights.
+The README, About page and project page use a versioned image URL so the replaced binary is not hidden by an older cached GIF.
+No simulations, MPC parameter edits or new controller benchmarks were performed for this media update.
+The earlier telemetry and completion measurements below are historical evidence for that earlier automated run only.
+
+## Earlier Pineapple Gauntlet Capture
 
 The selected `operator_034_final` run cleared the original gauntlet's final stairs/drop at world x = 27.1 m and continued upright beyond 50 m.
 The video window ends at x = 28.19 m; completion is checked from ground truth, not drifting wheel odometry.

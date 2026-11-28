@@ -215,13 +215,18 @@ python3 $S --tag gauntlet --cases '*gauntlet*' --repeat 3
 
 ### Stacked gauntlet demo
 
-The README demo is one continuous run from stand-up through the final stairs and drop, with RViz above MuJoCo.
-The controller uses the wheel-aware linear KF at a 200 Hz MPC target, with the shipped model, control settings and terrain unchanged; the harness enables auto-start and 100 Hz tracking diagnostics.
+The current README demo comes from the user recording `demo_videos/pineapple.mov`, with RViz arranged above MuJoCo in the GIF.
+The compressed archive keeps the original 2826x1452 resolution and is saved in iCloud Drive at `robotics_videos/mpc/legged_robot_mpc/pineapple_wb_id_mpc.mp4`.
+The GIF plays at 2x speed; both page layouts preserve matching GIF display heights.
+No simulation or controller changes were made to prepare this recording for publication.
+
+The earlier instrumented capture was one continuous run from stand-up through the final stairs and drop.
+That controller used the wheel-aware linear KF at a 200 Hz MPC target, with the shipped model, control settings and terrain unchanged; the harness enabled auto-start and 100 Hz tracking diagnostics.
 The demo operator changes gait and speed using estimated forward position and commands a 0.34 m height: wheel drive at 0.4 m/s, walk at 0.18 m/s, wheel drive at 0.32 m/s, then walk at 0.25 m/s.
 This is an operator-commanded example, not autonomous terrain recognition or a repeated robustness result.
 Ground truth is used only to verify actual course completion and render the lower row, not for MPC state feedback or foothold references.
-The video uses the old Pineapple camera and crop; the web GIF plays at 2x speed.
-The local recording, bag, commands and metrics are under `demo_videos/pineapple_gauntlet/operator_034_final/` (git-ignored).
+That earlier video used the old Pineapple camera and crop.
+Its local recording, bag, commands and metrics are under `demo_videos/pineapple_gauntlet/operator_034_final/` (git-ignored); those measurements do not describe the replacement user recording.
 
 ## Trunk roll (2026-11-27)
 
