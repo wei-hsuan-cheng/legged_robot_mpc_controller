@@ -364,18 +364,13 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         # wheel_drive (both wheels down, rolling and turning) is the rest gait; the others are requested on
         # /humanoid/gait_command (held while requested, "" returns to the ladder) and roll while they step.
         templates:
-          names: [wheel_drive, jump, walk, trot]
+          names: [wheel_drive, trot, jump]
           wheel_drive: {modeSequence: [STANCE], switchingTimes: [0.0, 0.5]}
           # Symmetric jump: thrust in stance, then both wheels off the ground; FLY plans zero wrenches and lifts the tires.
-          jump: {modeSequence: [STANCE, FLY], switchingTimes: [0.0, 0.4, 0.55], swingHeight: 0.05}
-          # Alternating single support with long double support. The hip ab/ad shifts the body over the stance wheel,
-          # so a lift can be longer than Upkie's.
-          # The swing planner scales a 0.25 s lift's apex to 0.25 / swingTimeScale = 0.625 of swingHeight: 0.08 m clears a
-          # 40 mm step (50 mm), 0.07 m the rough field's 34 mm tiles (44 mm).
-          walk: {modeSequence: [STANCE, RF, STANCE, LF], switchingTimes: [0.0, 0.3, 0.55, 0.85, 1.1], swingHeight: 0.08}
-          # Alternating single support with a short double support between the lifts. 0.1 s of it (Upkie: 0.05 s) lets a
-          # stance wheel stalled at a 10 mm edge recover (Upkie course: 2 falls in 4 with 0.05 s, none in 6 with 0.1 s).
-          trot: {modeSequence: [RF, STANCE, LF, STANCE], switchingTimes: [0.0, 0.25, 0.35, 0.6, 0.7], swingHeight: 0.07}
+          walk: {modeSequence: [STANCE, RF, STANCE, LF], switchingTimes: [0.0, 0.3, 0.55, 0.85, 1.1], swingHeight: 0.12}
+          trot: {modeSequence: [RF, STANCE, LF, STANCE], switchingTimes: [0.0, 0.25, 0.35, 0.6, 0.7], swingHeight: 0.12}
+          jump: {modeSequence: [STANCE, FLY], switchingTimes: [0.0, 0.4, 0.55], swingHeight: 0.12}
+          
 
         transitions:
           minDwellTime: 0.2
