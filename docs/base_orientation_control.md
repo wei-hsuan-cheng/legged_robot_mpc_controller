@@ -2,7 +2,7 @@
 
 Upkie and Pineapple lean their trunk left or right on command: D-pad left/right on the DualSense (L2 held), or a
 `geometry_msgs/Vector3` on `/humanoid/base_orientation_command` from any node. Both wheels stay on the ground; the
-legs take different lengths. Right stick forward/back with L2 held commands pitch on both robots as well.
+legs take different lengths. D-pad up/down with L2 held commands pitch on both robots as well.
 
 ## How other projects do it
 
@@ -64,11 +64,14 @@ runs off the table and is held at its last row; the MPC then trades a little rol
 
 legged_robot_teleop: with L2 held, D-pad left (button 13) / right (14) ramps the roll at `roll_rate` (0.3 rad/s) up
 to the robot's `maxBaseRoll`, which the launch reads from the controller YAML (0: roll buttons off). The roll holds
-when L2 is released; L1 (Center) levels it with the height. D-pad up/down stays height.
-Right stick forward/back (axis 3) ramps pitch at `pitch_rate` (0.3 rad/s at full deflection) with L2 held, using the
-same signed-power response curve as the velocity sticks. Positive pitch leans forward in the command frame.
-Centering the stick or releasing L2 holds the tilt target; L1 with L2 released restores level roll/pitch and nominal
-height. Both sticks must be centered before enabling L2; an active pitch stick also blocks the Square stand/sit toggle.
+when L2 is released; L1 (Center) levels it with the height.
+D-pad up (11) / down (12) ramps pitch forward/back at `pitch_rate` (0.3 rad/s) with L2 held.
+Positive pitch leans forward in the command frame; opposite D-pad buttons cancel.
+Right stick forward/back (axis 3) raises/lowers height with L2 held; `height_axis_threshold: 0.3` ignores the first
+30% of stick travel and rescales the rest linearly to the maximum `height_rate` (0.2 m/s in the teleop YAML).
+Releasing the D-pad or L2 holds the tilt target; L1 with L2 released restores level roll/pitch and nominal height.
+Velocity sticks must be centered, the height stick inside its deadband and active tilt buttons released before
+enabling L2 or using the Square stand/sit toggle. G1/H2 ignore tilt buttons but retain stick height control.
 
 ```bash
 # from another node or a terminal (Pineapple: lean right 0.2 rad)
@@ -101,6 +104,9 @@ roll/pitch control.
 
 ## Pitch validation (2026-11-28)
 
+The results below used the earlier right-stick pitch binding, before pitch moved to D-pad up/down and height to the stick.
+The MPC model and tuning did not change with the remapping.
+
 Headless MuJoCo in `ros_jazzy`, wheel-aware linear KF feedback, requested MPC 200 Hz, the real C++ teleop node driven
 by synthetic DualSense messages: stand up, pitch forward/back, hold with L2 released, combine roll and pitch, L1
 level, sit down. Upkie's command frame is turned by pi: a positive pitch command becomes negative base-frame pitch.
@@ -119,6 +125,20 @@ Only the OCS2 robot YAMLs enable pitch; TurboMPC is unchanged, and G1/H2 retain 
 The shared teleop defaults to `maximum_pitch: 0` when the selected controller has no pitch limit.
 No CppAD library regeneration is needed for this reference/input change.
 
+### Current D-pad Mapping Validation
+
+Both robots passed the updated harness with D-pad pitch, combined tilt and 0.1 m/s driving, L1 level, a height-stick
+deadband check and a 2 cm height increase, then sit-down to idle. These use the same wheel-aware KF and requested
+200 Hz MPC rate as above; all 68 shared-teleop checks also passed.
+
+| Robot | Base pitch for +0.2 / -0.2 commands [rad] | Settled height / commanded height [m] |
+| --- | --- | --- |
+| Upkie | -0.1967 / +0.1958 | 0.26485 / 0.26500 |
+| Pineapple | +0.1946 / -0.1946 | 0.38068 / 0.38000 |
+
+The height target stayed unchanged at 25% vertical stick deflection (within the 30% deadband).
+These are synthetic joystick simulation results, not a physical gamepad or hardware test.
+
 Repeat in an otherwise unused ROS domain, from the sourced workspace with this repository as the current directory:
 
 ```bash
@@ -127,7 +147,8 @@ ROS_DOMAIN_ID=196 python3 tests/base_orientation_test.py --robot-name pineapple 
 ```
 
 The test launches and stops its own flat-ground simulation and teleop, saves ground-truth/joint samples and stage
-statistics beside the prefix, and checks both pitch limits, combined tilt tracking, L1 leveling and return to idle.
+statistics beside the prefix, and checks D-pad pitch limits, combined tilt tracking, L1 leveling, the height-stick
+deadband and height tracking, and return to idle.
 
 ## Sources
 

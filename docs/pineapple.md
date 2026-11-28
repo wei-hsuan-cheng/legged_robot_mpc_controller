@@ -235,8 +235,9 @@ posture of its own hip height (wheels at y = +-0.227 m), so both tires stay down
 `/humanoid/base_orientation_command` was held at +0.201 / -0.202 rad with the height at 0.363 m (0.36 m commanded).
 See [base_orientation_control.md](base_orientation_control.md).
 
-Pitch is also enabled (2026-11-28): L2 + right stick forward/back adjusts the trunk pitch up to 0.2 rad.
-The target holds when the stick is centered or L2 is released; L1 with L2 released levels both roll and pitch.
+Pitch is also enabled (2026-11-28): L2 + D-pad up/down adjusts the trunk pitch up to 0.2 rad.
+The target holds when the buttons or L2 are released; L1 with L2 released levels both roll and pitch.
+Right stick forward/back raises/lowers height, ignoring the first 30% of stick travel to avoid accidental changes.
 Synthetic joystick tests tracked +-0.2 rad to about +-0.195 rad, including combined tilt, leveling and sit-down,
 without changing the MPC costs, constraints or posture table.
 

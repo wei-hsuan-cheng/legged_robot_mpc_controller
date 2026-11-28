@@ -314,7 +314,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         maxBaseHeight: 0.44
         # Trunk roll from the joystick (D-pad left/right) or target.baseOrientationTopic: each leg takes the posture-table
         # row of its own hip height, h +- rollLegHalfWidth * sin(roll) (wheel at y = +-0.227 m).
-        # Right stick forward/back commands pitch; leg adjustments remain optimized by MPC.
+        # D-pad up/down commands pitch; leg adjustments remain optimized by MPC.
         maxBaseRoll: 0.3
         maxBasePitch: 0.2
         baseOrientationRate: 0.5

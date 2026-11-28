@@ -1553,3 +1553,18 @@ Artifacts in `ros_jazzy`: `/tmp/codex_pitch_pineapple*` and `/tmp/codex_pitch_up
 Repeat using `tests/base_orientation_test.py`; the documented commands select a separate ROS domain and stop only their own launch/teleop process groups.
 Physical joystick, hardware, terrain and stepping while tilted remain untested; these flat-ground runs are not a guarantee for those cases.
 
+## D-pad Tilt and Stick Height Remap (2026-11-28)
+
+The user changed the joystick binding: D-pad left/right controls roll, up/down controls pitch, and right-stick forward/back raises/lowers body height.
+This supersedes the earlier right-stick pitch binding; the body orientation topic and native MPC model/tuning are unchanged.
+The shared teleop now uses `height_axis_threshold: 0.3`, with zero height rate within the deadband and a continuous linear ramp to `height_rate` above it.
+L2 arming and Square stand/sit require the height stick inside that same deadband and active tilt buttons released; L1 Center behavior is unchanged.
+The teleop Release build and initial 67 checks passed, and the simulation harness now tests the actual D-pad mapping and stick-height deadband/2 cm rise as well as combined tilt/driving, leveling and sit-down.
+Pineapple passed: settled pitch +0.1946/-0.1946 rad for +-0.2 rad commands, combined roll/pitch +0.3013/+0.0980 rad for +0.3/+0.1 commands while driving, and height 0.38068 m for a 0.38000 m command.
+Artifacts are `/tmp/codex_dpad_pineapple*` and `/tmp/codex_dpad_upkie*` in `ros_jazzy`; no TurboMPC code or build was changed.
+The operator docs and robot YAML comments now describe the new binding; earlier measurements in the pitch validation section remain historical.
+Final verification: all 68 teleop checks pass, including the shipped-mapping regression; both simulation runs passed and all owned test processes were stopped.
+Upkie settled at base pitch -0.1967/+0.1958 rad for command-frame +0.2/-0.2, combined roll/pitch -0.2434/-0.1001 rad while driving, and height 0.26485 m for a 0.26500 m target.
+No native MPC code, solver settings, tuning values or GUI behavior changed; only shared teleop logic, OCS2 comments/docs and its simulation regression were updated.
+Suggested OCS2 commit message: `docs: update joystick tilt and height mapping with simulation regression`.
+

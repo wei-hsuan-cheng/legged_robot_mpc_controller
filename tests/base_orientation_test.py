@@ -12,6 +12,7 @@ import time
 
 from geometry_msgs.msg import Vector3
 from legged_robot_teleop.profile import load_robot_profile
+from ocs2_msgs.msg import WalkingVelocityCommand
 import rclpy
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Joy
@@ -24,16 +25,21 @@ from upkie_posture_cycle_test import CONTROLLER, Probe
 class OrientationProbe(Probe):
     def __init__(self, config_path, reference):
         super().__init__(reference=reference)
-        self.pitch_axis = 0.0
+        self.pitch_button = None
+        self.height_axis = 0.0
+        self.height_command = reference["defaultBaseHeight"]
         self.roll_button = None
         self.center = False
         self.orientation = [0.0, 0.0]
         self.create_subscription(Vector3, "/humanoid/base_orientation_command",
                                  self.observe_orientation, qos_profile_sensor_data)
+        self.create_subscription(WalkingVelocityCommand, "/humanoid/walking_velocity_command",
+                                 self.observe_height, qos_profile_sensor_data)
         profile, lateral = load_robot_profile(config_path, CONTROLLER.lstrip("/"))
         arguments = ["ros2", "run", "legged_robot_teleop", "base_twist", "--ros-args",
                      "-p", "joy_topic:=/codex/upkie/joy", "-p", "publish_rate:=100.0",
                      "-p", "stick_exponent:=2.0", "-p", "scale_forward:=1.0",
+                     "-p", "height_rate:=0.2", "-p", "height_axis_threshold:=0.3",
                      "-p", f"scale_lateral:={1.0 if lateral else 0.0}"]
         for key, value in profile.items():
             arguments.extend(["-p", f"{key}:={value}"])
@@ -42,18 +48,21 @@ class OrientationProbe(Probe):
     def observe_orientation(self, message):
         self.orientation = [message.x, message.y]
 
+    def observe_height(self, message):
+        self.height_command = message.desired_pelvis_height
+
     def observe(self, message):
         super().observe(message)
         q = message.pose.pose.orientation
         self.samples[-1].update(
             pitch=math.asin(max(-1.0, min(1.0, 2 * (q.w * q.y - q.z * q.x)))),
             roll=math.atan2(2 * (q.w * q.x + q.y * q.z), 1 - 2 * (q.x**2 + q.y**2)),
-            command=list(self.orientation))
+            command=list(self.orientation), height_command=self.height_command)
 
     def command(self, vx=0.0, yaw=0.0):
         message = Joy()
-        message.axes = [0.0, vx, yaw, self.pitch_axis, -self.joy_pressure, 0.0]
-        pressed = {self.roll_button} if self.roll_button is not None else set()
+        message.axes = [0.0, vx, yaw, self.height_axis, -self.joy_pressure, 0.0]
+        pressed = {button for button in (self.roll_button, self.pitch_button) if button is not None}
         if self.center:
             pressed.add(9)
         message.buttons = [int(i in pressed) for i in range(15)]
@@ -103,20 +112,20 @@ def main():
             probe.joy_pressure = 1.0
             probe.pump(.2)
             # Reach both pitch limits, hold on release, then combine roll and pitch and drive.
-            for stage, axis, duration in (("forward", 1.0, .8), ("backward", -1.0, 1.5)):
+            for stage, button, duration in (("forward", 11, .8), ("backward", 12, 1.5)):
                 probe.stage = stage
-                probe.pitch_axis = axis
+                probe.pitch_button = button
                 probe.pump(duration)
-                probe.pitch_axis = 0.0
+                probe.pitch_button = None
                 probe.joy_pressure = 0.0
                 probe.pump(6)
                 check_stage(probe, stage, parameters, result)
                 probe.joy_pressure = 1.0
                 probe.pump(.2)
             probe.stage = "combined"
-            probe.pitch_axis, probe.roll_button = 1.0, 14
+            probe.pitch_button, probe.roll_button = 11, 14
             probe.pump(1.0)
-            probe.pitch_axis, probe.roll_button = 0.0, None
+            probe.pitch_button, probe.roll_button = None, None
             # Teleop squares stick deflection, then MPC scales it by maxDisplacementVelocityX.
             probe.pump(6, vx=math.sqrt(.1 / reference["maxDisplacementVelocityX"]))
             check_stage(probe, "combined", parameters, result)
@@ -128,6 +137,20 @@ def main():
             probe.center = False
             probe.pump(6)
             check_stage(probe, "center", parameters, result)
+            probe.stage = "height"
+            probe.joy_pressure = 1.0
+            probe.pump(.2)
+            probe.height_axis = .25
+            probe.pump(.5)
+            assert abs(probe.height_command - reference["defaultBaseHeight"]) < 1e-5, "Height deadband"
+            probe.height_axis = .65
+            probe.pump(.2)  # Half rate, about 2 cm higher.
+            probe.height_axis = 0.0
+            probe.joy_pressure = 0.0
+            probe.pump(5)
+            check_stage(probe, "height", parameters, result)
+            assert abs(probe.height_command - reference["defaultBaseHeight"] - .02) < .004
+            assert abs(result["stages"]["height"]["height"] - probe.height_command) < .01
             probe.request("sit_down")
             probe.wait("idle", 60)
             result["verdict"] = "PASS"
@@ -157,6 +180,7 @@ def check_stage(probe, stage, parameters, result):
     pitch, roll = mean("pitch"), mean("roll")
     result["stages"][stage] = dict(command=command, pitch=pitch, roll=roll,
                                    height=sum(row["position"][2] for row in rows) / len(rows),
+                                   height_command=mean("height_command"),
                                    max_speed=max(row["speed"] for row in rows))
     expected_roll, expected_pitch = c * command[0] - s * command[1], s * command[0] + c * command[1]
     assert abs(pitch - expected_pitch) < .04, f"{stage}: pitch {pitch:.3f} vs {expected_pitch:.3f}"
