@@ -366,9 +366,9 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
         templates:
           names: [wheel_drive, trot, jump]
           wheel_drive: {modeSequence: [STANCE], switchingTimes: [0.0, 0.5]}
-          # Symmetric jump: thrust in stance, then both wheels off the ground; FLY plans zero wrenches and lifts the tires.
           walk: {modeSequence: [STANCE, RF, STANCE, LF], switchingTimes: [0.0, 0.3, 0.55, 0.85, 1.1], swingHeight: 0.12}
           trot: {modeSequence: [RF, STANCE, LF, STANCE], switchingTimes: [0.0, 0.25, 0.35, 0.6, 0.7], swingHeight: 0.12}
+          # Symmetric jump: thrust in stance, then both wheels off the ground; FLY plans zero wrenches and lifts the tires.
           jump: {modeSequence: [STANCE, FLY], switchingTimes: [0.0, 0.4, 0.55], swingHeight: 0.12}
           
 
