@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Offline Pineapple stand-up: full-body inverse dynamics with prescribed seat/tire contacts (Upkie's method).
 
-    plan.py --models PREFIX [--phase-seconds MIN MAX] [--output config/pineapple/stand_up_trajectory.yaml]
+    plan.py --models PREFIX [--phase-seconds MIN MAX] [--output config/pineapple_manipulator/stand_up_trajectory.yaml]
 
-PREFIX_rnea.casadi and PREFIX_frames.casadi come from model.cpp (pineapple_stand_up_model pineapple.urdf PREFIX).
+PREFIX_rnea.casadi and PREFIX_frames.casadi come from model.cpp (pineapple_manipulator_stand_up_model pineapple_manipulator.urdf PREFIX).
 Two contact phases from the seated idle (rollout.IDLE), each lasting at most MAX seconds:
 
   1  both tires and the base box's back bottom edge: roll the CoM over the tires while the seat unloads
@@ -314,8 +314,8 @@ def check_model(model_prefix, geometry):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    work = Path(tempfile.gettempdir()) / "pineapple_stand_up"
-    parser.add_argument("--models", type=Path, default=work / "pineapple")
+    work = Path(tempfile.gettempdir()) / "pineapple_manipulator_stand_up"
+    parser.add_argument("--models", type=Path, default=work / "pineapple_manipulator")
     parser.add_argument("--seed", type=Path, default=HERE / "seed.json")
     parser.add_argument("--solution", type=Path, default=work / "solution.json")
     parser.add_argument("--output", type=Path, default=HERE.parent / "stand_up_trajectory.yaml")

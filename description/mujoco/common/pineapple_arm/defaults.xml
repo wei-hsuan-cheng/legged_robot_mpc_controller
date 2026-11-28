@@ -1,0 +1,8 @@
+<mujoco model="pineapple_arm_defaults">
+  <default class="arm_4310">
+    <motor ctrlrange="-7.0 7.0" />
+  </default>
+  <default class="arm_4340">
+    <motor ctrlrange="-27.0 27.0" />
+  </default>
+</mujoco>

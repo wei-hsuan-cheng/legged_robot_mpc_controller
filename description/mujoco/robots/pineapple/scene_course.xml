@@ -1,15 +1,5 @@
-<mujoco model="pineapple_course_scene">
-  <!-- sim rate: effort_pd runs every physics step; 2 kHz with the 1 kHz controller -->
-  <option timestep="0.0005" />
-  <!-- background: H2 night style, with lights aimed at Pineapple's base_link -->
-  <include file="../../common/backgrounds/background_night_pineapple.xml" />
-  <!-- terrain: the Upkie test course (uneven field, ramps, steps, one-wheel ramp), robot spawned on its flat start -->
+<mujoco model="pineapple_scene_course">
+  <include file="../../common/scenes/pineapple_scene.xml" />
   <include file="../../terrains/upkie_course.xml" />
-  <!-- MuJoCo viewer (mujoco_ros2_control): follow the robot's centre of mass, T toggles; delete for the free camera.
-       Optional: <text name="viewer_camera.body" data="base_link"/>, <numeric name="viewer_camera.track_distance" data="2.0"/> -->
-  <custom>
-    <text name="viewer_camera.mode" data="track" />
-  </custom>
-  <!-- robot -->
   <include file="pineapple.xml" />
 </mujoco>

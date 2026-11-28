@@ -1,0 +1,5 @@
+<mujoco model="pineapple_manipulator_scene_gauntlet">
+  <include file="../../common/scenes/pineapple_scene.xml" />
+  <include file="../../terrains/pineapple_gauntlet.xml" />
+  <include file="pineapple_manipulator.xml" />
+</mujoco>

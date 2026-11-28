@@ -9,14 +9,14 @@ import yaml
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
-SCENE = ROOT / "description/mujoco/robots/pineapple/scene.xml"
+SCENE = ROOT / "description/mujoco/robots/pineapple_manipulator/scene.xml"
 GEOMETRY = HERE.parent / "geometry.yaml"
 
 # Robot joints in robot.jointNames order (the MPC's), then the arm, held at zero by the hardware PD.
 JOINTS = ["L_hip_joint", "L_thigh_joint", "L_calf_joint", "L_wheel_joint",
           "R_hip_joint", "R_thigh_joint", "R_calf_joint", "R_wheel_joint"]
 ARM = ["arm_joint", "arm_base_joint", "upper_arm_joint", "fore_arm_joint", "5dof_joint", "gripper_case_joint"]
-ARM_KP = np.array([60.0, 60.0, 60.0, 20.0, 20.0, 20.0])  # pineapple.ros2_control.xacro
+ARM_KP = np.array([60.0, 60.0, 60.0, 20.0, 20.0, 20.0])  # pineapple_manipulator.ros2_control.xacro
 ARM_KD = np.array([2.0, 2.0, 2.0, 0.5, 0.5, 0.5])
 # Plan playback servo (exported as the plan's kp/kd): legs stiffer than the MPC's 30/1 during the seated phase.
 KP = np.array([40.0, 40.0, 40.0, 0.0, 40.0, 40.0, 40.0, 0.0])

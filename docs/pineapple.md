@@ -3,11 +3,106 @@
 Pineapple runs Upkie's WB-ID MPC with rolling-wheel contacts ([Wheeled-Biped WB-ID MPC](wheeled_biped_whole_body_inverse_dynamics_mpc.md)) and Upkie's bring-up: it spawns seated, the wheel-aware linear KF initialises at rest, an offline contact-aware stand-up hands over to the MPC, and a planned sit-down returns it to its seat.
 Model provenance and MJCF changes: [MODEL_SOURCE.md](../description/urdf/robots/pineapple/MODEL_SOURCE.md).
 
-| Item | Pineapple | Upkie |
+## Robot Variants
+
+| Launch name | Model | Mass | Actuators / MPC joints |
+| --- | --- | --- | --- |
+| `pineapple` | Chassis and legs, no arm links or inertias | 10.92 kg | 8 / 8 |
+| `pineapple_manipulator` | Original Pineapple, with the six-joint arm stowed | 14.919995 kg | 14 / 8 |
+
+The MPC already locked the arm joints in the original robot, so both optimizations still have 28 states and 34 inputs.
+Removing the arm changes the physical mass and CoM, not the number of optimized leg/wheel joints.
+Both variants start with the original numeric settings: costs, constraints, gains, solver, gait, command bounds and posture values.
+The arm-free MPC and estimator use their matching arm-free URDF, not the old arm-equipped dynamics.
+Its `paths.libFolder` adds `chassis_only` to avoid loading the previously cached arm-equipped dynamics under the old `pineapple` name.
+
+The arm-free variant intentionally reuses the original stand-up TO, including its feedforward and feedback gains.
+`config/pineapple/stand_up_trajectory.yaml` is a symlink to the unchanged file under `config/pineapple_manipulator/`.
+The height/posture reference is also kept at the old values for this first modeling-error baseline; it was not rebalanced for the lighter robot.
+A newly optimized stand-up and posture table may be useful later, but neither was regenerated or tuned for this trial.
+
+### Shared MuJoCo Modules
+
+```text
+description/mujoco/
+  common/
+    pineapple/            # chassis and leg body, defaults, assets, actuators, sensors
+    pineapple_arm/        # arm/gripper body, defaults, assets, actuators, sensors
+    scenes/pineapple_scene.xml  # one environment, timestep and viewer setup
+  robots/
+    pineapple/            # chassis only
+    pineapple_manipulator/ # chassis + arm, original mounting transform
+```
+
+The complete manipulator model includes the chassis body once and the arm body inside the same `base_link`.
+The two small `scene.xml` entry points include the same scene-settings module and their own robot; the environment is not copied.
+Course/gauntlet entry points use the same settings and terrain modules too.
+Both variants reuse `description/meshes/robots/pineapple/`, without copied meshes.
+The shared URDF generator expands these modules: `python3 description/urdf/robots/pineapple/generate_pineapple_urdf.py --robot pineapple_manipulator` (omit `--robot` for the arm-free variant).
+
+### Build and Try
+
+Inside the sourced OCS2 workspace:
+
+```bash
+colcon build --symlink-install --packages-select legged_robot_mpc_controller legged_robot_teleop \
+  --cmake-args -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
+source install/setup.bash
+
+# Arm-free baseline, GUI; click Stand Up.
+ros2 launch legged_robot_mpc_controller robot.launch.py \
+  robot_name:=pineapple mpc_freq:=200 base_command_device:=gui
+
+# Original arm-equipped robot, GUI; run separately.
+ros2 launch legged_robot_mpc_controller robot.launch.py \
+  robot_name:=pineapple_manipulator mpc_freq:=200 base_command_device:=gui
+```
+
+For either robot, replace `base_command_device:=gui` with `base_command_device:=joystick` to use the DualSense.
+Square with L2 released stands up/sits down; L2 enables commands after centering the controls.
+D-pad left/right controls roll, up/down pitch; right-stick forward/back controls height beyond its 30% deadband.
+No separate `pineapple_arm` locomotion robot is registered; that name denotes only the shared arm component.
+The existing GIFs keep the generic Pineapple family label and are unchanged.
+
+### Try the Gauntlet
+
+After sourcing the rebuilt workspace, run one of these commands at a time.
+Both scenes include the same gauntlet terrain; only the robot assembly differs.
+
+```bash
+# Arm-equipped original robot.
+ros2 launch legged_robot_mpc_controller robot.launch.py \
+  robot_name:=pineapple_manipulator mpc_freq:=200 \
+  mujoco_model_file:=scene_gauntlet.xml base_command_device:=joystick \
+  rviz:=true mujoco_headless:=false
+
+# Arm-free baseline, for user testing; terrain capability is not yet validated.
+ros2 launch legged_robot_mpc_controller robot.launch.py \
+  robot_name:=pineapple mpc_freq:=200 \
+  mujoco_model_file:=scene_gauntlet.xml base_command_device:=joystick \
+  rviz:=true mujoco_headless:=false
+```
+
+Release L2 and press Square to stand up; once locomotion starts, hold L2 to drive.
+For GUI control instead, change `base_command_device:=joystick` to `base_command_device:=gui` and click Stand Up.
+
+### Split Acceptance (2026-11-28)
+
+The Release build passed for the controller and teleop in `ros_jazzy`, including compilation with tests enabled.
+The controller Python suite passed 161 tests (16 skipped), and teleop passed all 68 checks.
+The arm-equipped assembled model matches the original model's inertias, joint properties, mass matrix, bias forces and CoM over 20 random states.
+Its joystick-driven stand-up, short forward drive and sit-down cycle passed with wheel-aware KF feedback and requested MPC 200 Hz; max locomotion tilt was 0.0327 rad.
+The arm-free model passed only the requested basic test: Square stand-up on the inherited TO and 8 seconds of MPC balance, max tilt 0.0156 rad.
+No arm-free drive, terrain, push, full sit-down cycle or tuning was attempted; these remain for user testing first.
+Both test launches were stopped after acceptance.
+
+The detailed results and older robustness/terrain measurements below describe the original arm-equipped robot, now `pineapple_manipulator`, not the arm-free variant.
+
+| Item | Pineapple with manipulator (baseline) | Upkie |
 | --- | --- | --- |
 | MPC joints | `L/R_hip_joint` (ab/ad), `_thigh_joint`, `_calf_joint`, `_wheel_joint` (8) | hip, knee, wheel (6) |
 | Arm | 6 joints locked in the MPC at zero (stowed, resting on the zero stops), held by the hardware PD (kp 60/20) | none |
-| Tire | radius 0.0925 m, half width 0.0175 m, axle y, frame at the tire centre ([geometry.yaml](../config/pineapple/geometry.yaml)) | 0.08 m, axle z |
+| Tire | radius 0.0925 m, half width 0.0175 m, axle y, frame at the tire centre ([geometry.yaml](../config/pineapple_manipulator/geometry.yaml)) | 0.08 m, axle z |
 | Heights | default 0.36 m, command range 0.25-0.44 m, posture table 0.14-0.46 m | 0.245 m |
 | Idle support | base box (back bottom edge) and both tires | knee housings and both tires |
 | Stand-up / sit-down | planned, 2 contact phases, 1.66 s to handover; sit-down = the stand-up reversed, 2.26 s | planned, 3 phases, 3.9 s; joint-space fold |
@@ -15,11 +110,11 @@ Model provenance and MJCF changes: [MODEL_SOURCE.md](../description/urdf/robots/
 | Gaits | `wheel_drive`, `jump`, `walk`, `trot`; vy selects `trot` (sideways steps with the hip ab/ad) | the same four; no vy |
 
 Costs, constraints and solver settings are Upkie's; the hip ab/ad posture weight is 10 (20 terminal), leg servo gains kp 30, kd 1, wheels kd 2 (below).
-The posture table ([posture_table.yaml](../config/pineapple/posture_table.yaml), [compute_posture_table.py](../config/pineapple/compute_posture_table.py)) holds, per height, the level-trunk posture with hips not abducted, tires on the floor and the tire contact under the whole-robot CoM (arm stowed).
+The posture table ([posture_table.yaml](../config/pineapple_manipulator/posture_table.yaml), [compute_posture_table.py](../config/pineapple_manipulator/compute_posture_table.py)) holds, per height, the level-trunk posture with hips not abducted, tires on the floor and the tire contact under the whole-robot CoM (arm stowed).
 
 ## Stand-up and sit-down
 
-Upkie's method ([Upkie contact-aware stand-up](upkie_stand_up_optimization.md)) with Pineapple's supports, in [`config/pineapple/stand_up_to/`](../config/pineapple/stand_up_to):
+Upkie's method ([Upkie contact-aware stand-up](upkie_stand_up_optimization.md)) with Pineapple's supports, in [`config/pineapple_manipulator/stand_up_to/`](../config/pineapple_manipulator/stand_up_to):
 
 | File | Role |
 | --- | --- |
@@ -40,7 +135,7 @@ The plan has two prescribed contact phases, each at most 1.5 s, the configuratio
 Every node satisfies the full inverse dynamics (3D, 8 joints, MJCF friction loss and damping); tires roll without slip; the seat edge holds while loaded; the corners of every thigh, calf and arm collision box stay 5 mm above the floor (without them the first solution folded the knees 18 cm through the floor); the seat clears by 30 mm after release; torques stay within 70 % of the actuator ranges.
 The cost adds roll and left/right symmetry terms to Upkie's.
 The MPC warm-up starts 0.25 of phase 2 after the release (1.13 s), the handover is 0.4 of phase 2 before the end (1.66 s).
-The controller's support guard ([geometry.yaml](../config/pineapple/geometry.yaml) `knee_housings`) holds the MPC until the seat, as a disk of the box's half length along the base z axis, is 15 mm above the tires.
+The controller's support guard ([geometry.yaml](../config/pineapple_manipulator/geometry.yaml) `knee_housings`) holds the MPC until the seat, as a disk of the box's half length along the base z axis, is 15 mm above the tires.
 
 Sit-down: rigid-body dynamics and rolling contacts are time-reversible, so the stand-up played backwards (velocities negated, joint friction re-signed) is a dynamically consistent sit-down from rest at 0.30 m to the seat at rest, with its own LQR gains.
 `feedback.py` exports it as a `sit_down` map next to `stand_up`; the controller (a new, optional feature) then has the MPC crouch to the map's first state (0.30 m, level, at rest, posture within 0.1 rad) and plays the map to its end, instead of Upkie's joint-space fold (which, from the 0.15 m crouch, dropped Pineapple 9 cm onto its seat and tipped it over).
@@ -48,11 +143,11 @@ Plans without a `sit_down` map (Upkie's) are unchanged.
 
 ```bash
 R=~/src/wei-hsuan-cheng/MPC/legged_robot_mpc_controller   # in jetpack_jazzy, or the host path
-bash $R/config/pineapple/regenerate.sh setup        # once: pip wheels in ~/pineapple_stand_up, C++ model, parity check
-bash $R/config/pineapple/regenerate.sh plan 1.5     # about 20 min (IPOPT ends at its 1000-iteration limit, feasible)
-bash $R/config/pineapple/regenerate.sh simulate 1.5 # MuJoCo replay, no ROS
-bash $R/config/pineapple/regenerate.sh check 1.5    # 3 joystick stand/drive/sit cycles + forced fall, full ROS stack
-bash $R/config/pineapple/regenerate.sh install 1.5  # after PASS
+bash $R/config/pineapple_manipulator/regenerate.sh setup        # once: pip wheels in ~/pineapple_manipulator_stand_up, C++ model, parity check
+bash $R/config/pineapple_manipulator/regenerate.sh plan 1.5     # about 20 min (IPOPT ends at its 1000-iteration limit, feasible)
+bash $R/config/pineapple_manipulator/regenerate.sh simulate 1.5 # MuJoCo replay, no ROS
+bash $R/config/pineapple_manipulator/regenerate.sh check 1.5    # 3 joystick stand/drive/sit cycles + forced fall, full ROS stack
+bash $R/config/pineapple_manipulator/regenerate.sh install 1.5  # after PASS
 ```
 
 The shipped plan was solved on the host (MuJoCo 3.3.0, CasADi 3.8.2, Pinocchio 4.1.0) warm-started from a first solution without the clearance constraints; IPOPT stopped at its iteration limit and the retained iterate has 2.4e-7 constraint violation.
@@ -177,7 +272,7 @@ cd ~/whcheng_ws && source install/setup.bash
 S=src/legged_robot_mpc_controller/tests/tuning/pineapple_suite.py
 python3 $S --tag mine                                   # all 42 cases, about 35 min
 python3 $S --tag gaits --cases 'jump_*' 'walk_*' 'trot_*' 'vy_*' --record-tracking
-python3 src/legged_robot_mpc_controller/tests/tuning/analyze_upkie_flight.py /tmp/pineapple_suite/gaits/jump_place --robot pineapple
+python3 src/legged_robot_mpc_controller/tests/tuning/analyze_upkie_flight.py /tmp/pineapple_suite/gaits/jump_place --robot pineapple_manipulator
 ros2 topic pub --once /humanoid/gait_command std_msgs/String "{data: trot}"   # interactive; "{data: ''}" releases
 ```
 
@@ -208,7 +303,7 @@ arrives after the one-wheel ramp with a heading and lateral error. The one walk 
 the slope, the 60 mm drop (yaw swung 1.2 rad, then recovered) and the staggered one-tire steps.
 
 ```bash
-ros2 launch legged_robot_mpc_controller robot.launch.py robot_name:=pineapple mpc_freq:=200 base_command_device:=joystick \
+ros2 launch legged_robot_mpc_controller robot.launch.py robot_name:=pineapple_manipulator mpc_freq:=200 base_command_device:=joystick \
   mujoco_model_file:=scene_gauntlet.xml        # Circle/Triangle for gaits
 python3 $S --tag gauntlet --cases '*gauntlet*' --repeat 3
 ```
@@ -245,19 +340,19 @@ without changing the MPC costs, constraints or posture table.
 
 | Run | Result |
 | --- | --- |
-| `upkie_posture_cycle_test.py --robot-name pineapple --cycles 3 --joystick --fall-test` (KF, C++ teleop with synthetic DualSense input) | PASS: 3 Square stand / L2 drive / Square planned sit-down cycles back to idle, a service stand-up, a 400 N shove latches `fallen` and every posture request is refused; max locomotion tilt 0.032 rad |
+| `upkie_posture_cycle_test.py --robot-name pineapple_manipulator --cycles 3 --joystick --fall-test` (KF, C++ teleop with synthetic DualSense input) | PASS: 3 Square stand / L2 drive / Square planned sit-down cycles back to idle, a service stand-up, a 400 N shove latches `fallen` and every posture request is refused; max locomotion tilt 0.032 rad |
 | Flat, KF, after the stand-up: heights 0.44/0.25/0.36 m, 0.5 m/s, turns up to 3 rad/s, coupled, reverse (34 s) | SUCCESS: min height 0.250 m, max roll 0.036, pitch 0.029 rad |
 | `scene_course.xml`, KF, after the stand-up, 0.3 m/s with the line hold over the uneven field, ramps, 1 cm steps and the 10 cm one-wheel ramp (37 s) | SUCCESS: to x = 8.6 m, max roll 0.040, pitch 0.030 rad; the KF measures height from the tires, so the base rides 0.36 m above the local terrain |
 | Ground-truth base, standing spawn (`initial_pose_standing.yaml`, no plan): flat 0.3 m/s; flat mixed; course | SUCCESS (before the stand-up existed): 0.307 m/s; max tilt 0.010 rad; course max pitch 0.020 rad |
 
 ```bash
 cd ~/whcheng_ws && source install/setup.bash
-ros2 launch legged_robot_mpc_controller robot.launch.py robot_name:=pineapple mpc_freq:=200                      # GUI
-ros2 launch legged_robot_mpc_controller robot.launch.py robot_name:=pineapple mpc_freq:=200 base_command_device:=joystick
+ros2 launch legged_robot_mpc_controller robot.launch.py robot_name:=pineapple_manipulator mpc_freq:=200                      # GUI
+ros2 launch legged_robot_mpc_controller robot.launch.py robot_name:=pineapple_manipulator mpc_freq:=200 base_command_device:=joystick
 # course: add mujoco_model_file:=scene_course.xml (or scene_gauntlet.xml: gentle to brutal)
 T=src/legged_robot_mpc_controller/tests
-python3 $T/upkie_posture_cycle_test.py --robot-name pineapple --cycles 3 --joystick --fall-test --prefix /tmp/pineapple/cycles
-python3 $T/wb_id_walk_test.py --robot-name pineapple --scene scene_course.xml --source state_estimator \
+python3 $T/upkie_posture_cycle_test.py --robot-name pineapple_manipulator --cycles 3 --joystick --fall-test --prefix /tmp/pineapple/cycles
+python3 $T/wb_id_walk_test.py --robot-name pineapple_manipulator --scene scene_course.xml --source state_estimator \
   --estimator humanoid_linear_kf --speed 0 --settle 2 --ramp 0 --hold 32 --rest 3 --minimum-height 0.2 \
   --command-sequence "[[2,0.3,0,0.36,1],[32,0,0,0.36]]" --prefix /tmp/pineapple/course
 ```

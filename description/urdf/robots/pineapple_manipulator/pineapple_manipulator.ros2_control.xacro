@@ -1,0 +1,151 @@
+<?xml version="1.0"?>
+<robot name="pineapple_manipulator" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:arg name="use_fake_hardware" default="false"/>
+  <xacro:arg name="use_mujoco_sim" default="true"/>
+  <xacro:arg name="initial_pose_file" default=""/>
+  <xacro:arg name="ros2_control_command_interface" default="effort_pd"/>
+  <xacro:arg name="effort_pd_kp" default="0.0"/>
+  <xacro:arg name="effort_pd_kd" default="0.0"/>
+  <xacro:arg name="mujoco_effort_command_mode" default="actuator"/>
+  <!-- Accepted for launch compatibility; Pineapple has no lidar. -->
+  <xacro:arg name="use_lidar" default="false"/>
+  <xacro:arg name="robot_urdf_file" default="$(find legged_robot_mpc_controller)/description/urdf/robots/pineapple_manipulator/pineapple_manipulator.urdf"/>
+
+  <xacro:property name="use_mujoco_sim" value="$(arg use_mujoco_sim)"/>
+  <xacro:property name="use_fake_hardware" value="$(arg use_fake_hardware)"/>
+  <xacro:property name="command_interface" value="$(arg ros2_control_command_interface)"/>
+  <xacro:property name="initial_pose" value="${xacro.load_yaml('$(arg initial_pose_file)')}"/>
+  <xacro:property name="joint_init" value="${initial_pose['pineapple_manipulator_joints']}"/>
+  <xacro:property name="base_height" value="${initial_pose['pineapple_manipulator_base']['z'] if 'pineapple_manipulator_base' in initial_pose else ''}"/>
+
+  <!-- The robot itself, rooted at base_link; MuJoCo owns the free joint. -->
+  <xacro:include filename="$(arg robot_urdf_file)"/>
+
+  <!-- One actuated joint. With effort_pd the simulator applies kp (q_cmd - q) + kd (v_cmd - v) + effort every physics
+       step and the MuJoCo motor caps the sum. The controller writes the leg and wheel gains (control.jointEffortPd);
+       the arm joints are locked out of the MPC (ocs2.model.fixedJointNames) and held at zero with the gains given
+       here. -->
+  <xacro:macro name="pineapple_manipulator_joint" params="name effort_limit kp:=$(arg effort_pd_kp) kd:=$(arg effort_pd_kd)">
+    <joint name="${name}">
+      <xacro:if value="${command_interface == 'effort_pd'}">
+        <param name="effort_pd">true</param>
+        <param name="effort_pd_kp">${kp}</param>
+        <param name="effort_pd_kd">${kd}</param>
+        <command_interface name="position"/>
+        <command_interface name="velocity"/>
+        <command_interface name="effort">
+          <param name="min">${-effort_limit}</param>
+          <param name="max">${effort_limit}</param>
+        </command_interface>
+        <command_interface name="kp"/>
+        <command_interface name="kd"/>
+      </xacro:if>
+      <xacro:if value="${command_interface == 'effort'}">
+        <command_interface name="effort">
+          <param name="min">${-effort_limit}</param>
+          <param name="max">${effort_limit}</param>
+        </command_interface>
+      </xacro:if>
+      <state_interface name="position">
+        <param name="initial_value">${joint_init[name]}</param>
+      </state_interface>
+      <state_interface name="velocity">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+      <state_interface name="effort"/>
+    </joint>
+  </xacro:macro>
+
+  <!-- Simulation-only ground truth: net contact wrench on a wheel body, its summed normal force and a contact flag
+       above the threshold [N]. The wheel body rotates with the spin, so use normal_force, not force.z. -->
+  <xacro:macro name="wheel_contact_sensor" params="name body threshold:=2.0">
+    <sensor name="${name}">
+      <param name="mujoco_contact_body_name">${body}</param>
+      <param name="mujoco_contact_frame">body</param>
+      <param name="mujoco_contact_threshold">${threshold}</param>
+      <state_interface name="force.x"/>
+      <state_interface name="force.y"/>
+      <state_interface name="force.z"/>
+      <state_interface name="torque.x"/>
+      <state_interface name="torque.y"/>
+      <state_interface name="torque.z"/>
+      <state_interface name="normal_force"/>
+      <state_interface name="contact"/>
+    </sensor>
+  </xacro:macro>
+
+  <ros2_control name="PineappleManipulatorSystem" type="system">
+    <hardware>
+      <xacro:if value="${use_mujoco_sim}">
+        <plugin>mujoco_ros2_control/MujocoSystem</plugin>
+        <param name="mujoco_effort_command_mode">$(arg mujoco_effort_command_mode)</param>
+        <xacro:if value="${base_height != ''}">
+          <param name="initial_base_height">${base_height}</param>
+        </xacro:if>
+      </xacro:if>
+      <xacro:unless value="${use_mujoco_sim}">
+        <xacro:if value="${use_fake_hardware}">
+          <plugin>mock_components/GenericSystem</plugin>
+          <param name="mock_sensor_commands">false</param>
+          <param name="calculate_dynamics">true</param>
+          <param name="position_state_following_offset">0.0</param>
+        </xacro:if>
+      </xacro:unless>
+    </hardware>
+
+    <xacro:if value="${use_mujoco_sim}">
+      <sensor name="base">
+        <param name="mujoco_body_name">base_link</param>
+        <state_interface name="position.x"/>
+        <state_interface name="position.y"/>
+        <state_interface name="position.z"/>
+        <state_interface name="orientation.w"/>
+        <state_interface name="orientation.x"/>
+        <state_interface name="orientation.y"/>
+        <state_interface name="orientation.z"/>
+        <state_interface name="linear_velocity.x"/>
+        <state_interface name="linear_velocity.y"/>
+        <state_interface name="linear_velocity.z"/>
+        <state_interface name="angular_velocity.x"/>
+        <state_interface name="angular_velocity.y"/>
+        <state_interface name="angular_velocity.z"/>
+      </sensor>
+      <sensor name="base_imu">
+        <param name="mujoco_quat_sensor_name">imu_quat</param>
+        <param name="mujoco_gyro_sensor_name">imu_gyro</param>
+        <param name="mujoco_accel_sensor_name">imu_acc</param>
+        <state_interface name="orientation.w"/>
+        <state_interface name="orientation.x"/>
+        <state_interface name="orientation.y"/>
+        <state_interface name="orientation.z"/>
+        <state_interface name="angular_velocity.x"/>
+        <state_interface name="angular_velocity.y"/>
+        <state_interface name="angular_velocity.z"/>
+        <state_interface name="linear_acceleration.x"/>
+        <state_interface name="linear_acceleration.y"/>
+        <state_interface name="linear_acceleration.z"/>
+      </sensor>
+      <xacro:wheel_contact_sensor name="left_wheel_contact" body="wheel_l"/>
+      <xacro:wheel_contact_sensor name="right_wheel_contact" body="wheel_r"/>
+    </xacro:if>
+
+    <!-- Legs and wheels (the MPC joints), effort limits from the MJCF actuators. -->
+    <xacro:pineapple_manipulator_joint name="L_hip_joint" effort_limit="27.0"/>
+    <xacro:pineapple_manipulator_joint name="L_thigh_joint" effort_limit="27.0"/>
+    <xacro:pineapple_manipulator_joint name="L_calf_joint" effort_limit="40.0"/>
+    <xacro:pineapple_manipulator_joint name="L_wheel_joint" effort_limit="11.0"/>
+    <xacro:pineapple_manipulator_joint name="R_hip_joint" effort_limit="27.0"/>
+    <xacro:pineapple_manipulator_joint name="R_thigh_joint" effort_limit="27.0"/>
+    <xacro:pineapple_manipulator_joint name="R_calf_joint" effort_limit="40.0"/>
+    <xacro:pineapple_manipulator_joint name="R_wheel_joint" effort_limit="11.0"/>
+    <!-- Arm, held stowed at zero (gravity rests arm_base_joint and upper_arm_joint on their zero stops). -->
+    <xacro:pineapple_manipulator_joint name="arm_joint" effort_limit="27.0" kp="60.0" kd="2.0"/>
+    <xacro:pineapple_manipulator_joint name="arm_base_joint" effort_limit="27.0" kp="60.0" kd="2.0"/>
+    <xacro:pineapple_manipulator_joint name="upper_arm_joint" effort_limit="27.0" kp="60.0" kd="2.0"/>
+    <xacro:pineapple_manipulator_joint name="fore_arm_joint" effort_limit="7.0" kp="20.0" kd="0.5"/>
+    <xacro:pineapple_manipulator_joint name="5dof_joint" effort_limit="7.0" kp="20.0" kd="0.5"/>
+    <xacro:pineapple_manipulator_joint name="gripper_case_joint" effort_limit="7.0" kp="20.0" kd="0.5"/>
+  </ros2_control>
+
+</robot>

@@ -1,0 +1,22 @@
+# Pineapple standing spawn, for the ground-truth base without the planned stand-up
+# (floating_base_source:=ground_truth_state, initial_pose_file:=<share>/config/pineapple_manipulator/initial_pose_standing.yaml,
+# bringUp.standUpTrajectoryFile empty): standing at the 0.36 m default height in the posture table's balanced posture
+# (config/pineapple_manipulator/posture_table.yaml), arm stowed at zero, spawned 2 mm above the floor. The MPC balances from the
+# first physics step.
+pineapple_manipulator_joints:
+  L_hip_joint: 0.0
+  L_thigh_joint: 0.896393
+  L_calf_joint: -1.610735
+  L_wheel_joint: 0.0
+  R_hip_joint: 0.0
+  R_thigh_joint: 0.896393
+  R_calf_joint: -1.610735
+  R_wheel_joint: 0.0
+  arm_joint: 0.0
+  arm_base_joint: 0.0
+  upper_arm_joint: 0.0
+  fore_arm_joint: 0.0
+  5dof_joint: 0.0
+  gripper_case_joint: 0.0
+pineapple_manipulator_base:
+  z: 0.362

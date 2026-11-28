@@ -1,0 +1,75 @@
+<mujoco model="pineapple_body">
+  <freejoint name="floating_base_joint" />
+  <site name="imu" pos="0 0 0" />
+  <inertial pos="0.00743277 -0.00031002 0.0824108" mass="4.6" fullinertia="0.03542461 0.04154315 0.04752478 -5.543E-05 0.00267146 2.215E-05" />
+  <geom mesh="base_link_0" material="Opaque(40,79,210)" class="visual" />
+  <geom mesh="base_link_1" material="Opaque(44,44,39)" class="visual" />
+  <geom mesh="base_link_2" material="Opaque(63,63,63)" class="visual" />
+  <geom mesh="base_link_3" material="Opaque(255,174,33)" class="visual" />
+  <geom mesh="base_link_4" material="Opaque(245,245,246)" class="visual" />
+  <geom mesh="base_link_5" material="Opaque(229,229,229)" class="visual" />
+  <geom mesh="base_link_7" material="Opaque(247,66,66)" class="visual" />
+  <geom mesh="base_link_8" material="Opaque(38,83,143)" class="visual" />
+  <geom mesh="base_link_9" material="Opaque(75,75,75)" class="visual" />
+  <geom mesh="base_link_10" material="Opaque(255,166,27)" class="visual" />
+  <geom mesh="base_link_11" material="Opaque(20,32,65)" class="visual" />
+  <geom mesh="base_link_12" material="Opaque(38,83,134)" class="visual" />
+  <geom mesh="base_link_13" material="Opaque(255,255,255)" class="visual" />
+  <geom size="0.115 0.04 0.06" pos="-0.005 0 0.05" type="box" class="collision" />
+  <geom size="0.145 0.0725 0.02" pos="-0.015 0 0.13" type="box" class="collision" />
+  <geom size="0.065 0.065 0.02" pos="0 0 0.17" type="box" class="collision" />
+  <geom size="0.045 0.025" pos="0.0864 -0.1208 0.043" quat="0.707388 0 0.706825 0" type="cylinder" class="collision" />
+  <geom size="0.045 0.025" pos="0.0864 0.1208 0.043" quat="0.707388 0 0.706825 0" type="cylinder" class="collision" />
+  <body name="hip_thigh_conn_r" pos="0.0303 -0.1208 0.04299">
+    <inertial pos="-0.015631 0.00040205 0.014026" quat="0.680466 0.680434 0.192298 -0.192348" mass="0.24" diaginertia="0.000250218 0.000219972 0.00013104" />
+    <geom material="Opaque(245,245,246)" mesh="hip_thigh_conn_0" class="visual" />
+    <joint name="R_hip_joint" pos="0 0 0" axis="1 0 0" range="-1.0472 0.6108" />
+    <body name="thigh_r" pos="-0.04 0.034 0">
+      <inertial pos="-5.792e-05 -0.0353756 -0.125518" quat="0.712492 -0.00317887 0.00330608 0.701665" mass="1.52" diaginertia="0.0144268 0.0143577 0.00123335" />
+      <geom mesh="thigh_r_0" material="Opaque(63,63,63)" class="visual" />
+      <geom mesh="thigh_r_1" material="Opaque(38,83,143)" class="visual" />
+      <joint name="R_thigh_joint" pos="0 0 0" axis="0 1 0" range="0 1.74533" />
+      <geom size="0.032 0.03375 0.144" pos="0 -0.0367 -0.114" type="box" class="collision" />
+      <body name="calf_r" pos="0 -0.0741 -0.225">
+        <inertial pos="-9.341e-06 -0.0234359 -0.137925" quat="0.706922 -0.00834527 0.00824528 0.707194" mass="0.91" diaginertia="0.00790149 0.0077057 0.000553215" />
+        <geom mesh="calf_r_0" material="Opaque(63,63,63)" class="visual" />
+        <geom mesh="calf_r_1" material="Opaque(38,83,143)" class="visual" />
+        <joint name="R_calf_joint" pos="0 0 0" axis="0 1 0" range="-3.229 0" />
+        <geom size="0.035 0.02225 0.1475" pos="0 -0.0223 -0.1175" type="box" class="collision" />
+        <body name="wheel_r" pos="0 -0.066 -0.225">
+          <inertial pos="0 -0.0004505 0" quat="0.707107 0 0 0.707107" mass="0.49" diaginertia="0.00199485 0.00104471 0.00104471" />
+          <geom mesh="wheel_r_0" pos="0 0.0097 0" material="Opaque(38,83,134)" class="visual" />
+          <geom mesh="wheel_r_1" pos="0 0.0097 0" material="Opaque(63,63,63)" class="visual" />
+          <joint name="R_wheel_joint" pos="0 0 0" axis="0 1 0" />
+          <geom name="right_tire_collision" quat="0.707388 0.706825 0 0" type="mesh" mesh="tire_collision" class="wheel" />
+        </body>
+      </body>
+    </body>
+  </body>
+  <body name="hip_thigh_conn_l" pos="0.0303 0.1208 0.04299">
+    <inertial pos="-0.015631 0.00040205 0.014026" quat="0.680466 0.680434 0.192298 -0.192348" mass="0.24" diaginertia="0.000250218 0.000219972 0.00013104" />
+    <geom material="Opaque(245,245,246)" mesh="hip_thigh_conn_0" class="visual" />
+    <joint name="L_hip_joint" pos="0 0 0" axis="1 0 0" range="-0.6108 1.0472" />
+    <body name="thigh_l" pos="-0.04 -0.034 0">
+      <inertial pos="-5.792e-05 0.0353756 -0.125518" quat="0.701665 0.00330608 -0.00317887 0.712492" mass="1.52" diaginertia="0.0144268 0.0143577 0.00123335" />
+      <geom mesh="thigh_l_0" material="Opaque(38,83,143)" class="visual" />
+      <geom mesh="thigh_l_1" material="Opaque(63,63,63)" class="visual" />
+      <joint name="L_thigh_joint" pos="0 0 0" axis="0 1 0" range="0 1.74533" />
+      <geom size="0.032 0.03375 0.144" pos="0 0.0367 -0.114" type="box" class="collision" />
+      <body name="calf_l" pos="0 0.0741 -0.225">
+        <inertial pos="-9.341e-06 0.0234359 -0.137925" quat="0.707194 0.00824528 -0.00834527 0.706922" mass="0.91" diaginertia="0.00790149 0.0077057 0.000553215" />
+        <geom mesh="calf_l_0" material="Opaque(63,63,63)" class="visual" />
+        <geom mesh="calf_l_1" material="Opaque(38,83,143)" class="visual" />
+        <joint name="L_calf_joint" pos="0 0 0" axis="0 1 0" range="-3.229 0" />
+        <geom size="0.035 0.02225 0.1475" pos="0 0.0223 -0.1175" type="box" class="collision" />
+        <body name="wheel_l" pos="0 0.066 -0.225">
+          <inertial pos="0 0.0004505 0" quat="0.707107 0 0 0.707107" mass="0.49" diaginertia="0.00199485 0.00104471 0.00104471" />
+          <geom mesh="wheel_l_0" pos="0 -0.0097 0" material="Opaque(38,83,134)" class="visual" />
+          <geom mesh="wheel_l_1" pos="0 -0.0097 0" material="Opaque(63,63,63)" class="visual" />
+          <joint name="L_wheel_joint" pos="0 0 0" axis="0 1 0" />
+          <geom name="left_tire_collision" quat="0.707388 0.706825 0 0" type="mesh" mesh="tire_collision" class="wheel" />
+        </body>
+      </body>
+    </body>
+  </body>
+</mujoco>

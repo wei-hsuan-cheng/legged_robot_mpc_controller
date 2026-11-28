@@ -1,0 +1,10 @@
+<mujoco model="pineapple_actuators">
+  <motor class="hip" name="L_hip" joint="L_hip_joint" />
+  <motor class="thigh" name="L_thigh" joint="L_thigh_joint" />
+  <motor class="calf" name="L_calf" joint="L_calf_joint" />
+  <motor class="wheel" name="L_wheel" joint="L_wheel_joint" />
+  <motor class="hip" name="R_hip" joint="R_hip_joint" />
+  <motor class="thigh" name="R_thigh" joint="R_thigh_joint" />
+  <motor class="calf" name="R_calf" joint="R_calf_joint" />
+  <motor class="wheel" name="R_wheel" joint="R_wheel_joint" />
+</mujoco>

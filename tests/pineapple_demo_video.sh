@@ -29,7 +29,7 @@ case $CMD in
     ros2 bag record -o "$D/bag" --use-sim-time \
       -e '/performance_visualization/.*|/tf|/tf_static|/robot_description|/clock' > "$D/bag.log" 2>&1 &
     BAG=$!
-    python3 "$R/tests/wb_id_walk_test.py" --robot-name pineapple --mpc-rate 200 --source state_estimator \
+    python3 "$R/tests/wb_id_walk_test.py" --robot-name pineapple_manipulator --mpc-rate 200 --source state_estimator \
       --estimator humanoid_linear_kf --minimum-height 0.15 --max-yaw-error 100 --record-joints --record-tracking \
       --axis vx --speed 0 --settle 0 --ramp 0 --hold 14 --rest 1 --command-sequence "$COMMANDS" \
       --prefix "$D/run" > "$D/run.out" 2>&1
@@ -59,7 +59,7 @@ PY
     ;;
   render)
     PY=${PYTHON:-python3}
-    "$PY" "$R/tests/tuning/render_upkie_video.py" "$D/run" --robot pineapple --rviz-frames "$D/rviz" --no-text \
+    "$PY" "$R/tests/tuning/render_upkie_video.py" "$D/run" --robot pineapple_manipulator --rviz-frames "$D/rviz" --no-text \
       --azimuth 146 --elev -17 --dist 2.0 --follow-z -0.15 --out "$D/${NAME}_clean.mp4" || exit 1
     ffmpeg -y -loglevel error -i "$D/${NAME}_clean.mp4" \
       -vf "split[t][b];[t]crop=800:448:240:40[t2];[b]crop=800:448:240:816[b2];[t2][b2]vstack,fps=10,scale=400:-2:flags=lanczos,split[a][c];[a]palettegen=max_colors=96:stats_mode=diff[p];[c][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle" \

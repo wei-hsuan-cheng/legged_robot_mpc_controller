@@ -76,7 +76,7 @@ def generate_launch_description():
 
     # Official model filenames differ; all other robot-specific paths follow robot_name.
     urdf_name = PythonExpression([
-        "{'g1': 'g1_29dof.urdf', 'h2': 'h2_31dof.urdf', 'upkie': 'upkie.urdf', 'pineapple': 'pineapple.urdf'}['", robot_name, "']"
+        "{'g1': 'g1_29dof.urdf', 'h2': 'h2_31dof.urdf', 'upkie': 'upkie.urdf', 'pineapple': 'pineapple.urdf', 'pineapple_manipulator': 'pineapple_manipulator.urdf'}['", robot_name, "']"
     ])
     urdf_default = PathJoinSubstitution([mpc_share_dir, "description", "urdf", "robots", robot_name, urdf_name])
 
@@ -107,9 +107,9 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "robot_name",
             default_value="g1",
-            choices=["g1", "h2", "upkie", "pineapple"],
+            choices=["g1", "h2", "upkie", "pineapple", "pineapple_manipulator"],
             description="Robot model and configuration: Unitree G1, H2, the Upkie wheeled-biped, or the Pineapple "
-                        "wheel-legged robot.",),
+                        "wheel-legged robot without an arm (pineapple) or with its arm (pineapple_manipulator).",),
         DeclareLaunchArgument("rviz", default_value="true"),
         DeclareLaunchArgument("rviz_config", default_value=rviz_default),
         DeclareLaunchArgument("use_fake_hardware", default_value="false"),
@@ -131,7 +131,7 @@ def generate_launch_description():
         # (pelvis can have one TF parent).
         DeclareLaunchArgument(
             "gt_body_frame",
-            default_value=PythonExpression(["{'g1': 'pelvis', 'h2': 'pelvis', 'upkie': 'base', 'pineapple': 'base_link'}['", robot_name, "']"]),
+            default_value=PythonExpression(["{'g1': 'pelvis', 'h2': 'pelvis', 'upkie': 'base', 'pineapple': 'base_link', 'pineapple_manipulator': 'base_link'}['", robot_name, "']"]),
         ),
         DeclareLaunchArgument("urdf_file", default_value=urdf_default),
         DeclareLaunchArgument(

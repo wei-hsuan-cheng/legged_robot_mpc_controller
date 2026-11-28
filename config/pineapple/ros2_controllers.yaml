@@ -59,7 +59,7 @@ humanoid_linear_kf:
 
 
 # Pineapple wheel-legged robot: Upkie's WB-ID MPC with rolling-wheel contacts (docs/pineapple.md), plus a hip ab/ad
-# joint per leg; the 6-DOF arm is locked out of the MPC and held stowed at zero.
+# joint per leg and no arm. Numeric tuning and posture references are the pineapple_manipulator baseline.
 # Estimated base: floating_base_source:=state_estimator floating_base_estimator:=humanoid_linear_kf (the default),
 # starting seated with the planned stand-up, as Upkie. Ground-truth base from a standing spawn:
 # floating_base_source:=ground_truth_state initial_pose_file:=<share>/config/pineapple/initial_pose_standing.yaml and
@@ -70,7 +70,8 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
 
     paths:
       urdfFile: $(var urdf_file)
-      libFolder: $(var lib_folder)
+      # New namespace: never load the old arm-equipped model cached under auto_generated/pineapple.
+      libFolder: $(var lib_folder)/chassis_only
       # Wheel radius, half width, tire centre and axle: the shared geometry file, also read by the estimator. It
       # supplies ocs2.constraints.wheelContact.radius/axleAxis and ocs2.model.contactGeometry.frameTranslation, and
       # the controller refuses a posture table generated for other geometry.
@@ -118,8 +119,8 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
     bringUp:
       # Stand Up / Sit Down in the GUI, or Square with L2 released on the joystick.
       autoStart: false
-      # Offline WB-ID stand-up from the seat with the base-box and tire contacts, then state-feedback tracking
-      # (config/pineapple/stand_up_to, docs/pineapple.md). The MPC starts once the seat clears the ground.
+      # Deliberately reuse the arm-equipped TO (including its feedback and feedforward) without regeneration.
+      # The missing arm is a stand-up model mismatch for this baseline trial; the MPC uses the arm-free URDF.
       # Empty: no planned stand-up, for a standing spawn with the ground-truth base only.
       standUpTrajectoryFile: "$(find-pkg-share legged_robot_mpc_controller)/config/pineapple/stand_up_trajectory.yaml"
       idleSeconds: 3.0             # the plan starts from the pose settled for 3 s
@@ -147,14 +148,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
 
       model:
         robotName: pineapple
-        # The arm, stowed at zero: locked in the MPC model and held by the hardware PD (pineapple.ros2_control.xacro).
-        fixedJointNames:
-          - arm_joint
-          - arm_base_joint
-          - upper_arm_joint
-          - fore_arm_joint
-          - 5dof_joint
-          - gripper_case_joint
+        # No arm links or joints; the eight leg/wheel joints remain the complete MPC model.
         # Tire centres: the wheel link frames sit at them (geometry.yaml center_offset is zero). They spin with the
         # wheel; their position does not.
         contactNames6DoF: [left_tire_center, right_tire_center]
@@ -333,7 +327,7 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           useEstimate: true
           maxStepPerSolve: 0.002
 
-        # The arm is locked out of the MPC: no arm swing.
+        # No arm: no arm swing.
         armSwing:
           enabled: false
 
@@ -342,8 +336,8 @@ humanoid_whole_body_inverse_dynamics_mpc_controller:
           [0.0, 0.896393, -1.610735, 0.0, 0.0, 0.896393, -1.610735, 0.0]
 
         # Posture reference by target height: the balanced symmetric posture of each height (level trunk, hips not
-        # abducted, tires on the floor, tire contact under the CoM, arm stowed), generated offline by
-        # config/pineapple/compute_posture_table.py. Covers [minBaseHeight, maxBaseHeight], bringUp.sitDownHeight and
+        # abducted, tires on the floor). This first trial keeps the arm-equipped posture values unchanged;
+        # they are not newly balanced for the arm-free CoM. Covers [minBaseHeight, maxBaseHeight], bringUp.sitDownHeight and
         # the stand-up's 0.30 m end.
         postureTableFile: "$(find-pkg-share legged_robot_mpc_controller)/config/pineapple/posture_table.yaml"
 

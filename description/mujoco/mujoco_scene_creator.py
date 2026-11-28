@@ -249,8 +249,28 @@ def build_background(style, style_name, texture_rel, target_body, scene_dir):
   return ET.ElementTree(root)
 
 
-def build_scene(reference_path, background, robot, terrain, command, scene_dir=DEFAULT_SCENE_DIR):
+def load_scene(reference_path, scene_dir=DEFAULT_SCENE_DIR):
+  """Expand shared scene settings, leaving robot and terrain modules as includes."""
   ref = ET.parse(reference_path).getroot()
+  reference_dir = os.path.dirname(os.path.realpath(reference_path))
+  shared_dir = os.path.realpath(os.path.join(scene_dir, "common", "scenes"))
+  for elem in list(ref):
+    if elem.tag != "include":
+      continue
+    path = os.path.realpath(os.path.join(reference_dir, elem.get("file")))
+    if os.path.dirname(path) != shared_dir:
+      continue
+    index = list(ref).index(elem)
+    ref.remove(elem)
+    for offset, child in enumerate(load_scene(path, scene_dir)):
+      if child.tag == "include":
+        child.set("file", os.path.relpath(os.path.join(os.path.dirname(path), child.get("file")), reference_dir))
+      ref.insert(index + offset, child)
+  return ref
+
+
+def build_scene(reference_path, background, robot, terrain, command, scene_dir=DEFAULT_SCENE_DIR):
+  ref = load_scene(reference_path, scene_dir)
   root = ET.Element("mujoco", model=ref.get("model", "scene"))
   root.append(ET.Comment(f" Generated scene composition; options: {command} "))
   found_background = False
@@ -323,12 +343,12 @@ def main():
   parser.add_argument("-o", "--output", default=None, help="scene file to write (default: update the reference scene)")
   parser.add_argument("--reference", default="scene.xml",
                       help="modular scene whose robot, terrain and options are copied (default: scene.xml)")
-  parser.add_argument("--robot-name", default="g1", choices=("g1", "h2"),
+  parser.add_argument("--robot-name", default="g1", choices=("g1", "h2", "upkie", "pineapple", "pineapple_manipulator"),
                       help="robot directory containing the reference/output scene")
   parser.add_argument("--robot", default=None, help="replace the robot include (the reference's first include)")
   parser.add_argument("--terrain", nargs="+", default=None, choices=sorted(TERRAIN_FILES) + ["none"],
                       help="replace the reference's terrain includes (default: keep them)")
-  parser.add_argument("--target-body", default="pelvis", help="body the lights aim at")
+  parser.add_argument("--target-body", default=None, help="body the lights aim at (default: selected robot's base)")
   parser.add_argument("--cell", type=float, default=None, help="grid spacing [m]")
   parser.add_argument("--reflectance", type=float, default=None, help="floor mirror strength, 0..1")
   parser.add_argument("--azimuth", type=float, default=None, help="viewer start azimuth [deg]; lights follow it")
@@ -339,6 +359,8 @@ def main():
   parser.add_argument("--preview-size", default="1200x900", metavar="WxH", help="default: the viewer window")
   parser.add_argument("--list", action="store_true", help="list the styles and exit")
   args = parser.parse_args()
+  target_body = args.target_body or {"upkie": "base", "pineapple": "base_link",
+                                     "pineapple_manipulator": "base_link"}.get(args.robot_name, "pelvis")
 
   if args.list:
     for name, style in STYLES.items():
@@ -382,11 +404,11 @@ def main():
                      if v != defaults[k] and k not in ("scene_dir", "preview", "preview_size")) or "(defaults)"
   background = os.path.join("common", "backgrounds", f"background_{args.background}.xml")
   if args.background == "night":
-    if args.style != "studio" or overrides or args.target_body != "pelvis":
+    if args.style != "studio" or overrides or target_body != "pelvis":
       background = os.path.join("common", "backgrounds", f"background_night_{os.path.splitext(os.path.basename(output))[0]}.xml")
     background_path = os.path.join(args.scene_dir, background)
     os.makedirs(os.path.dirname(background_path), exist_ok=True)
-    build_background(style, args.style, texture_rel, args.target_body, args.scene_dir).write(
+    build_background(style, args.style, texture_rel, target_body, args.scene_dir).write(
         background_path, encoding="unicode", xml_declaration=False)
     print(f"wrote {background_path}")
   tree = build_scene(reference, background, args.robot, args.terrain, command, args.scene_dir)

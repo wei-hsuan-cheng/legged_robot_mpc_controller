@@ -59,7 +59,7 @@ def main():
     parser.add_argument("--fovy", type=float, help="vertical field of view [deg] (MuJoCo's default 45)")
     parser.add_argument("--size", help="render size WxH (default 1280x720, or RViz's with --rviz-frames)")
     parser.add_argument("--rviz-frames", type=Path, help="stack DIR/rviz_%%05d.png (render_rviz_replay.py) on top")
-    parser.add_argument("--robot", choices=["upkie", "pineapple"], default="upkie")
+    parser.add_argument("--robot", choices=["upkie", "pineapple", "pineapple_manipulator"], default="upkie")
     parser.add_argument("--azimuth", type=float, default=90.0, help="camera azimuth [deg]; 90 looks along +y (from -y)")
     parser.add_argument("--follow-z", type=float, default=FOLLOW_Z, help="--follow: focal point below the base origin [m]")
     parser.add_argument("--background", choices=["night", "day"], default="night",

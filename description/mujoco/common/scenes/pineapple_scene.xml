@@ -1,0 +1,8 @@
+<mujoco model="pineapple_scene_settings">
+  <!-- Shared environment and viewer settings; each scene entry includes only its robot beside this module. -->
+  <option timestep="0.0005" />
+  <include file="../backgrounds/background_night_pineapple.xml" />
+  <custom>
+    <text name="viewer_camera.mode" data="track" />
+  </custom>
+</mujoco>

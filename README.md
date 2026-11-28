@@ -95,20 +95,22 @@ colcon build --symlink-install \
 | Unitree G1 | `g1` | 29 / 23 (wrists fixed) | 0.795 m (pelvis) | [WB-ID MPC](./docs/humanoid_whole_body_inverse_dynamics_mpc.md), [running](./docs/wb_id_running.md) |
 | Unitree H2 | `h2` | 31 / 25 (wrists fixed) | 1.02 m (pelvis) | [H2 integration](./docs/h2_wb_id_mpc.md), [model source](./description/urdf/robots/h2/MODEL_SOURCE.md) |
 | Upkie (wheeled biped) | `upkie` | 6 / 6 | 0.245 m (base) | [Upkie model](./docs/wheeled_biped_whole_body_inverse_dynamics_mpc.md), [posture control](./docs/upkie_posture_control.md), [handoff](./docs/wheeled_biped_handoff.md) |
-| Pineapple (wheel-legged) | `pineapple` | 14 / 8 (arm stowed) | 0.36 m (base) | [Pineapple](./docs/pineapple.md) |
+| Pineapple (wheel-legged, no arm) | `pineapple` | 8 / 8 | 0.36 m (base) | [Pineapple family](./docs/pineapple.md) |
+| Pineapple with manipulator | `pineapple_manipulator` | 14 / 8 (arm stowed) | 0.36 m (base) | [Pineapple family](./docs/pineapple.md) |
 
 ```bash
 ros2 launch legged_robot_mpc_controller robot.launch.py robot_name:=g1 mpc_freq:=90
 ros2 launch legged_robot_mpc_controller robot.launch.py robot_name:=h2 mpc_freq:=80
 ros2 launch legged_robot_mpc_controller robot.launch.py robot_name:=upkie mpc_freq:=200
 ros2 launch legged_robot_mpc_controller robot.launch.py robot_name:=pineapple mpc_freq:=200
+ros2 launch legged_robot_mpc_controller robot.launch.py robot_name:=pineapple_manipulator mpc_freq:=200
 ```
 
 The first launch of each robot generates and compiles its CppAD libraries (several minutes); later launches load them from the cache.
 
 - **G1 and H2** walk in `base_twist` mode on a gait ladder (G1 `[stance, walk, trot, run]`, H2 `[stance, trot, run]`); a forward command of 0.75 m/s or more requests running. H2 runs up to 2.0 m/s (grounded running); G1's revised ladder is not yet simulation-tested. H2's two head joints stay active in its MPC.
 - **Upkie** spawns kneeling. Press **Stand Up** in the GUI (or **Square** on the gamepad, L2 released) for the planned [contact-aware stand-up](./docs/upkie_stand_up_optimization.md); **Sit Down** brakes and kneels again. The wheel-aware linear KF drives the MPC (no ground truth in control). Falls latch a damping state; there is no automatic recovery. Forward speed, yaw rate and height are commanded; it does not drive sideways. Contact geometry is shared through one [geometry file](./docs/upkie_geometry.md).
-- **Pineapple** spawns seated and uses the same bring-up. Besides rolling (`wheel_drive`) it has `jump`, `walk` and `trot` (`/humanoid/gait_command` or the gamepad), and a sideways command switches it to `trot`. It keeps a ground height per tire, so `walk` steps onto 40 mm steps without a terrain map. Scenes: `scene_course.xml` (the Upkie course) and `scene_gauntlet.xml` (gentle to brutal terrain). The MuJoCo viewer follows the robot (**T** toggles the free camera).
+- **Pineapple family** spawns seated and uses the same bring-up. Besides rolling (`wheel_drive`) it has `jump`, `walk` and `trot` (`/humanoid/gait_command` or the gamepad), and a sideways command switches it to `trot`. The arm-equipped `pineapple_manipulator` is the original tested baseline (including 40 mm steps without a terrain map); the lighter `pineapple` currently reuses its TO/tuning and has only passed stand-up and basic MPC balance, without tuning. Both share scene settings and offer `scene_course.xml` and `scene_gauntlet.xml`. See [variant scope and testing](./docs/pineapple.md). The MuJoCo viewer follows the robot (**T** toggles the free camera).
 
 ### Launch arguments
 
@@ -116,7 +118,7 @@ Common to every robot; defaults follow `robot_name`, and file paths are relative
 
 ```bash
 # Robot and control
-robot_name:=g1 | h2 | upkie | pineapple
+robot_name:=g1 | h2 | upkie | pineapple | pineapple_manipulator
 mpc_freq:=100                               # MPC rate [Hz], integer
 mrt_freq:=1000                              # MRT rate [Hz], integer
 ref_base_height:=<m>                        # empty: ocs2.reference.defaultBaseHeight from the controller YAML

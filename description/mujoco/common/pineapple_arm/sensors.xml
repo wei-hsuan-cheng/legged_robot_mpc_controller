@@ -1,0 +1,20 @@
+<mujoco model="pineapple_arm_sensors">
+  <jointpos name="arm_1_dof_pos" joint="arm_joint" noise="0.05" />
+  <jointpos name="arm_2_dof_pos" joint="arm_base_joint" noise="0.05" />
+  <jointpos name="arm_3_dof_pos" joint="upper_arm_joint" noise="0.05" />
+  <jointpos name="arm_4_dof_pos" joint="fore_arm_joint" noise="0.05" />
+  <jointpos name="arm_5_dof_pos" joint="5dof_joint" noise="0.05" />
+  <jointpos name="arm_6_dof_pos" joint="gripper_case_joint" noise="0.01" />
+  <jointvel name="arm_1_dof_vel" joint="arm_joint" noise="0.05" />
+  <jointvel name="arm_2_dof_vel" joint="arm_base_joint" noise="0.05" />
+  <jointvel name="arm_3_dof_vel" joint="upper_arm_joint" noise="0.05" />
+  <jointvel name="arm_4_dof_vel" joint="fore_arm_joint" noise="0.05" />
+  <jointvel name="arm_5_dof_vel" joint="5dof_joint" noise="0.05" />
+  <jointvel name="arm_6_dof_vel" joint="gripper_case_joint" noise="0.05" />
+  <jointactuatorfrc name="arm_1_dof_torque" joint="arm_joint" noise="0.01" />
+  <jointactuatorfrc name="arm_2_dof_torque" joint="arm_base_joint" noise="0.01" />
+  <jointactuatorfrc name="arm_3_dof_torque" joint="upper_arm_joint" noise="0.01" />
+  <jointactuatorfrc name="arm_4_dof_torque" joint="fore_arm_joint" noise="0.01" />
+  <jointactuatorfrc name="arm_5_dof_torque" joint="5dof_joint" noise="0.01" />
+  <jointactuatorfrc name="arm_6_dof_torque" joint="gripper_case_joint" noise="0.01" />
+</mujoco>

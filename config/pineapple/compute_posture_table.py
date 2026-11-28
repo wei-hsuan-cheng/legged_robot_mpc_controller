@@ -8,9 +8,10 @@ ocs2.reference.postureTableFile points at (default config/pineapple/posture_tabl
 The tire radius comes from config/pineapple/geometry.yaml (checked against pineapple.xml's collision tire) and is
 recorded in the table, so the controller can refuse a table generated for other geometry.
 For each base height h the trunk is level at (0, 0, h), the hips are not abducted (wheels upright), both tires touch
-the floor (tire centre at the radius) and the tire contact sits under the whole-robot centre of mass, the arm stowed
-at zero as the MPC holds it (ocs2.model.fixedJointNames), so the posture is a static balance point of the wheeled
-inverted pendulum. The thigh and calf axes are the same on both sides, so the right joints equal the left ones.
+the floor (tire centre at the radius) and the tire contact sits under the arm-free robot's centre of mass,
+so the posture is a static balance point of the wheeled inverted pendulum.
+The shipped table intentionally retains the original arm-equipped baseline; running this tool replaces that baseline.
+The thigh and calf axes are the same on both sides, so the right joints equal the left ones.
 Solved by Newton iteration on (thigh, calf) from the previous height, starting at a mid-range crouch.
 The maximum height keeps a knee-bend margin: near a straight knee the leg is singular and the servo chatters.
 """

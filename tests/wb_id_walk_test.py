@@ -180,7 +180,7 @@ def main():
                              '"yaw_rate", "height"} (all but time optional: 0, or the nominal height), which adds vy')
     parser.add_argument("--mpc-rate", type=int, default=100)
     parser.add_argument("--launch-file", default="robot.launch.py")
-    parser.add_argument("--robot-name", choices=["g1", "h2", "upkie", "pineapple"], default="g1")
+    parser.add_argument("--robot-name", choices=["g1", "h2", "upkie", "pineapple", "pineapple_manipulator"], default="g1")
     parser.add_argument("--scene", help="Scene filename or absolute path; omitted generates an isolated flat test scene")
     parser.add_argument("--minimum-height", type=float, default=0.38)
     parser.add_argument("--startup-timeout", type=float, default=600.0)
@@ -232,7 +232,7 @@ def main():
     if args.record_tracking:
         params["diagnostics"]["trackingRate"] = 100.0
     # Automated locomotion trials explicitly opt into standing up; interactive Upkie/Pineapple wait for the operator.
-    if args.robot_name in ("upkie", "pineapple"):
+    if args.robot_name in ("upkie", "pineapple", "pineapple_manipulator"):
         params["bringUp"]["autoStart"] = True
     # A key absent from the robot YAML is accepted when the controller declares it (its parameter schema).
     schema = yaml.safe_load((Path(__file__).resolve().parents[1] / "src/controller/parameters.yaml").read_text())

@@ -145,15 +145,18 @@ class Probe(Node):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--robot-name", choices=("upkie", "pineapple"), default="upkie")
+    parser.add_argument("--robot-name", choices=("upkie", "pineapple", "pineapple_manipulator"), default="upkie")
     parser.add_argument("--prefix", default="/tmp/codex_upkie_posture")
     parser.add_argument("--cycles", type=int, default=3)
     parser.add_argument("--source", choices=("ground_truth_state", "state_estimator"), default="state_estimator")
     parser.add_argument("--fall-test", action="store_true")
     parser.add_argument("--joystick", action="store_true", help="Drive the real teleop adapter with synthetic Joy, including Square")
+    parser.add_argument("--stand-only", action="store_true", help="Only stand up and hold MPC balance for 8 s, without drive/sit/fall trials")
     parser.add_argument("--trajectory", type=Path, help="Stand-up YAML override for candidate acceptance")
     parser.add_argument("--yaw-command", type=float, default=0.0, help="Normalized yaw command while driving between cycles")
     args = parser.parse_args()
+    if args.stand_only and args.fall_test:
+        parser.error("--stand-only cannot be combined with --fall-test")
     if not -1.0 <= args.yaw_command <= 1.0:
         parser.error("--yaw-command must lie in [-1, 1]")
     prefix = Path(args.prefix)
@@ -181,10 +184,19 @@ def main():
         with Path(str(prefix) + ".log").open("w") as log:
             process = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
             probe = Probe(args.joystick, reference)
-            probe.wait("idle", 90)
+            probe.wait("idle", 240)
             probe.pump(4)
             assert probe.phase == "idle", "Must wait for the operator"
-            for cycle in range(args.cycles):
+            if args.stand_only:
+                if args.joystick:
+                    probe.toggle_posture()
+                else:
+                    probe.request("stand_up")
+                probe.wait("locomotion")
+                probe.pump(8)
+                assert probe.phase == "locomotion", "Must remain balanced in MPC"
+                results["standing_mpc_seconds"] = 8
+            for cycle in range(0 if args.stand_only else args.cycles):
                 if args.joystick:
                     probe.toggle_posture()
                 else:

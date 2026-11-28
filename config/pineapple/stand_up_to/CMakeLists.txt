@@ -1,7 +1,0 @@
-cmake_minimum_required(VERSION 3.16)
-project(pineapple_stand_up_model LANGUAGES CXX)
-set(CMAKE_CXX_STANDARD 17)
-find_package(pinocchio REQUIRED)
-find_package(casadi REQUIRED)
-add_executable(pineapple_stand_up_model model.cpp)
-target_link_libraries(pineapple_stand_up_model PRIVATE pinocchio::pinocchio pinocchio::pinocchio_parsers casadi::casadi)

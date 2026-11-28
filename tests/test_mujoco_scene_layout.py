@@ -41,7 +41,7 @@ class SceneLayoutTest(unittest.TestCase):
         launch = (ROOT / "launch/robot.launch.py").read_text()
         ast.parse(launch)
         self.assertIn('"robots", robot_name', launch)
-        for robot in ("g1", "h2", "upkie", "pineapple"):
+        for robot in ("g1", "h2", "upkie", "pineapple", "pineapple_manipulator"):
             self.assertTrue((SCENES / "robots" / robot / "scene.xml").is_file())
             self.assertTrue((ROOT / "config" / robot / "ros2_controllers.yaml").is_file())
             self.assertFalse((ROOT / "launch" / f"{robot}.launch.py").exists())
@@ -55,7 +55,7 @@ class SceneLayoutTest(unittest.TestCase):
                 for texture in root.findall(".//texture[@file]"):
                     self.assertTrue((SCENES / texture.get("file")).is_file())
         for name, filename in (("g1", "g1_29dof.xml"), ("h2", "h2_31dof.xml"), ("upkie", "upkie.xml"),
-                               ("pineapple", "pineapple.xml")):
+                               ("pineapple", "pineapple.xml"), ("pineapple_manipulator", "pineapple_manipulator.xml")):
             directory = SCENES / "robots" / name
             robot = ET.parse(directory / filename)
             mesh_dir = directory / robot.find("compiler").get("meshdir")
@@ -131,14 +131,14 @@ class SceneLayoutTest(unittest.TestCase):
     @unittest.skipIf(mujoco is None, "mujoco Python package is not installed")
     def test_all_scenes_and_generated_terrains_compile(self):
         scenes = list(SCENES.glob("robots/*/scene*.xml"))
-        self.assertEqual(len(scenes), 6)  # Pineapple also has its course and gauntlet scenes
-        self.assertTrue(all(path.name == "scene.xml" or path.parent.name == "pineapple" for path in scenes))
+        self.assertEqual(len(scenes), 9)  # Both Pineapple variants have course and gauntlet scenes.
+        self.assertTrue(all(path.name == "scene.xml" or path.parent.name in ("pineapple", "pineapple_manipulator") for path in scenes))
         for path in scenes:
             with self.subTest(scene=path.name):
                 model = mujoco.MjModel.from_xml_path(str(path))
                 robot = path.parent.name
-                self.assertEqual(model.opt.timestep, 0.0005 if robot in ("upkie", "pineapple") else 0.0001)
-                self.assertEqual(model.nu, {"g1": 29, "h2": 31, "upkie": 6, "pineapple": 14}[robot])
+                self.assertEqual(model.opt.timestep, 0.0005 if robot in ("upkie", "pineapple", "pineapple_manipulator") else 0.0001)
+                self.assertEqual(model.nu, {"g1": 29, "h2": 31, "upkie": 6, "pineapple": 8, "pineapple_manipulator": 14}[robot])
         for background in ("day", "night"):
             for terrain in ["none", *creator.TERRAIN_FILES]:
                 with self.subTest(background=background, terrain=terrain):

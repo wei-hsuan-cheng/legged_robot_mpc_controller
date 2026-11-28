@@ -36,7 +36,7 @@ class PackageLayoutTest(unittest.TestCase):
         plugin = ET.parse(ROOT / f"{PACKAGE}_plugin.xml").getroot()
         self.assertEqual([entry.attrib["name"] for entry in plugin.findall("class")],
                          [f"{PACKAGE}/HumanoidWholeBodyInverseDynamicsMpcController"])
-        for robot in ("g1", "h2", "upkie", "pineapple"):
+        for robot in ("g1", "h2", "upkie", "pineapple", "pineapple_manipulator"):
             config = yaml.safe_load((ROOT / f"config/{robot}/ros2_controllers.yaml").read_text())
             registrations = config["controller_manager"]["ros__parameters"]
             mpc_names = {name for name, value in registrations.items()

@@ -1,0 +1,16 @@
+<mujoco model="pineapple_arm_assets">
+  <mesh file="fore_arm_0.obj" />
+  <mesh file="fore_arm_1.obj" />
+  <mesh file="fore_arm_2.obj" />
+  <mesh file="5dof_0.obj" />
+  <mesh file="5dof_1.obj" />
+  <mesh file="6dof_0.obj" />
+  <mesh file="6dof_1.obj" />
+  <mesh file="arm_base_0.obj" />
+  <mesh file="upper_arm_0.obj" />
+  <mesh file="upper_arm_1.obj" />
+  <mesh file="upper_arm_2.obj" />
+  <mesh name="gripper_case_link" file="gripper_case_link.STL" />
+  <mesh name="gripper_left_link" file="gripper_left_link.STL" />
+  <mesh name="gripper_right_link" file="gripper_right_link.STL" />
+</mujoco>

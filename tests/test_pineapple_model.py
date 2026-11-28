@@ -12,8 +12,9 @@ import xml.etree.ElementTree as ET
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
-URDF_DIR = ROOT / "description/urdf/robots/pineapple"
-CONFIG = ROOT / "config/pineapple"
+URDF_DIR = ROOT / "description/urdf/robots/pineapple_manipulator"
+CONFIG = ROOT / "config/pineapple_manipulator"
+GENERATOR = ROOT / "description/urdf/robots/pineapple/generate_pineapple_urdf.py"
 CONTROLLER = "humanoid_whole_body_inverse_dynamics_mpc_controller"
 LEGS = ["L_hip_joint", "L_thigh_joint", "L_calf_joint", "L_wheel_joint",
         "R_hip_joint", "R_thigh_joint", "R_calf_joint", "R_wheel_joint"]
@@ -27,17 +28,13 @@ def params():
 class PineappleModelTest(unittest.TestCase):
     def test_urdf_is_generated_from_the_mjcf(self):
         with tempfile.TemporaryDirectory() as directory:
-            script = Path(directory) / "urdf/robots/pineapple/generate_pineapple_urdf.py"
-            script.parent.mkdir(parents=True)
-            shutil.copy(URDF_DIR / "generate_pineapple_urdf.py", script)
-            mujoco = Path(directory) / "mujoco/robots/pineapple"
-            mujoco.mkdir(parents=True)
-            shutil.copy(ROOT / "description/mujoco/robots/pineapple/pineapple.xml", mujoco)
-            subprocess.run([sys.executable, str(script)], check=True, capture_output=True)
-            self.assertEqual((script.parent / "pineapple.urdf").read_text(), (URDF_DIR / "pineapple.urdf").read_text())
+            output = Path(directory) / "pineapple_manipulator.urdf"
+            subprocess.run([sys.executable, str(GENERATOR), "--robot", "pineapple_manipulator", "--output", str(output)],
+                           check=True, capture_output=True)
+            self.assertEqual(output.read_text(), (URDF_DIR / "pineapple_manipulator.urdf").read_text())
 
     def test_urdf_joints(self):
-        robot = ET.parse(URDF_DIR / "pineapple.urdf").getroot()
+        robot = ET.parse(URDF_DIR / "pineapple_manipulator.urdf").getroot()
         movable = [j.get("name") for j in robot.findall("joint") if j.get("type") != "fixed"]
         self.assertEqual(sorted(movable), sorted(LEGS + ARM))
         p = params()
@@ -57,8 +54,8 @@ class PineappleModelTest(unittest.TestCase):
         default = table["joint_states"][table["heights"].index(reference["defaultBaseHeight"])]
         self.assertEqual(default, reference["defaultJointState"])
         standing = yaml.safe_load((CONFIG / "initial_pose_standing.yaml").read_text())
-        self.assertEqual([standing["pineapple_joints"][n] for n in LEGS], default)
-        self.assertEqual(sorted(standing["pineapple_joints"]), sorted(LEGS + ARM))
+        self.assertEqual([standing["pineapple_manipulator_joints"][n] for n in LEGS], default)
+        self.assertEqual(sorted(standing["pineapple_manipulator_joints"]), sorted(LEGS + ARM))
         self.assertLessEqual(table["heights"][0], p["bringUp"]["sitDownHeight"])
         for row in table["joint_states"]:
             self.assertEqual(row[:4], row[4:])  # same axes on both sides: right equals left
@@ -70,9 +67,9 @@ class PineappleModelTest(unittest.TestCase):
         rollout = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(rollout)
         pose = yaml.safe_load((CONFIG / "initial_pose.yaml").read_text())
-        self.assertEqual([pose["pineapple_joints"][n] for n in LEGS], rollout.IDLE.tolist())
+        self.assertEqual([pose["pineapple_manipulator_joints"][n] for n in LEGS], rollout.IDLE.tolist())
         self.assertEqual(rollout.JOINTS, LEGS)
-        self.assertAlmostEqual(pose["pineapple_base"]["z"], rollout.Rollout().spawn_idle(0.0), places=4)
+        self.assertAlmostEqual(pose["pineapple_manipulator_base"]["z"], rollout.Rollout().spawn_idle(0.0), places=4)
 
     def test_stand_up_plan_matches_the_geometry(self):
         plan = yaml.safe_load((CONFIG / "stand_up_trajectory.yaml").read_text())["stand_up"]

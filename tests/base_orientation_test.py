@@ -82,7 +82,7 @@ def stop(process):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--robot-name", choices=("upkie", "pineapple"), required=True)
+    parser.add_argument("--robot-name", choices=("upkie", "pineapple", "pineapple_manipulator"), required=True)
     parser.add_argument("--prefix", default="/tmp/codex_base_orientation")
     args = parser.parse_args()
     prefix = Path(args.prefix)
@@ -105,7 +105,7 @@ def main():
                 "floating_base_estimator:=humanoid_linear_kf"],
                 stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
             probe = OrientationProbe(config_path, reference)
-            probe.wait("idle", 120)
+            probe.wait("idle", 240)
             probe.request("stand_up")
             probe.wait("locomotion", 60)
             probe.pump(3)

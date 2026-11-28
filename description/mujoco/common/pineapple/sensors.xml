@@ -1,0 +1,32 @@
+<mujoco model="pineapple_sensors">
+  <jointpos name="L_hip_pos" joint="L_hip_joint" noise="0.05" />
+  <jointpos name="L_thigh_pos" joint="L_thigh_joint" noise="0.05" />
+  <jointpos name="L_calf_pos" joint="L_calf_joint" noise="0.05" />
+  <jointpos name="L_wheel_pos" joint="L_wheel_joint" noise="0.05" />
+  <jointpos name="R_hip_pos" joint="R_hip_joint" noise="0.05" />
+  <jointpos name="R_thigh_pos" joint="R_thigh_joint" noise="0.05" />
+  <jointpos name="R_calf_pos" joint="R_calf_joint" noise="0.05" />
+  <jointpos name="R_wheel_pos" joint="R_wheel_joint" noise="0.05" />
+  <jointvel name="L_hip_vel" joint="L_hip_joint" noise="0.5" />
+  <jointvel name="L_thigh_vel" joint="L_thigh_joint" noise="0.5" />
+  <jointvel name="L_calf_vel" joint="L_calf_joint" noise="0.5" />
+  <jointvel name="L_wheel_vel" joint="L_wheel_joint" noise="0.5" />
+  <jointvel name="R_hip_vel" joint="R_hip_joint" noise="0.5" />
+  <jointvel name="R_thigh_vel" joint="R_thigh_joint" noise="0.5" />
+  <jointvel name="R_calf_vel" joint="R_calf_joint" noise="0.5" />
+  <jointvel name="R_wheel_vel" joint="R_wheel_joint" noise="0.5" />
+  <jointactuatorfrc name="L_hip_torque" joint="L_hip_joint" noise="0.01" />
+  <jointactuatorfrc name="L_thigh_torque" joint="L_thigh_joint" noise="0.01" />
+  <jointactuatorfrc name="L_calf_torque" joint="L_calf_joint" noise="0.01" />
+  <jointactuatorfrc name="L_wheel_torque" joint="L_wheel_joint" noise="0.01" />
+  <jointactuatorfrc name="R_hip_torque" joint="R_hip_joint" noise="0.01" />
+  <jointactuatorfrc name="R_thigh_torque" joint="R_thigh_joint" noise="0.01" />
+  <jointactuatorfrc name="R_calf_torque" joint="R_calf_joint" noise="0.01" />
+  <jointactuatorfrc name="R_wheel_torque" joint="R_wheel_joint" noise="0.01" />
+  <framequat name="imu_quat" objtype="site" objname="imu" noise="0.05" />
+  <gyro name="imu_gyro" site="imu" noise="0.1" />
+  <accelerometer name="imu_acc" site="imu" />
+  <framepos name="frame_pos" objtype="site" objname="imu" />
+  <framelinvel name="frame_lin_vel" objtype="site" objname="imu" />
+  <frameangvel name="frame_ang_vel" objtype="site" objname="imu" />
+</mujoco>

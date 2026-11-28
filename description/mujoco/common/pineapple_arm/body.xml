@@ -1,0 +1,55 @@
+<mujoco model="pineapple_arm_body">
+  <body name="arm_base" pos="0.00095065 -0.00034599 0.192735">
+    <inertial pos="0.0128934 -0.00240469 0.0250571" quat="0.268128 0.332439 -0.559819 0.710066" mass="0.254904" diaginertia="0.000483589 0.000358933 0.000241618" />
+    <geom mesh="arm_base_0" material="Opaque(63,63,63)" class="visual" />
+    <joint name="arm_joint" pos="0 0 0" axis="0 0 1" range="-1.5708 1.5708" />
+    <body name="upper_arm" pos="0.0392 -0.0355 0.052">
+      <inertial pos="-0.150016 0.0354665 1.966e-07" quat="-0.0013465 0.707114 0.000508502 0.707098" mass="1.25745" diaginertia="0.020331 0.0202509 0.000947407" />
+      <geom mesh="upper_arm_0" material="Opaque(38,83,134)" class="visual" />
+      <geom mesh="upper_arm_1" material="Opaque(245,245,246)" class="visual" />
+      <geom mesh="upper_arm_2" material="Opaque(63,63,63)" class="visual" />
+      <joint name="arm_base_joint" pos="0 0 0" axis="0 1 0" range="0 3.1416" />
+      <geom size="0.1765 0.035 0.034" pos="-0.1427 0.03553 0" type="box" class="collision" />
+      <body name="fore_arm" pos="-0.3 0.07082 0">
+        <inertial pos="0.145618 -0.0354891 0.064308" quat="0.0908869 0.658182 0.0749458 0.743586" mass="0.975742" diaginertia="0.0120217 0.0118584 0.00111232" />
+        <geom mesh="fore_arm_0" material="Opaque(63,63,63)" class="visual" />
+        <geom mesh="fore_arm_1" material="Opaque(38,83,134)" class="visual" />
+        <geom mesh="fore_arm_2" material="Opaque(245,245,246)" class="visual" />
+        <joint name="upper_arm_joint" pos="0 0 0" axis="0 1 0" range="-3.1416 0" />
+        <geom size="0.13 0.031 0.03" pos="0.1408 -0.0353 0.075" type="box" class="collision" />
+        <body name="5dof" pos="0.2698 -0.00295 0.075">
+          <inertial pos="0.0565324 -0.0326958 0.0568577" quat="0.0161993 0.446378 -0.0050724 0.894684" mass="0.545046" diaginertia="0.00136273 0.00105199 0.000618399" />
+          <geom mesh="5dof_0" material="Opaque(245,245,246)" class="visual" />
+          <geom mesh="5dof_1" material="Opaque(63,63,63)" class="visual" />
+          <joint name="fore_arm_joint" pos="0 0 0" axis="0 1 0" range="-1.5708 1.7453" />
+          <geom size="0.0325 0.0325 0.03" pos="0.079 -0.0323 0.07075" type="box" class="collision" />
+          <body name="6dof" pos="0.08 -0.0328 0.04075">
+            <inertial pos="-0.00187795 -1.398e-08 -0.0344311" quat="0.999167 3.7003e-06 0.0407959 -7.87422e-06" mass="0.366853" diaginertia="0.000262995 0.00025222 0.000232165" />
+            <geom mesh="6dof_0" material="Opaque(38,83,143)" class="visual" />
+            <geom mesh="6dof_1" material="Opaque(245,245,246)" class="visual" />
+            <joint name="5dof_joint" pos="0 0 0" axis="0 0 1" range="-1.5708 1.5708" />
+            <geom size="0.03 0.0325 0.036" pos="-0.002 0 -0.037" type="box" class="collision" />
+            <body name="gripper_case_link" pos="0.029 0 -0.04075">
+              <inertial pos="0.0330564 5.996e-05 0.00932181" quat="0.688833 0.704189 -0.125804 0.117472" mass="0.4" diaginertia="0.000558638 0.000509874 0.000345138" />
+              <joint name="gripper_case_joint" pos="0 0 0" axis="1 0 0" range="-1.5708 1.5708" />
+              <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.792157 0.819608 0.933333 1" mesh="gripper_case_link" />
+              <geom size="0.025 0.0355 0.035" pos="0.03 0 0.005" type="box" class="collision" />
+              <body name="gripper_left_link" pos="0.0744 0.060275 -0.000100007">
+                <inertial pos="0.0362489 0.00264813 -0.00147696" quat="-0.105549 0.680557 -0.0836824 0.720207" mass="0.1" diaginertia="0.000140089 0.000133219 3.07923e-05" />
+                <joint name="gripper_left_joint" pos="0 0 0" axis="0 1 0" type="slide" range="0 0.04" actuatorfrcrange="-1 1" />
+                <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.792157 0.819608 0.933333 1" mesh="gripper_left_link" />
+                <geom size="0.0745 0.02 0.0188" pos="0.065 0.006 0" type="box" class="collision" />
+              </body>
+              <body name="gripper_right_link" pos="0.0744 -0.060275 -0.000100007">
+                <inertial pos="0.036249 -0.00264818 0.00164906" quat="-0.0848077 0.720005 -0.10674 0.680446" mass="0.1" diaginertia="0.00014009 0.000133217 3.08033e-05" />
+                <joint name="gripper_right_joint" pos="0 0 0" axis="0 -1 0" type="slide" range="-0.04 0" actuatorfrcrange="-1 1" />
+                <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.792157 0.819608 0.933333 1" mesh="gripper_right_link" />
+                <geom size="0.0745 0.02 0.0188" pos="0.065 -0.006 0" type="box" class="collision" />
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+  </body>
+</mujoco>

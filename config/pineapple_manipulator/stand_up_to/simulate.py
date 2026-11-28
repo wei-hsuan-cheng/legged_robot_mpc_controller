@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Replay an exported Pineapple stand-up in MuJoCo, as the controller plays it, up to the MPC handover.
 
-    simulate.py [PLAN.yaml]   (default config/pineapple/stand_up_trajectory.yaml)
+    simulate.py [PLAN.yaml]   (default config/pineapple_manipulator/stand_up_trajectory.yaml)
 
 From the seated idle spawn: the servo kp (q* - q) + kd (v* - v) + tau* - K (x - x*) every physics step, the state
 from MuJoCo's ground truth (the controller uses its estimate), the arm held at zero. Prints the base height, tilt,

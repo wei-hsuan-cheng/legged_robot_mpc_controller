@@ -2,7 +2,7 @@
 // Scalar conversion follows Pinocchio's official example:
 // https://github.com/stack-of-tasks/pinocchio/blob/devel/examples/casadi/casadi-rnea.cpp
 // The arm is locked at zero, as the MPC holds it (ocs2.model.fixedJointNames); the gripper slides are fixed in the
-// URDF. Usage: pineapple_stand_up_model pineapple.urdf PREFIX  (writes PREFIX_rnea.casadi and PREFIX_frames.casadi)
+// URDF. Usage: pineapple_manipulator_stand_up_model pineapple_manipulator.urdf PREFIX  (writes PREFIX_rnea.casadi and PREFIX_frames.casadi)
 #include <pinocchio/autodiff/casadi.hpp>
 #include <pinocchio/parsers/urdf.hpp>
 #include <pinocchio/algorithm/model.hpp>
@@ -43,7 +43,7 @@ int main(int argc, char **argv) {
   pinocchio::updateFramePlacements(am, data);
   pinocchio::centerOfMass(am, data, eq);
   // Frame origins and rotations only: plan.py places the tire centres and the base seat in these frames from
-  // config/pineapple/geometry.yaml, and the ground-clearance points at the MJCF collision box corners.
+  // config/pineapple_manipulator/geometry.yaml, and the ground-clearance points at the MJCF collision box corners.
   const char *names[] = {"wheel_l", "wheel_r", "base_link", "thigh_l", "thigh_r", "calf_l", "calf_r", "upper_arm",
                          "fore_arm"};
   const int count = sizeof(names) / sizeof(names[0]);

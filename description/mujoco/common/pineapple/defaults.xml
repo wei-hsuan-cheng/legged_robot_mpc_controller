@@ -1,0 +1,29 @@
+<mujoco model="pineapple_defaults">
+  <default class="pinappleV3">
+    <geom friction="0.4" margin="0.001" condim="1" />
+    <joint damping="0.02" armature="0.004" frictionloss="0.1" />
+    <default class="hip">
+      <joint axis="1 0 0" range="-0.698 0.698" />
+      <motor ctrlrange="-27.0 27.0" />
+    </default>
+    <default class="thigh">
+      <joint axis="0 1 0" range="-0.349 1.919" />
+      <motor ctrlrange="-27.0 27.0" />
+    </default>
+    <default class="calf">
+      <joint axis="0 1 0" range="-3.314 0.174" damping="0.091" armature="0.0161" frictionloss="0.2" />
+      <motor ctrlrange="-40.0 40.0" />
+    </default>
+    <default class="visual">
+      <geom type="mesh" contype="0" conaffinity="0" group="2" />
+    </default>
+    <default class="collision">
+      <geom group="3" type="mesh" rgba="1 0 0 0.3" contype="1" conaffinity="1" />
+      <default class="wheel">
+        <geom size="0.077" priority="1" condim="3" friction="0.8 0.02 0.01" />
+        <joint axis="0 1 0" damping="0.0088" armature="0.00176" frictionloss="0.0841" />
+        <motor ctrlrange="-11.0 11.0" />
+      </default>
+    </default>
+  </default>
+</mujoco>

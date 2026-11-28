@@ -126,12 +126,12 @@ CASES = {
     "vy_left": lateral([[1, 0, 0.2, 0], [7, 0, 0, 0]], 10), "vy_right": lateral([[1, 0, -0.2, 0], [7, 0, 0, 0]], 10),
     "vy_mixed": lateral([[1, 0.2, 0.15, 0], [5, 0.0, -0.25, 0], [9, -0.2, 0.15, 0.5], [13, 0, 0, 0]], 16),
 }
-COMMON = ["--robot-name", "pineapple", "--mpc-rate", "200", "--source", "state_estimator",
+COMMON = ["--mpc-rate", "200", "--source", "state_estimator",
           "--estimator", "humanoid_linear_kf", "--minimum-height", "0.15", "--startup-timeout", "900",
           "--max-yaw-error", "100", "--axis", "vx", "--speed", "0", "--settle", "0", "--ramp", "0", "--rest", "2"]
 
 
-def scene_for(params, out, name):
+def scene_for(params, out, name, robot):
     """MuJoCo scene with the course `params` (generate_upkie_course.py format), generated into `out` for case `name`
     (one file per run: concurrent repeats must not rewrite a scene another launch is reading)."""
     mjcf = out / f"{name}_terrain.xml"
@@ -139,7 +139,7 @@ def scene_for(params, out, name):
                     "--params", str(TERRAINS / params), "--mjcf", str(mjcf)], check=True, capture_output=True)
     sys.path.insert(0, str(ROOT / "tests"))
     from mujoco_scene import write_scene
-    scene = write_scene(out / f"{name}_scene.xml", "pineapple", "upkie_course")
+    scene = write_scene(out / f"{name}_scene.xml", robot, "upkie_course")
     scene.write_text(scene.read_text().replace(str(ROOT / "description/mujoco/terrains/upkie_course.xml"), str(mjcf)))
     return scene
 
@@ -171,11 +171,11 @@ def after_takeover(prefix, takeover, skip=1.5):
     return worst
 
 
-def run(name, case, out, domain, extra):
+def run(name, case, out, domain, extra, robot):
     prefix = out / name
-    command = [sys.executable, str(HARNESS), *COMMON, *case["args"], "--prefix", str(prefix), *extra]
+    command = [sys.executable, str(HARNESS), "--robot-name", robot, *COMMON, *case["args"], "--prefix", str(prefix), *extra]
     if "terrain" in case:
-        command += ["--scene", str(scene_for(case["terrain"], out, name))]
+        command += ["--scene", str(scene_for(case["terrain"], out, name, robot))]
     elif "scene" in case:
         command += ["--scene", case["scene"]]
     began = time.monotonic()
@@ -229,6 +229,7 @@ def summarize_only(name, out):
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--tag", default="run")
+    parser.add_argument("--robot-name", choices=("pineapple", "pineapple_manipulator"), default="pineapple_manipulator")
     parser.add_argument("--out", type=Path, default=Path("/tmp/pineapple_suite"))
     parser.add_argument("--cases", nargs="+", default=["*"], help="case names or glob patterns")
     parser.add_argument("--jobs", type=int, default=3)
@@ -263,7 +264,7 @@ def main():
             return summarize_only(name, out)
         domain = domains.get()
         try:
-            return run(name, CASES[re.sub(r"_r\d+$", "", name)], out, domain, extra)
+            return run(name, CASES[re.sub(r"_r\d+$", "", name)], out, domain, extra, args.robot_name)
         finally:
             domains.put(domain)
 

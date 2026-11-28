@@ -171,7 +171,7 @@ class RobotLaunchTest(unittest.TestCase):
             self.assertEqual(float(context.launch_configurations['gui_ref_base_height']), .98)
 
     def test_controller_selection_and_invalid_inputs(self):
-        for robot in ('g1', 'h2', 'upkie', 'pineapple'):
+        for robot in ('g1', 'h2', 'upkie', 'pineapple', 'pineapple_manipulator'):
             _, description = self.resolve(robot)
             argument = next(action for action in description.entities
                             if isinstance(action, DeclareLaunchArgument) and action.name == 'mpc_controller_name')

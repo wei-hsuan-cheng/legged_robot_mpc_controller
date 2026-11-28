@@ -1,0 +1,27 @@
+<mujoco model="pineapple_manipulator">
+  <compiler angle="radian" meshdir="../../../meshes/robots/pineapple" texturedir="../../" autolimits="true" />
+  <option integrator="implicitfast" noslip_iterations="4" />
+  <default>
+    <include file="../../common/pineapple/defaults.xml" />
+    <include file="../../common/pineapple_arm/defaults.xml" />
+  </default>
+  <asset>
+    <include file="../../common/pineapple/materials.xml" />
+    <include file="../../common/pineapple/assets.xml" />
+    <include file="../../common/pineapple_arm/assets.xml" />
+  </asset>
+  <worldbody>
+    <body name="base_link" pos="0 0 0.5" childclass="pinappleV3">
+      <include file="../../common/pineapple/body.xml" />
+      <include file="../../common/pineapple_arm/body.xml" />
+    </body>
+  </worldbody>
+  <actuator>
+    <include file="../../common/pineapple/actuators.xml" />
+    <include file="../../common/pineapple_arm/actuators.xml" />
+  </actuator>
+  <sensor>
+    <include file="../../common/pineapple/sensors.xml" />
+    <include file="../../common/pineapple_arm/sensors.xml" />
+  </sensor>
+</mujoco>

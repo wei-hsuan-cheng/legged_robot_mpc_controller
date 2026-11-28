@@ -1,5 +1,6 @@
 # Pineapple's spawn pose (robot.launch.py's default initial_pose_file): seated idle, the deepest leg fold
-# (config/pineapple/stand_up_to/rollout.py IDLE). Spawned upright with these joints, its lowest collision bounding
+# (config/pineapple_manipulator/stand_up_to/rollout.py IDLE). This trial reuses the arm-equipped spawn/TO baseline.
+# Spawned upright with these joints, its lowest collision bounding
 # sphere 1 cm above the floor, it settles onto the base box's back bottom edge and both tires (pitched back about
 # 0.1 rad, calves on their -3.229 rad stops), and the planned stand-up (stand_up_trajectory.yaml,
 # bringUp.standUpTrajectoryFile) starts from the state it settles into. initial_pose_standing.yaml is the standing
@@ -13,11 +14,5 @@ pineapple_joints:
   R_thigh_joint: 1.65
   R_calf_joint: -3.15
   R_wheel_joint: 0.0
-  arm_joint: 0.0
-  arm_base_joint: 0.0
-  upper_arm_joint: 0.0
-  fore_arm_joint: 0.0
-  5dof_joint: 0.0
-  gripper_case_joint: 0.0
 pineapple_base:
   z: 0.1107

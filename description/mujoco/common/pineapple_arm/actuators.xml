@@ -1,0 +1,8 @@
+<mujoco model="pineapple_arm_actuators">
+  <motor class="arm_4340" name="arm_1_dof" joint="arm_joint" />
+  <motor class="arm_4340" name="arm_2_dof" joint="arm_base_joint" />
+  <motor class="arm_4340" name="arm_3_dof" joint="upper_arm_joint" />
+  <motor class="arm_4310" name="arm_4_dof" joint="fore_arm_joint" />
+  <motor class="arm_4310" name="arm_5_dof" joint="5dof_joint" />
+  <motor class="arm_4310" name="arm_6_dof" joint="gripper_case_joint" />
+</mujoco>

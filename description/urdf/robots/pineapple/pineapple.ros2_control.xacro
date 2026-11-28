@@ -24,8 +24,7 @@
 
   <!-- One actuated joint. With effort_pd the simulator applies kp (q_cmd - q) + kd (v_cmd - v) + effort every physics
        step and the MuJoCo motor caps the sum. The controller writes the leg and wheel gains (control.jointEffortPd);
-       the arm joints are locked out of the MPC (ocs2.model.fixedJointNames) and held at zero with the gains given
-       here. -->
+       all eight leg/wheel joints belong to the MPC; this variant has no arm. -->
   <xacro:macro name="pineapple_joint" params="name effort_limit kp:=$(arg effort_pd_kp) kd:=$(arg effort_pd_kd)">
     <joint name="${name}">
       <xacro:if value="${command_interface == 'effort_pd'}">
@@ -139,13 +138,6 @@
     <xacro:pineapple_joint name="R_thigh_joint" effort_limit="27.0"/>
     <xacro:pineapple_joint name="R_calf_joint" effort_limit="40.0"/>
     <xacro:pineapple_joint name="R_wheel_joint" effort_limit="11.0"/>
-    <!-- Arm, held stowed at zero (gravity rests arm_base_joint and upper_arm_joint on their zero stops). -->
-    <xacro:pineapple_joint name="arm_joint" effort_limit="27.0" kp="60.0" kd="2.0"/>
-    <xacro:pineapple_joint name="arm_base_joint" effort_limit="27.0" kp="60.0" kd="2.0"/>
-    <xacro:pineapple_joint name="upper_arm_joint" effort_limit="27.0" kp="60.0" kd="2.0"/>
-    <xacro:pineapple_joint name="fore_arm_joint" effort_limit="7.0" kp="20.0" kd="0.5"/>
-    <xacro:pineapple_joint name="5dof_joint" effort_limit="7.0" kp="20.0" kd="0.5"/>
-    <xacro:pineapple_joint name="gripper_case_joint" effort_limit="7.0" kp="20.0" kd="0.5"/>
   </ros2_control>
 
 </robot>

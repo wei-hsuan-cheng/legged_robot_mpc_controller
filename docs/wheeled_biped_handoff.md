@@ -1568,3 +1568,31 @@ Upkie settled at base pitch -0.1967/+0.1958 rad for command-frame +0.2/-0.2, com
 No native MPC code, solver settings, tuning values or GUI behavior changed; only shared teleop logic, OCS2 comments/docs and its simulation regression were updated.
 Suggested OCS2 commit message: `docs: update joystick tilt and height mapping with simulation regression`.
 
+## Pineapple Robot Split (2026-11-28)
+
+The final robot names are `pineapple` (arm-free, 10.92 kg) and `pineapple_manipulator` (original arm-equipped, 14.919995 kg).
+`pineapple_arm` names only the reusable arm/gripper module (3.999995 kg), not a runnable robot.
+Shared MuJoCo components live in `common/pineapple` and `common/pineapple_arm`; both robot scene entry points include `common/scenes/pineapple_scene.xml` and the same terrain modules.
+The shared URDF generator expands those includes, and each robot has matching URDF, ros2_control, initial poses and controller config.
+The original six locked arm joints mean both MPCs still optimize eight leg/wheel joints: 28 states and 34 inputs.
+All numeric controller, solver, cost, constraint, servo, gait, command-bound and posture settings remain the original baseline; a regression compares both configs.
+The arm-free URDF removes arm mass/inertia, and its generated-library path adds `chassis_only` so historical arm-equipped `pineapple` caches cannot be loaded.
+The arm-equipped assembly matched the saved original MuJoCo model's inertias, joint properties, mass matrix, bias forces and CoM over 20 random states to numerical precision.
+The original TO tooling now lives under `config/pineapple_manipulator/stand_up_to`; the arm-free stand-up YAML is a relative symlink to the unchanged original export.
+The TO SHA-256 remains `65008be561ffbd77acb0e0b348a7dc290841cc96fc52c10ae3746718290c1136`.
+No stand-up TO or posture table was regenerated: reusing the old references on the lighter arm-free robot is the user's requested modeling-error baseline.
+Both Release packages built with tests enabled; the controller Python suite passed 161 tests with 16 skips and teleop passed all 68 checks.
+Local MuJoCo model/generator checks also passed: 15 Pineapple tests and 16 scene-layout checks (four scene-layout checks skipped without xacro).
+The arm-equipped robot passed one synthetic-joystick stand/short-drive/sit cycle with wheel-aware KF feedback at requested MPC 200 Hz; maximum locomotion tilt was 0.03267 rad.
+The arm-free robot passed Square stand-up and eight seconds of MPC balance, maximum locomotion tilt 0.01562 rad.
+As requested, stop there for the arm-free variant: no drive, terrain, push, full sit-down acceptance or tuning before the user tests it.
+Artifacts in `ros_jazzy`: `/tmp/codex_pineapple_manipulator_split.*` and `/tmp/codex_pineapple_armless_baseline.*`.
+All owned test launches were stopped; no robot simulation is left running.
+Operator commands, including both gauntlet scenes, are in `docs/pineapple.md`; historical terrain/robustness results there apply to the original arm-equipped robot only.
+The shared teleop launch accepts the new full-robot name; no teleop mapping, TurboMPC code, GIF, website or media caption changed.
+The user requested no commit or push for this task; changes remain local for acceptance.
+Future work only after user feedback: arm-free stand-up/sit-down acceptance, terrain/gait tests, and optionally a new balanced posture table and contact-aware stand-up TO before tuning MPC.
+Suggested future commit message: `feat(pineapple): split arm-free and manipulator robots into shared model modules`.
+After reviewing the completion summary and gauntlet commands, the user requested committing and pushing this checkpoint on `main` in both the controller and companion teleop repositories.
+No additional simulation or tuning was performed for that publication request; raw videos and GIFs are excluded.
+
